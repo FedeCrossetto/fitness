@@ -1,0 +1,126 @@
+import React from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { BlurView } from 'expo-blur';
+import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { colors, spacing, radius, layout, shadows } from '../theme';
+import { hapticSelect, hapticTap } from '../lib/haptics';
+import { AppText } from '../components/common';
+import { useUiStore } from '../stores/uiStore';
+
+const TAB_META: Record<string, { label: string; icon: keyof typeof Ionicons.glyphMap; iconActive: keyof typeof Ionicons.glyphMap }> = {
+  HomeTab: { label: 'Inicio', icon: 'home-outline', iconActive: 'home' },
+  TrainingTab: { label: 'Entreno', icon: 'barbell-outline', iconActive: 'barbell' },
+  NutritionTab: { label: 'Nutrición', icon: 'nutrition-outline', iconActive: 'nutrition' },
+  ProgressTab: { label: 'Progreso', icon: 'stats-chart-outline', iconActive: 'stats-chart' },
+};
+
+/** Tab bar custom con glassmorphism y FAB central que abre el menú de "agregar". */
+export function TabBar({ state, navigation }: BottomTabBarProps): React.JSX.Element {
+  const insets = useSafeAreaInsets();
+  const openAddMenu = useUiStore((s) => s.openAddMenu);
+
+  return (
+    <View style={[styles.wrapper, { paddingBottom: Math.max(insets.bottom, spacing.xs) }]}>
+      <BlurView intensity={50} tint="dark" style={StyleSheet.absoluteFill} />
+      <View style={styles.tintOverlay} />
+      <View style={styles.row}>
+        {state.routes.map((route, index) => {
+          if (route.name === 'AddTab') {
+            return (
+              <Pressable
+                key={route.key}
+                accessibilityRole="button"
+                accessibilityLabel="Agregar registro"
+                onPress={() => {
+                  hapticTap();
+                  openAddMenu();
+                }}
+                style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
+              >
+                <Ionicons name="add" size={30} color={colors.primary.onText} />
+              </Pressable>
+            );
+          }
+
+          const meta = TAB_META[route.name];
+          const isFocused = state.index === index;
+
+          const onPress = () => {
+            hapticSelect();
+            const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+            if (!isFocused && !event.defaultPrevented) {
+              navigation.navigate(route.name);
+            }
+          };
+
+          return (
+            <Pressable
+              key={route.key}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: isFocused }}
+              accessibilityLabel={meta?.label ?? route.name}
+              onPress={onPress}
+              style={styles.tab}
+            >
+              <Ionicons
+                name={isFocused ? meta?.iconActive ?? 'ellipse' : meta?.icon ?? 'ellipse-outline'}
+                size={22}
+                color={isFocused ? colors.primary.default : colors.text.tertiary}
+              />
+              <AppText
+                variant="body12Medium"
+                color={isFocused ? colors.primary.default : colors.text.tertiary}
+              >
+                {meta?.label ?? route.name}
+              </AppText>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  wrapper: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderTopWidth: 1,
+    borderTopColor: colors.border.subtle,
+    overflow: 'hidden',
+  },
+  tintOverlay: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: colors.surface.overlay,
+    opacity: 0.7,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: layout.tabBarHeight,
+    paddingHorizontal: spacing.xs,
+  },
+  tab: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+    minHeight: layout.minHitTarget,
+  },
+  fab: {
+    width: 56,
+    height: 56,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primary.default,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: spacing.xs,
+    marginTop: -spacing.lg,
+    ...shadows.glow,
+  },
+  fabPressed: { opacity: 0.85, transform: [{ scale: 0.96 }] },
+});

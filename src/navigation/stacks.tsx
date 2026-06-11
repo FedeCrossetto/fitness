@@ -1,0 +1,107 @@
+import React from 'react';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { colors } from '../theme';
+import type {
+  AuthStackParamList,
+  HomeStackParamList,
+  NutritionStackParamList,
+  ProgressStackParamList,
+  TrainingStackParamList,
+} from '../types/navigation';
+
+import { LoginScreen } from '../screens/auth/LoginScreen';
+import { SignUpScreen } from '../screens/auth/SignUpScreen';
+
+import { HomeScreen } from '../screens/home/HomeScreen';
+import { GoalsScreen } from '../screens/goals/GoalsScreen';
+import { ProfileScreen } from '../screens/profile/ProfileScreen';
+import { CommunityScreen } from '../screens/community/CommunityScreen';
+import { SubscriptionScreen } from '../screens/subscription/SubscriptionScreen';
+import { CoachChatScreen } from '../screens/coach/CoachChatScreen';
+import { AchievementsScreen } from '../screens/achievements/AchievementsScreen';
+import { HydrationScreen } from '../screens/progress/HydrationScreen';
+
+import { ProgramScreen } from '../screens/training/ProgramScreen';
+import { WorkoutDetailScreen } from '../screens/training/WorkoutDetailScreen';
+import { LiveSessionScreen } from '../screens/training/LiveSessionScreen';
+import { SessionSummaryScreen } from '../screens/training/SessionSummaryScreen';
+import { CardioLogScreen } from '../screens/training/CardioLogScreen';
+
+import { MealsDayScreen } from '../screens/nutrition/MealsDayScreen';
+import { FoodDetailScreen } from '../screens/nutrition/FoodDetailScreen';
+import { BarcodeScannerScreen } from '../screens/nutrition/BarcodeScannerScreen';
+import { VoiceLogScreen } from '../screens/nutrition/VoiceLogScreen';
+
+import { ProgressDashboardScreen } from '../screens/progress/ProgressDashboardScreen';
+import { WeightDetailScreen } from '../screens/progress/WeightDetailScreen';
+import { ProgressPhotosScreen } from '../screens/progress/ProgressPhotosScreen';
+import { MeasurementsScreen } from '../screens/progress/MeasurementsScreen';
+
+const defaultOptions = {
+  headerShown: false,
+  contentStyle: { backgroundColor: colors.background },
+} as const;
+
+const Auth = createNativeStackNavigator<AuthStackParamList>();
+export function AuthStack(): React.JSX.Element {
+  return (
+    <Auth.Navigator screenOptions={defaultOptions}>
+      <Auth.Screen name="Login" component={LoginScreen} />
+      <Auth.Screen name="SignUp" component={SignUpScreen} />
+    </Auth.Navigator>
+  );
+}
+
+const Home = createNativeStackNavigator<HomeStackParamList>();
+export function HomeStack(): React.JSX.Element {
+  return (
+    <Home.Navigator screenOptions={defaultOptions}>
+      <Home.Screen name="HomeMain" component={HomeScreen} />
+      <Home.Screen name="Goals" component={GoalsScreen} />
+      <Home.Screen name="Profile" component={ProfileScreen} />
+      <Home.Screen name="Community" component={CommunityScreen} />
+      <Home.Screen name="Subscription" component={SubscriptionScreen} />
+      <Home.Screen name="CoachChat" component={CoachChatScreen} />
+      <Home.Screen name="Achievements" component={AchievementsScreen} />
+      <Home.Screen name="Hydration" component={HydrationScreen} />
+    </Home.Navigator>
+  );
+}
+
+const Training = createNativeStackNavigator<TrainingStackParamList>();
+export function TrainingStack(): React.JSX.Element {
+  return (
+    <Training.Navigator screenOptions={defaultOptions}>
+      <Training.Screen name="Program" component={ProgramScreen} />
+      <Training.Screen name="WorkoutDetail" component={WorkoutDetailScreen} />
+      <Training.Screen name="LiveSession" component={LiveSessionScreen} />
+      <Training.Screen name="SessionSummary" component={SessionSummaryScreen} />
+      <Training.Screen name="CardioLog" component={CardioLogScreen} />
+    </Training.Navigator>
+  );
+}
+
+const Nutrition = createNativeStackNavigator<NutritionStackParamList>();
+export function NutritionStack(): React.JSX.Element {
+  return (
+    <Nutrition.Navigator screenOptions={defaultOptions}>
+      <Nutrition.Screen name="MealsDay" component={MealsDayScreen} />
+      <Nutrition.Screen name="FoodDetail" component={FoodDetailScreen} options={{ presentation: 'modal' }} />
+      <Nutrition.Screen name="BarcodeScanner" component={BarcodeScannerScreen} options={{ presentation: 'fullScreenModal' }} />
+      <Nutrition.Screen name="VoiceLog" component={VoiceLogScreen} options={{ presentation: 'modal' }} />
+    </Nutrition.Navigator>
+  );
+}
+
+const Progress = createNativeStackNavigator<ProgressStackParamList>();
+export function ProgressStack(): React.JSX.Element {
+  return (
+    <Progress.Navigator screenOptions={defaultOptions}>
+      <Progress.Screen name="Dashboard" component={ProgressDashboardScreen} />
+      <Progress.Screen name="WeightDetail" component={WeightDetailScreen} />
+      <Progress.Screen name="ProgressPhotos" component={ProgressPhotosScreen} />
+      <Progress.Screen name="Measurements" component={MeasurementsScreen} />
+      <Progress.Screen name="HydrationDetail" component={HydrationScreen} />
+    </Progress.Navigator>
+  );
+}

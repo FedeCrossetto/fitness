@@ -1,0 +1,93 @@
+{
+  "expo": {
+    "name": "Habito",
+    "slug": "habito",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "habito",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0C0C0C",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0C0C0C"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.habito.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Habito usa la cámara para escanear códigos de barras de alimentos y tomar fotos de progreso.",
+        "NSPhotoLibraryUsageDescription": "Habito accede a tus fotos para que elijas tu avatar y fotos de progreso.",
+        "NSMicrophoneUsageDescription": "Habito usa el micrófono para registrar comidas por voz.",
+        "NSSpeechRecognitionUsageDescription": "Habito convierte tu voz en texto para registrar comidas.",
+        "NSMotionUsageDescription": "Habito usa el sensor de movimiento para contar tus pasos diarios.",
+        "NSHealthShareUsageDescription": "Habito lee peso, pasos, frecuencia cardíaca y sueño de Apple Health para completar tu progreso.",
+        "NSHealthUpdateUsageDescription": "Habito puede guardar tu peso y entrenamientos en Apple Health."
+      },
+      "entitlements": {
+        "com.apple.developer.healthkit": true
+      }
+    },
+    "android": {
+      "package": "com.habito.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#0C0C0C",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACTIVITY_RECOGNITION",
+        "android.permission.POST_NOTIFICATIONS"
+      ],
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-font",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Habito usa la cámara para escanear códigos de barras y tomar fotos de progreso."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Habito accede a tus fotos para tu avatar y fotos de progreso."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#BEFC50"
+        }
+      ],
+      [
+        "expo-sensors",
+        {
+          "motionPermission": "Habito cuenta tus pasos diarios con el sensor de movimiento."
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Habito usa el micrófono para registrar comidas por voz.",
+          "speechRecognitionPermission": "Habito convierte tu voz en texto para registrar comidas."
+        }
+      ]
+    ],
+    "extra": {
+      "supabaseUrl": "",
+      "supabaseAnonKey": "",
+      "eas": {
+        "projectId": "5f5437a0-ea00-47a8-b6e1-daa2dff037c0"
+      }
+    }
+  }
+}
