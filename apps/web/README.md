@@ -1,4 +1,4 @@
-# Habito · Panel del entrenador (web)
+# CustomFit · Panel del entrenador (web)
 
 Panel de administración web para entrenadores. Comparte tipos y cliente Supabase
 con la app mobile a través de `packages/shared`.
@@ -11,12 +11,18 @@ con la app mobile a través de `packages/shared`.
 
 ## Puesta en marcha
 
+Este paquete vive en el monorepo. Las dependencias se instalan una sola vez
+desde la raíz (npm workspaces) y la web se levanta con el script del root.
+
 ```bash
-cd apps/web
-cp .env.example .env.local   # completá VITE_SUPABASE_ANON_KEY
-npm install
-npm run dev                  # http://localhost:5173
+# desde la raíz del repo (habito/)
+npm install                       # instala todos los workspaces
+cp apps/web/.env.example apps/web/.env.local   # completá VITE_SUPABASE_ANON_KEY
+npm run web                       # http://localhost:5173
 ```
+
+> La `VITE_SUPABASE_ANON_KEY` todavía está vacía en `.env.local`. Pegá la
+> **anon key** del proyecto Supabase (Settings → API) o el login fallará.
 
 > El `VITE_SUPABASE_ANON_KEY` es la **anon key** del proyecto Supabase
 > (Settings → API). No uses la service_role key en el frontend.

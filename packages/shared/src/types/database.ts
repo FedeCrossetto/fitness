@@ -136,6 +136,7 @@ export interface ExerciseRow {
 export interface TrainingPhaseRow {
   id: string;
   program_key: string | null;
+  trainer_id: string | null;
   phase_number: number;
   name: string;
   description: string | null;
@@ -147,6 +148,7 @@ export interface TrainingPhaseRow {
 
 export interface WorkoutRow {
   id: string;
+  trainer_id: string | null;
   title: string;
   workout_type: WorkoutType;
   duration_min: number | null;

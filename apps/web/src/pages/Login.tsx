@@ -24,9 +24,7 @@ export function LoginPage(): React.JSX.Element {
   return (
     <div className="center-screen">
       <form className="login-box card" onSubmit={(e) => void onSubmit(e)}>
-        <h1 className="page-title">
-          Habito<span style={{ color: 'var(--primary)' }}>.</span> admin
-        </h1>
+        <h1 className="page-title">CustomFit</h1>
         <p className="page-sub">Panel del entrenador</p>
         {error ? <div className="toast error">{error}</div> : null}
         <div className="field">
