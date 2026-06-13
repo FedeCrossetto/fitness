@@ -25,6 +25,7 @@ interface AuthState {
   signIn: (email: string, password: string) => Promise<boolean>;
   signUp: (email: string, password: string, fullName: string) => Promise<boolean>;
   signInWithOAuth: (provider: OAuthProvider) => Promise<boolean>;
+  resetPassword: (email: string) => Promise<boolean>;
   completeOnboarding: (data: { goal: string; level: string }) => Promise<boolean>;
   refreshProfile: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -163,6 +164,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         needsOnboarding: !profile?.goal,
         loading: false,
       });
+      return true;
+    } catch (error) {
+      set({ loading: false, error: messageFor(error) });
+      return false;
+    }
+  },
+
+  resetPassword: async (email) => {
+    set({ loading: true, error: null });
+    try {
+      const redirectTo = AuthSession.makeRedirectUri({ scheme: 'habito' });
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo });
+      if (error) throw error;
+      set({ loading: false });
       return true;
     } catch (error) {
       set({ loading: false, error: messageFor(error) });

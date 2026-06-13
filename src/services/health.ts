@@ -42,7 +42,11 @@ function getModule(): AppleHealthKitModule | null {
     // require dinámico: el módulo nativo no existe en Expo Go ni en Android
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const mod = require('react-native-health') as { default?: AppleHealthKitModule } & AppleHealthKitModule;
-    return mod.default ?? mod;
+    const resolved = mod.default ?? mod;
+    // En Expo Go el require no falla pero el módulo nativo viene sin métodos:
+    // validamos la forma para degradar a null en vez de explotar al usarlo.
+    if (!resolved || typeof resolved.initHealthKit !== 'function') return null;
+    return resolved;
   } catch {
     return null;
   }

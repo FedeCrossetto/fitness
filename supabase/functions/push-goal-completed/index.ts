@@ -82,5 +82,25 @@ Deno.serve(async (req) => {
     return new Response('error de push', { status: 200 });
   }
 
+  // Desactivar tokens que Expo reporta como no registrados (app desinstalada, etc.)
+  try {
+    const result = (await pushResponse.json()) as {
+      data?: { status: string; details?: { error?: string } }[];
+    };
+    const staleTokens = (result.data ?? [])
+      .map((ticket, i) => ({ ticket, token: tokens[i]?.expo_token }))
+      .filter(
+        ({ ticket, token }) =>
+          token && ticket.status === 'error' && ticket.details?.error === 'DeviceNotRegistered'
+      )
+      .map(({ token }) => token as string);
+
+    if (staleTokens.length > 0) {
+      await admin.from('push_tokens').update({ is_active: false }).in('expo_token', staleTokens);
+    }
+  } catch {
+    // si no pudimos parsear la respuesta, no es crítico: la push ya se envió
+  }
+
   return new Response('enviado', { status: 200 });
 });

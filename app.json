@@ -80,7 +80,8 @@
           "microphonePermission": "Habito usa el micrófono para registrar comidas por voz.",
           "speechRecognitionPermission": "Habito convierte tu voz en texto para registrar comidas."
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "extra": {
       "supabaseUrl": "",

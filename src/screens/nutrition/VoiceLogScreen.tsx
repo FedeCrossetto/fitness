@@ -11,7 +11,7 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
-import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
+import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from '../../lib/speech';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { illustrations, layout, radius, shadows, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
 import { AppText, Button, ErrorState, IconButton, Input } from '../../components/common';
