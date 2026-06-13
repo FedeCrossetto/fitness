@@ -14,10 +14,9 @@ export function Layout(): React.JSX.Element {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <div className="brand">
-          <img src="/logo.png" alt="CustomFit" className="brand-logo" />
-          CustomFit <span className="muted" style={{ fontSize: 12 }}>admin</span>
-        </div>
+        <NavLink to="/" end className="brand" aria-label="Inicio">
+          <img src="/logo.png" alt="" className="brand-logo" />
+        </NavLink>
         {NAV.map((item) => (
           <NavLink
             key={item.to}
