@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { colors, illustrations, layout, radius, spacing } from '../../theme';
+import { illustrations, layout, radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
 import {
   AppText,
   Button,
@@ -25,6 +25,9 @@ import type { TrainingStackParamList } from '../../types/navigation';
 type Props = NativeStackScreenProps<TrainingStackParamList, 'Program'>;
 
 export function ProgramScreen({ navigation }: Props): React.JSX.Element {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   const insets = useSafeAreaInsets();
 
   const session = useAuthStore((s) => s.session);
@@ -247,7 +250,7 @@ export function ProgramScreen({ navigation }: Props): React.JSX.Element {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Colors) => StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',

@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming, Easing } from 'react-native-reanimated';
-import { colors, radius } from '../../theme';
+import { radius, useTheme } from '../../theme';
 
 interface ProgressBarProps {
   /** 0..1 */
@@ -15,10 +15,13 @@ interface ProgressBarProps {
 export function ProgressBar({
   progress,
   height = 8,
-  color = colors.primary.default,
-  trackColor = colors.surface.elevated,
+  color,
+  trackColor,
   style,
 }: ProgressBarProps): React.JSX.Element {
+  const { colors, isDark } = useTheme();
+  const fillColor = color ?? colors.primary.default;
+  const track = trackColor ?? (isDark ? colors.surface.elevated : colors.border.default);
   const animated = useSharedValue(0);
 
   useEffect(() => {
@@ -33,8 +36,8 @@ export function ProgressBar({
   }));
 
   return (
-    <View style={[styles.track, { height, backgroundColor: trackColor }, style]}>
-      <Animated.View style={[styles.fill, { backgroundColor: color }, fillStyle]} />
+    <View style={[styles.track, { height, backgroundColor: track }, style]}>
+      <Animated.View style={[styles.fill, { backgroundColor: fillColor }, fillStyle]} />
     </View>
   );
 }

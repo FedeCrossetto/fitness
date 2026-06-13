@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { StyleProp, StyleSheet, TextInput, TextInputProps, View, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radius, spacing, typography, layout } from '../../theme';
+import { Colors, radius, spacing, typography, layout, useTheme, useThemedStyles } from '../../theme';
 import { AppText } from './AppText';
 import { IconButton } from './IconButton';
 
@@ -22,6 +22,8 @@ export function Input({
 }: InputProps): React.JSX.Element {
   const [focused, setFocused] = useState(false);
   const [hidden, setHidden] = useState(Boolean(secureTextEntry));
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
 
   return (
     <View style={containerStyle}>
@@ -68,28 +70,29 @@ export function Input({
   );
 }
 
-const styles = StyleSheet.create({
-  label: { marginBottom: spacing.xs },
-  field: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    backgroundColor: colors.surface.base,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    minHeight: 52,
-  },
-  focused: { borderColor: colors.primary.default },
-  errored: { borderColor: colors.states.error },
-  input: {
-    flex: 1,
-    ...typography.body16,
-    color: colors.text.primary,
-    paddingVertical: spacing.sm,
-    minHeight: layout.minHitTarget,
-  },
-  eyeButton: { borderWidth: 0, width: 36, height: 36 },
-  error: { marginTop: spacing.xxs },
-});
+const createStyles = (colors: Colors) =>
+  StyleSheet.create({
+    label: { marginBottom: spacing.xs },
+    field: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+      backgroundColor: colors.surface.base,
+      borderWidth: 1,
+      borderColor: colors.border.default,
+      borderRadius: radius.md,
+      paddingHorizontal: spacing.md,
+      minHeight: 52,
+    },
+    focused: { borderColor: colors.primary.default },
+    errored: { borderColor: colors.states.error },
+    input: {
+      flex: 1,
+      ...typography.body16,
+      color: colors.text.primary,
+      paddingVertical: spacing.sm,
+      minHeight: layout.minHitTarget,
+    },
+    eyeButton: { borderWidth: 0, width: 36, height: 36 },
+    error: { marginTop: spacing.xxs },
+  });

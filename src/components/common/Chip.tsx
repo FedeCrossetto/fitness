@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, StyleProp, StyleSheet, ViewStyle } from 'react-native';
-import { colors, radius, spacing } from '../../theme';
+import { Colors, radius, spacing, useTheme, useThemedStyles } from '../../theme';
 import { hapticSelect } from '../../lib/haptics';
 import { AppText } from './AppText';
 
@@ -12,6 +12,8 @@ interface ChipProps {
 }
 
 export function Chip({ label, active = false, onPress, style }: ChipProps): React.JSX.Element {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const content = (
     <AppText
       variant="body13SemiBold"
@@ -44,21 +46,22 @@ export function Chip({ label, active = false, onPress, style }: ChipProps): Reac
   );
 }
 
-const styles = StyleSheet.create({
-  base: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surface.elevated,
-    borderWidth: 1,
-    borderColor: colors.border.subtle,
-    minHeight: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  active: {
-    backgroundColor: colors.primary.default,
-    borderColor: colors.primary.default,
-  },
-  pressed: { opacity: 0.8 },
-});
+const createStyles = (colors: Colors) =>
+  StyleSheet.create({
+    base: {
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.xs,
+      borderRadius: radius.pill,
+      backgroundColor: colors.surface.elevated,
+      borderWidth: 1,
+      borderColor: colors.border.subtle,
+      minHeight: 36,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    active: {
+      backgroundColor: colors.primary.default,
+      borderColor: colors.primary.default,
+    },
+    pressed: { opacity: 0.8 },
+  });

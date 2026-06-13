@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { colors, illustrations, layout, radius, spacing } from '../../theme';
+import { illustrations, layout, radius, spacing, Colors, ThemeMode, useThemedStyles, useTheme } from '../../theme';
 import { formatLongDate } from '../../lib/dates';
 import { supabase } from '../../lib/supabase';
 import { uploadAvatar } from '../../services/storage';
@@ -22,6 +22,7 @@ import {
   Chip,
   IconButton,
   SectionHeader,
+  SegmentedTabs,
 } from '../../components/common';
 import { useAuthStore } from '../../stores/authStore';
 import { useUiStore } from '../../stores/uiStore';
@@ -84,6 +85,9 @@ interface SettingsRowProps {
 }
 
 function SettingsRow({ icon, label, onPress, last = false }: SettingsRowProps): React.JSX.Element {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -102,7 +106,16 @@ function SettingsRow({ icon, label, onPress, last = false }: SettingsRowProps): 
   );
 }
 
+const THEME_MODES: { mode: ThemeMode; label: string }[] = [
+  { mode: 'dark', label: 'Oscuro' },
+  { mode: 'light', label: 'Claro' },
+  { mode: 'system', label: 'Sistema' },
+];
+
 export function ProfileScreen({ navigation }: Props): React.JSX.Element {
+  const { colors, mode, setMode } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   const insets = useSafeAreaInsets();
 
   const session = useAuthStore((s) => s.session);
@@ -315,6 +328,24 @@ export function ProfileScreen({ navigation }: Props): React.JSX.Element {
           <SettingsRow icon="people-outline" label="Comunidad" onPress={() => navigation.navigate('Community')} last />
         </Card>
 
+        {/* Apariencia */}
+        <SectionHeader title="Apariencia" />
+        <Card style={styles.settingsCard}>
+          <View style={styles.themeRow}>
+            <View style={styles.rowIcon}>
+              <Ionicons name="color-palette-outline" size={18} color={colors.primary.default} />
+            </View>
+            <AppText variant="body16Medium" color={colors.text.primary} style={styles.rowLabel}>
+              Tema de la app
+            </AppText>
+          </View>
+          <SegmentedTabs
+            tabs={THEME_MODES.map((t) => t.label)}
+            activeIndex={Math.max(0, THEME_MODES.findIndex((t) => t.mode === mode))}
+            onChange={(index) => setMode(THEME_MODES[index]!.mode)}
+          />
+        </Card>
+
         {/* Salud */}
         <SectionHeader title="Salud" />
         <Card style={styles.settingsCard}>
@@ -362,7 +393,7 @@ export function ProfileScreen({ navigation }: Props): React.JSX.Element {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Colors) => StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',
@@ -419,6 +450,12 @@ const styles = StyleSheet.create({
   planSub: { marginTop: spacing.xxs },
   planCta: { marginTop: spacing.md, alignSelf: 'flex-start' },
   settingsCard: { paddingVertical: spacing.xxs },
+  themeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

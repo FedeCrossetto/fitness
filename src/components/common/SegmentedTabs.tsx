@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { LayoutChangeEvent, Pressable, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
-import { colors, radius, spacing } from '../../theme';
+import { Colors, radius, spacing, useTheme, useThemedStyles } from '../../theme';
 import { hapticSelect } from '../../lib/haptics';
 import { AppText } from './AppText';
 
@@ -16,6 +16,8 @@ export function SegmentedTabs({ tabs, activeIndex, onChange }: SegmentedTabsProp
   const [width, setWidth] = useState(0);
   const tabWidth = width / Math.max(tabs.length, 1);
   const offset = useSharedValue(0);
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
 
   const onLayout = (event: LayoutChangeEvent) => {
     setWidth(event.nativeEvent.layout.width - spacing.xxs * 2);
@@ -55,28 +57,29 @@ export function SegmentedTabs({ tabs, activeIndex, onChange }: SegmentedTabsProp
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    backgroundColor: colors.surface.base,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border.subtle,
-    padding: spacing.xxs,
-  },
-  highlight: {
-    position: 'absolute',
-    top: spacing.xxs,
-    bottom: spacing.xxs,
-    left: spacing.xxs,
-    backgroundColor: colors.primary.default,
-    borderRadius: radius.sm,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: spacing.sm,
-    alignItems: 'center',
-    minHeight: 44,
-    justifyContent: 'center',
-  },
-});
+const createStyles = (colors: Colors) =>
+  StyleSheet.create({
+    container: {
+      flexDirection: 'row',
+      backgroundColor: colors.surface.base,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.border.subtle,
+      padding: spacing.xxs,
+    },
+    highlight: {
+      position: 'absolute',
+      top: spacing.xxs,
+      bottom: spacing.xxs,
+      left: spacing.xxs,
+      backgroundColor: colors.primary.default,
+      borderRadius: radius.sm,
+    },
+    tab: {
+      flex: 1,
+      paddingVertical: spacing.sm,
+      alignItems: 'center',
+      minHeight: 44,
+      justifyContent: 'center',
+    },
+  });

@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { colors, layout, radius, spacing } from '../../theme';
+import { layout, radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
 import { clientConfig } from '../../config/clientConfig';
 import { hapticSelect, hapticSuccess } from '../../lib/haptics';
 import {
@@ -29,6 +29,9 @@ const QUICK_ACTIONS = [
 ] as const;
 
 export function HydrationScreen(): React.JSX.Element {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
 
@@ -202,7 +205,7 @@ export function HydrationScreen(): React.JSX.Element {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Colors) => StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',

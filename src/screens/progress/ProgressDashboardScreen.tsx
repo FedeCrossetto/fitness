@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { colors, illustrations, layout, radius, spacing } from '../../theme';
+import { illustrations, layout, radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
 import { formatShortDate } from '../../lib/dates';
 import {
   AppText,
@@ -17,9 +17,10 @@ import {
   MetricCard,
   SectionHeader,
 } from '../../components/common';
-import { LineChart } from '../../components/charts/LineChart';
+import { BarChart, LineChart } from '../../components/charts';
 import { useAuthStore } from '../../stores/authStore';
 import { useProgressStore } from '../../stores/progressStore';
+import { useTrainingStore } from '../../stores/trainingStore';
 import { useUiStore } from '../../stores/uiStore';
 import { getTodaySteps } from '../../services/steps';
 import { initHealthKit, readHealthSnapshot } from '../../services/health';
@@ -31,6 +32,9 @@ type Props = NativeStackScreenProps<ProgressStackParamList, 'Dashboard'>;
 const CHART_WIDTH = Dimensions.get('window').width - layout.screenPadding * 2 - spacing.md * 2;
 
 export function ProgressDashboardScreen({ navigation }: Props): React.JSX.Element {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   const insets = useSafeAreaInsets();
 
   const session = useAuthStore((s) => s.session);
@@ -42,6 +46,8 @@ export function ProgressDashboardScreen({ navigation }: Props): React.JSX.Elemen
   const loadMeasurements = useProgressStore((s) => s.loadMeasurements);
   const steps = useProgressStore((s) => s.steps);
   const setSteps = useProgressStore((s) => s.setSteps);
+  const recentLogs = useTrainingStore((s) => s.recentLogs);
+  const loadRecentLogs = useTrainingStore((s) => s.loadRecentLogs);
 
   const [refreshing, setRefreshing] = useState(false);
   const [snapshot, setSnapshot] = useState<HealthSnapshot | null>(null);
@@ -49,11 +55,11 @@ export function ProgressDashboardScreen({ navigation }: Props): React.JSX.Elemen
 
   const loadAll = useCallback(async () => {
     if (!userId) return;
-    await loadMeasurements(userId);
+    await Promise.all([loadMeasurements(userId), loadRecentLogs(userId)]);
     const [todaySteps, healthSnapshot] = await Promise.all([getTodaySteps(), readHealthSnapshot()]);
     if (todaySteps !== null) setSteps(todaySteps);
     setSnapshot(healthSnapshot);
-  }, [userId, loadMeasurements, setSteps]);
+  }, [userId, loadMeasurements, loadRecentLogs, setSteps]);
 
   useFocusEffect(
     useCallback(() => {
@@ -88,6 +94,23 @@ export function ProgressDashboardScreen({ navigation }: Props): React.JSX.Elemen
   const currentWeight = weightHistory.length > 0 ? (weightHistory[weightHistory.length - 1]!.weight_kg as number) : null;
   const previousWeight = weightHistory.length > 1 ? (weightHistory[weightHistory.length - 2]!.weight_kg as number) : null;
   const weightDelta = currentWeight !== null && previousWeight !== null ? currentWeight - previousWeight : null;
+
+  // Minutos activos por día de los últimos 7 días (estilo "Calories Burned" de la plantilla)
+  const weeklyActivity = useMemo(() => {
+    const days: { label: string; value: number }[] = [];
+    const dayLetters = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const iso = d.toISOString().slice(0, 10);
+      const minutes = recentLogs
+        .filter((l) => l.date === iso)
+        .reduce((acc, l) => acc + (l.duration_min ?? 0), 0);
+      days.push({ label: dayLetters[d.getDay()]!, value: minutes });
+    }
+    return days;
+  }, [recentLogs]);
+  const hasWeeklyActivity = weeklyActivity.some((d) => d.value > 0);
 
   const latestFat = measurements.find((m) => m.body_fat_pct !== null)?.body_fat_pct ?? null;
   const leanMass = currentWeight !== null && latestFat !== null ? currentWeight * (1 - latestFat / 100) : null;
@@ -180,10 +203,34 @@ export function ProgressDashboardScreen({ navigation }: Props): React.JSX.Elemen
                 </AppText>
               ) : null}
               <View style={styles.chartWrap}>
-                <LineChart data={chartData} width={CHART_WIDTH} height={150} formatValue={(v) => `${v.toFixed(1)} kg`} />
+                <LineChart
+                  data={chartData}
+                  width={CHART_WIDTH}
+                  height={150}
+                  showDots
+                  formatValue={(v) => `${v.toFixed(1)} kg`}
+                />
               </View>
             </Card>
           )}
+
+          {/* Actividad semanal */}
+          {hasWeeklyActivity ? (
+            <Card style={styles.activityCard}>
+              <View style={styles.weightHeader}>
+                <AppText variant="caps12" color={colors.text.tertiary}>
+                  Minutos activos · últimos 7 días
+                </AppText>
+                <Ionicons name="barbell-outline" size={16} color={colors.primary.default} />
+              </View>
+              <BarChart
+                data={weeklyActivity}
+                width={CHART_WIDTH}
+                height={130}
+                formatValue={(v) => `${Math.round(v)} min`}
+              />
+            </Card>
+          ) : null}
 
           {/* Grid de métricas */}
           <View style={styles.metricsRow}>
@@ -309,7 +356,7 @@ export function ProgressDashboardScreen({ navigation }: Props): React.JSX.Elemen
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Colors) => StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',
@@ -321,6 +368,7 @@ const styles = StyleSheet.create({
   title: { marginTop: 2 },
   mascot: { width: 72, height: 88 },
   weightCard: { marginBottom: spacing.md },
+  activityCard: { marginBottom: spacing.md },
   weightHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',

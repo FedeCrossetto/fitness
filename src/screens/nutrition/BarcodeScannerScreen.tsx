@@ -3,7 +3,7 @@ import { ActivityIndicator, Linking, StyleSheet, View } from 'react-native';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { colors, layout, radius, spacing } from '../../theme';
+import { layout, radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
 import { AppText, Button, ErrorState, IconButton } from '../../components/common';
 import { hapticSuccess } from '../../lib/haptics';
 import type { NutritionStackParamList } from '../../types/navigation';
@@ -15,6 +15,9 @@ const FRAME_HEIGHT = 180;
 const CORNER_SIZE = 28;
 
 export function BarcodeScannerScreen({ navigation, route }: Props): React.JSX.Element {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   const insets = useSafeAreaInsets();
   const { mealType } = route.params;
   const [permission, requestPermission] = useCameraPermissions();
@@ -92,7 +95,7 @@ export function BarcodeScannerScreen({ navigation, route }: Props): React.JSX.El
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Colors) => StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: layout.screenPadding },
   permissionText: { marginTop: spacing.md },

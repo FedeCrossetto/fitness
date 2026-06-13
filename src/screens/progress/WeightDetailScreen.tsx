@@ -3,7 +3,7 @@ import { Dimensions, FlatList, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { colors, layout, spacing } from '../../theme';
+import { layout, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
 import { addDays, formatLongDate, formatShortDate, todayISO } from '../../lib/dates';
 import { hapticSuccess } from '../../lib/haptics';
 import {
@@ -36,6 +36,9 @@ function parseDecimal(value: string): number | null {
 }
 
 export function WeightDetailScreen({ navigation }: Props): React.JSX.Element {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   const insets = useSafeAreaInsets();
 
   const session = useAuthStore((s) => s.session);
@@ -155,7 +158,7 @@ export function WeightDetailScreen({ navigation }: Props): React.JSX.Element {
         </Card>
       );
     },
-    [filteredRows]
+    [filteredRows, colors, styles]
   );
 
   return (
@@ -200,6 +203,7 @@ export function WeightDetailScreen({ navigation }: Props): React.JSX.Element {
                     data={chartData}
                     width={CHART_WIDTH}
                     height={180}
+                    showDots
                     formatValue={(v) => `${v.toFixed(1)} kg`}
                   />
                 ) : (
@@ -242,7 +246,7 @@ export function WeightDetailScreen({ navigation }: Props): React.JSX.Element {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Colors) => StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',

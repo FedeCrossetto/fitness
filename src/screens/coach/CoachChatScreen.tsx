@@ -3,7 +3,7 @@ import { FlatList, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View 
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { colors, layout, radius, spacing } from '../../theme';
+import { layout, radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
 import { formatTime } from '../../lib/dates';
 import { supabase } from '../../lib/supabase';
 import {
@@ -37,6 +37,9 @@ function asWrite<T>(payload: Partial<T>): never {
 }
 
 export function CoachChatScreen({ navigation }: Props): React.JSX.Element {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   const insets = useSafeAreaInsets();
   const session = useAuthStore((s) => s.session);
   const userId = session?.user.id;
@@ -203,7 +206,7 @@ export function CoachChatScreen({ navigation }: Props): React.JSX.Element {
         </AppText>
       </View>
     );
-  }, []);
+  }, [colors, styles]);
 
   let body: React.JSX.Element;
   if (loading && messages.length === 0) {
@@ -339,7 +342,7 @@ export function CoachChatScreen({ navigation }: Props): React.JSX.Element {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Colors) => StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',

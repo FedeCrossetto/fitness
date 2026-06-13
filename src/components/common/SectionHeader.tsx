@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { colors, spacing } from '../../theme';
+import { spacing, useTheme } from '../../theme';
 import { AppText } from './AppText';
 
 interface SectionHeaderProps {
@@ -10,6 +10,7 @@ interface SectionHeaderProps {
 }
 
 export function SectionHeader({ title, actionLabel, onAction }: SectionHeaderProps): React.JSX.Element {
+  const { colors } = useTheme();
   return (
     <View style={styles.row}>
       <AppText variant="h3" color={colors.text.primary}>
@@ -17,7 +18,7 @@ export function SectionHeader({ title, actionLabel, onAction }: SectionHeaderPro
       </AppText>
       {actionLabel && onAction ? (
         <Pressable onPress={onAction} hitSlop={8} accessibilityRole="button">
-          <AppText variant="body13SemiBold" color={colors.primary.default}>
+          <AppText variant="body13SemiBold" color={colors.primary.dark}>
             {actionLabel}
           </AppText>
         </Pressable>

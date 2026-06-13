@@ -4,7 +4,7 @@ import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { colors, layout, radius, spacing } from '../../theme';
+import { layout, radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
 import {
   AppText,
   BottomSheet,
@@ -23,6 +23,9 @@ type Props = NativeStackScreenProps<TrainingStackParamList, 'WorkoutDetail'>;
 type ExerciseItem = WorkoutWithExercises['exercises'][number];
 
 export function WorkoutDetailScreen({ navigation, route }: Props): React.JSX.Element {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   const { workoutId, dayTitle } = route.params;
   const insets = useSafeAreaInsets();
 
@@ -265,7 +268,7 @@ export function WorkoutDetailScreen({ navigation, route }: Props): React.JSX.Ele
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Colors) => StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   padded: { paddingHorizontal: layout.screenPadding },
   header: {

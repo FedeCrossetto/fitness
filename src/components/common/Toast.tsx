@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeInUp, FadeOutUp } from 'react-native-reanimated';
-import { colors, radius, spacing, shadows } from '../../theme';
+import { Colors, radius, spacing, shadows, useTheme, useThemedStyles } from '../../theme';
 import { useUiStore } from '../../stores/uiStore';
 import { AppText } from './AppText';
 
@@ -13,18 +13,20 @@ const ICONS = {
   info: 'information-circle' as const,
 };
 
-const ICON_COLORS = {
-  success: colors.states.success,
-  error: colors.states.error,
-  info: colors.states.info,
-};
-
 /** Toast global controlado por uiStore. Montar una sola vez en App. */
 export function ToastHost(): React.JSX.Element | null {
   const toast = useUiStore((s) => s.toast);
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
 
   if (!toast) return null;
+
+  const iconColors = {
+    success: colors.states.success,
+    error: colors.states.error,
+    info: colors.states.info,
+  };
 
   return (
     <Animated.View
@@ -35,7 +37,7 @@ export function ToastHost(): React.JSX.Element | null {
       pointerEvents="none"
     >
       <View style={styles.toast}>
-        <Ionicons name={ICONS[toast.kind]} size={20} color={ICON_COLORS[toast.kind]} />
+        <Ionicons name={ICONS[toast.kind]} size={20} color={iconColors[toast.kind]} />
         <AppText variant="body14Medium" color={colors.text.primary} style={styles.message}>
           {toast.message}
         </AppText>
@@ -44,26 +46,27 @@ export function ToastHost(): React.JSX.Element | null {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    position: 'absolute',
-    left: spacing.lg,
-    right: spacing.lg,
-    zIndex: 100,
-    alignItems: 'center',
-  },
-  toast: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    backgroundColor: colors.surface.elevated,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    maxWidth: '100%',
-    ...shadows.soft,
-  },
-  message: { flexShrink: 1 },
-});
+const createStyles = (colors: Colors) =>
+  StyleSheet.create({
+    container: {
+      position: 'absolute',
+      left: spacing.lg,
+      right: spacing.lg,
+      zIndex: 100,
+      alignItems: 'center',
+    },
+    toast: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+      backgroundColor: colors.surface.elevated,
+      borderWidth: 1,
+      borderColor: colors.border.default,
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      maxWidth: '100%',
+      ...shadows.soft,
+    },
+    message: { flexShrink: 1 },
+  });

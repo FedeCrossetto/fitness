@@ -1,6 +1,7 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { colors } from '../theme';
+import type { NativeStackNavigationOptions } from '@react-navigation/native-stack';
+import { useTheme } from '../theme';
 import type {
   AuthStackParamList,
   HomeStackParamList,
@@ -37,13 +38,17 @@ import { WeightDetailScreen } from '../screens/progress/WeightDetailScreen';
 import { ProgressPhotosScreen } from '../screens/progress/ProgressPhotosScreen';
 import { MeasurementsScreen } from '../screens/progress/MeasurementsScreen';
 
-const defaultOptions = {
-  headerShown: false,
-  contentStyle: { backgroundColor: colors.background },
-} as const;
+function useStackOptions(): NativeStackNavigationOptions {
+  const { colors } = useTheme();
+  return {
+    headerShown: false,
+    contentStyle: { backgroundColor: colors.background },
+  };
+}
 
 const Auth = createNativeStackNavigator<AuthStackParamList>();
 export function AuthStack(): React.JSX.Element {
+  const defaultOptions = useStackOptions();
   return (
     <Auth.Navigator screenOptions={defaultOptions}>
       <Auth.Screen name="Login" component={LoginScreen} />
@@ -54,6 +59,7 @@ export function AuthStack(): React.JSX.Element {
 
 const Home = createNativeStackNavigator<HomeStackParamList>();
 export function HomeStack(): React.JSX.Element {
+  const defaultOptions = useStackOptions();
   return (
     <Home.Navigator screenOptions={defaultOptions}>
       <Home.Screen name="HomeMain" component={HomeScreen} />
@@ -70,6 +76,7 @@ export function HomeStack(): React.JSX.Element {
 
 const Training = createNativeStackNavigator<TrainingStackParamList>();
 export function TrainingStack(): React.JSX.Element {
+  const defaultOptions = useStackOptions();
   return (
     <Training.Navigator screenOptions={defaultOptions}>
       <Training.Screen name="Program" component={ProgramScreen} />
@@ -83,6 +90,7 @@ export function TrainingStack(): React.JSX.Element {
 
 const Nutrition = createNativeStackNavigator<NutritionStackParamList>();
 export function NutritionStack(): React.JSX.Element {
+  const defaultOptions = useStackOptions();
   return (
     <Nutrition.Navigator screenOptions={defaultOptions}>
       <Nutrition.Screen name="MealsDay" component={MealsDayScreen} />
@@ -95,6 +103,7 @@ export function NutritionStack(): React.JSX.Element {
 
 const Progress = createNativeStackNavigator<ProgressStackParamList>();
 export function ProgressStack(): React.JSX.Element {
+  const defaultOptions = useStackOptions();
   return (
     <Progress.Navigator screenOptions={defaultOptions}>
       <Progress.Screen name="Dashboard" component={ProgressDashboardScreen} />

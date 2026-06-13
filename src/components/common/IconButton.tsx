@@ -1,7 +1,7 @@
 import React from 'react';
 import { Pressable, StyleProp, StyleSheet, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radius, layout } from '../../theme';
+import { Colors, radius, layout, useTheme, useThemedStyles } from '../../theme';
 import { hapticSelect } from '../../lib/haptics';
 
 interface IconButtonProps {
@@ -18,11 +18,14 @@ export function IconButton({
   icon,
   onPress,
   size = 20,
-  color = colors.text.primary,
-  backgroundColor = colors.surface.elevated,
+  color,
+  backgroundColor,
   accessibilityLabel,
   style,
 }: IconButtonProps): React.JSX.Element {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   const handlePress = () => {
     hapticSelect();
     onPress();
@@ -34,22 +37,28 @@ export function IconButton({
       accessibilityLabel={accessibilityLabel}
       onPress={handlePress}
       hitSlop={8}
-      style={({ pressed }) => [styles.base, { backgroundColor }, pressed && styles.pressed, style]}
+      style={({ pressed }) => [
+        styles.base,
+        { backgroundColor: backgroundColor ?? colors.surface.elevated },
+        pressed && styles.pressed,
+        style,
+      ]}
     >
-      <Ionicons name={icon} size={size} color={color} />
+      <Ionicons name={icon} size={size} color={color ?? colors.text.primary} />
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  base: {
-    width: layout.minHitTarget,
-    height: layout.minHitTarget,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.border.subtle,
-  },
-  pressed: { opacity: 0.7 },
-});
+const createStyles = (colors: Colors) =>
+  StyleSheet.create({
+    base: {
+      width: layout.minHitTarget,
+      height: layout.minHitTarget,
+      borderRadius: radius.pill,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.border.subtle,
+    },
+    pressed: { opacity: 0.7 },
+  });

@@ -1,7 +1,7 @@
 import React from 'react';
 import { ActivityIndicator, Pressable, StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radius, spacing, layout } from '../../theme';
+import { Colors, radius, spacing, layout, useTheme, useThemedStyles } from '../../theme';
 import { hapticTap } from '../../lib/haptics';
 import { AppText } from './AppText';
 
@@ -31,6 +31,8 @@ export function Button({
   fullWidth = false,
   style,
 }: ButtonProps): React.JSX.Element {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const isDisabled = disabled || loading;
 
   const handlePress = () => {
@@ -77,24 +79,25 @@ export function Button({
   );
 }
 
-const styles = StyleSheet.create({
-  base: {
-    borderRadius: radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: layout.minHitTarget,
-  },
-  lg: { paddingVertical: spacing.md, paddingHorizontal: spacing.xl },
-  md: { paddingVertical: spacing.sm, paddingHorizontal: spacing.lg },
-  primary: { backgroundColor: colors.primary.default },
-  secondary: {
-    backgroundColor: colors.surface.elevated,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-  },
-  ghost: { backgroundColor: 'transparent' },
-  fullWidth: { alignSelf: 'stretch' },
-  pressed: { opacity: 0.82, transform: [{ scale: 0.99 }] },
-  disabled: { opacity: 0.45 },
-  content: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-});
+const createStyles = (colors: Colors) =>
+  StyleSheet.create({
+    base: {
+      borderRadius: radius.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: layout.minHitTarget,
+    },
+    lg: { paddingVertical: spacing.md, paddingHorizontal: spacing.xl },
+    md: { paddingVertical: spacing.sm, paddingHorizontal: spacing.lg },
+    primary: { backgroundColor: colors.primary.default },
+    secondary: {
+      backgroundColor: colors.surface.elevated,
+      borderWidth: 1,
+      borderColor: colors.border.default,
+    },
+    ghost: { backgroundColor: 'transparent' },
+    fullWidth: { alignSelf: 'stretch' },
+    pressed: { opacity: 0.82, transform: [{ scale: 0.99 }] },
+    disabled: { opacity: 0.45 },
+    content: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  });

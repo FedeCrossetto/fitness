@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import Animated, { useAnimatedProps, useSharedValue, withTiming, Easing } from 'react-native-reanimated';
-import { colors } from '../../theme';
+import { useTheme } from '../../theme';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
@@ -20,10 +20,13 @@ export function ProgressRing({
   progress,
   size = 120,
   strokeWidth = 10,
-  color = colors.primary.default,
-  trackColor = colors.surface.elevated,
+  color,
+  trackColor,
   children,
 }: ProgressRingProps): React.JSX.Element {
+  const { colors, isDark } = useTheme();
+  const strokeColor = color ?? colors.primary.default;
+  const track = trackColor ?? (isDark ? colors.surface.elevated : colors.border.default);
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const animated = useSharedValue(0);
@@ -46,7 +49,7 @@ export function ProgressRing({
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke={trackColor}
+          stroke={track}
           strokeWidth={strokeWidth}
           fill="none"
         />
@@ -54,7 +57,7 @@ export function ProgressRing({
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke={color}
+          stroke={strokeColor}
           strokeWidth={strokeWidth}
           strokeLinecap="round"
           fill="none"

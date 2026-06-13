@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { StyleSheet, View, ActivityIndicator } from 'react-native';
 import { Image } from 'expo-image';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { colors, illustrations, spacing } from '../theme';
+import { illustrations, spacing, useTheme } from '../theme';
 import { useAuthStore } from '../stores/authStore';
 import { useTrainingStore } from '../stores/trainingStore';
 import { AppText } from '../components/common';
@@ -20,6 +20,7 @@ function Placeholder(): null {
 }
 
 function MainTabs(): React.JSX.Element {
+  const { colors } = useTheme();
   return (
     <>
       <Tabs.Navigator
@@ -38,8 +39,9 @@ function MainTabs(): React.JSX.Element {
 }
 
 function SplashGate(): React.JSX.Element {
+  const { colors } = useTheme();
   return (
-    <View style={styles.splash}>
+    <View style={[styles.splash, { backgroundColor: colors.background }]}>
       <Image source={illustrations.hero} style={styles.mascot} contentFit="contain" priority="high" />
       <AppText variant="h2" color={colors.text.primary} style={styles.brand}>
         {clientConfig.appName}
@@ -71,7 +73,6 @@ export function RootNavigator(): React.JSX.Element {
 const styles = StyleSheet.create({
   splash: {
     flex: 1,
-    backgroundColor: colors.background,
     alignItems: 'center',
     justifyContent: 'center',
   },

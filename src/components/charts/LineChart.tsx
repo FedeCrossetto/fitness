@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
-import Svg, { Circle, Defs, LinearGradient as SvgGradient, Path, Stop } from 'react-native-svg';
-import { colors, spacing } from '../../theme';
+import Svg, { Circle, Defs, Line, LinearGradient as SvgGradient, Path, Stop } from 'react-native-svg';
+import { Colors, spacing, useTheme, useThemedStyles } from '../../theme';
 import { AppText } from '../common/AppText';
 
 export interface ChartPoint {
@@ -16,6 +16,10 @@ interface LineChartProps {
   color?: string;
   /** Cantidad de etiquetas del eje X a mostrar */
   maxLabels?: number;
+  /** Marca cada punto de dato con un círculo (estilo plantilla) */
+  showDots?: boolean;
+  /** Líneas de grilla horizontales sutiles */
+  showGrid?: boolean;
   formatValue?: (value: number) => string;
 }
 
@@ -24,10 +28,16 @@ export function LineChart({
   data,
   height = 160,
   width = 320,
-  color = colors.primary.default,
+  color,
   maxLabels = 4,
+  showDots = false,
+  showGrid = true,
   formatValue = (v) => String(Math.round(v * 10) / 10),
 }: LineChartProps): React.JSX.Element {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+  const stroke = color ?? colors.primary.default;
+
   if (data.length === 0) {
     return <View style={[styles.empty, { height }]} />;
   }
@@ -54,6 +64,7 @@ export function LineChart({
 
   const last = points[points.length - 1]!;
   const labelStep = Math.max(1, Math.ceil(data.length / maxLabels));
+  const gridLines = [0.25, 0.5, 0.75].map((t) => padding.top + chartH * t);
 
   return (
     <View>
@@ -68,13 +79,39 @@ export function LineChart({
       <Svg width={width} height={height}>
         <Defs>
           <SvgGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor={color} stopOpacity={0.25} />
-            <Stop offset="1" stopColor={color} stopOpacity={0} />
+            <Stop offset="0" stopColor={stroke} stopOpacity={0.25} />
+            <Stop offset="1" stopColor={stroke} stopOpacity={0} />
           </SvgGradient>
         </Defs>
+        {showGrid
+          ? gridLines.map((y) => (
+              <Line
+                key={y}
+                x1={padding.left}
+                y1={y}
+                x2={width - padding.right}
+                y2={y}
+                stroke={colors.border.subtle}
+                strokeWidth={1}
+              />
+            ))
+          : null}
         <Path d={areaPath} fill="url(#areaFill)" />
-        <Path d={linePath} stroke={color} strokeWidth={2.5} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-        <Circle cx={last.x} cy={last.y} r={5} fill={color} stroke={colors.background} strokeWidth={2} />
+        <Path d={linePath} stroke={stroke} strokeWidth={2.5} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        {showDots
+          ? points.slice(0, -1).map((p, i) => (
+              <Circle
+                key={`dot-${i}`}
+                cx={p.x}
+                cy={p.y}
+                r={3.5}
+                fill={colors.surface.base}
+                stroke={stroke}
+                strokeWidth={2}
+              />
+            ))
+          : null}
+        <Circle cx={last.x} cy={last.y} r={5} fill={stroke} stroke={colors.background} strokeWidth={2} />
       </Svg>
       <View style={styles.labels}>
         {data
@@ -89,16 +126,17 @@ export function LineChart({
   );
 }
 
-const styles = StyleSheet.create({
-  empty: { backgroundColor: colors.surface.base },
-  rangeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: spacing.xxs,
-  },
-  labels: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: spacing.xxs,
-  },
-});
+const createStyles = (colors: Colors) =>
+  StyleSheet.create({
+    empty: { backgroundColor: colors.surface.base },
+    rangeRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginBottom: spacing.xxs,
+    },
+    labels: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginTop: spacing.xxs,
+    },
+  });

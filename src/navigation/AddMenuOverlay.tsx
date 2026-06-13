@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useNavigation } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
-import { colors, radius, spacing } from '../theme';
+import { Colors, radius, spacing, useTheme, useThemedStyles } from '../theme';
 import { hapticTap } from '../lib/haptics';
 import { AppText, IconButton } from '../components/common';
 import { useUiStore } from '../stores/uiStore';
@@ -64,6 +64,8 @@ export function AddMenuOverlay(): React.JSX.Element {
   const close = useUiStore((s) => s.closeAddMenu);
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp<MainTabsParamList>>();
+  const { colors, isDark } = useTheme();
+  const styles = useThemedStyles(createStyles);
 
   const handleAction = (action: AddAction) => {
     hapticTap();
@@ -75,7 +77,7 @@ export function AddMenuOverlay(): React.JSX.Element {
     <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
       <View style={styles.container}>
         <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel="Cerrar menú">
-          <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
+          <BlurView intensity={40} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
           <View style={styles.dim} />
         </Pressable>
 
@@ -92,7 +94,7 @@ export function AddMenuOverlay(): React.JSX.Element {
                 style={({ pressed }) => [styles.item, pressed && styles.itemPressed]}
               >
                 <View style={styles.itemIcon}>
-                  <Ionicons name={action.icon} size={22} color={colors.primary.default} />
+                  <Ionicons name={action.icon} size={22} color={colors.primary.dark} />
                 </View>
                 <View style={styles.itemText}>
                   <AppText variant="body16SemiBold" color={colors.text.primary}>
@@ -123,7 +125,8 @@ export function AddMenuOverlay(): React.JSX.Element {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Colors) =>
+  StyleSheet.create({
   container: { flex: 1, justifyContent: 'flex-end' },
   dim: { ...StyleSheet.absoluteFill, backgroundColor: colors.surface.overlay, opacity: 0.5 },
   menu: { paddingHorizontal: spacing.lg },
@@ -151,4 +154,4 @@ const styles = StyleSheet.create({
   itemText: { flex: 1 },
   closeWrap: { alignItems: 'center', marginTop: spacing.md },
   closeButton: { width: 56, height: 56 },
-});
+  });

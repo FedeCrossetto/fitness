@@ -10,7 +10,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { colors, spacing, radius } from '../../theme';
+import { spacing, radius, Colors, useThemedStyles, useTheme } from '../../theme';
 import { AppText, Button, IconButton, Input } from '../../components/common';
 import { useAuthStore } from '../../stores/authStore';
 import type { AuthStackParamList } from '../../types/navigation';
@@ -18,6 +18,9 @@ import type { AuthStackParamList } from '../../types/navigation';
 type Props = NativeStackScreenProps<AuthStackParamList, 'SignUp'>;
 
 export function SignUpScreen({ navigation }: Props): React.JSX.Element {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   const insets = useSafeAreaInsets();
   const { signUp, signInWithOAuth, loading, error, clearError } = useAuthStore();
   const [fullName, setFullName] = useState('');
@@ -161,7 +164,7 @@ export function SignUpScreen({ navigation }: Props): React.JSX.Element {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Colors) => StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   content: { paddingHorizontal: spacing.xl },
   title: { marginTop: spacing.xl },

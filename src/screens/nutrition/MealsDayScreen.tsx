@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { colors, illustrations, layout, radius, spacing } from '../../theme';
+import { illustrations, layout, radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
 import { formatLongDate, todayISO } from '../../lib/dates';
 import {
   AppText,
@@ -48,6 +48,9 @@ function sourceIcon(source: MacroSource | null): keyof typeof Ionicons.glyphMap 
 }
 
 export function MealsDayScreen({ navigation }: Props): React.JSX.Element {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   const insets = useSafeAreaInsets();
   const session = useAuthStore((s) => s.session);
   const userId = session?.user.id;
@@ -281,7 +284,7 @@ export function MealsDayScreen({ navigation }: Props): React.JSX.Element {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Colors) => StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',

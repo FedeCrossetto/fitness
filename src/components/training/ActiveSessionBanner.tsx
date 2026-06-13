@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
-import { colors, radius, spacing, shadows } from '../../theme';
+import { Colors, radius, spacing, shadows, useTheme, useThemedStyles } from '../../theme';
 import { formatDuration } from '../../lib/dates';
 import { hapticTap } from '../../lib/haptics';
 import { AppText } from '../common';
@@ -15,6 +15,8 @@ export function ActiveSessionBanner(): React.JSX.Element | null {
   const session = useTrainingStore((s) => s.activeSession);
   const navigation = useNavigation<NavigationProp<MainTabsParamList>>();
   const [now, setNow] = useState(() => Date.now());
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
 
   useEffect(() => {
     if (!session) return;
@@ -57,25 +59,26 @@ export function ActiveSessionBanner(): React.JSX.Element | null {
   );
 }
 
-const styles = StyleSheet.create({
-  banner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    backgroundColor: colors.primary.default,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.md,
-    ...shadows.glow,
-  },
-  pressed: { opacity: 0.9 },
-  pulse: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.pill,
-    backgroundColor: 'rgba(12,12,12,0.18)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  info: { flex: 1 },
-});
+const createStyles = (colors: Colors) =>
+  StyleSheet.create({
+    banner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      backgroundColor: colors.primary.default,
+      borderRadius: radius.lg,
+      padding: spacing.md,
+      marginBottom: spacing.md,
+      ...shadows.glow,
+    },
+    pressed: { opacity: 0.9 },
+    pulse: {
+      width: 36,
+      height: 36,
+      borderRadius: radius.pill,
+      backgroundColor: 'rgba(12,12,12,0.18)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    info: { flex: 1 },
+  });

@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, spacing } from '../../theme';
+import { spacing, useTheme } from '../../theme';
 import { AppText } from './AppText';
 import { Card } from './Card';
 
@@ -26,18 +26,19 @@ export function MetricCard({
   delta,
   deltaPositive = true,
   icon,
-  accent = colors.primary.default,
+  accent,
   onPress,
   size = 'medium',
   style,
 }: MetricCardProps): React.JSX.Element {
+  const { colors } = useTheme();
   return (
     <Card onPress={onPress} style={style} accessibilityLabel={`${label}: ${value} ${unit ?? ''}`}>
       <View style={styles.header}>
         <AppText variant="caps12" color={colors.text.tertiary}>
           {label}
         </AppText>
-        {icon ? <Ionicons name={icon} size={16} color={accent} /> : null}
+        {icon ? <Ionicons name={icon} size={16} color={accent ?? colors.primary.default} /> : null}
       </View>
       <View style={styles.valueRow}>
         <AppText variant={size === 'large' ? 'metricLarge' : 'metricMedium'} color={colors.text.primary}>

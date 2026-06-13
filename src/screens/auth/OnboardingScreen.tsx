@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, illustrations, spacing } from '../../theme';
+import { illustrations, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
 import { clientConfig } from '../../config/clientConfig';
 import { AppText, Button, Chip } from '../../components/common';
 import { useAuthStore } from '../../stores/authStore';
@@ -21,6 +21,9 @@ const LEVELS = ['Principiante', 'Intermedio', 'Pro'];
 
 /** Onboarding breve post-registro: objetivo + nivel, con la mascota hero como protagonista. */
 export function OnboardingScreen(): React.JSX.Element {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   const insets = useSafeAreaInsets();
   const { profile, completeOnboarding, loading, error } = useAuthStore();
   const [goal, setGoal] = useState<string | null>(null);
@@ -96,7 +99,7 @@ export function OnboardingScreen(): React.JSX.Element {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Colors) => StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   content: { paddingHorizontal: spacing.xl },
   heroWrap: { alignItems: 'center', marginBottom: spacing.md },

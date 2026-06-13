@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { colors, illustrations, layout, spacing } from '../../theme';
+import { illustrations, layout, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
 import { formatShortDate } from '../../lib/dates';
 import { hapticSuccess } from '../../lib/haptics';
 import { AppText, Button, Card, CardSkeleton, ErrorState, MetricCard } from '../../components/common';
@@ -14,6 +14,9 @@ import type { TrainingStackParamList } from '../../types/navigation';
 type Props = NativeStackScreenProps<TrainingStackParamList, 'SessionSummary'>;
 
 export function SessionSummaryScreen({ navigation, route }: Props): React.JSX.Element {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   const { logId } = route.params;
   const insets = useSafeAreaInsets();
   const loadLogById = useTrainingStore((s) => s.loadLogById);
@@ -145,7 +148,7 @@ export function SessionSummaryScreen({ navigation, route }: Props): React.JSX.El
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Colors) => StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   celebration: { alignItems: 'center', marginBottom: spacing.xl },
   mascot: { width: 160, height: 190, marginBottom: spacing.md },

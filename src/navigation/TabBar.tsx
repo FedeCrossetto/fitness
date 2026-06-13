@@ -4,7 +4,7 @@ import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { colors, spacing, radius, layout, shadows } from '../theme';
+import { Colors, spacing, radius, layout, shadows, useTheme, useThemedStyles } from '../theme';
 import { hapticSelect, hapticTap } from '../lib/haptics';
 import { AppText } from '../components/common';
 import { useUiStore } from '../stores/uiStore';
@@ -20,10 +20,14 @@ const TAB_META: Record<string, { label: string; icon: keyof typeof Ionicons.glyp
 export function TabBar({ state, navigation }: BottomTabBarProps): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const openAddMenu = useUiStore((s) => s.openAddMenu);
+  const { colors, isDark } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
+  const activeColor = isDark ? colors.primary.default : colors.primary.dark;
 
   return (
     <View style={[styles.wrapper, { paddingBottom: Math.max(insets.bottom, spacing.xs) }]}>
-      <BlurView intensity={50} tint="dark" style={StyleSheet.absoluteFill} />
+      <BlurView intensity={50} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
       <View style={styles.tintOverlay} />
       <View style={styles.row}>
         {state.routes.map((route, index) => {
@@ -67,11 +71,11 @@ export function TabBar({ state, navigation }: BottomTabBarProps): React.JSX.Elem
               <Ionicons
                 name={isFocused ? meta?.iconActive ?? 'ellipse' : meta?.icon ?? 'ellipse-outline'}
                 size={22}
-                color={isFocused ? colors.primary.default : colors.text.tertiary}
+                color={isFocused ? activeColor : colors.text.tertiary}
               />
               <AppText
                 variant="body12Medium"
-                color={isFocused ? colors.primary.default : colors.text.tertiary}
+                color={isFocused ? activeColor : colors.text.tertiary}
               >
                 {meta?.label ?? route.name}
               </AppText>
@@ -83,44 +87,45 @@ export function TabBar({ state, navigation }: BottomTabBarProps): React.JSX.Elem
   );
 }
 
-const styles = StyleSheet.create({
-  wrapper: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderTopWidth: 1,
-    borderTopColor: colors.border.subtle,
-    overflow: 'hidden',
-  },
-  tintOverlay: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: colors.surface.overlay,
-    opacity: 0.7,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: layout.tabBarHeight,
-    paddingHorizontal: spacing.xs,
-  },
-  tab: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 2,
-    minHeight: layout.minHitTarget,
-  },
-  fab: {
-    width: 56,
-    height: 56,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primary.default,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginHorizontal: spacing.xs,
-    marginTop: -spacing.lg,
-    ...shadows.glow,
-  },
-  fabPressed: { opacity: 0.85, transform: [{ scale: 0.96 }] },
-});
+const createStyles = (colors: Colors) =>
+  StyleSheet.create({
+    wrapper: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: 0,
+      borderTopWidth: 1,
+      borderTopColor: colors.border.subtle,
+      overflow: 'hidden',
+    },
+    tintOverlay: {
+      ...StyleSheet.absoluteFill,
+      backgroundColor: colors.surface.overlay,
+      opacity: 0.7,
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      height: layout.tabBarHeight,
+      paddingHorizontal: spacing.xs,
+    },
+    tab: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 2,
+      minHeight: layout.minHitTarget,
+    },
+    fab: {
+      width: 56,
+      height: 56,
+      borderRadius: radius.pill,
+      backgroundColor: colors.primary.default,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginHorizontal: spacing.xs,
+      marginTop: -spacing.lg,
+      ...shadows.glow,
+    },
+    fabPressed: { opacity: 0.85, transform: [{ scale: 0.96 }] },
+  });

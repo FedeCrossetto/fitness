@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { colors, layout, radius, spacing } from '../../theme';
+import { layout, radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
 import { formatDuration, formatShortDate } from '../../lib/dates';
 import { hapticSuccess } from '../../lib/haptics';
 import {
@@ -28,6 +28,9 @@ const ACTIVITIES = ['Correr', 'Caminar', 'Bici', 'Natación', 'Remo', 'Otro'] as
 const DISTANCE_UNITS = ['km', 'mi'] as const;
 
 export function CardioLogScreen({ navigation }: Props): React.JSX.Element {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   const insets = useSafeAreaInsets();
 
   const session = useAuthStore((s) => s.session);
@@ -183,7 +186,7 @@ export function CardioLogScreen({ navigation }: Props): React.JSX.Element {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Colors) => StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',

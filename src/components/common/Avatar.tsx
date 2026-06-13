@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
-import { colors, radius } from '../../theme';
+import { Colors, radius, useTheme, useThemedStyles } from '../../theme';
 import { AppText } from './AppText';
 
 interface AvatarProps {
@@ -19,6 +19,8 @@ function initialsOf(name: string | null | undefined): string {
 }
 
 export function Avatar({ name, imageUrl, size = 44 }: AvatarProps): React.JSX.Element {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const dimension = { width: size, height: size, borderRadius: radius.pill };
 
   if (imageUrl) {
@@ -29,7 +31,7 @@ export function Avatar({ name, imageUrl, size = 44 }: AvatarProps): React.JSX.El
     <View style={[styles.fallback, dimension]}>
       <AppText
         variant={size >= 56 ? 'metricSmall' : 'body14SemiBold'}
-        color={colors.primary.default}
+        color={colors.primary.dark}
       >
         {initialsOf(name)}
       </AppText>
@@ -37,13 +39,14 @@ export function Avatar({ name, imageUrl, size = 44 }: AvatarProps): React.JSX.El
   );
 }
 
-const styles = StyleSheet.create({
-  image: { backgroundColor: colors.surface.elevated },
-  fallback: {
-    backgroundColor: colors.primary.muted,
-    borderWidth: 1,
-    borderColor: colors.border.subtle,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
+const createStyles = (colors: Colors) =>
+  StyleSheet.create({
+    image: { backgroundColor: colors.surface.elevated },
+    fallback: {
+      backgroundColor: colors.primary.muted,
+      borderWidth: 1,
+      borderColor: colors.border.subtle,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+  });

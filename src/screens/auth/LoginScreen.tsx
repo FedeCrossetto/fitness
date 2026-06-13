@@ -11,7 +11,7 @@ import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { colors, illustrations, spacing, radius } from '../../theme';
+import { illustrations, spacing, radius, Colors, useThemedStyles, useTheme } from '../../theme';
 import { clientConfig } from '../../config/clientConfig';
 import { AppText, Button, Input } from '../../components/common';
 import { useAuthStore } from '../../stores/authStore';
@@ -20,6 +20,9 @@ import type { AuthStackParamList } from '../../types/navigation';
 type Props = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 
 export function LoginScreen({ navigation }: Props): React.JSX.Element {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   const insets = useSafeAreaInsets();
   const { signIn, signInWithOAuth, loading, error, clearError } = useAuthStore();
   const [email, setEmail] = useState('');
@@ -145,7 +148,7 @@ export function LoginScreen({ navigation }: Props): React.JSX.Element {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Colors) => StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   content: { paddingHorizontal: spacing.xl },
   heroWrap: { alignItems: 'center', marginBottom: spacing.lg },

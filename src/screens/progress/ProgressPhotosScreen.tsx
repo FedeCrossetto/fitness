@@ -4,7 +4,7 @@ import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { colors, layout, radius, spacing } from '../../theme';
+import { layout, radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
 import { formatLongDate, todayISO } from '../../lib/dates';
 import { hapticSuccess } from '../../lib/haptics';
 import {
@@ -41,6 +41,9 @@ function computeWeekNumber(photos: ProgressPhotoRow[]): number {
 }
 
 export function ProgressPhotosScreen({ navigation }: Props): React.JSX.Element {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   const insets = useSafeAreaInsets();
 
   const session = useAuthStore((s) => s.session);
@@ -160,7 +163,7 @@ export function ProgressPhotosScreen({ navigation }: Props): React.JSX.Element {
         </Card>
       );
     },
-    [signedUrls]
+    [signedUrls, colors, styles]
   );
 
   return (
@@ -235,7 +238,7 @@ export function ProgressPhotosScreen({ navigation }: Props): React.JSX.Element {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Colors) => StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',

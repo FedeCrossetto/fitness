@@ -8,7 +8,7 @@ import Animated, {
   SharedValue,
   useAnimatedStyle,
 } from 'react-native-reanimated';
-import { colors, spacing } from '../../theme';
+import { Colors, spacing, useTheme, useThemedStyles } from '../../theme';
 import { AppText } from './AppText';
 
 interface ProgressiveBlurHeaderProps {
@@ -26,6 +26,8 @@ export function ProgressiveBlurHeader({
   leftSlot,
 }: ProgressiveBlurHeaderProps): React.JSX.Element {
   const insets = useSafeAreaInsets();
+  const { colors, isDark } = useTheme();
+  const styles = useThemedStyles(createStyles);
 
   const containerStyle = useAnimatedStyle(() => ({
     opacity: interpolate(scrollY.value, [0, 60], [0, 1], Extrapolation.CLAMP),
@@ -41,7 +43,7 @@ export function ProgressiveBlurHeader({
   return (
     <View style={[styles.wrapper, { height: insets.top + 52 }]} pointerEvents="box-none">
       <Animated.View style={[StyleSheet.absoluteFill, containerStyle]}>
-        <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
+        <BlurView intensity={40} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
         <View style={styles.tintOverlay} />
       </Animated.View>
       <View style={[styles.bar, { paddingTop: insets.top }]}>
@@ -57,25 +59,26 @@ export function ProgressiveBlurHeader({
   );
 }
 
-const styles = StyleSheet.create({
-  wrapper: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-  },
-  tintOverlay: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: colors.surface.overlay,
-    opacity: 0.6,
-  },
-  bar: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-  },
-  slot: { minWidth: 44, alignItems: 'center' },
-});
+const createStyles = (colors: Colors) =>
+  StyleSheet.create({
+    wrapper: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      zIndex: 10,
+    },
+    tintOverlay: {
+      ...StyleSheet.absoluteFill,
+      backgroundColor: colors.surface.overlay,
+      opacity: 0.6,
+    },
+    bar: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: spacing.lg,
+    },
+    slot: { minWidth: 44, alignItems: 'center' },
+  });

@@ -13,7 +13,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { colors, illustrations, layout, radius, shadows, spacing } from '../../theme';
+import { illustrations, layout, radius, shadows, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
 import { AppText, Button, ErrorState, IconButton, Input } from '../../components/common';
 import { hapticSuccess } from '../../lib/haptics';
 import { useAuthStore } from '../../stores/authStore';
@@ -33,6 +33,9 @@ function extractKcal(text: string): number {
 }
 
 export function VoiceLogScreen({ navigation, route }: Props): React.JSX.Element {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   const insets = useSafeAreaInsets();
   const { mealType } = route.params;
 
@@ -270,7 +273,7 @@ export function VoiceLogScreen({ navigation, route }: Props): React.JSX.Element 
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Colors) => StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',

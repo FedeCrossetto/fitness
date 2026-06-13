@@ -4,7 +4,7 @@ import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { colors, layout, radius, spacing } from '../../theme';
+import { layout, radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
 import {
   AppText,
   Button,
@@ -39,6 +39,9 @@ interface Per100 {
 type OffStatus = 'idle' | 'loading' | 'error' | 'notfound' | 'done';
 
 export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Element {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   const insets = useSafeAreaInsets();
   const { mealType, foodId, barcode, mealLogId } = route.params;
 
@@ -550,7 +553,7 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Colors) => StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',

@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
-import { colors, spacing, emptyStateIllustration, Pillar } from '../../theme';
+import { spacing, emptyStateIllustration, Pillar, useTheme } from '../../theme';
 import { AppText } from './AppText';
 import { Button } from './Button';
 
@@ -23,6 +23,7 @@ export function EmptyState({
   onAction,
   compact = false,
 }: EmptyStateProps): React.JSX.Element {
+  const { colors } = useTheme();
   return (
     <View style={[styles.container, compact && styles.compact]}>
       <Image

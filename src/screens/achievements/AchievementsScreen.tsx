@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { colors, illustrations, layout, radius, spacing } from '../../theme';
+import { illustrations, layout, radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
 import { computeAchievements, computeStreak, type Achievement, type StreakInfo } from '../../services/streaks';
 import { AppText, CardSkeleton, ErrorState, IconButton } from '../../components/common';
 import { useAuthStore } from '../../stores/authStore';
@@ -16,6 +16,9 @@ type Props = NativeStackScreenProps<HomeStackParamList, 'Achievements'>;
 const WEEK_LABELS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 
 export function AchievementsScreen({ navigation }: Props): React.JSX.Element {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   const insets = useSafeAreaInsets();
   const session = useAuthStore((s) => s.session);
   const userId = session?.user.id;
@@ -73,7 +76,7 @@ export function AchievementsScreen({ navigation }: Props): React.JSX.Element {
         </AppText>
       </View>
     );
-  }, []);
+  }, [colors, styles]);
 
   let content: React.JSX.Element;
   if (loading && achievements.length === 0) {
@@ -139,7 +142,7 @@ export function AchievementsScreen({ navigation }: Props): React.JSX.Element {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Colors) => StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',

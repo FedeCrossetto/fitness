@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, spacing } from '../../theme';
+import { Colors, spacing, useTheme, useThemedStyles } from '../../theme';
 import { AppText } from './AppText';
 import { Button } from './Button';
 
@@ -11,6 +11,8 @@ interface ErrorStateProps {
 }
 
 export function ErrorState({ message, onRetry }: ErrorStateProps): React.JSX.Element {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.container}>
       <View style={styles.iconWrap}>
@@ -29,21 +31,22 @@ export function ErrorState({ message, onRetry }: ErrorStateProps): React.JSX.Ele
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    alignItems: 'center',
-    paddingVertical: spacing.xxl,
-    paddingHorizontal: spacing.xl,
-  },
-  iconWrap: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.surface.elevated,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.md,
-  },
-  message: { marginTop: spacing.xxs, maxWidth: 280 },
-  retry: { marginTop: spacing.lg },
-});
+const createStyles = (colors: Colors) =>
+  StyleSheet.create({
+    container: {
+      alignItems: 'center',
+      paddingVertical: spacing.xxl,
+      paddingHorizontal: spacing.xl,
+    },
+    iconWrap: {
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      backgroundColor: colors.surface.elevated,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: spacing.md,
+    },
+    message: { marginTop: spacing.xxs, maxWidth: 280 },
+    retry: { marginTop: spacing.lg },
+  });

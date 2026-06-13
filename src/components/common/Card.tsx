@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
-import { colors, radius, spacing, shadows } from '../../theme';
+import { Colors, radius, spacing, shadows, useThemedStyles } from '../../theme';
 import { hapticSelect } from '../../lib/haptics';
 
 interface CardProps {
@@ -12,6 +12,7 @@ interface CardProps {
 }
 
 export function Card({ children, onPress, elevated = false, style, accessibilityLabel }: CardProps): React.JSX.Element {
+  const styles = useThemedStyles(createStyles);
   const baseStyle = [styles.base, elevated && styles.elevated, style];
 
   if (onPress) {
@@ -33,17 +34,18 @@ export function Card({ children, onPress, elevated = false, style, accessibility
   return <View style={baseStyle}>{children}</View>;
 }
 
-const styles = StyleSheet.create({
-  base: {
-    backgroundColor: colors.surface.base,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border.subtle,
-    padding: spacing.md,
-  },
-  elevated: {
-    backgroundColor: colors.surface.elevated,
-    ...shadows.soft,
-  },
-  pressed: { opacity: 0.85 },
-});
+const createStyles = (colors: Colors) =>
+  StyleSheet.create({
+    base: {
+      backgroundColor: colors.surface.base,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: colors.border.subtle,
+      padding: spacing.md,
+    },
+    elevated: {
+      backgroundColor: colors.surface.elevated,
+      ...shadows.soft,
+    },
+    pressed: { opacity: 0.85 },
+  });

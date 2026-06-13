@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import Svg, { Circle, Line } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { colors, layout, spacing } from '../../theme';
+import { layout, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
 import { formatLongDate } from '../../lib/dates';
 import { hapticSuccess } from '../../lib/haptics';
 import {
@@ -49,6 +49,8 @@ function cm(value: number | null | undefined): string {
 
 /** Silueta corporal lineal con etiquetas de las últimas medidas por zona. */
 function BodyAvatar({ latest }: { latest: BodyMeasurementRow | undefined }): React.JSX.Element {
+  const { colors } = useTheme();
+
   return (
     <View style={avatarStyles.row}>
       <View style={avatarStyles.sideColumn}>
@@ -118,6 +120,9 @@ function BodyAvatar({ latest }: { latest: BodyMeasurementRow | undefined }): Rea
 }
 
 export function MeasurementsScreen({ navigation }: Props): React.JSX.Element {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   const insets = useSafeAreaInsets();
 
   const session = useAuthStore((s) => s.session);
@@ -289,7 +294,7 @@ export function MeasurementsScreen({ navigation }: Props): React.JSX.Element {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Colors) => StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',
