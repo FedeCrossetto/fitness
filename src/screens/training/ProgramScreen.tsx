@@ -14,6 +14,7 @@ import {
   Chip,
   EmptyState,
   ErrorState,
+  HeaderAvatar,
   ProgressBar,
 } from '../../components/common';
 import { ActiveSessionBanner } from '../../components/training/ActiveSessionBanner';
@@ -147,11 +148,16 @@ export function ProgramScreen({ navigation }: Props): React.JSX.Element {
                   {phase.days.map((day) => {
                     const meta = DAY_TYPE_META[day.day_type];
                     const isRest = day.day_type === 'descanso' || !day.workout;
+                    const coverUrl = day.workout?.cover_image_url ?? null;
                     const row = (
                       <View style={styles.dayRow}>
-                        <View style={styles.dayIcon}>
-                          <Ionicons name={meta.icon} size={18} color={colors.primary.default} />
-                        </View>
+                        {coverUrl && !isRest ? (
+                          <Image source={{ uri: coverUrl }} style={styles.dayCover} contentFit="cover" />
+                        ) : (
+                          <View style={styles.dayIcon}>
+                            <Ionicons name={meta.icon} size={18} color={colors.primary.default} />
+                          </View>
+                        )}
                         <View style={styles.dayInfo}>
                           <AppText variant="body14SemiBold" color={colors.text.primary} numberOfLines={1}>
                             Día {day.day_number} · {day.title}
@@ -231,7 +237,7 @@ export function ProgramScreen({ navigation }: Props): React.JSX.Element {
             Entrenamiento
           </AppText>
         </View>
-        <Image source={illustrations.pillarHeader.training} style={styles.mascot} contentFit="contain" />
+        <HeaderAvatar />
       </View>
 
       <ActiveSessionBanner />
@@ -260,7 +266,6 @@ const createStyles = (colors: Colors) => StyleSheet.create({
   },
   headerText: { flex: 1 },
   title: { marginTop: 2 },
-  mascot: { width: 72, height: 88 },
   cardioButton: { marginBottom: spacing.lg },
   phaseCard: { marginBottom: spacing.md },
   phaseHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
@@ -284,12 +289,18 @@ const createStyles = (colors: Colors) => StyleSheet.create({
   },
   dayRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   dayIcon: {
-    width: 36,
-    height: 36,
+    width: 44,
+    height: 44,
     borderRadius: radius.pill,
     backgroundColor: colors.primary.muted,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  dayCover: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface.elevated,
   },
   dayInfo: { flex: 1 },
   restMascot: { width: 28, height: 34 },

@@ -4,6 +4,7 @@ import * as AuthSession from 'expo-auth-session';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { clearCache } from '../lib/cache';
+import { useBrandingStore } from './brandingStore';
 import type { ProfileRow, UserProfileRow } from '../types/database';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -23,7 +24,7 @@ interface AuthState {
 
   checkSession: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<boolean>;
-  signUp: (email: string, password: string, fullName: string) => Promise<boolean>;
+  signUp: (email: string, password: string, fullName: string, trainerCode?: string) => Promise<boolean>;
   signInWithOAuth: (provider: OAuthProvider) => Promise<boolean>;
   resetPassword: (email: string) => Promise<boolean>;
   completeOnboarding: (data: { goal: string; level: string }) => Promise<boolean>;
@@ -74,6 +75,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           needsOnboarding: !profile?.goal,
           initializing: false,
         });
+        void useBrandingStore.getState().load();
       } else {
         set({ session: null, profile: null, userProfile: null, initializing: false });
       }
@@ -84,8 +86,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     supabase.auth.onAuthStateChange((_event, session) => {
       if (!session) {
         set({ session: null, profile: null, userProfile: null, needsOnboarding: false });
+        useBrandingStore.getState().clear();
       } else {
         set({ session });
+        void useBrandingStore.getState().load();
       }
     });
   },
@@ -110,13 +114,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  signUp: async (email, password, fullName) => {
+  signUp: async (email, password, fullName, trainerCode) => {
     set({ loading: true, error: null });
     try {
+      const code = trainerCode?.trim();
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
-        options: { data: { full_name: fullName.trim() } },
+        options: {
+          data: { full_name: fullName.trim(), ...(code ? { trainer_code: code } : {}) },
+        },
       });
       if (error) throw error;
       if (!data.session) {
@@ -222,6 +229,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       await supabase.auth.signOut();
       await clearCache();
+      useBrandingStore.getState().clear();
     } finally {
       set({
         session: null,

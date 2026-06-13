@@ -4,6 +4,8 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors, darkColors, lightColors } from './colors';
+import { applyBranding } from './applyBranding';
+import { useBrandingStore } from '../stores/brandingStore';
 
 export type ThemeMode = 'dark' | 'light' | 'system';
 
@@ -35,11 +37,12 @@ export interface Theme {
 export function useTheme(): Theme {
   const mode = useThemeStore((s) => s.mode);
   const setMode = useThemeStore((s) => s.setMode);
+  const branding = useBrandingStore((s) => s.branding);
   const systemScheme = useColorScheme();
   const isDark = mode === 'system' ? systemScheme !== 'light' : mode === 'dark';
   return useMemo(
-    () => ({ colors: isDark ? darkColors : lightColors, isDark, mode, setMode }),
-    [isDark, mode, setMode],
+    () => ({ colors: applyBranding(isDark ? darkColors : lightColors, branding), isDark, mode, setMode }),
+    [isDark, mode, setMode, branding],
   );
 }
 

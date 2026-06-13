@@ -9,6 +9,7 @@ export { Input } from './Input';
 export { Chip } from './Chip';
 export { SectionHeader } from './SectionHeader';
 export { Avatar } from './Avatar';
+export { HeaderAvatar } from './HeaderAvatar';
 export { SegmentedTabs } from './SegmentedTabs';
 export { ProgressiveBlurHeader } from './ProgressiveBlurHeader';
 export { BottomSheet } from './BottomSheet';

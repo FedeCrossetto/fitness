@@ -13,8 +13,12 @@ import type {
   WorkoutRow,
 } from '../types/database';
 
+export interface WorkoutWithCover extends WorkoutRow {
+  cover_image_url: string | null;
+}
+
 export interface PhaseWithDays extends TrainingPhaseRow {
-  days: (TrainingDayRow & { workout: WorkoutRow | null })[];
+  days: (TrainingDayRow & { workout: WorkoutWithCover | null })[];
 }
 
 export interface WorkoutWithExercises extends WorkoutRow {
@@ -97,15 +101,34 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
 
           const { data: days, error: daysError } = await supabase
             .from('training_days')
-            .select('*, workout:workouts(*)')
+            .select(
+              '*, workout:workouts(*, exercises:workout_exercises(sort_order, exercise:exercises(image_url)))'
+            )
             .in('phase_id', phaseIds)
-            .order('day_number')
-            .overrideTypes<PhaseWithDays['days'], { merge: false }>();
+            .order('day_number');
           if (daysError) throw daysError;
+
+          type RawCoverEx = { sort_order: number; exercise: { image_url: string | null } | null };
+          type RawDay = TrainingDayRow & {
+            workout: (WorkoutRow & { exercises: RawCoverEx[] }) | null;
+          };
+
+          const mappedDays = ((days ?? []) as unknown as RawDay[]).map((d) => {
+            const workout: WorkoutWithCover | null = d.workout
+              ? {
+                  ...d.workout,
+                  cover_image_url:
+                    [...(d.workout.exercises ?? [])]
+                      .sort((a, b) => a.sort_order - b.sort_order)
+                      .find((e) => e.exercise?.image_url)?.exercise?.image_url ?? null,
+                }
+              : null;
+            return { ...d, workout } as PhaseWithDays['days'][number];
+          });
 
           return phases.map((phase) => ({
             ...phase,
-            days: (days ?? []).filter((d) => d.phase_id === phase.id),
+            days: mappedDays.filter((d) => d.phase_id === phase.id),
           }));
         },
         (data) => set({ phases: data, phasesLoading: false })

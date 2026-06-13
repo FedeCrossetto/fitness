@@ -311,6 +311,21 @@ export function ProfileScreen({ navigation }: Props): React.JSX.Element {
           </Card>
         )}
 
+        {/* Panel del entrenador */}
+        {profile?.role === 'trainer' ? (
+          <>
+            <SectionHeader title="Entrenador" />
+            <Card style={styles.settingsCard}>
+              <SettingsRow
+                icon="briefcase-outline"
+                label="Panel del entrenador"
+                onPress={() => navigation.navigate('TrainerPanel')}
+                last
+              />
+            </Card>
+          </>
+        ) : null}
+
         {/* Ajustes */}
         <SectionHeader title="Ajustes" />
         <Card style={styles.settingsCard}>

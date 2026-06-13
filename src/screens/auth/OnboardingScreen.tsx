@@ -4,7 +4,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { illustrations, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
-import { clientConfig } from '../../config/clientConfig';
+import { useClientConfig } from '../../config/useClientConfig';
 import { AppText, Button, Chip } from '../../components/common';
 import { useAuthStore } from '../../stores/authStore';
 import { hapticSuccess } from '../../lib/haptics';
@@ -22,6 +22,7 @@ const LEVELS = ['Principiante', 'Intermedio', 'Pro'];
 /** Onboarding breve post-registro: objetivo + nivel, con la mascota hero como protagonista. */
 export function OnboardingScreen(): React.JSX.Element {
   const { colors } = useTheme();
+  const clientConfig = useClientConfig();
   const styles = useThemedStyles(createStyles);
 
   const insets = useSafeAreaInsets();

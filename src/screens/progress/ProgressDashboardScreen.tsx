@@ -1,11 +1,10 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { Dimensions, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
-import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { illustrations, layout, radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
+import { layout, radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
 import { formatShortDate } from '../../lib/dates';
 import {
   AppText,
@@ -14,6 +13,7 @@ import {
   CardSkeleton,
   EmptyState,
   ErrorState,
+  HeaderAvatar,
   MetricCard,
   SectionHeader,
 } from '../../components/common';
@@ -154,7 +154,7 @@ export function ProgressDashboardScreen({ navigation }: Props): React.JSX.Elemen
             Progreso
           </AppText>
         </View>
-        <Image source={illustrations.pillarHeader.progress} style={styles.mascot} contentFit="contain" />
+        <HeaderAvatar />
       </View>
 
       {isLoading ? (
@@ -366,7 +366,6 @@ const createStyles = (colors: Colors) => StyleSheet.create({
   },
   headerText: { flex: 1 },
   title: { marginTop: 2 },
-  mascot: { width: 72, height: 88 },
   weightCard: { marginBottom: spacing.md },
   activityCard: { marginBottom: spacing.md },
   weightHeader: {

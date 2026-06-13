@@ -16,6 +16,7 @@ export type HomeStackParamList = {
   CoachChat: undefined;
   Achievements: undefined;
   Hydration: undefined;
+  TrainerPanel: undefined;
 };
 
 export type TrainingStackParamList = {

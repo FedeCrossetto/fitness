@@ -40,7 +40,7 @@ export interface ClientConfig {
   };
 }
 
-export const clientConfig: ClientConfig = {
+export const defaultClientConfig: ClientConfig = {
   appName: 'Habito',
   programKey: 'default',
   defaultLocale: 'es',
@@ -65,3 +65,10 @@ export const clientConfig: ClientConfig = {
     onboardingCta: 'Empezar ahora',
   },
 };
+
+/**
+ * Config estática por defecto. Sigue disponible para defaults no-branding
+ * (kcal, macros, etc.). El branding por entrenador se resuelve en runtime con
+ * `useClientConfig()`.
+ */
+export const clientConfig = defaultClientConfig;

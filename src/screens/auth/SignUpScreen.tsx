@@ -26,6 +26,7 @@ export function SignUpScreen({ navigation }: Props): React.JSX.Element {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [trainerCode, setTrainerCode] = useState('');
   const [fieldError, setFieldError] = useState<{ name?: string; email?: string; password?: string }>({});
 
   const handleSignUp = () => {
@@ -35,7 +36,7 @@ export function SignUpScreen({ navigation }: Props): React.JSX.Element {
     if (password.length < 6) errors.password = 'Mínimo 6 caracteres.';
     setFieldError(errors);
     if (Object.keys(errors).length > 0) return;
-    void signUp(email, password, fullName);
+    void signUp(email, password, fullName, trainerCode);
   };
 
   return (
@@ -101,6 +102,19 @@ export function SignUpScreen({ navigation }: Props): React.JSX.Element {
             if (error) clearError();
           }}
           error={fieldError.password}
+          containerStyle={styles.field}
+        />
+        <Input
+          label="Código de entrenador (opcional)"
+          icon="key-outline"
+          placeholder="Ej: PEPITO"
+          autoCapitalize="characters"
+          autoCorrect={false}
+          value={trainerCode}
+          onChangeText={(v) => {
+            setTrainerCode(v);
+            if (error) clearError();
+          }}
           containerStyle={styles.field}
         />
 

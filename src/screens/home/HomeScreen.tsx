@@ -8,7 +8,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { illustrations, layout, radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
 import { greetingForNow, formatLongDate, todayISO } from '../../lib/dates';
-import { clientConfig } from '../../config/clientConfig';
+import { useClientConfig } from '../../config/useClientConfig';
 import {
   AppText,
   Avatar,
@@ -35,6 +35,7 @@ type Props = NativeStackScreenProps<HomeStackParamList, 'HomeMain'>;
 
 export function HomeScreen({ navigation }: Props): React.JSX.Element {
   const { colors } = useTheme();
+  const clientConfig = useClientConfig();
   const styles = useThemedStyles(createStyles);
 
   const insets = useSafeAreaInsets();

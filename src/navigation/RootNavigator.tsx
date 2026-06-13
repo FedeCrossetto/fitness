@@ -6,7 +6,7 @@ import { illustrations, spacing, useTheme } from '../theme';
 import { useAuthStore } from '../stores/authStore';
 import { useTrainingStore } from '../stores/trainingStore';
 import { AppText } from '../components/common';
-import { clientConfig } from '../config/clientConfig';
+import { useClientConfig } from '../config/useClientConfig';
 import type { MainTabsParamList } from '../types/navigation';
 import { TabBar } from './TabBar';
 import { AddMenuOverlay } from './AddMenuOverlay';
@@ -40,6 +40,7 @@ function MainTabs(): React.JSX.Element {
 
 function SplashGate(): React.JSX.Element {
   const { colors } = useTheme();
+  const clientConfig = useClientConfig();
   return (
     <View style={[styles.splash, { backgroundColor: colors.background }]}>
       <Image source={illustrations.hero} style={styles.mascot} contentFit="contain" priority="high" />

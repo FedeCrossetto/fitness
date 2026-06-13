@@ -21,6 +21,7 @@ import { SubscriptionScreen } from '../screens/subscription/SubscriptionScreen';
 import { CoachChatScreen } from '../screens/coach/CoachChatScreen';
 import { AchievementsScreen } from '../screens/achievements/AchievementsScreen';
 import { HydrationScreen } from '../screens/progress/HydrationScreen';
+import { TrainerPanelScreen } from '../screens/trainer/TrainerPanelScreen';
 
 import { ProgramScreen } from '../screens/training/ProgramScreen';
 import { WorkoutDetailScreen } from '../screens/training/WorkoutDetailScreen';
@@ -70,6 +71,7 @@ export function HomeStack(): React.JSX.Element {
       <Home.Screen name="CoachChat" component={CoachChatScreen} />
       <Home.Screen name="Achievements" component={AchievementsScreen} />
       <Home.Screen name="Hydration" component={HydrationScreen} />
+      <Home.Screen name="TrainerPanel" component={TrainerPanelScreen} />
     </Home.Navigator>
   );
 }

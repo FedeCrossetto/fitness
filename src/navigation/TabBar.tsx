@@ -119,13 +119,14 @@ const createStyles = (colors: Colors) =>
     fab: {
       width: 56,
       height: 56,
-      borderRadius: radius.pill,
+      borderRadius: radius.lg,
       backgroundColor: colors.primary.default,
       alignItems: 'center',
       justifyContent: 'center',
       marginHorizontal: spacing.xs,
       marginTop: -spacing.lg,
       ...shadows.glow,
+      shadowColor: colors.primary.default,
     },
     fabPressed: { opacity: 0.85, transform: [{ scale: 0.96 }] },
   });
