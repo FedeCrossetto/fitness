@@ -4,6 +4,7 @@ export { IconButton } from './IconButton';
 export { Card } from './Card';
 export { MetricCard } from './MetricCard';
 export { ProgressRing } from './ProgressRing';
+export { WaterLevelBox } from './WaterLevelBox';
 export { ProgressBar } from './ProgressBar';
 export { Input } from './Input';
 export { Chip } from './Chip';

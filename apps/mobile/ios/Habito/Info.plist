@@ -28,7 +28,7 @@
         <key>CFBundleURLSchemes</key>
         <array>
           <string>habito</string>
-          <string>com.habito.app</string>
+          <string>com.fedecrossetto.habito</string>
         </array>
       </dict>
     </array>

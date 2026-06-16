@@ -1,12 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, RefreshControl, StyleSheet, View } from 'react-native';
-import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { illustrations, layout, radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
+import { layout, radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
 import { greetingForNow, formatLongDate, todayISO } from '../../lib/dates';
 import { useClientConfig } from '../../config/useClientConfig';
 import {
@@ -28,7 +27,11 @@ import { useProgressStore } from '../../stores/progressStore';
 import { useTrainingStore } from '../../stores/trainingStore';
 import { computeStreak } from '../../services/streaks';
 import { getTodaySteps } from '../../services/steps';
+import { initHealthKit, isExpoGo, readHealthSnapshot } from '../../services/health';
 import { registerPushToken } from '../../services/notifications';
+import { useUiStore } from '../../stores/uiStore';
+import * as Device from 'expo-device';
+import { Alert, Linking, Platform } from 'react-native';
 import type { HomeStackParamList } from '../../types/navigation';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'HomeMain'>;
@@ -62,6 +65,8 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
   const loadHydration = useProgressStore((s) => s.loadHydration);
   const steps = useProgressStore((s) => s.steps);
   const setSteps = useProgressStore((s) => s.setSteps);
+  const healthConnected = useProgressStore((s) => s.healthConnected);
+  const setHealthConnected = useProgressStore((s) => s.setHealthConnected);
 
   const phases = useTrainingStore((s) => s.phases);
   const loadProgram = useTrainingStore((s) => s.loadProgram);
@@ -70,6 +75,63 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
 
   const [streak, setStreak] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const [connectingSteps, setConnectingSteps] = useState(false);
+
+  const connectSteps = useCallback(async () => {
+    if (!userId || connectingSteps) return;
+    if (!Device.isDevice) {
+      useUiStore.getState().showToast('info', 'No disponible en el simulador.');
+      return;
+    }
+    if (isExpoGo) {
+      Alert.alert(
+        'Build nativa requerida',
+        'Apple Health no funciona en Expo Go. Para activarlo necesitás correr un build nativo de la app.',
+        [{ text: 'Entendido' }]
+      );
+      return;
+    }
+    setConnectingSteps(true);
+    if (Platform.OS === 'ios') {
+      const ok = await initHealthKit();
+      if (ok) {
+        const snap = await readHealthSnapshot();
+        if (snap?.steps) {
+          setSteps(snap.steps);
+          void syncAutoGoal(userId, 'steps', snap.steps);
+        }
+        setHealthConnected(true);
+        useUiStore.getState().showToast('success', 'Apple Health conectado');
+      } else {
+        Alert.alert(
+          'Sin acceso',
+          'Habito necesita permiso para leer datos de Apple Health.',
+          [
+            { text: 'Cancelar', style: 'cancel' },
+            { text: 'Abrir Ajustes', onPress: () => void Linking.openSettings() },
+          ]
+        );
+      }
+    } else {
+      const todaySteps = await getTodaySteps();
+      if (todaySteps !== null) {
+        setSteps(todaySteps);
+        void syncAutoGoal(userId, 'steps', todaySteps);
+        setHealthConnected(true);
+        useUiStore.getState().showToast('success', 'Sensor de pasos conectado');
+      } else {
+        Alert.alert(
+          'Sin acceso',
+          'Habito necesita permiso para acceder al sensor de pasos.',
+          [
+            { text: 'Cancelar', style: 'cancel' },
+            { text: 'Abrir Ajustes', onPress: () => void Linking.openSettings() },
+          ]
+        );
+      }
+    }
+    setConnectingSteps(false);
+  }, [userId, connectingSteps, setSteps, syncAutoGoal]);
 
   const totals = useMemo(
     () =>
@@ -97,11 +159,15 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
       loadProgram(),
       loadRecentLogs(userId),
     ]);
-    const [streakInfo, todaySteps] = await Promise.all([computeStreak(userId), getTodaySteps()]);
+    const streakInfo = await computeStreak(userId);
     setStreak(streakInfo.current);
-    if (todaySteps !== null) {
-      setSteps(todaySteps);
-      void syncAutoGoal(userId, 'steps', todaySteps);
+    // Solo refrescar pasos si el usuario ya conectó explícitamente
+    if (useProgressStore.getState().healthConnected) {
+      const todaySteps = await getTodaySteps();
+      if (todaySteps !== null) {
+        setSteps(todaySteps);
+        void syncAutoGoal(userId, 'steps', todaySteps);
+      }
     }
   }, [userId, loadGoalsToday, loadNutritionDay, loadHydration, loadProgram, loadRecentLogs, setSteps, syncAutoGoal]);
 
@@ -109,8 +175,12 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
     if (userId) void registerPushToken(userId);
   }, [userId]);
 
+  // Evita re-cargar todo en cada cambio de tab: el estado en memoria ya está al día.
+  const lastLoadRef = useRef(0);
   useFocusEffect(
     useCallback(() => {
+      if (Date.now() - lastLoadRef.current < 30_000) return;
+      lastLoadRef.current = Date.now();
       void loadAll();
     }, [loadAll])
   );
@@ -118,6 +188,7 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadAll();
+    lastLoadRef.current = Date.now();
     setRefreshing(false);
   }, [loadAll]);
 
@@ -201,7 +272,6 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
                 <Ionicons name="arrow-forward" size={14} color={colors.primary.default} />
               </View>
             </View>
-            <Image source={illustrations.pillarHeader.progress} style={styles.dayMascot} contentFit="contain" />
           </View>
         </Card>
 
@@ -221,8 +291,22 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
             label="Pasos"
             value={steps > 0 ? steps.toLocaleString('es-AR') : '—'}
             unit={`/ ${clientConfig.defaultStepsGoal.toLocaleString('es-AR')}`}
-            icon="walk-outline"
-            onPress={() => navigation.getParent()?.navigate('ProgressTab' as never)}
+            icon={healthConnected ? 'walk-outline' : 'link-outline'}
+            labelBadge={
+              healthConnected
+                ? Platform.OS === 'ios' ? 'Apple Health' : 'Sensor conectado'
+                : connectingSteps
+                  ? 'Conectando...'
+                  : Platform.OS === 'ios'
+                    ? 'Conectar Apple Health'
+                    : 'Conectar sensor de pasos'
+            }
+            labelBadgeIcon={healthConnected ? 'checkmark-circle' : undefined}
+            labelBadgeColor={colors.primary.default}
+            onPress={healthConnected
+              ? () => navigation.getParent()?.navigate('ProgressTab' as never)
+              : () => void connectSteps()
+            }
             style={styles.metricHalf}
           />
         </View>
@@ -258,7 +342,7 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
               <AppText variant="caps12" color={colors.text.tertiary}>
                 Hidratación
               </AppText>
-              <Ionicons name="water-outline" size={16} color={colors.pillars.nutrition} />
+              <Ionicons name="water-outline" size={16} color={colors.water} />
             </View>
             <AppText variant="metricMedium" color={colors.text.primary}>
               {hydration ? (hydration.total_ml / 1000).toFixed(1) : '0.0'}
@@ -267,7 +351,7 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
                 / {((hydration?.goal_ml ?? clientConfig.defaultHydrationGoalMl) / 1000).toFixed(1)} L
               </AppText>
             </AppText>
-            <ProgressBar progress={hydrationProgress} style={styles.miniBar} color={colors.pillars.nutrition} />
+            <ProgressBar progress={hydrationProgress} style={styles.miniBar} color={colors.water} />
           </Card>
 
           <Card style={styles.metricHalf} onPress={() => navigation.getParent()?.navigate('TrainingTab' as never)}>
@@ -277,10 +361,10 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
               </AppText>
               <Ionicons name="barbell-outline" size={16} color={colors.pillars.training} />
             </View>
-            <AppText variant="body16SemiBold" color={colors.text.primary} numberOfLines={2}>
+            <AppText variant="body14SemiBold" color={colors.text.primary} numberOfLines={2} style={styles.nextTitle}>
               {trainedToday ? '¡Ya entrenaste hoy!' : nextWorkoutDay?.title ?? 'Sin programa aún'}
             </AppText>
-            <AppText variant="body12" color={colors.text.tertiary} style={styles.miniSub}>
+            <AppText variant="body12" color={colors.text.tertiary} numberOfLines={1} style={styles.miniSub}>
               {trainedToday ? 'Descansá y recuperá' : nextWorkoutDay?.workout?.title ?? 'Hablá con tu coach'}
             </AppText>
           </Card>
@@ -356,7 +440,6 @@ const createStyles = (colors: Colors) => StyleSheet.create({
   dayCardInfo: { flex: 1 },
   dayCardSub: { marginTop: spacing.xxs },
   dayCardLink: { flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, marginTop: spacing.sm },
-  dayMascot: { width: 64, height: 80, position: 'absolute', right: -spacing.xs, bottom: -spacing.md, opacity: 0.9 },
   metricsRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm },
   metricHalf: { flex: 1 },
   macrosCard: { marginBottom: spacing.sm },
@@ -372,6 +455,7 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     marginBottom: spacing.xs,
   },
   miniBar: { marginTop: spacing.sm },
+  nextTitle: { marginTop: spacing.xs },
   miniSub: { marginTop: spacing.xxs },
   quickGrid: { flexDirection: 'row', gap: spacing.sm },
   quickItem: {

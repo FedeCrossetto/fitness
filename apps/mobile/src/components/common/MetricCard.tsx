@@ -12,6 +12,10 @@ interface MetricCardProps {
   /** Delta vs período anterior, ej "+1.2 kg" */
   delta?: string;
   deltaPositive?: boolean;
+  /** Texto de estado debajo del label (ej "Conectar Apple Health") */
+  labelBadge?: string;
+  labelBadgeColor?: string;
+  labelBadgeIcon?: keyof typeof Ionicons.glyphMap;
   icon?: keyof typeof Ionicons.glyphMap;
   accent?: string;
   onPress?: () => void;
@@ -25,6 +29,9 @@ export function MetricCard({
   unit,
   delta,
   deltaPositive = true,
+  labelBadge,
+  labelBadgeColor,
+  labelBadgeIcon,
   icon,
   accent,
   onPress,
@@ -35,9 +42,25 @@ export function MetricCard({
   return (
     <Card onPress={onPress} style={style} accessibilityLabel={`${label}: ${value} ${unit ?? ''}`}>
       <View style={styles.header}>
-        <AppText variant="caps12" color={colors.text.tertiary}>
-          {label}
-        </AppText>
+        <View style={styles.labelCol}>
+          <AppText variant="caps12" color={colors.text.tertiary}>
+            {label}
+          </AppText>
+          {labelBadge ? (
+            <View style={styles.badgeRow}>
+              {labelBadgeIcon ? (
+                <Ionicons
+                  name={labelBadgeIcon}
+                  size={13}
+                  color={labelBadgeColor ?? colors.primary.default}
+                />
+              ) : null}
+              <AppText variant="body12Medium" color={labelBadgeColor ?? colors.primary.default}>
+                {labelBadge}
+              </AppText>
+            </View>
+          ) : null}
+        </View>
         {icon ? <Ionicons name={icon} size={16} color={accent ?? colors.primary.default} /> : null}
       </View>
       <View style={styles.valueRow}>
@@ -69,6 +92,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.xs,
   },
+  labelCol: { flex: 1, gap: 2 },
+  badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   valueRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.xxs },
   unit: { marginBottom: 4 },
 });

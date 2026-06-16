@@ -3,6 +3,9 @@ PODS:
     - ExpoModulesCore
   - EXApplication (7.0.8):
     - ExpoModulesCore
+  - EXAV (16.0.8):
+    - ExpoModulesCore
+    - ReactCommon/turbomodule/core
   - EXConstants (18.0.13):
     - ExpoModulesCore
   - EXImageLoader (6.0.0):
@@ -2124,6 +2127,7 @@ PODS:
 DEPENDENCIES:
   - ActivityController (from `../modules/activity-controller/ios`)
   - EXApplication (from `../../../node_modules/expo-application/ios`)
+  - EXAV (from `../../../node_modules/expo-av/ios`)
   - EXConstants (from `../../../node_modules/expo-constants/ios`)
   - EXImageLoader (from `../../../node_modules/expo-image-loader/ios`)
   - EXNotifications (from `../../../node_modules/expo-notifications/ios`)
@@ -2240,6 +2244,8 @@ EXTERNAL SOURCES:
     :path: "../modules/activity-controller/ios"
   EXApplication:
     :path: "../../../node_modules/expo-application/ios"
+  EXAV:
+    :path: "../../../node_modules/expo-av/ios"
   EXConstants:
     :path: "../../../node_modules/expo-constants/ios"
   EXImageLoader:
@@ -2441,6 +2447,7 @@ EXTERNAL SOURCES:
 SPEC CHECKSUMS:
   ActivityController: 915f2124d97895aa69466ec2c445791c9f59f3ad
   EXApplication: 1e98d4b1dccdf30627f92917f4b2c5a53c330e5f
+  EXAV: b60fcf142fae6684d295bc28cd7cfcb3335570ea
   EXConstants: fce59a631a06c4151602843667f7cfe35f81e271
   EXImageLoader: 189e3476581efe3ad4d1d3fb4735b7179eb26f05
   EXNotifications: c67e92b9fdfe785ff9dbdc5f4c0ff935de357da7

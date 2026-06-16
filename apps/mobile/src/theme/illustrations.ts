@@ -19,6 +19,16 @@ export const illustrationSources = {
 } as const;
 
 /**
+ * Modelos corporales para la pantalla de Medidas, según el sexo del usuario.
+ * Archivos del cliente en assets/body/ (actualmente placeholders — reemplazar
+ * por las imágenes reales manteniendo los nombres male.png / female.png).
+ */
+export const bodyModels = {
+  male: require('../../assets/body/male.png') as ImageSourcePropType,
+  female: require('../../assets/body/female.png') as ImageSourcePropType,
+} as const;
+
+/**
  * Set caracterizado del cliente (avt0–avt4): poses de cuerpo entero con props
  * temáticos (mancuerna, ensalada, cinta métrica, banco) + cabeza suelta.
  * Recortes con fondo transparente, optimizados a 600px de ancho.

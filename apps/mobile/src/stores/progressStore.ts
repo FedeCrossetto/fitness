@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { createJSONStorage, persist } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 import { staleWhileRevalidate } from '../lib/cache';
 import { todayISO } from '../lib/dates';
@@ -18,6 +20,8 @@ interface ProgressState {
 
   steps: number;
   setSteps: (steps: number) => void;
+  healthConnected: boolean;
+  setHealthConnected: (v: boolean) => void;
 
   loadMeasurements: (userId: string) => Promise<void>;
   saveMeasurement: (userId: string, data: Partial<BodyMeasurementRow>) => Promise<boolean>;
@@ -28,7 +32,9 @@ interface ProgressState {
   setHydrationGoal: (userId: string, goalMl: number) => Promise<void>;
 }
 
-export const useProgressStore = create<ProgressState>((set, get) => ({
+export const useProgressStore = create<ProgressState>()(
+  persist(
+    (set, get) => ({
   measurements: [],
   measurementsLoading: false,
   measurementsError: null,
@@ -37,8 +43,10 @@ export const useProgressStore = create<ProgressState>((set, get) => ({
   hydrationToday: null,
   hydrationLoading: false,
   steps: 0,
+  healthConnected: false,
 
   setSteps: (steps) => set({ steps }),
+  setHealthConnected: (v) => set({ healthConnected: v }),
 
   loadMeasurements: async (userId) => {
     set({ measurementsLoading: true, measurementsError: null });
@@ -169,4 +177,12 @@ export const useProgressStore = create<ProgressState>((set, get) => ({
       .single();
     if (data) set({ hydrationToday: data });
   },
-}));
+    }),
+    {
+      name: 'habito-progress',
+      storage: createJSONStorage(() => AsyncStorage),
+      // Solo persistimos la conexión a Salud; los pasos se re-leen frescos al abrir.
+      partialize: (state) => ({ healthConnected: state.healthConnected }),
+    },
+  ),
+);

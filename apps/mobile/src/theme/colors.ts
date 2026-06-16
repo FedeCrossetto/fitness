@@ -78,6 +78,8 @@ export const darkColors = {
     info: palette.scale300,
   },
 
+  water: '#4FB0F7',
+
   gradients: {
     kinetic: ['#D4FD7F', '#BEFC50'] as readonly [string, string],
     deep: ['#BEFC50', '#3A4E15'] as readonly [string, string],
@@ -113,6 +115,8 @@ export type Colors = {
   border: { subtle: string; default: string; strong: string };
   glass: { background: string; border: string };
   states: { success: string; warning: string; error: string; info: string };
+  /** Color semántico de hidratación (agua). Fijo, no deriva de la marca. */
+  water: string;
   gradients: {
     kinetic: readonly [string, string];
     deep: readonly [string, string];
@@ -165,6 +169,8 @@ export const lightColors: Colors = {
     error: '#DC2626',
     info: paletteLight.scale300,
   },
+
+  water: '#2D9CDB',
 
   gradients: {
     kinetic: ['#D9F99D', '#A3E635'],

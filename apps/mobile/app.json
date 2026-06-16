@@ -15,7 +15,8 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.habito.app",
+      "bundleIdentifier": "com.fedecrossetto.habito",
+      "appleTeamId": "29B57YZZG3",
       "infoPlist": {
         "NSCameraUsageDescription": "Habito usa la cámara para escanear códigos de barras de alimentos y tomar fotos de progreso.",
         "NSPhotoLibraryUsageDescription": "Habito accede a tus fotos para que elijas tu avatar y fotos de progreso.",
@@ -31,7 +32,7 @@
       }
     },
     "android": {
-      "package": "com.habito.app",
+      "package": "com.fedecrossetto.habito",
       "adaptiveIcon": {
         "backgroundColor": "#0C0C0C",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -88,7 +89,8 @@
         "expo-build-properties",
         {
           "ios": {
-            "deploymentTarget": "16.4"
+            "deploymentTarget": "16.4",
+            "userScriptSandboxing": false
           }
         }
       ]

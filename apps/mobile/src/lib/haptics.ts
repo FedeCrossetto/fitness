@@ -6,6 +6,10 @@ export function hapticTap(): void {
   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
 }
 
+export function hapticMedium(): void {
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
+}
+
 export function hapticSelect(): void {
   Haptics.selectionAsync().catch(() => undefined);
 }

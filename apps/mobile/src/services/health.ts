@@ -1,9 +1,12 @@
 import { Platform } from 'react-native';
+import * as Device from 'expo-device';
+import Constants from 'expo-constants';
 
 /**
  * Integración con Apple HealthKit (react-native-health).
- * Solo disponible en builds nativas de iOS (no Expo Go). Toda llamada degrada a null
- * si el módulo no está disponible, así la app sigue funcionando sin HealthKit.
+ * Solo disponible en iPhone físico con iOS real. El simulador tiene el framework
+ * compilado pero HealthKit no funciona en él — la llamada devuelve error o cuelga.
+ * Toda llamada degrada a null si el módulo no está disponible o es simulador.
  */
 
 export interface HealthSnapshot {
@@ -36,8 +39,13 @@ interface AppleHealthKitModule {
   ) => void;
 }
 
+/** true cuando la app corre en Expo Go (no en un build nativo) */
+export const isExpoGo = Constants.appOwnership === 'expo';
+
 function getModule(): AppleHealthKitModule | null {
   if (Platform.OS !== 'ios') return null;
+  if (!Device.isDevice) return null; // simulador — HealthKit no disponible
+  if (isExpoGo) return null;        // Expo Go — módulo nativo no compilado
   try {
     // require dinámico: el módulo nativo no existe en Expo Go ni en Android
     // eslint-disable-next-line @typescript-eslint/no-require-imports

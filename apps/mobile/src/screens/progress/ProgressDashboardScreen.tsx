@@ -1,6 +1,7 @@
-import React, { useCallback, useMemo, useState } from 'react';
-import { Dimensions, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { Alert, Dimensions, Linking, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Device from 'expo-device';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -46,6 +47,7 @@ export function ProgressDashboardScreen({ navigation }: Props): React.JSX.Elemen
   const loadMeasurements = useProgressStore((s) => s.loadMeasurements);
   const steps = useProgressStore((s) => s.steps);
   const setSteps = useProgressStore((s) => s.setSteps);
+  const setHealthConnected = useProgressStore((s) => s.setHealthConnected);
   const recentLogs = useTrainingStore((s) => s.recentLogs);
   const loadRecentLogs = useTrainingStore((s) => s.loadRecentLogs);
 
@@ -56,13 +58,19 @@ export function ProgressDashboardScreen({ navigation }: Props): React.JSX.Elemen
   const loadAll = useCallback(async () => {
     if (!userId) return;
     await Promise.all([loadMeasurements(userId), loadRecentLogs(userId)]);
-    const [todaySteps, healthSnapshot] = await Promise.all([getTodaySteps(), readHealthSnapshot()]);
-    if (todaySteps !== null) setSteps(todaySteps);
-    setSnapshot(healthSnapshot);
+    if (useProgressStore.getState().healthConnected) {
+      const [todaySteps, healthSnapshot] = await Promise.all([getTodaySteps(), readHealthSnapshot()]);
+      if (todaySteps !== null) setSteps(todaySteps);
+      setSnapshot(healthSnapshot);
+    }
   }, [userId, loadMeasurements, loadRecentLogs, setSteps]);
 
+  // Evita re-cargar todo en cada cambio de tab: el estado en memoria ya está al día.
+  const lastLoadRef = useRef(0);
   useFocusEffect(
     useCallback(() => {
+      if (Date.now() - lastLoadRef.current < 30_000) return;
+      lastLoadRef.current = Date.now();
       void loadAll();
     }, [loadAll])
   );
@@ -70,6 +78,7 @@ export function ProgressDashboardScreen({ navigation }: Props): React.JSX.Elemen
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadAll();
+    lastLoadRef.current = Date.now();
     setRefreshing(false);
   }, [loadAll]);
 
@@ -121,12 +130,38 @@ export function ProgressDashboardScreen({ navigation }: Props): React.JSX.Elemen
     if (ok) {
       const healthSnapshot = await readHealthSnapshot();
       setSnapshot(healthSnapshot);
+      setHealthConnected(true);
       useUiStore.getState().showToast('success', 'Apple Health conectado');
     } else {
-      useUiStore.getState().showToast('error', 'No pudimos conectar con Apple Health en este dispositivo.');
+      Alert.alert(
+        'Sin acceso',
+        'Habito necesita permiso para leer datos de Apple Health.',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Abrir Ajustes', onPress: () => void Linking.openSettings() },
+        ]
+      );
     }
     setConnecting(false);
-  }, []);
+  }, [setHealthConnected]);
+
+  const disconnectHealth = useCallback(() => {
+    Alert.alert(
+      'Desconectar Apple Health',
+      'Se borrarán los datos locales. Para revocar el acceso completo, andá a Ajustes > Privacidad > Salud > Habito.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Desconectar', style: 'destructive', onPress: () => {
+            setSnapshot(null);
+            setSteps(0);
+            setHealthConnected(false);
+            useUiStore.getState().showToast('success', 'Desconectado de Apple Health');
+          }
+        },
+      ]
+    );
+  }, [setSteps, setHealthConnected]);
 
   const isLoading = measurementsLoading && measurements.length === 0;
   const hasError = measurementsError !== null && measurements.length === 0;
@@ -288,22 +323,35 @@ export function ProgressDashboardScreen({ navigation }: Props): React.JSX.Elemen
                 <AppText variant="body13" color={colors.text.secondary} style={styles.healthSub}>
                   {snapshot
                     ? 'Conectado: tus datos se sincronizan automáticamente.'
-                    : 'Leemos peso, pasos, FC y sueño para completar tu progreso'}
+                    : !Device.isDevice
+                      ? 'Solo disponible en iPhone físico, no en el simulador.'
+                      : 'Leemos peso, pasos, FC y sueño para completar tu progreso'}
                 </AppText>
               </View>
               {snapshot ? <Ionicons name="checkmark-circle" size={22} color={colors.primary.default} /> : null}
             </View>
-            {!snapshot ? (
-              <Button
-                label="Conectar Apple Health"
-                variant="secondary"
-                size="md"
-                icon="link-outline"
-                loading={connecting}
-                onPress={() => void connectHealth()}
-                style={styles.healthButton}
-              />
-            ) : null}
+            {Device.isDevice && (
+              snapshot ? (
+                <Button
+                  label="Desconectar"
+                  variant="ghost"
+                  size="md"
+                  icon="unlink-outline"
+                  onPress={disconnectHealth}
+                  style={styles.healthButton}
+                />
+              ) : (
+                <Button
+                  label="Conectar Apple Health"
+                  variant="secondary"
+                  size="md"
+                  icon="link-outline"
+                  loading={connecting}
+                  onPress={() => void connectHealth()}
+                  style={styles.healthButton}
+                />
+              )
+            )}
           </Card>
 
           {/* Accesos */}

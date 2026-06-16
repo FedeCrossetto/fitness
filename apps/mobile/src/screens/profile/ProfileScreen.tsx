@@ -1,17 +1,19 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
-import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { illustrations, layout, radius, spacing, Colors, ThemeMode, useThemedStyles, useTheme } from '../../theme';
+import { layout, radius, spacing, Colors, ThemeMode, useThemedStyles, useTheme } from '../../theme';
 import { formatLongDate } from '../../lib/dates';
 import { supabase } from '../../lib/supabase';
 import { uploadAvatar } from '../../services/storage';
 import { fetchActiveSubscription, hasActiveAccess } from '../../services/payments';
-import { initHealthKit } from '../../services/health';
+import { initHealthKit, isExpoGo } from '../../services/health';
+import { useProgressStore } from '../../stores/progressStore';
+import * as Device from 'expo-device';
+import { Linking, Platform } from 'react-native';
 import { cancelReminder, scheduleDailyReminder } from '../../services/notifications';
 import {
   AppText,
@@ -125,6 +127,10 @@ export function ProfileScreen({ navigation }: Props): React.JSX.Element {
   const signOut = useAuthStore((s) => s.signOut);
   const userId = session?.user.id;
 
+  const healthConnected = useProgressStore((s) => s.healthConnected);
+  const setHealthConnected = useProgressStore((s) => s.setHealthConnected);
+  const setSteps = useProgressStore((s) => s.setSteps);
+
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [subscription, setSubscription] = useState<SubscriptionRow | null>(null);
   const [subLoading, setSubLoading] = useState(true);
@@ -191,13 +197,55 @@ export function ProfileScreen({ navigation }: Props): React.JSX.Element {
   }, [userId, uploadingAvatar, refreshProfile]);
 
   const onConnectHealth = useCallback(async () => {
+    if (!Device.isDevice) {
+      useUiStore.getState().showToast('info', 'No disponible en el simulador.');
+      return;
+    }
+    if (isExpoGo) {
+      Alert.alert(
+        'Build nativa requerida',
+        'Apple Health no funciona en Expo Go. Para activarlo necesitás correr un build nativo de la app.',
+        [{ text: 'Entendido' }]
+      );
+      return;
+    }
     const ok = await initHealthKit();
     if (ok) {
-      useUiStore.getState().showToast('success', 'Apple Health conectado');
+      setHealthConnected(true);
+      useUiStore.getState().showToast('success', Platform.OS === 'ios' ? 'Apple Health conectado' : 'Sensor de pasos conectado');
     } else {
-      useUiStore.getState().showToast('error', 'No pudimos conectar Apple Health en este dispositivo.');
+      Alert.alert(
+        'Sin acceso a Salud',
+        Platform.OS === 'ios'
+          ? 'Habito necesita permiso para leer Apple Health.\n\nTocá "Abrir Salud", luego andá a Fuentes → Habito y activá los permisos.'
+          : 'Habito no tiene acceso al sensor de pasos. Habilitalo en los ajustes del sistema.',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Abrir Salud',
+            onPress: () => {
+              void Linking.openURL('x-apple-health://').catch(() => {
+                void Linking.openSettings();
+              });
+            },
+          },
+        ]
+      );
     }
-  }, []);
+  }, [setHealthConnected]);
+
+  const onDisconnectHealth = useCallback(() => {
+    // El Switch ya se movió visualmente — lo revertimos optimistamente y confirmamos
+    setHealthConnected(false);
+    setSteps(0);
+    Alert.alert(
+      'Desconectado',
+      Platform.OS === 'ios'
+        ? 'Para revocar el acceso completo, andá a Ajustes > Privacidad > Salud > Habito.'
+        : 'Para revocar el permiso, andá a Ajustes del sistema > Permisos > Actividad física.',
+      [{ text: 'OK' }]
+    );
+  }, [setHealthConnected, setSteps]);
 
   const onToggleReminder = useCallback(async (reminder: ReminderConfig, value: boolean) => {
     setReminders((prev) => ({ ...prev, [reminder.key]: value }));
@@ -263,13 +311,14 @@ export function ProfileScreen({ navigation }: Props): React.JSX.Element {
                 <Chip label={userProfile?.level ?? 'Inicial'} active style={styles.levelChip} />
               </View>
               {profile?.goal ? (
-                <AppText variant="body13" color={colors.text.secondary} style={styles.goalText}>
-                  Objetivo: {profile.goal}
-                </AppText>
+                <View style={styles.goalBadge}>
+                  <AppText variant="body13Medium" color={colors.text.secondary}>
+                    {profile.goal}
+                  </AppText>
+                </View>
               ) : null}
             </View>
           </View>
-          <Image source={illustrations.profile} style={styles.mascot} contentFit="contain" />
         </Card>
 
         {/* Plan actual */}
@@ -364,7 +413,34 @@ export function ProfileScreen({ navigation }: Props): React.JSX.Element {
         {/* Salud */}
         <SectionHeader title="Salud" />
         <Card style={styles.settingsCard}>
-          <SettingsRow icon="heart-outline" label="Conectar Apple Health" onPress={() => void onConnectHealth()} last />
+          <View style={styles.row}>
+            <View style={styles.rowIcon}>
+              <Ionicons
+                name={Platform.OS === 'ios' ? 'heart-outline' : 'walk-outline'}
+                size={18}
+                color={colors.primary.default}
+              />
+            </View>
+            <View style={styles.rowLabel}>
+              <AppText variant="body16Medium" color={colors.text.primary}>
+                {Platform.OS === 'ios' ? 'Apple Health' : 'Sensor de pasos'}
+              </AppText>
+              {!Device.isDevice ? (
+                <AppText variant="body12" color={colors.text.disabled}>No disponible en el simulador</AppText>
+              ) : isExpoGo ? (
+                <AppText variant="body12" color={colors.text.disabled}>Requiere build nativa</AppText>
+              ) : null}
+            </View>
+            <Switch
+              value={healthConnected}
+              onValueChange={(value) => value ? void onConnectHealth() : onDisconnectHealth()}
+              disabled={!Device.isDevice || isExpoGo}
+              trackColor={{ false: colors.surface.elevated, true: colors.primary.default }}
+              thumbColor={colors.text.primary}
+              ios_backgroundColor={colors.surface.elevated}
+              accessibilityLabel={Platform.OS === 'ios' ? 'Conectar Apple Health' : 'Conectar sensor de pasos'}
+            />
+          </View>
         </Card>
 
         {/* Notificaciones */}
@@ -439,17 +515,16 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.surface.elevated,
   },
-  identityInfo: { flex: 1, paddingRight: 56 },
+  identityInfo: { flex: 1 },
   identityChips: { flexDirection: 'row', marginTop: spacing.xs },
   levelChip: { minHeight: 28, paddingVertical: spacing.xxs },
-  goalText: { marginTop: spacing.xs },
-  mascot: {
-    position: 'absolute',
-    right: -spacing.sm,
-    bottom: -spacing.md,
-    width: 72,
-    height: 96,
-    opacity: 0.9,
+  goalBadge: {
+    alignSelf: 'flex-start',
+    marginTop: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xxs,
+    borderRadius: radius.sm,
+    backgroundColor: colors.primary.muted,
   },
   planCard: { marginBottom: spacing.xxs },
   planRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

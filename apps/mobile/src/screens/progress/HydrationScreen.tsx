@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { layout, radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
 import { clientConfig } from '../../config/clientConfig';
-import { hapticSelect, hapticSuccess } from '../../lib/haptics';
+import { hapticMedium, hapticSelect, hapticSuccess } from '../../lib/haptics';
+import { playWaterSound } from '../../lib/sounds';
 import {
   AppText,
   BottomSheet,
@@ -14,7 +15,7 @@ import {
   CardSkeleton,
   IconButton,
   Input,
-  ProgressRing,
+  WaterLevelBox,
 } from '../../components/common';
 import { useAuthStore } from '../../stores/authStore';
 import { useGoalsStore } from '../../stores/goalsStore';
@@ -48,9 +49,13 @@ export function HydrationScreen(): React.JSX.Element {
   const [goalInput, setGoalInput] = useState('');
   const [savingGoal, setSavingGoal] = useState(false);
 
+  const { width: screenW, height: screenH } = useWindowDimensions();
+  const boxW = screenW - layout.screenPadding * 2 - spacing.md * 2;
+  const boxH = Math.min(boxW * 0.54, screenH * 0.26);
+
   const totalMl = hydration?.total_ml ?? 0;
   const goalMl = hydration?.goal_ml ?? clientConfig.defaultHydrationGoalMl;
-  const progress = totalMl / Math.max(goalMl, 1);
+  const progress = Math.min(totalMl / Math.max(goalMl, 1), 1);
 
   // Evita repetir la celebración: si ya arrancó cumplida, no vuelve a sonar
   const celebratedRef = useRef(false);
@@ -65,11 +70,17 @@ export function HydrationScreen(): React.JSX.Element {
   const onAddWater = useCallback(
     async (ml: number) => {
       if (!userId) return;
-      hapticSelect();
       const newTotal = await addWater(userId, ml);
       if (newTotal === null) {
         useUiStore.getState().showToast('error', 'No pudimos registrar el agua. Probá de nuevo.');
         return;
+      }
+      if (ml > 0) {
+        hapticMedium();
+        void playWaterSound('add');
+      } else {
+        hapticSelect();
+        void playWaterSound('remove');
       }
       void useGoalsStore.getState().syncAutoGoal(userId, 'hydration', newTotal);
       const goal = useProgressStore.getState().hydrationToday?.goal_ml ?? clientConfig.defaultHydrationGoalMl;
@@ -125,20 +136,60 @@ export function HydrationScreen(): React.JSX.Element {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Anillo principal */}
-          <Card elevated style={styles.ringCard}>
-            <ProgressRing progress={progress} size={180} strokeWidth={14}>
-              <AppText variant="metricLarge" color={colors.text.primary}>
-                {(totalMl / 1000).toFixed(1)}
+          <Card elevated style={styles.waterCard}>
+            <WaterLevelBox
+              progress={progress}
+              width={boxW}
+              height={boxH}
+              color={colors.water}
+              surfaceColor={colors.surface.base}
+            >
+              <View style={styles.valueRow}>
+                <AppText variant="metricLarge" color={colors.text.primary} style={styles.bigValue}>
+                  {(totalMl / 1000).toFixed(1)}
+                </AppText>
+                <AppText variant="h3" color={colors.text.tertiary}>
+                  / {(goalMl / 1000).toFixed(1)}
+                </AppText>
+              </View>
+              <AppText variant="caps12" color={colors.water} style={styles.litrosLabel}>
+                Litros diarios
               </AppText>
-              <AppText variant="body13Medium" color={colors.text.tertiary}>
-                de {(goalMl / 1000).toFixed(1)} L
-              </AppText>
-            </ProgressRing>
-            <AppText variant="body14" color={colors.text.secondary} align="center" style={styles.ringSub}>
-              {progress >= 1
-                ? '¡Objetivo del día cumplido!'
-                : `Te faltan ${((goalMl - totalMl) / 1000).toFixed(1)} L para tu objetivo`}
+            </WaterLevelBox>
+
+            <View style={styles.waterGlasses}>
+              {Array.from({ length: 5 }).map((_, i) => {
+                const blockPct = (i + 1) * 20;
+                const filled = progress * 100 >= blockPct - 1;
+                return (
+                  <View
+                    key={i}
+                    style={[
+                      styles.waterGlass,
+                      { backgroundColor: colors.water, opacity: filled ? 1 : 0.2 },
+                    ]}
+                  />
+                );
+              })}
+            </View>
+
+            <AppText variant="body14" color={colors.text.secondary} align="center" style={styles.waterSub}>
+              {progress >= 1 ? (
+                <>
+                  {'¡'}
+                  <AppText variant="body14" color={colors.primary.default}>
+                    Objetivo
+                  </AppText>
+                  {' del día cumplido!'}
+                </>
+              ) : (
+                <>
+                  {`Te faltan ${((goalMl - totalMl) / 1000).toFixed(1)} L para tu `}
+                  <AppText variant="body14" color={colors.primary.default}>
+                    objetivo
+                  </AppText>
+                </>
+              )}
             </AppText>
           </Card>
 
@@ -159,7 +210,7 @@ export function HydrationScreen(): React.JSX.Element {
                   <Ionicons
                     name={action.icon}
                     size={20}
-                    color={action.ml > 0 ? colors.primary.default : colors.text.tertiary}
+                    color={action.ml > 0 ? colors.water : colors.text.tertiary}
                   />
                 </View>
                 <AppText variant="body14SemiBold" color={colors.text.primary}>
@@ -177,7 +228,10 @@ export function HydrationScreen(): React.JSX.Element {
             <View style={styles.goalRow}>
               <View style={styles.goalInfo}>
                 <AppText variant="caps12" color={colors.text.tertiary}>
-                  Objetivo diario
+                  <AppText variant="caps12" color={colors.primary.default}>
+                    Objetivo
+                  </AppText>
+                  {' diario'}
                 </AppText>
                 <AppText variant="metricSmall" color={colors.text.primary} style={styles.goalValue}>
                   {goalMl.toLocaleString('es-AR')} ml
@@ -219,8 +273,22 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     paddingHorizontal: layout.screenPadding,
     paddingBottom: layout.tabBarHeight + spacing.xxl,
   },
-  ringCard: { alignItems: 'center', paddingVertical: spacing.xl, marginBottom: spacing.lg },
-  ringSub: { marginTop: spacing.md },
+  waterCard: { alignItems: 'center', paddingVertical: spacing.xl, marginBottom: spacing.lg },
+  valueRow: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs },
+  bigValue: { fontSize: 56, lineHeight: 64 },
+  litrosLabel: { marginTop: spacing.xxs, letterSpacing: 2 },
+  waterGlasses: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    width: '100%',
+    marginTop: spacing.md,
+  },
+  waterGlass: {
+    flex: 1,
+    height: 6,
+    borderRadius: spacing.xxs,
+  },
+  waterSub: { marginTop: spacing.md },
   sectionTitle: { marginBottom: spacing.sm },
   quickGrid: {
     flexDirection: 'row',
@@ -245,7 +313,7 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: radius.pill,
-    backgroundColor: colors.primary.muted,
+    backgroundColor: 'rgba(79,176,247,0.14)',
     alignItems: 'center',
     justifyContent: 'center',
   },

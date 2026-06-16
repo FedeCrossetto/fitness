@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
-import Svg, { Circle, Line } from 'react-native-svg';
+import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { layout, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
+import { layout, radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
+import { bodyModels } from '../../theme/illustrations';
 import { formatLongDate } from '../../lib/dates';
 import { hapticSuccess } from '../../lib/haptics';
 import {
@@ -25,6 +25,7 @@ type Props = NativeStackScreenProps<ProgressStackParamList, 'Measurements'>;
 
 type FormField = 'weight' | 'fat' | 'chest' | 'waist' | 'hips' | 'arms' | 'legs';
 type FormState = Record<FormField, string>;
+type Gender = 'male' | 'female';
 
 const EMPTY_FORM: FormState = { weight: '', fat: '', chest: '', waist: '', hips: '', arms: '', legs: '' };
 
@@ -48,7 +49,13 @@ function cm(value: number | null | undefined): string {
 }
 
 /** Silueta corporal lineal con etiquetas de las últimas medidas por zona. */
-function BodyAvatar({ latest }: { latest: BodyMeasurementRow | undefined }): React.JSX.Element {
+function BodyAvatar({
+  latest,
+  gender,
+}: {
+  latest: BodyMeasurementRow | undefined;
+  gender: Gender;
+}): React.JSX.Element {
   const { colors } = useTheme();
 
   return (
@@ -72,22 +79,12 @@ function BodyAvatar({ latest }: { latest: BodyMeasurementRow | undefined }): Rea
         </View>
       </View>
 
-      <Svg width={130} height={230} viewBox="0 0 130 230">
-        {/* Cabeza */}
-        <Circle cx={65} cy={26} r={16} stroke={colors.primary.default} strokeWidth={2.5} fill="none" />
-        {/* Torso */}
-        <Line x1={65} y1={42} x2={65} y2={120} stroke={colors.primary.default} strokeWidth={2.5} strokeLinecap="round" />
-        {/* Brazos */}
-        <Line x1={65} y1={60} x2={28} y2={105} stroke={colors.primary.default} strokeWidth={2.5} strokeLinecap="round" />
-        <Line x1={65} y1={60} x2={102} y2={105} stroke={colors.primary.default} strokeWidth={2.5} strokeLinecap="round" />
-        {/* Piernas */}
-        <Line x1={65} y1={120} x2={40} y2={200} stroke={colors.primary.default} strokeWidth={2.5} strokeLinecap="round" />
-        <Line x1={65} y1={120} x2={90} y2={200} stroke={colors.primary.default} strokeWidth={2.5} strokeLinecap="round" />
-        {/* Marcadores de zonas */}
-        <Circle cx={65} cy={68} r={4} fill={colors.primary.default} />
-        <Circle cx={65} cy={92} r={4} fill={colors.primary.default} />
-        <Circle cx={65} cy={118} r={4} fill={colors.primary.default} />
-      </Svg>
+      <Image
+        source={bodyModels[gender]}
+        style={avatarStyles.bodyImage}
+        resizeMode="contain"
+        accessibilityLabel={gender === 'female' ? 'Figura corporal femenina' : 'Figura corporal masculina'}
+      />
 
       <View style={avatarStyles.sideColumn}>
         <View style={avatarStyles.labelBlock}>
@@ -119,6 +116,49 @@ function BodyAvatar({ latest }: { latest: BodyMeasurementRow | undefined }): Rea
   );
 }
 
+function GenderToggle({
+  value,
+  onChange,
+}: {
+  value: Gender;
+  onChange: (g: Gender) => void;
+}): React.JSX.Element {
+  const { colors } = useTheme();
+  const options: { key: Gender; label: string }[] = [
+    { key: 'male', label: 'Hombre' },
+    { key: 'female', label: 'Mujer' },
+  ];
+  return (
+    <View style={avatarStyles.genderRow}>
+      {options.map((opt) => {
+        const active = value === opt.key;
+        return (
+          <Pressable
+            key={opt.key}
+            accessibilityRole="button"
+            accessibilityState={{ selected: active }}
+            onPress={() => onChange(opt.key)}
+            style={[
+              avatarStyles.genderOption,
+              {
+                backgroundColor: active ? colors.primary.default : 'transparent',
+                borderColor: active ? colors.primary.default : colors.border.subtle,
+              },
+            ]}
+          >
+            <AppText
+              variant="body14SemiBold"
+              color={active ? colors.primary.onText : colors.text.secondary}
+            >
+              {opt.label}
+            </AppText>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 export function MeasurementsScreen({ navigation }: Props): React.JSX.Element {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
@@ -135,6 +175,7 @@ export function MeasurementsScreen({ navigation }: Props): React.JSX.Element {
   const saveMeasurement = useProgressStore((s) => s.saveMeasurement);
 
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [gender, setGender] = useState<Gender>('male');
   const [saving, setSaving] = useState(false);
 
   const latest = measurements[0];
@@ -149,6 +190,9 @@ export function MeasurementsScreen({ navigation }: Props): React.JSX.Element {
       if (cancelled) return;
       const latestRow = useProgressStore.getState().measurements[0];
       if (!latestRow) return;
+      if (latestRow.gender === 'male' || latestRow.gender === 'female') {
+        setGender(latestRow.gender);
+      }
       setForm({
         weight: latestRow.weight_kg !== null ? String(latestRow.weight_kg) : '',
         fat: latestRow.body_fat_pct !== null ? String(latestRow.body_fat_pct) : '',
@@ -173,6 +217,7 @@ export function MeasurementsScreen({ navigation }: Props): React.JSX.Element {
   const onSave = useCallback(async () => {
     if (!userId) return;
     const data: Partial<BodyMeasurementRow> = {
+      gender,
       weight_kg: parseDecimal(form.weight),
       body_fat_pct: parseDecimal(form.fat),
       chest_cm: parseDecimal(form.chest),
@@ -181,7 +226,8 @@ export function MeasurementsScreen({ navigation }: Props): React.JSX.Element {
       arms_cm: parseDecimal(form.arms),
       legs_cm: parseDecimal(form.legs),
     };
-    const hasValue = Object.values(data).some((v) => v !== null);
+    const { gender: _gender, ...measures } = data;
+    const hasValue = Object.values(measures).some((v) => v !== null);
     if (!hasValue) {
       useUiStore.getState().showToast('error', 'Ingresá al menos una medida para guardar.');
       return;
@@ -228,7 +274,8 @@ export function MeasurementsScreen({ navigation }: Props): React.JSX.Element {
             <AppText variant="caps12" color={colors.text.tertiary} style={styles.cardTitle}>
               Tus medidas actuales
             </AppText>
-            <BodyAvatar latest={latest} />
+            <BodyAvatar latest={latest} gender={gender} />
+            <GenderToggle value={gender} onChange={setGender} />
           </Card>
 
           {/* Formulario */}
@@ -345,4 +392,17 @@ const avatarStyles = StyleSheet.create({
     gap: spacing.md,
   },
   labelBlock: { gap: 2 },
+  bodyImage: { width: 132, height: 248 },
+  genderRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  genderOption: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+  },
 });
