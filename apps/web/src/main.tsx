@@ -5,9 +5,11 @@ import './styles.css';
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
 import { Layout } from '@/components/Layout';
 import { LoginPage } from '@/pages/Login';
+import { DownloadPage } from '@/pages/Download';
 import { DashboardPage } from '@/pages/Dashboard';
 import { BrandingPage } from '@/pages/Branding';
 import { StudentsPage } from '@/pages/Students';
+import { StudentDetailPage } from '@/pages/StudentDetail';
 import { RoutinesPage } from '@/pages/Routines';
 
 function Protected(): React.JSX.Element {
@@ -32,10 +34,12 @@ function App(): React.JSX.Element {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/descargar" element={<DownloadPage />} />
         <Route element={<Protected />}>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/branding" element={<BrandingPage />} />
           <Route path="/students" element={<StudentsPage />} />
+          <Route path="/students/:id" element={<StudentDetailPage />} />
           <Route path="/routines" element={<RoutinesPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

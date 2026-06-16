@@ -243,10 +243,12 @@ function PhaseEditor({
 }): React.JSX.Element {
   const [name, setName] = useState(phase.name);
 
+  const [openDay, setOpenDay] = useState<string | null>(null);
+
   return (
-    <section className="phase">
-      <div className="phase-head row-between">
-        <div className="phase-head-left">
+    <section className="card phase-card" style={{ padding: 0 }}>
+      <div className="phase-bar">
+        <div className="phase-bar-left">
           <span className="phase-num">Etapa {phase.phase_number}</span>
           <input
             className="inline-input phase-name-input"
@@ -255,33 +257,63 @@ function PhaseEditor({
             onBlur={() => name !== phase.name && void onRename(phase.id, name)}
           />
         </div>
-        <button className="icon-btn" title="Eliminar etapa" onClick={() => void onDelete(phase.id)}>
-          Eliminar
-        </button>
+        <div className="phase-bar-actions">
+          <button className="btn secondary sm" onClick={() => void onAddDay(phase)}>
+            + Día
+          </button>
+          <button className="icon-btn" title="Eliminar etapa" onClick={() => void onDelete(phase.id)}>
+            Eliminar
+          </button>
+        </div>
       </div>
 
-      <div className="day-grid">
-        {phase.days.map((day) => (
-          <DayEditor
-            key={day.id}
-            day={day}
-            onSaveDay={onSaveDay}
-            onDeleteDay={onDeleteDay}
-            onOpenPicker={onOpenPicker}
-            onSaveExercise={onSaveExercise}
-            onRemoveExercise={onRemoveExercise}
-          />
-        ))}
-        <button className="add-day" onClick={() => void onAddDay(phase)}>
-          + Agregar día
-        </button>
-      </div>
+      {phase.days.length === 0 ? (
+        <p className="muted" style={{ padding: '16px 18px', margin: 0 }}>
+          Esta etapa no tiene días. Agregá el primero con “+ Día”.
+        </p>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Día</th>
+              <th>Tipo</th>
+              <th>Ejercicios</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {phase.days.map((day) => (
+              <DayRow
+                key={day.id}
+                day={day}
+                expanded={openDay === day.id}
+                onToggle={() => setOpenDay((cur) => (cur === day.id ? null : day.id))}
+                onSaveDay={onSaveDay}
+                onDeleteDay={onDeleteDay}
+                onOpenPicker={onOpenPicker}
+                onSaveExercise={onSaveExercise}
+                onRemoveExercise={onRemoveExercise}
+              />
+            ))}
+          </tbody>
+        </table>
+      )}
     </section>
   );
 }
 
-function DayEditor({
+const TYPE_BADGE: Record<WorkoutType, string> = {
+  fuerza: 'green',
+  cardio: 'amber',
+  movilidad: 'violet',
+  tecnica: 'gray',
+  descanso: 'gray',
+};
+
+function DayRow({
   day,
+  expanded,
+  onToggle,
   onSaveDay,
   onDeleteDay,
   onOpenPicker,
@@ -289,6 +321,8 @@ function DayEditor({
   onRemoveExercise,
 }: {
   day: DayWithWorkout;
+  expanded: boolean;
+  onToggle: () => void;
   onSaveDay: (id: string, patch: Partial<Pick<TrainingDayRow, 'title' | 'day_type'>>) => Promise<void>;
   onDeleteDay: (day: DayWithWorkout) => Promise<void>;
   onOpenPicker: (day: DayWithWorkout) => void;
@@ -301,86 +335,110 @@ function DayEditor({
   const [title, setTitle] = useState(day.title);
   const exercises = [...(day.workout?.exercises ?? [])].sort((a, b) => a.sort_order - b.sort_order);
   const isRest = day.day_type === 'descanso';
+  const typeLabel = DAY_TYPES.find((t) => t.value === day.day_type)?.label ?? day.day_type;
+
+  const stop = (e: React.MouseEvent) => e.stopPropagation();
 
   return (
-    <div className="day-card">
-      <div className="day-card-head">
-        <span className="day-num">Día {day.day_number}</span>
-        <input
-          className="inline-input day-title-input"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          onBlur={() => title !== day.title && void onSaveDay(day.id, { title })}
-        />
-        <div className="day-controls">
-          <select
-            className="inline-select"
-            value={day.day_type}
-            onChange={(e) => void onSaveDay(day.id, { day_type: e.target.value as WorkoutType })}
-          >
-            {DAY_TYPES.map((t) => (
-              <option key={t.value} value={t.value}>
-                {t.label}
-              </option>
-            ))}
-          </select>
+    <>
+      <tr className="row-clickable" onClick={onToggle}>
+        <td>
+          <div className="cell-user">
+            <span className="day-pill">Día {day.day_number}</span>
+            <input
+              className="inline-input"
+              value={title}
+              onClick={stop}
+              onChange={(e) => setTitle(e.target.value)}
+              onBlur={() => title !== day.title && void onSaveDay(day.id, { title })}
+            />
+          </div>
+        </td>
+        <td>
+          <span className={`badge solid ${TYPE_BADGE[day.day_type]}`}>{typeLabel}</span>
+        </td>
+        <td className="muted">{isRest ? '—' : `${exercises.length} ejercicio${exercises.length === 1 ? '' : 's'}`}</td>
+        <td style={{ textAlign: 'right' }} onClick={stop}>
           <button className="icon-btn" title="Eliminar día" onClick={() => void onDeleteDay(day)}>
             ✕
           </button>
-        </div>
-      </div>
-
-      {!isRest && (
-        <>
-          <ul className="ex-list">
-            {exercises.map((we) => (
-              <li key={we.id} className="ex-row">
-                <div
-                  className="ex-thumb"
-                  style={we.exercise?.image_url ? { backgroundImage: `url(${we.exercise.image_url})` } : undefined}
-                />
-                <div className="ex-info">
-                  <span className="ex-name">{we.exercise?.name ?? 'Ejercicio'}</span>
-                  <div className="ex-fields">
-                    <input
-                      className="inline-input mini"
-                      type="number"
-                      min={1}
-                      defaultValue={we.sets}
-                      onBlur={(e) => void onSaveExercise(we.id, { sets: Number(e.target.value) })}
-                    />
-                    <span className="ex-x">×</span>
-                    <input
-                      className="inline-input mini wide"
-                      defaultValue={we.reps}
-                      onBlur={(e) => void onSaveExercise(we.id, { reps: e.target.value })}
-                    />
-                    <input
-                      className="inline-input mini"
-                      type="number"
-                      min={0}
-                      placeholder="seg"
-                      defaultValue={we.rest_seconds ?? ''}
-                      onBlur={(e) =>
-                        void onSaveExercise(we.id, {
-                          rest_seconds: e.target.value === '' ? null : Number(e.target.value),
-                        })
-                      }
-                    />
-                  </div>
-                </div>
-                <button className="icon-btn" title="Quitar" onClick={() => void onRemoveExercise(we.id)}>
-                  ✕
-                </button>
-              </li>
-            ))}
-          </ul>
-          <button className="add-ex" onClick={() => onOpenPicker(day)}>
-            + Agregar ejercicio
-          </button>
-        </>
-      )}
-    </div>
+        </td>
+      </tr>
+      {expanded ? (
+        <tr className="expand-row">
+          <td colSpan={4}>
+            <div className="day-edit">
+              <div className="field" style={{ marginBottom: 14 }}>
+                <label>Tipo de día</label>
+                <select
+                  className="inline-select"
+                  value={day.day_type}
+                  onChange={(e) => void onSaveDay(day.id, { day_type: e.target.value as WorkoutType })}
+                >
+                  {DAY_TYPES.map((t) => (
+                    <option key={t.value} value={t.value}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {isRest ? (
+                <p className="muted" style={{ margin: 0 }}>Día de descanso — sin ejercicios.</p>
+              ) : (
+                <>
+                  <ul className="ex-list">
+                    {exercises.map((we) => (
+                      <li key={we.id} className="ex-row">
+                        <div
+                          className="ex-thumb"
+                          style={we.exercise?.image_url ? { backgroundImage: `url(${we.exercise.image_url})` } : undefined}
+                        />
+                        <div className="ex-info">
+                          <span className="ex-name">{we.exercise?.name ?? 'Ejercicio'}</span>
+                          <div className="ex-fields">
+                            <input
+                              className="inline-input mini"
+                              type="number"
+                              min={1}
+                              defaultValue={we.sets}
+                              onBlur={(e) => void onSaveExercise(we.id, { sets: Number(e.target.value) })}
+                            />
+                            <span className="ex-x">×</span>
+                            <input
+                              className="inline-input mini wide"
+                              defaultValue={we.reps}
+                              onBlur={(e) => void onSaveExercise(we.id, { reps: e.target.value })}
+                            />
+                            <input
+                              className="inline-input mini"
+                              type="number"
+                              min={0}
+                              placeholder="seg"
+                              defaultValue={we.rest_seconds ?? ''}
+                              onBlur={(e) =>
+                                void onSaveExercise(we.id, {
+                                  rest_seconds: e.target.value === '' ? null : Number(e.target.value),
+                                })
+                              }
+                            />
+                          </div>
+                        </div>
+                        <button className="icon-btn" title="Quitar" onClick={() => void onRemoveExercise(we.id)}>
+                          ✕
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  <button className="add-ex" onClick={() => onOpenPicker(day)}>
+                    + Agregar ejercicio
+                  </button>
+                </>
+              )}
+            </div>
+          </td>
+        </tr>
+      ) : null}
+    </>
   );
 }
 

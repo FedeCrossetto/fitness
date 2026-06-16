@@ -23,7 +23,8 @@
         "NSSpeechRecognitionUsageDescription": "Habito convierte tu voz en texto para registrar comidas.",
         "NSMotionUsageDescription": "Habito usa el sensor de movimiento para contar tus pasos diarios.",
         "NSHealthShareUsageDescription": "Habito lee peso, pasos, frecuencia cardíaca y sueño de Apple Health para completar tu progreso.",
-        "NSHealthUpdateUsageDescription": "Habito puede guardar tu peso y entrenamientos en Apple Health."
+        "NSHealthUpdateUsageDescription": "Habito puede guardar tu peso y entrenamientos en Apple Health.",
+        "NSSupportsLiveActivities": true
       },
       "entitlements": {
         "com.apple.developer.healthkit": true
@@ -81,7 +82,16 @@
           "speechRecognitionPermission": "Habito convierte tu voz en texto para registrar comidas."
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      "@bacons/apple-targets",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "16.4"
+          }
+        }
+      ]
     ],
     "extra": {
       "supabaseUrl": "",

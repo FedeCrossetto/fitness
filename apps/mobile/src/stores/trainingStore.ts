@@ -4,6 +4,12 @@ import { supabase } from '../lib/supabase';
 import { staleWhileRevalidate } from '../lib/cache';
 import { todayISO } from '../lib/dates';
 import { clientConfig } from '../config/clientConfig';
+import {
+  startLiveWorkout,
+  updateLiveWorkout,
+  endLiveWorkout,
+  type LiveWorkoutState,
+} from '../services/liveActivity';
 import type {
   ExerciseRow,
   TrainingDayRow,
@@ -38,6 +44,18 @@ export interface ActiveSession {
 }
 
 const ACTIVE_SESSION_KEY = 'habito:activeSession';
+
+function liveStateFrom(
+  session: ActiveSession,
+  detail: WorkoutWithExercises | null
+): LiveWorkoutState {
+  return {
+    workoutTitle: session.workoutTitle,
+    startedAt: session.startedAt,
+    completed: session.completedExerciseIds.length,
+    total: detail?.id === session.workoutId ? detail.exercises.length : 0,
+  };
+}
 
 interface TrainingState {
   phases: PhaseWithDays[];
@@ -152,13 +170,15 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
       ]);
       if (workoutRes.error) throw workoutRes.error;
       if (exercisesRes.error) throw exercisesRes.error;
-      set({
-        workoutDetail: {
-          ...workoutRes.data,
-          exercises: exercisesRes.data ?? [],
-        },
-        detailLoading: false,
-      });
+      const detail: WorkoutWithExercises = {
+        ...workoutRes.data,
+        exercises: exercisesRes.data ?? [],
+      };
+      set({ workoutDetail: detail, detailLoading: false });
+      const active = get().activeSession;
+      if (active?.workoutId === detail.id) {
+        void updateLiveWorkout(liveStateFrom(active, detail));
+      }
     } catch {
       set({ detailLoading: false, detailError: 'No pudimos cargar la rutina.' });
     }
@@ -167,7 +187,11 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
   restoreActiveSession: async () => {
     try {
       const raw = await AsyncStorage.getItem(ACTIVE_SESSION_KEY);
-      if (raw) set({ activeSession: JSON.parse(raw) as ActiveSession });
+      if (raw) {
+        const session = JSON.parse(raw) as ActiveSession;
+        set({ activeSession: session });
+        void startLiveWorkout(liveStateFrom(session, get().workoutDetail));
+      }
     } catch {
       // sesión no restaurable
     }
@@ -186,6 +210,7 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
     };
     set({ activeSession: session });
     await AsyncStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(session));
+    void startLiveWorkout(liveStateFrom(session, get().workoutDetail));
   },
 
   toggleExerciseDone: (exerciseRowId) => {
@@ -200,6 +225,7 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
     };
     set({ activeSession: updated });
     void AsyncStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(updated));
+    void updateLiveWorkout(liveStateFrom(updated, get().workoutDetail));
   },
 
   updateSessionMeta: (data) => {
@@ -234,6 +260,7 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
       if (error) throw error;
       set({ activeSession: null, lastSavedLog: data });
       await AsyncStorage.removeItem(ACTIVE_SESSION_KEY);
+      void endLiveWorkout();
       return data;
     } catch {
       return null;
@@ -243,6 +270,7 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
   discardSession: async () => {
     set({ activeSession: null });
     await AsyncStorage.removeItem(ACTIVE_SESSION_KEY);
+    void endLiveWorkout();
   },
 
   logCardio: async (userId, { activity, distance, distanceUnit, durationSeconds }) => {

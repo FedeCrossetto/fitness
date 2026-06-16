@@ -96,7 +96,6 @@ const createStyles = (colors: Colors) =>
       bottom: 0,
       borderTopWidth: 1,
       borderTopColor: colors.border.subtle,
-      overflow: 'hidden',
     },
     tintOverlay: {
       ...StyleSheet.absoluteFill,
