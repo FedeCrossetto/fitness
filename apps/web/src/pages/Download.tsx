@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
+import { normalizeInviteCode } from '@habito/shared';
 
 type Platform = 'ios' | 'android' | 'other';
 
@@ -15,7 +16,7 @@ function detectPlatform(): Platform {
 
 export function DownloadPage(): React.JSX.Element {
   const [params] = useSearchParams();
-  const code = (params.get('code') ?? '').trim().toUpperCase();
+  const code = normalizeInviteCode(params.get('code') ?? '');
   const platform = useMemo(detectPlatform, []);
   const [copied, setCopied] = useState(false);
 
@@ -34,18 +35,31 @@ export function DownloadPage(): React.JSX.Element {
       <div className="dl-card">
         <div className="dl-brand">CustomFit</div>
         <h1 className="dl-title">Descargá la app</h1>
-        <p className="dl-sub">Instalá la app en tu teléfono y registrate con tu código para empezar.</p>
+        <p className="dl-sub">
+          {code
+            ? 'Registrate primero con el link de tu entrenador y después instalá la app.'
+            : 'Instalá la app en tu teléfono para empezar.'}
+        </p>
 
         {code ? (
-          <div className="dl-code">
-            <span className="dl-code-label">Tu código de invitación</span>
-            <div className="dl-code-row">
-              <span className="dl-code-value">{code}</span>
-              <button type="button" className="btn secondary sm" onClick={() => void copyCode()}>
-                {copied ? 'Copiado' : 'Copiar'}
-              </button>
+          <>
+            <Link
+              to={`/unirse?code=${encodeURIComponent(code)}`}
+              className="btn dl-store primary"
+              style={{ display: 'block', textAlign: 'center', textDecoration: 'none', marginBottom: 12 }}
+            >
+              Crear cuenta con Google o email
+            </Link>
+            <div className="dl-code">
+              <span className="dl-code-label">Código de invitación</span>
+              <div className="dl-code-row">
+                <span className="dl-code-value">{code}</span>
+                <button type="button" className="btn secondary sm" onClick={() => void copyCode()}>
+                  {copied ? 'Copiado' : 'Copiar'}
+                </button>
+              </div>
             </div>
-          </div>
+          </>
         ) : null}
 
         <div className="dl-actions">
@@ -78,15 +92,19 @@ export function DownloadPage(): React.JSX.Element {
         </div>
 
         <ol className="dl-steps">
-          <li>Descargá e instalá la app en tu teléfono.</li>
-          <li>Abrila y tocá “Crear cuenta”.</li>
-          <li>
-            {code ? (
-              <>Ingresá el código <strong>{code}</strong> para vincularte a tu entrenador.</>
-            ) : (
-              <>Ingresá el código que te pasó tu entrenador.</>
-            )}
-          </li>
+          {code ? (
+            <>
+              <li>Tocá <strong>Crear cuenta</strong> arriba y registrate con Google o email.</li>
+              <li>Descargá e instalá la app en tu teléfono.</li>
+              <li>Iniciá sesión con la misma cuenta que creaste.</li>
+            </>
+          ) : (
+            <>
+              <li>Descargá e instalá la app en tu teléfono.</li>
+              <li>Abrila y tocá “Crear cuenta”.</li>
+              <li>Ingresá el código que te pasó tu entrenador.</li>
+            </>
+          )}
         </ol>
       </div>
     </div>

@@ -1,17 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import type { TrainerBrandingRow } from '@habito/shared/types/database';
+import { buildInviteLink } from '@habito/shared';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 
 const HEX_RE = /^#([0-9a-fA-F]{6})$/;
-const DOWNLOAD_BASE =
+const JOIN_BASE =
   (import.meta.env.VITE_APP_DOWNLOAD_URL as string | undefined)?.replace(/\/$/, '') ??
-  `${window.location.origin}/descargar`;
+  `${window.location.origin}`;
 
-function buildInviteLink(code: string): string {
-  const clean = code.trim().toUpperCase();
-  return clean ? `${DOWNLOAD_BASE}?code=${encodeURIComponent(clean)}` : DOWNLOAD_BASE;
+function buildInviteLinkLocal(code: string): string {
+  return buildInviteLink(code, JOIN_BASE);
 }
 
 function ColorField({
@@ -81,7 +81,7 @@ export function BrandingPage(): React.JSX.Element {
   const [toast, setToast] = useState<{ kind: 'error' | 'success'; msg: string } | null>(null);
   const qrRef = useRef<HTMLDivElement>(null);
 
-  const inviteLink = buildInviteLink(form.invite_code);
+  const inviteLink = buildInviteLinkLocal(form.invite_code);
 
   const copyLink = async () => {
     try {
@@ -291,7 +291,7 @@ export function BrandingPage(): React.JSX.Element {
       <div className="card share-card">
         <h2 className="section-title" style={{ margin: '0 0 4px' }}>Compartí tu app</h2>
         <p className="muted" style={{ margin: '0 0 18px' }}>
-          Tus alumnos escanean este QR para descargar la app y vincularse a tu marca con tu código.
+          Compartí este link o QR. Tus alumnos se registran con Google o email y quedan vinculados automáticamente.
         </p>
         {form.invite_code.trim() ? (
           <div className="share-body">

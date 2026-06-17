@@ -4,6 +4,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import type { ProfileRow } from '@habito/shared/types/database';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { buildInviteLink, getJoinBaseUrl } from '@/lib/inviteClient';
 import { SearchIcon, UsersIcon } from '@/components/icons';
 
 type Student = Pick<ProfileRow, 'id' | 'full_name' | 'goal' | 'created_at' | 'avatar_url'> & {
@@ -51,6 +52,8 @@ export function StudentsPage(): React.JSX.Element {
   const [copied, setCopied] = useState(false);
   const [showQR, setShowQR] = useState(false);
 
+  const inviteLink = inviteCode ? buildInviteLink(inviteCode, getJoinBaseUrl()) : null;
+
   useEffect(() => { setQuery(searchParams.get('q') ?? ''); }, [searchParams]);
 
   const loadStudents = () => {
@@ -82,9 +85,9 @@ export function StudentsPage(): React.JSX.Element {
     })();
   }, [userId]);
 
-  const copyCode = () => {
-    if (!inviteCode) return;
-    void navigator.clipboard.writeText(inviteCode);
+  const copyLink = () => {
+    if (!inviteLink) return;
+    void navigator.clipboard.writeText(inviteLink);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -118,22 +121,22 @@ export function StudentsPage(): React.JSX.Element {
       </div>
 
       {/* Invite banner */}
-      {inviteCode && (
+      {inviteCode && inviteLink && (
         <div className="invite-banner">
           <div className="invite-banner-left">
             <div className="invite-banner-icon">🔗</div>
             <div>
-              <div className="invite-banner-title">Código de invitación</div>
+              <div className="invite-banner-title">Link de invitación</div>
               <div className="invite-banner-sub">
-                Compartilo con tus alumnos. Al registrarse en la app con este código quedan vinculados a tu cuenta automáticamente.
+                Enviá este link por WhatsApp o email. El alumno se registra con Google o email y queda vinculado automáticamente.
               </div>
             </div>
           </div>
           <div className="invite-banner-right">
-            <div className="invite-code-box">
-              <span className="invite-code-text">{inviteCode}</span>
-              <button className="invite-copy-btn" onClick={copyCode} title="Copiar código">
-                {copied ? '✓ Copiado' : 'Copiar'}
+            <div className="invite-code-box" style={{ maxWidth: 320 }}>
+              <span className="invite-code-text" style={{ fontSize: 12, letterSpacing: 0, wordBreak: 'break-all' }}>{inviteLink}</span>
+              <button className="invite-copy-btn" onClick={copyLink} title="Copiar link">
+                {copied ? '✓ Copiado' : 'Copiar link'}
               </button>
             </div>
             <button
@@ -148,16 +151,16 @@ export function StudentsPage(): React.JSX.Element {
       )}
 
       {/* QR modal */}
-      {showQR && inviteCode && (
+      {showQR && inviteLink && (
         <div className="invite-qr-backdrop" onClick={() => setShowQR(false)}>
           <div className="invite-qr-modal" onClick={(e) => e.stopPropagation()}>
-            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>Código QR de invitación</div>
+            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>QR de invitación</div>
             <div style={{ fontSize: 13, color: 'var(--text-tertiary)', marginBottom: 20 }}>
-              El alumno lo escanea con la cámara y lo lleva directo al registro
+              El alumno escanea y se registra con Google o email en un minuto
             </div>
-            <QRCodeSVG value={inviteCode} size={200} />
-            <div style={{ marginTop: 16, fontFamily: 'monospace', fontSize: 18, fontWeight: 700, letterSpacing: 3, color: 'var(--text-primary)' }}>
-              {inviteCode}
+            <QRCodeSVG value={inviteLink} size={200} />
+            <div style={{ marginTop: 16, fontSize: 11, color: 'var(--text-tertiary)', wordBreak: 'break-all', textAlign: 'center', padding: '0 8px' }}>
+              {inviteLink}
             </div>
             <button className="btn secondary" style={{ marginTop: 20, width: '100%' }} onClick={() => setShowQR(false)}>
               Cerrar

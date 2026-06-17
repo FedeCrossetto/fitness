@@ -6,6 +6,8 @@ import { AuthProvider, useAuth } from '@/hooks/useAuth';
 import { I18nProvider } from '@/hooks/useTranslation';
 import { Layout } from '@/components/Layout';
 import { LoginPage } from '@/pages/Login';
+import { JoinPage } from '@/pages/Join';
+import { AuthCallbackPage } from '@/pages/AuthCallback';
 import { DownloadPage } from '@/pages/Download';
 import { DashboardPage } from '@/pages/Dashboard';
 import { BrandingPage } from '@/pages/Branding';
@@ -58,6 +60,8 @@ function App(): React.JSX.Element {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/descargar" element={<DownloadPage />} />
+        <Route path="/unirse" element={<JoinPage />} />
+        <Route path="/auth/callback" element={<AuthCallbackPage />} />
         <Route element={<Protected />}>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/messages" element={<MessagesPage />} />

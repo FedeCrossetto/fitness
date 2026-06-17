@@ -14,6 +14,7 @@ import { AuthStack, HomeStack, NutritionStack, ProgressStack, TrainingStack } fr
 import { OnboardingScreen } from '../screens/auth/OnboardingScreen';
 import { WaiverScreen } from '../screens/waiver/WaiverScreen';
 import { ConsultationFormScreen } from '../screens/consultation/ConsultationFormScreen';
+import { useInviteDeepLink } from '../hooks/useInviteDeepLink';
 import { supabase } from '../lib/supabase';
 
 const anyClient = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> };
@@ -94,6 +95,8 @@ function SplashGate(): React.JSX.Element {
 
 /** Decide entre Auth, Onboarding, WaiverGate y App según la sesión de Supabase. */
 export function RootNavigator(): React.JSX.Element {
+  useInviteDeepLink();
+
   const initializing        = useAuthStore((s) => s.initializing);
   const session             = useAuthStore((s) => s.session);
   const profile             = useAuthStore((s) => s.profile);

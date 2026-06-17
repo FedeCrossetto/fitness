@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -15,11 +15,12 @@ import { illustrations, spacing, radius, Colors, useThemedStyles, useTheme } fro
 import { clientConfig } from '../../config/clientConfig';
 import { AppText, Button, Input } from '../../components/common';
 import { useAuthStore } from '../../stores/authStore';
+import { readPendingInviteCode } from '../../services/invite';
 import type { AuthStackParamList } from '../../types/navigation';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 
-export function LoginScreen({ navigation }: Props): React.JSX.Element {
+export function LoginScreen({ navigation, route }: Props): React.JSX.Element {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
 
@@ -28,6 +29,15 @@ export function LoginScreen({ navigation }: Props): React.JSX.Element {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [emailError, setEmailError] = useState<string | null>(null);
+  const [trainerCode, setTrainerCode] = useState(route.params?.code ?? '');
+
+  useEffect(() => {
+    void (async () => {
+      if (route.params?.code) return;
+      const pending = await readPendingInviteCode();
+      if (pending) setTrainerCode(pending);
+    })();
+  }, [route.params?.code]);
 
   const handleLogin = () => {
     if (!email.includes('@')) {
@@ -119,20 +129,20 @@ export function LoginScreen({ navigation }: Props): React.JSX.Element {
             label="Apple"
             icon="logo-apple"
             variant="secondary"
-            onPress={() => void signInWithOAuth('apple')}
+            onPress={() => void signInWithOAuth('apple', trainerCode)}
             style={styles.oauthButton}
           />
           <Button
             label="Google"
             icon="logo-google"
             variant="secondary"
-            onPress={() => void signInWithOAuth('google')}
+            onPress={() => void signInWithOAuth('google', trainerCode)}
             style={styles.oauthButton}
           />
         </View>
 
         <Pressable
-          onPress={() => navigation.navigate('SignUp')}
+          onPress={() => navigation.navigate('SignUp', trainerCode ? { code: trainerCode } : undefined)}
           style={styles.footer}
           accessibilityRole="button"
         >

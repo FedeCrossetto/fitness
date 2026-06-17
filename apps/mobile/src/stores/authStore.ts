@@ -5,6 +5,11 @@ import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { clearCache } from '../lib/cache';
 import { useBrandingStore } from './brandingStore';
+import {
+  applyPendingInviteLink,
+  readPendingInviteCode,
+  savePendingInviteCode,
+} from '../services/invite';
 import type { ProfileRow, UserProfileRow } from '../types/database';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -25,7 +30,7 @@ interface AuthState {
   checkSession: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<boolean>;
   signUp: (email: string, password: string, fullName: string, trainerCode?: string) => Promise<boolean>;
-  signInWithOAuth: (provider: OAuthProvider) => Promise<boolean>;
+  signInWithOAuth: (provider: OAuthProvider, trainerCode?: string) => Promise<boolean>;
   resetPassword: (email: string) => Promise<boolean>;
   completeOnboarding: (data: { goal: string; level: string }) => Promise<boolean>;
   refreshProfile: () => Promise<void>;
@@ -53,6 +58,11 @@ async function loadProfiles(userId: string): Promise<{ profile: ProfileRow | nul
   };
 }
 
+async function finishAuthSession(session: Session): Promise<{ profile: ProfileRow | null; userProfile: UserProfileRow | null }> {
+  await applyPendingInviteLink();
+  return loadProfiles(session.user.id);
+}
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   session: null,
   profile: null,
@@ -67,7 +77,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { data } = await supabase.auth.getSession();
       const session = data.session;
       if (session) {
-        const { profile, userProfile } = await loadProfiles(session.user.id);
+        const { profile, userProfile } = await finishAuthSession(session);
         set({
           session,
           profile,
@@ -99,7 +109,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
       if (error) throw error;
-      const { profile, userProfile } = await loadProfiles(data.user.id);
+      const { profile, userProfile } = await finishAuthSession(data.session!);
       set({
         session: data.session,
         profile,
@@ -118,6 +128,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const code = trainerCode?.trim();
+      if (code) await savePendingInviteCode(code);
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
@@ -131,7 +142,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ loading: false, error: 'Revisá tu email para confirmar la cuenta y luego iniciá sesión.' });
         return false;
       }
-      const { profile, userProfile } = await loadProfiles(data.user!.id);
+      const { profile, userProfile } = await finishAuthSession(data.session!);
       set({ session: data.session, profile, userProfile, needsOnboarding: true, loading: false });
       return true;
     } catch (error) {
@@ -140,9 +151,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  signInWithOAuth: async (provider) => {
+  signInWithOAuth: async (provider, trainerCode) => {
     set({ loading: true, error: null });
     try {
+      const pending = trainerCode?.trim() || (await readPendingInviteCode());
+      if (pending) await savePendingInviteCode(pending);
+
       const redirectTo = AuthSession.makeRedirectUri({ scheme: 'habito' });
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
@@ -163,7 +177,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { data: sessionData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
       if (exchangeError) throw exchangeError;
 
-      const { profile, userProfile } = await loadProfiles(sessionData.session.user.id);
+      const { profile, userProfile } = await finishAuthSession(sessionData.session);
       set({
         session: sessionData.session,
         profile,

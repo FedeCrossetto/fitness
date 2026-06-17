@@ -2,8 +2,8 @@ import type { NavigatorScreenParams } from '@react-navigation/native';
 import type { MealType, PhotoPosition } from './database';
 
 export type AuthStackParamList = {
-  Login: undefined;
-  SignUp: undefined;
+  Login: { code?: string } | undefined;
+  SignUp: { code?: string } | undefined;
   Onboarding: undefined;
 };
 

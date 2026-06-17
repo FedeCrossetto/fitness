@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -13,11 +13,12 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { spacing, radius, Colors, useThemedStyles, useTheme } from '../../theme';
 import { AppText, Button, IconButton, Input } from '../../components/common';
 import { useAuthStore } from '../../stores/authStore';
+import { readPendingInviteCode } from '../../services/invite';
 import type { AuthStackParamList } from '../../types/navigation';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'SignUp'>;
 
-export function SignUpScreen({ navigation }: Props): React.JSX.Element {
+export function SignUpScreen({ navigation, route }: Props): React.JSX.Element {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
 
@@ -26,8 +27,16 @@ export function SignUpScreen({ navigation }: Props): React.JSX.Element {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [trainerCode, setTrainerCode] = useState('');
+  const [trainerCode, setTrainerCode] = useState(route.params?.code ?? '');
   const [fieldError, setFieldError] = useState<{ name?: string; email?: string; password?: string }>({});
+
+  useEffect(() => {
+    void (async () => {
+      if (route.params?.code) return;
+      const pending = await readPendingInviteCode();
+      if (pending) setTrainerCode(pending);
+    })();
+  }, [route.params?.code]);
 
   const handleSignUp = () => {
     const errors: typeof fieldError = {};
@@ -105,7 +114,7 @@ export function SignUpScreen({ navigation }: Props): React.JSX.Element {
           containerStyle={styles.field}
         />
         <Input
-          label="Código de entrenador (opcional)"
+          label="Código de entrenador"
           icon="key-outline"
           placeholder="Ej: PEPITO"
           autoCapitalize="characters"
@@ -149,14 +158,14 @@ export function SignUpScreen({ navigation }: Props): React.JSX.Element {
             label="Apple"
             icon="logo-apple"
             variant="secondary"
-            onPress={() => void signInWithOAuth('apple')}
+            onPress={() => void signInWithOAuth('apple', trainerCode)}
             style={styles.oauthButton}
           />
           <Button
             label="Google"
             icon="logo-google"
             variant="secondary"
-            onPress={() => void signInWithOAuth('google')}
+            onPress={() => void signInWithOAuth('google', trainerCode)}
             style={styles.oauthButton}
           />
         </View>
