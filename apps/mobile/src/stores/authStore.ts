@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import * as WebBrowser from 'expo-web-browser';
-import * as AuthSession from 'expo-auth-session';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { clearCache } from '../lib/cache';
@@ -10,6 +9,7 @@ import {
   readPendingInviteCode,
   savePendingInviteCode,
 } from '../services/invite';
+import { completeOAuthFromUrl, getOAuthRedirectUri } from '../lib/oauthRedirect';
 import type { ProfileRow, UserProfileRow } from '../types/database';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -162,7 +162,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const pending = trainerCode?.trim() || (await readPendingInviteCode());
       if (pending) await savePendingInviteCode(pending);
 
-      const redirectTo = AuthSession.makeRedirectUri({ scheme: 'habito' });
+      const redirectTo = getOAuthRedirectUri();
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
         options: { redirectTo, skipBrowserRedirect: true },
@@ -175,16 +175,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return false;
       }
 
-      const url = new URL(result.url);
-      const code = url.searchParams.get('code');
-      if (!code) throw new Error('No se recibió el código de autorización.');
+      await completeOAuthFromUrl(result.url);
 
-      const { data: sessionData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-      if (exchangeError) throw exchangeError;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('No se pudo iniciar sesión con Google.');
 
-      const { profile, userProfile } = await finishAuthSession(sessionData.session);
+      const { profile, userProfile } = await finishAuthSession(session);
       set({
-        session: sessionData.session,
+        session,
         profile,
         userProfile,
         needsOnboarding: !profile?.goal,
@@ -200,7 +198,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   resetPassword: async (email) => {
     set({ loading: true, error: null });
     try {
-      const redirectTo = AuthSession.makeRedirectUri({ scheme: 'habito' });
+      const redirectTo = getOAuthRedirectUri();
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo });
       if (error) throw error;
       set({ loading: false });
