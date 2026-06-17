@@ -4,7 +4,7 @@ import type { ProfileRow, WorkoutLogRow, MealLogRow, ProgressPhotoRow, BodyMeasu
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useTranslation } from '@/hooks/useTranslation';
-import { UsersIcon, DumbbellIcon, CheckIcon, CalendarIcon, TrophyIcon } from '@/components/icons';
+import { TrophyIcon } from '@/components/icons';
 import { AreaChart } from '@/components/charts';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -17,6 +17,7 @@ interface Activity {
   id: string;
   studentId: string;
   studentName: string;
+  studentAvatar?: string | null;
   type: ActivityType;
   verb: string;
   detail: string;
@@ -86,6 +87,7 @@ function buildActivities(
       id: `w-${w.id}`,
       studentId: w.user_id,
       studentName: s.full_name ?? 'Alumno',
+      studentAvatar: s.avatar_url,
       type: 'workout',
       verb: w.completed ? 'completó un entrenamiento' : 'no completó su entrenamiento',
       detail: w.workout_name ?? (w.workout_type ?? 'Entrenamiento'),
@@ -102,6 +104,7 @@ function buildActivities(
       id: `m-${m.id}`,
       studentId: m.user_id,
       studentName: s.full_name ?? 'Alumno',
+      studentAvatar: s.avatar_url,
       type: 'meal',
       verb: `registró ${label}`,
       detail: (m.title ?? m.meal_type) + kcal,
@@ -117,6 +120,7 @@ function buildActivities(
       id: `p-${p.id}`,
       studentId: p.user_id,
       studentName: s.full_name ?? 'Alumno',
+      studentAvatar: s.avatar_url,
       type: 'photo',
       verb: 'subió fotos de progreso',
       detail: p.position,
@@ -135,6 +139,7 @@ function buildActivities(
       id: `b-${b.id}`,
       studentId: b.user_id,
       studentName: s.full_name ?? 'Alumno',
+      studentAvatar: s.avatar_url,
       type: 'measurement',
       verb: 'registró una medición',
       detail: parts.join(' · ') || 'Medida corporal',
@@ -150,6 +155,7 @@ function buildActivities(
         id: `j-${s.id}`,
         studentId: s.id,
         studentName: s.full_name ?? 'Alumno',
+        studentAvatar: s.avatar_url,
         type: 'joined',
         verb: 'se unió a la app',
         detail: 'Nuevo alumno',
@@ -165,7 +171,7 @@ function buildActivities(
 
 export function DashboardPage(): React.JSX.Element {
   const { session, profile } = useAuth();
-  const { t, i18n } = useTranslation();
+  const { t, i18n, language } = useTranslation();
   const navigate = useNavigate();
   const userId = session?.user.id;
 
@@ -311,10 +317,14 @@ export function DashboardPage(): React.JSX.Element {
       {/* ── Left: stats + chart + students ─────────────────────────────── */}
       <div className="dash-left">
         <div className="dash-greeting">
+          <span className="dash-date">
+            {new Date().toLocaleDateString(language === 'es' ? 'es-AR' : 'en-US', {
+              weekday: 'long', day: 'numeric', month: 'long',
+            })}
+          </span>
           <h1 className="dash-title">
-            {i18n(t.dashboard.greeting, { name: profile?.full_name?.split(' ')[0] ?? 'entrenador' })}
+            {profile?.full_name?.split(' ')[0] ?? 'Panel'}
           </h1>
-          <p className="dash-sub">{t.dashboard.sub}</p>
         </div>
 
         {/* Stats strip */}
@@ -323,30 +333,22 @@ export function DashboardPage(): React.JSX.Element {
             value={studentCount ?? '—'}
             label={t.dashboard.students}
             delta={12}
-            accent="#6366f1"
-            icon={<UsersIcon />}
             since={t.dashboard.vs_month}
           />
           <StatBlock
             value={completionPct ? `${completionPct}%` : '—'}
             label={i18n(t.dashboard.workouts_pct, { range })}
             delta={completionPct >= 50 ? 8 : -4}
-            accent="#16a34a"
-            icon={<CheckIcon />}
             since={t.dashboard.vs_month}
           />
           <StatBlock
             value={phaseCount ?? '—'}
             label={t.dashboard.phases}
-            accent="#f59e0b"
-            icon={<DumbbellIcon />}
           />
           <StatBlock
             value={windowed.length}
             label={i18n(t.dashboard.workouts_n, { range })}
             delta={5}
-            accent="#0ea5e9"
-            icon={<CalendarIcon />}
             since={t.dashboard.vs_month}
           />
         </div>
@@ -382,7 +384,12 @@ export function DashboardPage(): React.JSX.Element {
               <div className="students-list">
                 {students.slice(0, 6).map((s) => (
                   <div key={s.id} className="student-row" onClick={() => navigate(`/students/${s.id}`)}>
-                    <div className="avatar sm">{initials(s.full_name)}</div>
+                    <div className="avatar sm" style={s.avatar_url ? { padding: 0, overflow: 'hidden' } : undefined}>
+                      {s.avatar_url
+                        ? <img src={s.avatar_url} alt={s.full_name ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
+                        : initials(s.full_name)
+                      }
+                    </div>
                     <div className="student-info">
                       <span className="student-name">{s.full_name ?? 'Alumno'}</span>
                       <span className="student-goal">{s.goal ?? t.profile.no_goal}</span>
@@ -449,7 +456,12 @@ export function DashboardPage(): React.JSX.Element {
               >
                 {/* Avatar + type dot */}
                 <div className="act-panel-avatar-wrap">
-                  <div className="avatar sm">{initials(a.studentName)}</div>
+                  <div className="avatar sm" style={a.studentAvatar ? { padding: 0, overflow: 'hidden' } : undefined}>
+                    {a.studentAvatar
+                      ? <img src={a.studentAvatar} alt={a.studentName} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
+                      : initials(a.studentName)
+                    }
+                  </div>
                   <span
                     className="act-panel-type-dot"
                     style={{ background: TYPE_META[a.type].dot }}
@@ -497,25 +509,24 @@ export function DashboardPage(): React.JSX.Element {
 // ── StatBlock ──────────────────────────────────────────────────────────────
 
 function StatBlock({
-  value, label, delta, accent, icon, since,
+  value, label, delta, since,
 }: {
   value: number | string | null;
   label: string;
   delta?: number;
-  accent: string;
-  icon: React.ReactNode;
+  accent?: string;
+  icon?: React.ReactNode;
   since?: string;
 }): React.JSX.Element {
   const up = (delta ?? 0) >= 0;
   return (
-    <div className="stat-block" style={{ '--sb-accent': accent } as React.CSSProperties}>
-      <div className="stat-block-icon">{icon}</div>
+    <div className="stat-block">
       <div className="stat-block-value">{value ?? '—'}</div>
       <div className="stat-block-label">{label}</div>
       {delta != null && (
         <div className={`stat-block-delta ${up ? 'up' : 'down'}`}>
-          {up ? '↑' : '↓'} {Math.abs(delta).toFixed(0)}%
-          <span className="stat-block-since"> {since}</span>
+          {up ? '+' : ''}{Math.abs(delta).toFixed(0)}%
+          {since && <span className="stat-block-since">{since}</span>}
         </div>
       )}
     </div>
