@@ -23,16 +23,28 @@ interface WaiverSignature {
   document_title: string;
 }
 
+interface ConsultationResponseEntry {
+  label: string;
+  type: 'listbox' | 'dropdown' | 'textbox' | 'textarea';
+  answer: string | string[];
+}
+
+interface ConsultationResponse {
+  submitted_at: string;
+  responses: ConsultationResponseEntry[];
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type Profile = Pick<ProfileRow, 'id' | 'full_name' | 'goal' | 'phone' | 'avatar_url' | 'created_at'> & {
   client_status?: 'pending' | 'active';
 };
 
-type Tab = 'resumen' | 'entrenos' | 'nutricion' | 'medidas' | 'mensajes' | 'engagement' | 'deslinde';
+type Tab = 'resumen' | 'entrenos' | 'nutricion' | 'medidas' | 'mensajes' | 'engagement' | 'deslinde' | 'consulta';
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'resumen',    label: 'Resumen'    },
+  { key: 'consulta',   label: 'Consulta'   },
   { key: 'entrenos',   label: 'Entrenos'   },
   { key: 'nutricion',  label: 'Nutrición'  },
   { key: 'medidas',    label: 'Medidas'    },
@@ -65,6 +77,7 @@ export function StudentDetailPage(): React.JSX.Element {
   const [meals, setMeals]             = useState<MealLogRow[]>([]);
   const [messages, setMessages]       = useState<MessageRow[]>([]);
   const [waiverSig, setWaiverSig]     = useState<WaiverSignature | null | false>(null); // null=loading, false=not signed
+  const [consultation, setConsultation] = useState<ConsultationResponse | null | false>(null); // null=loading, false=not submitted
   const [draft, setDraft]             = useState('');
   const [sending, setSending]         = useState(false);
   const [loading, setLoading]         = useState(true);
@@ -74,7 +87,7 @@ export function StudentDetailPage(): React.JSX.Element {
     if (!studentId) return;
     let active = true;
     void (async () => {
-      const [{ data: p }, { data: up }, { data: bm }, { data: wl }, { data: ml }, { data: msgs }, { data: ws }] = await Promise.all([
+      const [{ data: p }, { data: up }, { data: bm }, { data: wl }, { data: ml }, { data: msgs }, { data: ws }, { data: cr }] = await Promise.all([
         supabase.from('profiles').select('id, full_name, goal, phone, avatar_url, created_at, client_status').eq('id', studentId).maybeSingle(),
         supabase.from('user_profiles').select('*').eq('user_id', studentId).maybeSingle(),
         supabase.from('body_measurements').select('*').eq('user_id', studentId).order('date', { ascending: false }).limit(10),
@@ -82,6 +95,7 @@ export function StudentDetailPage(): React.JSX.Element {
         supabase.from('meal_logs').select('*').eq('user_id', studentId).order('created_at', { ascending: false }).limit(20),
         supabase.from('messages').select('*').eq('client_id', studentId).order('created_at', { ascending: true }),
         anyClient.from('waiver_signatures').select('id, full_name, signed_at, signature_data, document_snapshot, document_title').eq('client_id', studentId).maybeSingle(),
+        anyClient.from('consultation_responses').select('responses, submitted_at').eq('client_id', studentId).maybeSingle(),
       ]);
       if (!active) return;
       setProfile((p as Profile | null) ?? null);
@@ -91,6 +105,7 @@ export function StudentDetailPage(): React.JSX.Element {
       setMeals((ml as MealLogRow[] | null) ?? []);
       setMessages((msgs as MessageRow[] | null) ?? []);
       setWaiverSig((ws as WaiverSignature | null) ?? false);
+      setConsultation((cr as ConsultationResponse | null) ?? false);
       setLoading(false);
       await supabase.from('messages').update(asWrite<MessageRow>({ read: true }))
         .eq('client_id', studentId).eq('sender_role', 'client').eq('read', false);
@@ -153,7 +168,12 @@ export function StudentDetailPage(): React.JSX.Element {
       {/* ── Header ── */}
       <div className="sd-header card">
         <div className="sd-header-left">
-          <div className="sd-avatar">{initials(profile.full_name)}</div>
+          <div className="sd-avatar" style={profile.avatar_url ? { padding: 0, overflow: 'hidden' } : undefined}>
+            {profile.avatar_url
+              ? <img src={profile.avatar_url} alt={profile.full_name ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+              : initials(profile.full_name)
+            }
+          </div>
           <div className="sd-header-info">
             <div className="sd-name">{profile.full_name ?? 'Alumno'}</div>
             <div className="sd-goal">{profile.goal ?? 'Sin objetivo definido'}</div>
@@ -357,6 +377,11 @@ export function StudentDetailPage(): React.JSX.Element {
               <button className="btn" onClick={() => void onSend()} disabled={sending || !draft.trim()}>Enviar</button>
             </div>
           </div>
+        )}
+
+        {/* CONSULTA */}
+        {tab === 'consulta' && (
+          <ConsultationTab data={consultation} />
         )}
 
         {/* DESLINDE */}
@@ -693,6 +718,76 @@ function WaiverTab({ sig }: { sig: WaiverSignature | null | false; trainerId?: s
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── ConsultationTab ───────────────────────────────────────────────────────────
+
+function ConsultationTab({ data }: { data: ConsultationResponse | null | false }): React.JSX.Element {
+  if (!data) {
+    return (
+      <div className="card" style={{ maxWidth: 560 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+          <span style={{ width: 34, height: 34, borderRadius: '50%', background: '#fef9c3', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>!</span>
+          <div>
+            <div style={{ fontWeight: 700, color: '#ca8a04', fontSize: 15 }}>Pendiente</div>
+            <div style={{ fontSize: 12.5, color: 'var(--text-tertiary)' }}>El alumno todavía no completó el formulario de consulta</div>
+          </div>
+        </div>
+        <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.6, padding: '12px 14px', borderRadius: 8, background: 'var(--surface-elevated)', border: '1px solid var(--border)' }}>
+          La próxima vez que el alumno abra la app, se le solicitará completar el formulario —
+          siempre que hayas configurado uno en{' '}
+          <a href="/settings/consultation" style={{ color: 'var(--primary)' }}>Settings → Formulario de consulta</a>.
+        </div>
+      </div>
+    );
+  }
+
+  const submittedDate = new Date(data.submitted_at).toLocaleDateString('es-AR', {
+    day: '2-digit', month: 'long', year: 'numeric',
+  });
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 680 }}>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: 'var(--surface-elevated)', borderRadius: 8, border: '1px solid var(--border)' }}>
+        <span style={{ width: 28, height: 28, borderRadius: '50%', background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>✓</span>
+        <div>
+          <span style={{ fontWeight: 700, color: '#16a34a', fontSize: 13.5 }}>Completado</span>
+          <span style={{ fontSize: 12, color: 'var(--text-tertiary)', marginLeft: 8 }}>· {submittedDate}</span>
+        </div>
+      </div>
+
+      {data.responses.map((entry, idx) => (
+        <div key={idx} className="card" style={{ padding: '14px 18px' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8, lineHeight: 1.5 }}>
+            {entry.label}
+          </div>
+          {Array.isArray(entry.answer) ? (
+            entry.answer.length === 0 ? (
+              <span style={{ fontSize: 13, color: 'var(--text-tertiary)', fontStyle: 'italic' }}>Sin respuesta</span>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {entry.answer.map((a) => (
+                  <span key={a} style={{
+                    fontSize: 12.5, fontWeight: 500, color: 'var(--text-primary)',
+                    background: 'color-mix(in srgb, var(--primary) 12%, transparent)',
+                    border: '1px solid color-mix(in srgb, var(--primary) 30%, transparent)',
+                    borderRadius: 6, padding: '3px 10px',
+                  }}>
+                    {a}
+                  </span>
+                ))}
+              </div>
+            )
+          ) : (
+            <span style={{ fontSize: 13.5, color: entry.answer ? 'var(--text-primary)' : 'var(--text-tertiary)', fontStyle: entry.answer ? undefined : 'italic' }}>
+              {entry.answer || 'Sin respuesta'}
+            </span>
+          )}
+        </div>
+      ))}
     </div>
   );
 }

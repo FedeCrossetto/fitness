@@ -13,6 +13,7 @@ import { AddMenuOverlay } from './AddMenuOverlay';
 import { AuthStack, HomeStack, NutritionStack, ProgressStack, TrainingStack } from './stacks';
 import { OnboardingScreen } from '../screens/auth/OnboardingScreen';
 import { WaiverScreen } from '../screens/waiver/WaiverScreen';
+import { ConsultationFormScreen } from '../screens/consultation/ConsultationFormScreen';
 import { supabase } from '../lib/supabase';
 
 const anyClient = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> };
@@ -105,6 +106,11 @@ export function RootNavigator(): React.JSX.Element {
   const [waiverRequired, setWaiverRequired] = useState(false);
   const [waiverConfig, setWaiverConfig] = useState<WaiverCfg | null>(null);
 
+  // Consultation form gate state
+  const [consultationChecked, setConsultationChecked] = useState(false);
+  const [consultationRequired, setConsultationRequired] = useState(false);
+  const [consultationFormCode, setConsultationFormCode] = useState<string | null>(null);
+
   useEffect(() => {
     void checkSession();
     void restoreActiveSession();
@@ -149,13 +155,52 @@ export function RootNavigator(): React.JSX.Element {
           setWaiverChecked(true);
         }
       } catch {
-        // If table doesn't exist yet, just skip
         setWaiverChecked(true);
       }
     })();
   }, [session, profile?.id, profile?.trainer_id, needsOnboarding]);
 
-  if (initializing || !waiverChecked) return <SplashGate />;
+  // Consultation form gate: runs after waiver is resolved
+  useEffect(() => {
+    if (!waiverChecked || waiverRequired) return; // wait for waiver check first
+    if (!session || !profile?.id || needsOnboarding) {
+      setConsultationChecked(true);
+      return;
+    }
+    const trainerId = profile.trainer_id;
+    if (!trainerId) { setConsultationChecked(true); return; }
+
+    void (async () => {
+      try {
+        const { data: cfg } = await anyClient
+          .from('consultation_form_configs')
+          .select('form_code')
+          .eq('trainer_id', trainerId)
+          .maybeSingle() as { data: { form_code: string } | null };
+
+        if (!cfg?.form_code?.trim()) { setConsultationChecked(true); return; }
+
+        const { data: existing } = await anyClient
+          .from('consultation_responses')
+          .select('id')
+          .eq('client_id', profile.id)
+          .eq('trainer_id', trainerId)
+          .maybeSingle();
+
+        if (existing) {
+          setConsultationChecked(true);
+        } else {
+          setConsultationFormCode(cfg.form_code);
+          setConsultationRequired(true);
+          setConsultationChecked(true);
+        }
+      } catch {
+        setConsultationChecked(true);
+      }
+    })();
+  }, [waiverChecked, waiverRequired, session, profile?.id, profile?.trainer_id, needsOnboarding]);
+
+  if (initializing || !waiverChecked || (waiverChecked && !waiverRequired && !consultationChecked)) return <SplashGate />;
   if (!session) return <AuthStack />;
   if (needsOnboarding) return <OnboardingScreen />;
   if (waiverRequired && waiverConfig && profile?.trainer_id) {
@@ -164,6 +209,16 @@ export function RootNavigator(): React.JSX.Element {
         config={waiverConfig}
         trainerId={profile.trainer_id}
         onSigned={() => setWaiverRequired(false)}
+      />
+    );
+  }
+  if (consultationRequired && consultationFormCode && profile?.trainer_id) {
+    return (
+      <ConsultationFormScreen
+        formCode={consultationFormCode}
+        trainerId={profile.trainer_id}
+        onSubmitted={() => setConsultationRequired(false)}
+        onSkip={() => setConsultationRequired(false)}
       />
     );
   }

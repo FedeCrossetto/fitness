@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { SearchIcon, UsersIcon } from '@/components/icons';
 
-type Student = Pick<ProfileRow, 'id' | 'full_name' | 'goal' | 'created_at'> & {
+type Student = Pick<ProfileRow, 'id' | 'full_name' | 'goal' | 'created_at' | 'avatar_url'> & {
   client_status: 'pending' | 'active';
 };
 
@@ -14,6 +14,17 @@ function initials(name: string | null): string {
   if (!name) return 'A';
   const parts = name.trim().split(/\s+/);
   return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase();
+}
+
+function StudentAvatar({ name, url, style }: { name: string | null; url?: string | null; style?: React.CSSProperties }): React.JSX.Element {
+  if (url) {
+    return (
+      <span className="avatar sm" style={{ padding: 0, overflow: 'hidden', ...style }}>
+        <img src={url} alt={name ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
+      </span>
+    );
+  }
+  return <span className="avatar sm" style={style}>{initials(name)}</span>;
 }
 
 function timeAgo(iso: string): string {
@@ -48,7 +59,7 @@ export function StudentsPage(): React.JSX.Element {
       setLoading(true);
       const { data } = await supabase
         .from('profiles')
-        .select('id, full_name, goal, created_at, client_status')
+        .select('id, full_name, goal, created_at, client_status, avatar_url')
         .eq('trainer_id', userId)
         .order('created_at', { ascending: false });
       setStudents((data as Student[] | null) ?? []);
@@ -222,7 +233,7 @@ export function StudentsPage(): React.JSX.Element {
                 <tr key={s.id} className="row-clickable" onClick={() => navigate(`/students/${s.id}`)}>
                   <td>
                     <div className="cell-user">
-                      <span className="avatar sm">{initials(s.full_name)}</span>
+                      <StudentAvatar name={s.full_name} url={s.avatar_url} />
                       <div>
                         <div className="cell-name">{s.full_name ?? 'Alumno'}</div>
                         <div className="cell-sub">Acceso completo</div>
@@ -259,9 +270,7 @@ export function StudentsPage(): React.JSX.Element {
                 <tr key={s.id}>
                   <td>
                     <div className="cell-user">
-                      <span className="avatar sm" style={{ background: '#fef3c7', color: '#92400e' }}>
-                        {initials(s.full_name)}
-                      </span>
+                      <StudentAvatar name={s.full_name} url={s.avatar_url} style={!s.avatar_url ? { background: '#fef3c7', color: '#92400e' } : undefined} />
                       <div>
                         <div className="cell-name">{s.full_name ?? 'Nuevo alumno'}</div>
                         <div className="cell-sub">Esperando aprobación</div>

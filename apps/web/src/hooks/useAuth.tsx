@@ -16,6 +16,7 @@ interface AuthState {
   /** true para role === 'trainer' o role === 'admin'. */
   isTrainer: boolean;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
@@ -57,13 +58,20 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
     await supabase.auth.signOut();
   };
 
+  const refreshProfile = async () => {
+    const uid = session?.user.id;
+    if (!uid) return;
+    const { data } = await supabase.from('profiles').select('*').eq('id', uid).maybeSingle();
+    setProfile((data as ProfileRow | null) ?? null);
+  };
+
   const role = profile?.role ?? null;
   const isAdmin = role === 'admin';
   const isTrainer = role === 'trainer' || role === 'admin';
   const canManage = isTrainer;
 
   return (
-    <AuthContext.Provider value={{ session, profile, loading, role, canManage, isAdmin, isTrainer, signOut }}>
+    <AuthContext.Provider value={{ session, profile, loading, role, canManage, isAdmin, isTrainer, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

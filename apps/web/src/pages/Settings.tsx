@@ -1,6 +1,9 @@
+import { useRef, useState } from 'react';
 import { SettingsIcon, BellIcon, BrushIcon, CreditCardIcon, UsersIcon, MessageIcon, BookOpenIcon, CheckIcon } from '@/components/icons';
 import { useAuth } from '@/hooks/useAuth';
 import { Link } from 'react-router-dom';
+import type { ProfileRow } from '@habito/shared/types/database';
+import { supabase } from '@/lib/supabase';
 
 type SettingsSection = {
   icon: React.ReactNode;
@@ -50,24 +53,115 @@ function SectionRow({ s, isLast }: { s: SettingsSection; isLast: boolean }): Rea
   return inner;
 }
 
+function initials(name: string | null | undefined): string {
+  if (!name) return 'E';
+  const parts = name.trim().split(/\s+/);
+  return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase();
+}
+
 export function SettingsPage(): React.JSX.Element {
-  const { profile } = useAuth();
+  const { profile, session, refreshProfile } = useAuth();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [toast, setToast] = useState<{ kind: 'error' | 'success'; msg: string } | null>(null);
+
+  const onPickPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    const userId = session?.user.id;
+    if (!file || !userId) return;
+
+    if (!file.type.startsWith('image/')) {
+      setToast({ kind: 'error', msg: 'La foto debe ser una imagen.' });
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setToast({ kind: 'error', msg: 'La foto no puede superar los 2 MB.' });
+      return;
+    }
+
+    setUploading(true);
+    setToast(null);
+
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+    const path = `${userId}/avatar.${ext}`;
+
+    const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, {
+      contentType: file.type,
+      upsert: true,
+    });
+
+    if (uploadError) {
+      setUploading(false);
+      setToast({ kind: 'error', msg: 'No pudimos subir la foto. Intentá de nuevo.' });
+      return;
+    }
+
+    const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path);
+    const avatarUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({ avatar_url: avatarUrl } as Partial<ProfileRow> as never)
+      .eq('id', userId);
+
+    setUploading(false);
+
+    if (updateError) {
+      setToast({ kind: 'error', msg: 'No pudimos guardar la foto en tu perfil.' });
+      return;
+    }
+
+    await refreshProfile();
+    setToast({ kind: 'success', msg: 'Foto actualizada.' });
+  };
 
   return (
     <div>
       <h1 className="page-title">Settings</h1>
       <p className="page-sub">Configurá tu cuenta y preferencias del panel.</p>
 
+      {toast && (
+        <div className={`settings-toast settings-toast--${toast.kind}`}>
+          {toast.msg}
+        </div>
+      )}
+
       {/* Profile card */}
       <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
-        <div className="avatar" style={{ width: 56, height: 56, fontSize: 20 }}>
-          {profile?.full_name?.charAt(0).toUpperCase() ?? 'E'}
+        <div
+          className="avatar"
+          style={{
+            width: 56,
+            height: 56,
+            fontSize: 20,
+            padding: profile?.avatar_url ? 0 : undefined,
+            overflow: profile?.avatar_url ? 'hidden' : undefined,
+          }}
+        >
+          {profile?.avatar_url
+            ? <img src={profile.avatar_url} alt={profile.full_name ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            : initials(profile?.full_name)
+          }
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 650, fontSize: 16 }}>{profile?.full_name ?? 'Entrenador'}</div>
           <div style={{ color: 'var(--text-tertiary)', fontSize: 13 }}>Entrenador · {profile?.role ?? 'trainer'}</div>
         </div>
-        <button className="btn secondary">Editar foto</button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          style={{ display: 'none' }}
+          onChange={(e) => void onPickPhoto(e)}
+        />
+        <button
+          className="btn secondary"
+          disabled={uploading}
+          onClick={() => fileRef.current?.click()}
+        >
+          {uploading ? 'Subiendo…' : 'Editar foto'}
+        </button>
       </div>
 
       {/* Settings list */}
@@ -90,6 +184,15 @@ export function SettingsPage(): React.JSX.Element {
         .settings-row-title { font-weight: 600; font-size: 14px; margin-bottom: 2px; color: var(--text-primary); }
         .settings-row-desc { font-size: 12.5px; color: var(--text-tertiary); }
         .settings-row-btn { font-size: 12.5px; padding: 7px 14px; flex-shrink: 0; pointer-events: none; }
+        .settings-toast {
+          margin-bottom: 16px; padding: 10px 14px; border-radius: 8px; font-size: 13px;
+        }
+        .settings-toast--success {
+          background: #dcfce7; border: 1px solid #86efac; color: #166534;
+        }
+        .settings-toast--error {
+          background: #fef2f2; border: 1px solid #fecaca; color: #991b1b;
+        }
       `}</style>
     </div>
   );

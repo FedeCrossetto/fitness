@@ -34,6 +34,18 @@ function initials(name: string | null | undefined): string {
   return (parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '');
 }
 
+function Avatar({ name, url, size = 'md', title }: { name?: string | null; url?: string | null; size?: 'md' | 'sm'; title?: string }): React.JSX.Element {
+  const cls = `avatar${size === 'sm' ? ' avatar--sm' : ''}`;
+  if (url) {
+    return (
+      <div className={cls} title={title} style={{ padding: 0, overflow: 'hidden' }}>
+        <img src={url} alt={name ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
+      </div>
+    );
+  }
+  return <div className={cls} title={title}>{initials(name).toUpperCase()}</div>;
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function Layout(): React.JSX.Element {
@@ -159,9 +171,7 @@ export function Layout(): React.JSX.Element {
         {/* Footer */}
         <div className="sidebar-footer">
           <div className={`user-card${sc ? ' user-card--compact' : ''}`}>
-            <div className="avatar" title={sc ? (profile?.full_name ?? 'Entrenador') : undefined}>
-              {initials(profile?.full_name).toUpperCase()}
-            </div>
+            <Avatar name={profile?.full_name} url={profile?.avatar_url} title={sc ? (profile?.full_name ?? 'Entrenador') : undefined} />
             {!sc && (
               <div className="user-meta">
                 <span className="user-name">{profile?.full_name ?? 'Entrenador'}</span>
@@ -200,7 +210,7 @@ export function Layout(): React.JSX.Element {
               <span className="bell-dot" />
             </button>
             <div className="topbar-user" onClick={() => navigate('/settings')} role="button" tabIndex={0}>
-              <div className="avatar avatar--sm">{initials(profile?.full_name).toUpperCase()}</div>
+              <Avatar name={profile?.full_name} url={profile?.avatar_url} size="sm" />
               <span className="topbar-username">{profile?.full_name ?? 'Entrenador'}</span>
               <ChevronRightIcon size={14} />
             </div>
