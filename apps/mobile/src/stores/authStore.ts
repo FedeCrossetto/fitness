@@ -40,7 +40,12 @@ interface AuthState {
 
 function messageFor(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
-  if (raw.includes('Invalid login credentials')) return 'Email o contraseña incorrectos.';
+  if (raw.includes('Invalid login credentials')) {
+    return 'Email o contraseña incorrectos. Si te registraste con Google en la web, usá el botón Google acá (no email/contraseña).';
+  }
+  if (raw.includes('Email not confirmed')) {
+    return 'Confirmá tu email desde el link que te enviamos antes de iniciar sesión.';
+  }
   if (raw.includes('already registered')) return 'Ese email ya está registrado.';
   if (raw.includes('Password should be')) return 'La contraseña debe tener al menos 6 caracteres.';
   if (raw.toLowerCase().includes('network')) return 'Sin conexión. Revisá tu internet e intentá de nuevo.';

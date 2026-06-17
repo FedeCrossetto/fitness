@@ -64,7 +64,7 @@ export function AuthCallbackPage(): React.JSX.Element {
           setError(link.message);
           return;
         }
-        navigate(`/unirse?code=${encodeURIComponent(inviteCode)}&joined=1`, { replace: true });
+        navigate(`/unirse?code=${encodeURIComponent(inviteCode)}&joined=1&via=google`, { replace: true });
         return;
       }
 

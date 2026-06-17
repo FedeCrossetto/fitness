@@ -141,6 +141,10 @@ export function LoginScreen({ navigation, route }: Props): React.JSX.Element {
           />
         </View>
 
+        <AppText variant="body13" color={colors.text.tertiary} style={styles.oauthHint}>
+          Si te registraste con Google en la web, usá el botón Google (no email/contraseña).
+        </AppText>
+
         <Pressable
           onPress={() => navigation.navigate('SignUp', trainerCode ? { code: trainerCode } : undefined)}
           style={styles.footer}
@@ -185,5 +189,6 @@ const createStyles = (colors: Colors) => StyleSheet.create({
   divider: { flex: 1, height: 1, backgroundColor: colors.border.default },
   oauthRow: { flexDirection: 'row', gap: spacing.sm },
   oauthButton: { flex: 1 },
+  oauthHint: { textAlign: 'center', marginTop: spacing.sm, lineHeight: 18 },
   footer: { alignItems: 'center', marginTop: spacing.xxl, minHeight: 44, justifyContent: 'center' },
 });

@@ -18,6 +18,7 @@ export function JoinPage(): React.JSX.Element {
   const [params] = useSearchParams();
   const code = normalizeInviteCode(params.get('code') ?? readPendingInviteCode());
   const joined = params.get('joined') === '1';
+  const viaGoogle = params.get('via') === 'google';
 
   const [preview, setPreview] = useState<InvitePreview | null>(null);
   const [previewLoading, setPreviewLoading] = useState(true);
@@ -28,6 +29,7 @@ export function JoinPage(): React.JSX.Element {
   const [submitting, setSubmitting] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(false);
   const [success, setSuccess] = useState(joined);
+  const [emailPendingConfirm, setEmailPendingConfirm] = useState(false);
 
   useEffect(() => {
     if (code) savePendingInviteCode(code);
@@ -57,6 +59,26 @@ export function JoinPage(): React.JSX.Element {
       }
     })();
   }, [joined, code]);
+
+  // Si ya tiene sesión (ej. Google) pero no quedó vinculado, reintentar al abrir el link
+  useEffect(() => {
+    if (!code || joined || success) return;
+    void (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('trainer_id')
+        .eq('id', session.user.id)
+        .maybeSingle();
+      if (profile?.trainer_id) return;
+      const link = await linkClientByInviteCode(code);
+      if (link.ok) {
+        clearPendingInviteCode();
+        setSuccess(true);
+      }
+    })();
+  }, [code, joined, success]);
 
   const onGoogle = async () => {
     if (!code) {
@@ -129,6 +151,7 @@ export function JoinPage(): React.JSX.Element {
 
     setSubmitting(false);
     setSuccess(true);
+    setEmailPendingConfirm(true);
     setError(null);
   };
 
@@ -164,7 +187,9 @@ export function JoinPage(): React.JSX.Element {
           <h1 className="page-title" style={{ textAlign: 'center' }}>¡Listo!</h1>
           <p className="page-sub" style={{ textAlign: 'center', marginBottom: 24 }}>
             Ya estás vinculado a <strong>{preview.trainer_name ?? preview.app_name}</strong>.
-            Descargá la app e iniciá sesión con la misma cuenta.
+            {emailPendingConfirm
+              ? ' Revisá tu email y confirmá la cuenta antes de entrar a la app.'
+              : ' Descargá la app e iniciá sesión con la misma cuenta.'}
           </p>
 
           <div className="join-download-actions">
@@ -181,10 +206,27 @@ export function JoinPage(): React.JSX.Element {
           </div>
 
           <ol className="join-steps">
-            <li>Instalá la app en tu teléfono.</li>
-            <li>Abrila y tocá <strong>Iniciar sesión</strong>.</li>
-            <li>Usá el mismo email y contraseña (o Google) que acabás de registrar.</li>
-            <li>Completá el deslinde y el formulario de consulta al entrar.</li>
+            {emailPendingConfirm ? (
+              <>
+                <li>Revisá tu bandeja de entrada y confirmá el email.</li>
+                <li>Instalá la app en tu teléfono.</li>
+                <li>Iniciá sesión con el <strong>mismo email y contraseña</strong> que creaste.</li>
+              </>
+            ) : viaGoogle ? (
+              <>
+                <li>Instalá la app en tu teléfono.</li>
+                <li>Abrila y tocá <strong>Iniciar sesión</strong>.</li>
+                <li>Usá el botón <strong>Google</strong> con la misma cuenta (no email/contraseña).</li>
+                <li>Completá el deslinde y el formulario de consulta al entrar.</li>
+              </>
+            ) : (
+              <>
+                <li>Instalá la app en tu teléfono.</li>
+                <li>Abrila y tocá <strong>Iniciar sesión</strong>.</li>
+                <li>Usá el mismo email y contraseña que creaste.</li>
+                <li>Completá el deslinde y el formulario de consulta al entrar.</li>
+              </>
+            )}
           </ol>
         </div>
       </div>
