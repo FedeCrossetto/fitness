@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { QRCodeSVG } from 'qrcode.react';
 import type { ProfileRow } from '@habito/shared/types/database';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
@@ -35,6 +36,9 @@ export function StudentsPage(): React.JSX.Element {
   const [query, setQuery] = useState(searchParams.get('q') ?? '');
   const [tab, setTab] = useState<'active' | 'pending'>('active');
   const [activating, setActivating] = useState<string | null>(null);
+  const [inviteCode, setInviteCode] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [showQR, setShowQR] = useState(false);
 
   useEffect(() => { setQuery(searchParams.get('q') ?? ''); }, [searchParams]);
 
@@ -53,6 +57,26 @@ export function StudentsPage(): React.JSX.Element {
   };
 
   useEffect(loadStudents, [userId]);
+
+  // Load invite code from trainer_branding
+  useEffect(() => {
+    if (!userId) return;
+    void (async () => {
+      const { data } = await supabase
+        .from('trainer_branding')
+        .select('invite_code')
+        .eq('trainer_id', userId)
+        .maybeSingle();
+      if (data && 'invite_code' in data) setInviteCode((data as { invite_code: string }).invite_code);
+    })();
+  }, [userId]);
+
+  const copyCode = () => {
+    if (!inviteCode) return;
+    void navigator.clipboard.writeText(inviteCode);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const activate = async (id: string) => {
     setActivating(id);
@@ -81,6 +105,55 @@ export function StudentsPage(): React.JSX.Element {
           <p className="page-sub">Personas vinculadas a tu marca.</p>
         </div>
       </div>
+
+      {/* Invite banner */}
+      {inviteCode && (
+        <div className="invite-banner">
+          <div className="invite-banner-left">
+            <div className="invite-banner-icon">🔗</div>
+            <div>
+              <div className="invite-banner-title">Código de invitación</div>
+              <div className="invite-banner-sub">
+                Compartilo con tus alumnos. Al registrarse en la app con este código quedan vinculados a tu cuenta automáticamente.
+              </div>
+            </div>
+          </div>
+          <div className="invite-banner-right">
+            <div className="invite-code-box">
+              <span className="invite-code-text">{inviteCode}</span>
+              <button className="invite-copy-btn" onClick={copyCode} title="Copiar código">
+                {copied ? '✓ Copiado' : 'Copiar'}
+              </button>
+            </div>
+            <button
+              className="invite-qr-btn"
+              onClick={() => setShowQR((v) => !v)}
+              title="Ver QR"
+            >
+              QR
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* QR modal */}
+      {showQR && inviteCode && (
+        <div className="invite-qr-backdrop" onClick={() => setShowQR(false)}>
+          <div className="invite-qr-modal" onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>Código QR de invitación</div>
+            <div style={{ fontSize: 13, color: 'var(--text-tertiary)', marginBottom: 20 }}>
+              El alumno lo escanea con la cámara y lo lleva directo al registro
+            </div>
+            <QRCodeSVG value={inviteCode} size={200} />
+            <div style={{ marginTop: 16, fontFamily: 'monospace', fontSize: 18, fontWeight: 700, letterSpacing: 3, color: 'var(--text-primary)' }}>
+              {inviteCode}
+            </div>
+            <button className="btn secondary" style={{ marginTop: 20, width: '100%' }} onClick={() => setShowQR(false)}>
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="students-tabs">
@@ -222,6 +295,54 @@ export function StudentsPage(): React.JSX.Element {
       </div>
 
       <style>{`
+        /* Invite banner */
+        .invite-banner {
+          display: flex; align-items: center; justify-content: space-between; gap: 20px;
+          background: color-mix(in srgb, var(--primary) 6%, var(--surface));
+          border: 1.5px solid color-mix(in srgb, var(--primary) 20%, transparent);
+          border-radius: var(--radius); padding: 16px 20px; margin-bottom: 20px;
+          flex-wrap: wrap;
+        }
+        .invite-banner-left { display: flex; align-items: flex-start; gap: 14px; flex: 1; min-width: 0; }
+        .invite-banner-icon { font-size: 22px; flex-shrink: 0; margin-top: 1px; }
+        .invite-banner-title { font-weight: 700; font-size: 14px; color: var(--text-primary); margin-bottom: 3px; }
+        .invite-banner-sub { font-size: 12.5px; color: var(--text-secondary); line-height: 1.5; }
+        .invite-banner-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+        .invite-code-box {
+          display: flex; align-items: center; gap: 0;
+          border: 1.5px solid var(--border-strong); border-radius: 8px; overflow: hidden;
+          background: var(--surface);
+        }
+        .invite-code-text {
+          font-family: monospace; font-size: 17px; font-weight: 700; letter-spacing: 3px;
+          padding: 8px 16px; color: var(--text-primary); text-transform: uppercase;
+        }
+        .invite-copy-btn {
+          padding: 8px 14px; background: var(--accent); color: var(--accent-contrast);
+          border: none; cursor: pointer; font-size: 12.5px; font-weight: 600;
+          transition: opacity 150ms; white-space: nowrap;
+        }
+        .invite-copy-btn:hover { opacity: .85; }
+        .invite-qr-btn {
+          padding: 8px 14px; background: var(--surface-elevated);
+          border: 1.5px solid var(--border-strong); border-radius: 8px;
+          cursor: pointer; font-size: 12.5px; font-weight: 700; color: var(--text-secondary);
+          transition: background 120ms;
+        }
+        .invite-qr-btn:hover { background: var(--surface-hover); }
+
+        /* QR modal */
+        .invite-qr-backdrop {
+          position: fixed; inset: 0; z-index: 9999;
+          background: rgba(0,0,0,.45); backdrop-filter: blur(4px);
+          display: flex; align-items: center; justify-content: center;
+        }
+        .invite-qr-modal {
+          background: var(--surface); border-radius: var(--radius-lg); padding: 32px;
+          display: flex; flex-direction: column; align-items: center;
+          box-shadow: 0 24px 80px rgba(0,0,0,.25); min-width: 300px;
+        }
+
         .students-page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 4px; }
         .students-tabs { display: flex; gap: 0; margin-bottom: 16px; border-bottom: 2px solid var(--border); }
         .students-tab {
