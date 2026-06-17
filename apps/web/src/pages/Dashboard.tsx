@@ -1,82 +1,281 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { ProfileRow, WorkoutLogRow } from '@habito/shared/types/database';
+import type { ProfileRow, WorkoutLogRow, MealLogRow, ProgressPhotoRow, BodyMeasurementRow } from '@habito/shared/types/database';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { useTranslation } from '@/hooks/useTranslation';
 import { UsersIcon, DumbbellIcon, CheckIcon, CalendarIcon, TrophyIcon } from '@/components/icons';
 import { AreaChart } from '@/components/charts';
 
-type RecentStudent = Pick<ProfileRow, 'id' | 'full_name' | 'goal' | 'created_at'>;
+// ── Types ──────────────────────────────────────────────────────────────────
 
-type ActivityType = 'workout' | 'meal' | 'photo' | 'joined' | 'missed';
+type StudentMin = Pick<ProfileRow, 'id' | 'full_name' | 'avatar_url' | 'goal' | 'created_at'>;
 
-type Activity = {
+type ActivityType = 'workout' | 'meal' | 'photo' | 'measurement' | 'joined';
+
+interface Activity {
   id: string;
   studentId: string;
   studentName: string;
-  action: string;
-  detail: string;
-  time: string;
-  hoursAgo: number;
   type: ActivityType;
+  verb: string;
+  detail: string;
+  thumb?: string | null;
+  createdAt: string;
+}
+
+// ── Constants ──────────────────────────────────────────────────────────────
+
+const TYPE_META: Record<ActivityType, { color: string; label: string; dot: string }> = {
+  workout:     { color: '#16a34a', label: 'Entreno',    dot: '#16a34a' },
+  meal:        { color: '#f59e0b', label: 'Nutrición',  dot: '#f59e0b' },
+  photo:       { color: '#6366f1', label: 'Fotos',      dot: '#6366f1' },
+  measurement: { color: '#0ea5e9', label: 'Medición',   dot: '#0ea5e9' },
+  joined:      { color: '#ec4899', label: 'Nuevo',      dot: '#ec4899' },
 };
 
-const TYPE_CONFIG: Record<ActivityType, { color: string; label: string }> = {
-  workout:  { color: '#16a34a', label: 'Entreno' },
-  meal:     { color: '#f59e0b', label: 'Nutrición' },
-  photo:    { color: '#6366f1', label: 'Fotos' },
-  joined:   { color: '#0ea5e9', label: 'Nuevo' },
-  missed:   { color: '#dc2626', label: 'Ausencia' },
+const MEAL_LABEL: Record<string, string> = {
+  DES: 'desayuno', ALM: 'almuerzo', MER: 'merienda', CEN: 'cena',
 };
 
 const FILTER_TABS: { key: ActivityType | 'all'; label: string }[] = [
-  { key: 'all',     label: 'Todo' },
-  { key: 'workout', label: 'Entrenamientos' },
-  { key: 'meal',    label: 'Nutrición' },
-  { key: 'photo',   label: 'Fotos' },
-  { key: 'missed',  label: 'Ausencias' },
+  { key: 'all',         label: 'Todo' },
+  { key: 'workout',     label: 'Entrenos' },
+  { key: 'meal',        label: 'Nutrición' },
+  { key: 'photo',       label: 'Fotos' },
+  { key: 'measurement', label: 'Medidas' },
 ];
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1)  return 'Ahora mismo';
+  if (m < 60) return `Hace ${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `Hace ${h}h`;
+  const d = Math.floor(h / 24);
+  if (d === 1) return 'Ayer';
+  return `Hace ${d} días`;
+}
+
+function initials(name: string | null): string {
+  if (!name) return 'A';
+  const parts = name.trim().split(/\s+/);
+  return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase();
+}
+
+// ── Activity builder ───────────────────────────────────────────────────────
+
+function buildActivities(
+  students: StudentMin[],
+  wLogs: Pick<WorkoutLogRow, 'id' | 'user_id' | 'workout_name' | 'workout_type' | 'completed' | 'created_at'>[],
+  mLogs: Pick<MealLogRow, 'id' | 'user_id' | 'meal_type' | 'title' | 'photo_url' | 'energy_kcal' | 'created_at'>[],
+  pPhotos: Pick<ProgressPhotoRow, 'id' | 'user_id' | 'photo_url' | 'position' | 'created_at'>[],
+  bMeasurements: Pick<BodyMeasurementRow, 'id' | 'user_id' | 'weight_kg' | 'body_fat_pct' | 'created_at'>[],
+): Activity[] {
+  const byId = new Map(students.map((s) => [s.id, s]));
+
+  const items: Activity[] = [];
+
+  for (const w of wLogs) {
+    const s = byId.get(w.user_id);
+    if (!s) continue;
+    items.push({
+      id: `w-${w.id}`,
+      studentId: w.user_id,
+      studentName: s.full_name ?? 'Alumno',
+      type: 'workout',
+      verb: w.completed ? 'completó un entrenamiento' : 'no completó su entrenamiento',
+      detail: w.workout_name ?? (w.workout_type ?? 'Entrenamiento'),
+      createdAt: w.created_at,
+    });
+  }
+
+  for (const m of mLogs) {
+    const s = byId.get(m.user_id);
+    if (!s) continue;
+    const label = MEAL_LABEL[m.meal_type] ?? m.meal_type.toLowerCase();
+    const kcal  = m.energy_kcal != null ? ` · ${Math.round(m.energy_kcal)} kcal` : '';
+    items.push({
+      id: `m-${m.id}`,
+      studentId: m.user_id,
+      studentName: s.full_name ?? 'Alumno',
+      type: 'meal',
+      verb: `registró ${label}`,
+      detail: (m.title ?? m.meal_type) + kcal,
+      thumb: m.photo_url,
+      createdAt: m.created_at,
+    });
+  }
+
+  for (const p of pPhotos) {
+    const s = byId.get(p.user_id);
+    if (!s) continue;
+    items.push({
+      id: `p-${p.id}`,
+      studentId: p.user_id,
+      studentName: s.full_name ?? 'Alumno',
+      type: 'photo',
+      verb: 'subió fotos de progreso',
+      detail: p.position,
+      thumb: p.photo_url,
+      createdAt: p.created_at,
+    });
+  }
+
+  for (const b of bMeasurements) {
+    const s = byId.get(b.user_id);
+    if (!s) continue;
+    const parts: string[] = [];
+    if (b.weight_kg   != null) parts.push(`${b.weight_kg} kg`);
+    if (b.body_fat_pct != null) parts.push(`${b.body_fat_pct}% grasa`);
+    items.push({
+      id: `b-${b.id}`,
+      studentId: b.user_id,
+      studentName: s.full_name ?? 'Alumno',
+      type: 'measurement',
+      verb: 'registró una medición',
+      detail: parts.join(' · ') || 'Medida corporal',
+      createdAt: b.created_at,
+    });
+  }
+
+  // New students (created_at in last 7 days)
+  const cutoff = Date.now() - 7 * 86400000;
+  for (const s of students) {
+    if (new Date(s.created_at).getTime() >= cutoff) {
+      items.push({
+        id: `j-${s.id}`,
+        studentId: s.id,
+        studentName: s.full_name ?? 'Alumno',
+        type: 'joined',
+        verb: 'se unió a la app',
+        detail: 'Nuevo alumno',
+        createdAt: s.created_at,
+      });
+    }
+  }
+
+  return items.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+}
+
+// ── Page ───────────────────────────────────────────────────────────────────
 
 export function DashboardPage(): React.JSX.Element {
   const { session, profile } = useAuth();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const userId = session?.user.id;
 
+  // Left panel state
+  const [students, setStudents]         = useState<StudentMin[]>([]);
   const [studentCount, setStudentCount] = useState<number | null>(null);
   const [phaseCount, setPhaseCount]     = useState<number | null>(null);
-  const [recent, setRecent]             = useState<RecentStudent[]>([]);
   const [workouts, setWorkouts]         = useState<Pick<WorkoutLogRow, 'date' | 'completed'>[]>([]);
   const [range, setRange]               = useState<30 | 90>(30);
-  const [filter, setFilter]             = useState<ActivityType | 'all'>('all');
+
+  // Activity feed state
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [loadingFeed, setLoadingFeed] = useState(true);
+  const [filter, setFilter]           = useState<ActivityType | 'all'>('all');
 
   useEffect(() => {
     if (!userId) return;
     let active = true;
+
     void (async () => {
-      const since = new Date();
-      since.setDate(since.getDate() - 90);
-      const sinceIso = since.toISOString().slice(0, 10);
-      const [{ count: students }, { count: phases }, { data: recentRows }, { data: wl }] =
-        await Promise.all([
-          supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('trainer_id', userId),
-          supabase.from('training_phases').select('id', { count: 'exact', head: true }).eq('trainer_id', userId),
-          supabase
-            .from('profiles')
-            .select('id, full_name, goal, created_at')
-            .eq('trainer_id', userId)
-            .order('created_at', { ascending: false })
-            .limit(10),
-          supabase.from('workout_logs').select('date, completed').gte('date', sinceIso),
-        ]);
+      // ── Stats queries ────────────────────────────────────────────────────
+      const since90 = new Date();
+      since90.setDate(since90.getDate() - 90);
+
+      const [{ count: sc }, { count: pc }, { data: studentsData }, { data: wl }] = await Promise.all([
+        supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('trainer_id', userId),
+        supabase.from('training_phases').select('id', { count: 'exact', head: true }).eq('trainer_id', userId),
+        supabase
+          .from('profiles')
+          .select('id, full_name, avatar_url, goal, created_at')
+          .eq('trainer_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(20),
+        supabase
+          .from('workout_logs')
+          .select('date, completed')
+          .gte('date', since90.toISOString().slice(0, 10)),
+      ]);
+
       if (!active) return;
-      setStudentCount(students ?? 0);
-      setPhaseCount(phases ?? 0);
-      setRecent((recentRows as RecentStudent[] | null) ?? []);
+      setStudentCount(sc ?? 0);
+      setPhaseCount(pc ?? 0);
+      setStudents((studentsData as StudentMin[] | null) ?? []);
       setWorkouts((wl as Pick<WorkoutLogRow, 'date' | 'completed'>[] | null) ?? []);
+
+      // ── Activity feed queries ─────────────────────────────────────────────
+      const allStudents = (studentsData as StudentMin[] | null) ?? [];
+      const ids = allStudents.map((s) => s.id);
+
+      if (ids.length === 0) {
+        setLoadingFeed(false);
+        return;
+      }
+
+      const since7 = new Date();
+      since7.setDate(since7.getDate() - 7);
+      const since7Iso = since7.toISOString();
+
+      const [
+        { data: wLogs },
+        { data: mLogs },
+        { data: pPhotos },
+        { data: bMeas },
+      ] = await Promise.all([
+        supabase
+          .from('workout_logs')
+          .select('id, user_id, workout_name, workout_type, completed, created_at')
+          .in('user_id', ids)
+          .gte('created_at', since7Iso)
+          .order('created_at', { ascending: false })
+          .limit(40),
+        supabase
+          .from('meal_logs')
+          .select('id, user_id, meal_type, title, photo_url, energy_kcal, created_at')
+          .in('user_id', ids)
+          .gte('created_at', since7Iso)
+          .order('created_at', { ascending: false })
+          .limit(40),
+        supabase
+          .from('progress_photos')
+          .select('id, user_id, photo_url, position, created_at')
+          .in('user_id', ids)
+          .gte('created_at', since7Iso)
+          .order('created_at', { ascending: false })
+          .limit(20),
+        supabase
+          .from('body_measurements')
+          .select('id, user_id, weight_kg, body_fat_pct, created_at')
+          .in('user_id', ids)
+          .gte('created_at', since7Iso)
+          .order('created_at', { ascending: false })
+          .limit(20),
+      ]);
+
+      if (!active) return;
+
+      setActivities(buildActivities(
+        allStudents,
+        (wLogs ?? []) as Parameters<typeof buildActivities>[1],
+        (mLogs ?? []) as Parameters<typeof buildActivities>[2],
+        (pPhotos ?? []) as Parameters<typeof buildActivities>[3],
+        (bMeas ?? []) as Parameters<typeof buildActivities>[4],
+      ));
+      setLoadingFeed(false);
     })();
+
     return () => { active = false; };
   }, [userId]);
 
+  // Chart helpers
   const windowed = useMemo(() => {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - range);
@@ -90,193 +289,109 @@ export function DashboardPage(): React.JSX.Element {
 
   const series = useMemo(() => {
     const buckets = range === 30 ? 10 : 12;
-    const counts = Array(buckets).fill(0);
+    const counts  = Array(buckets).fill(0) as number[];
     const now = Date.now();
-    const ms = range * 86400000;
+    const ms  = range * 86400000;
     for (const w of windowed) {
-      const t = new Date(w.date).getTime();
+      const t   = new Date(w.date).getTime();
       const idx = Math.min(buckets - 1, Math.floor(((t - (now - ms)) / ms) * buckets));
       if (idx >= 0) counts[idx] += 1;
     }
     return counts.some((c) => c > 0) ? counts : [1, 2, 2, 3, 3, 4, 3, 5, 4, 6];
   }, [windowed, range]);
 
-  // Build activity feed from real workout_logs + recent students
-  const activities: Activity[] = useMemo(() => {
-    const types: ActivityType[] = ['workout', 'meal', 'photo', 'joined', 'missed', 'workout', 'meal'];
-    const detailMap: Record<ActivityType, string[]> = {
-      workout: ['Fuerza — Tren superior', 'Cardio HIIT 30min', 'Piernas y glúteos', 'Full body — Día 2'],
-      meal:    ['Almuerzo · 620 kcal', 'Desayuno · 380 kcal', 'Cena · 480 kcal', '2 comidas · 1.100 kcal'],
-      photo:   ['Frente · Perfil · Espalda', 'Comparativa 30 días', 'Semana 4 de progreso'],
-      joined:  ['Cliente nuevo', 'Código de invitación'],
-      missed:  ['Entreno de fuerza', 'Sesión de cardio', 'Check-in semanal'],
-    };
-    const actionMap: Record<ActivityType, string> = {
-      workout: 'completó un entrenamiento',
-      meal:    'registró una comida',
-      photo:   'subió fotos de progreso',
-      joined:  'se unió a la app',
-      missed:  'no registró su entrenamiento',
-    };
-    const hours = [1, 3, 5, 8, 12, 19, 24, 28, 36, 48];
-
-    return recent.map((s, i) => {
-      const type = types[i % types.length]!;
-      const details = detailMap[type];
-      const detail  = details[i % details.length]!;
-      const h       = hours[i % hours.length]!;
-      const time    = h < 24 ? `Hace ${h}h` : h < 48 ? 'Ayer' : 'Hace 2 días';
-      return {
-        id: `${s.id}-${i}`,
-        studentId: s.id,
-        studentName: s.full_name ?? 'Alumno',
-        action: actionMap[type],
-        detail,
-        time,
-        hoursAgo: h,
-        type,
-      };
-    });
-  }, [recent]);
-
   const filtered = useMemo(
-    () => filter === 'all' ? activities : activities.filter((a) => a.type === filter),
+    () => (filter === 'all' ? activities : activities.filter((a) => a.type === filter)),
     [activities, filter]
   );
 
   return (
-    <div>
-      <h1 className="page-title">Hola, {profile?.full_name ?? 'entrenador'} 👋</h1>
-      <p className="page-sub">Actividad de tus alumnos en tiempo real.</p>
+    <div className="dash-with-panel">
 
-      {/* Stat cards */}
-      <div className="grid" style={{ marginBottom: 24 }}>
-        <StatCard icon={<UsersIcon />} value={studentCount} label="Alumnos vinculados" deltaPct={12.04} />
-        <StatCard
-          icon={<CheckIcon />}
-          value={completionPct ? `${completionPct}%` : '—'}
-          label={`Entrenos completados (${range}d)`}
-          deltaPct={completionPct >= 50 ? 8.2 : -4.1}
-        />
-        <StatCard icon={<DumbbellIcon />} value={phaseCount} label="Fases del programa" />
-        <StatCard icon={<CalendarIcon />} value={windowed.length} label={`Entrenos registrados (${range}d)`} deltaPct={5.6} />
-      </div>
-
-      {/* Main 2-col layout */}
-      <div className="overview-layout">
-
-        {/* ── Activity feed (left, primary) ── */}
-        <div className="activity-main">
-          <div className="card" style={{ padding: 0 }}>
-            {/* Header + filters */}
-            <div className="act-header">
-              <h2 className="section-title">Actividad reciente</h2>
-              <div className="act-filter-tabs">
-                {FILTER_TABS.map((t) => (
-                  <button
-                    key={t.key}
-                    className={`act-tab${filter === t.key ? ' active' : ''}`}
-                    onClick={() => setFilter(t.key)}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Feed */}
-            {filtered.length === 0 ? (
-              <div className="act-empty">
-                <TrophyIcon size={32} />
-                <p>No hay actividad todavía.<br />Invitá alumnos para empezar a ver su progreso.</p>
-                <button className="btn secondary" onClick={() => navigate('/students')}>Ver alumnos</button>
-              </div>
-            ) : (
-              <div className="act-feed">
-                {filtered.map((a) => (
-                  <div
-                    key={a.id}
-                    className="act-item"
-                    onClick={() => navigate(`/students/${a.studentId}`)}
-                    role="button"
-                    tabIndex={0}
-                  >
-                    {/* Avatar */}
-                    <div className="act-avatar">
-                      <div className="avatar">{initials(a.studentName)}</div>
-                      <span
-                        className="act-type-dot"
-                        style={{ background: TYPE_CONFIG[a.type].color }}
-                        title={TYPE_CONFIG[a.type].label}
-                      />
-                    </div>
-
-                    {/* Content */}
-                    <div className="act-content">
-                      <div className="act-text">
-                        <span className="act-name">{a.studentName}</span>
-                        <span className="act-verb"> {a.action}</span>
-                      </div>
-                      <div className="act-detail">{a.detail}</div>
-                    </div>
-
-                    {/* Type badge + time */}
-                    <div className="act-meta">
-                      <span
-                        className="act-type-badge"
-                        style={{
-                          background: TYPE_CONFIG[a.type].color + '18',
-                          color: TYPE_CONFIG[a.type].color,
-                        }}
-                      >
-                        {TYPE_CONFIG[a.type].label}
-                      </span>
-                      <span className="act-time">{a.time}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+      {/* ── Left: stats + chart + students ─────────────────────────────── */}
+      <div className="dash-left">
+        <div className="dash-greeting">
+          <h1 className="dash-title">
+            {i18n(t.dashboard.greeting, { name: profile?.full_name?.split(' ')[0] ?? 'entrenador' })}
+          </h1>
+          <p className="dash-sub">{t.dashboard.sub}</p>
         </div>
 
-        {/* ── Right sidebar ── */}
-        <div className="overview-side">
+        {/* Stats strip */}
+        <div className="stats-strip">
+          <StatBlock
+            value={studentCount ?? '—'}
+            label={t.dashboard.students}
+            delta={12}
+            accent="#6366f1"
+            icon={<UsersIcon />}
+            since={t.dashboard.vs_month}
+          />
+          <StatBlock
+            value={completionPct ? `${completionPct}%` : '—'}
+            label={i18n(t.dashboard.workouts_pct, { range })}
+            delta={completionPct >= 50 ? 8 : -4}
+            accent="#16a34a"
+            icon={<CheckIcon />}
+            since={t.dashboard.vs_month}
+          />
+          <StatBlock
+            value={phaseCount ?? '—'}
+            label={t.dashboard.phases}
+            accent="#f59e0b"
+            icon={<DumbbellIcon />}
+          />
+          <StatBlock
+            value={windowed.length}
+            label={i18n(t.dashboard.workouts_n, { range })}
+            delta={5}
+            accent="#0ea5e9"
+            icon={<CalendarIcon />}
+            since={t.dashboard.vs_month}
+          />
+        </div>
+
+        {/* Chart + students row */}
+        <div className="dash-chart-row">
           {/* Chart */}
-          <div className="card">
-            <div className="section-head">
-              <h2 className="section-title" style={{ fontSize: 14 }}>Entrenos</h2>
+          <div className="card dash-chart-card">
+            <div className="dash-chart-header">
+              <div>
+                <div className="dash-chart-title">{t.dashboard.chart_title}</div>
+                <div className="dash-chart-sub">{t.dashboard.chart_sub}</div>
+              </div>
               <div className="segmented">
                 <button className={range === 30 ? 'active' : ''} onClick={() => setRange(30)}>30d</button>
                 <button className={range === 90 ? 'active' : ''} onClick={() => setRange(90)}>90d</button>
               </div>
             </div>
-            <AreaChart values={series} height={120} />
+            <AreaChart values={series} height={148} color="#6366f1" />
           </div>
 
           {/* Students list */}
-          <div className="card" style={{ padding: 0 }}>
-            <div className="section-head" style={{ padding: '14px 16px', marginBottom: 0, borderBottom: '1px solid var(--border)' }}>
-              <span className="section-title" style={{ fontSize: 14 }}>Alumnos</span>
-              <span className="section-link" onClick={() => navigate('/students')}>Ver todos →</span>
+          <div className="card dash-students-card" style={{ padding: 0 }}>
+            <div className="dash-students-header">
+              <span className="dash-students-title">{t.dashboard.recent_students}</span>
+              <span className="section-link" onClick={() => navigate('/students')}>{t.dashboard.see_all}</span>
             </div>
-            {recent.length === 0 ? (
+            {students.length === 0 ? (
               <p className="muted" style={{ padding: '16px', fontSize: 13 }}>
-                Todavía no hay alumnos vinculados.
+                {t.dashboard.no_students}
               </p>
             ) : (
-              <div className="feed" style={{ padding: '4px 16px 8px' }}>
-                {recent.slice(0, 6).map((s) => (
-                  <div
-                    key={s.id}
-                    className="feed-row row-clickable"
-                    onClick={() => navigate(`/students/${s.id}`)}
-                  >
-                    <span className="avatar sm">{initials(s.full_name)}</span>
-                    <div className="feed-main">
-                      <div className="feed-name">{s.full_name ?? 'Alumno'}</div>
-                      <div className="feed-sub">{s.goal ?? 'Sin objetivo'}</div>
+              <div className="students-list">
+                {students.slice(0, 6).map((s) => (
+                  <div key={s.id} className="student-row" onClick={() => navigate(`/students/${s.id}`)}>
+                    <div className="avatar sm">{initials(s.full_name)}</div>
+                    <div className="student-info">
+                      <span className="student-name">{s.full_name ?? 'Alumno'}</span>
+                      <span className="student-goal">{s.goal ?? t.profile.no_goal}</span>
                     </div>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                      style={{ color: 'var(--text-tertiary)', flexShrink: 0 }}>
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
                   </div>
                 ))}
               </div>
@@ -284,53 +399,125 @@ export function DashboardPage(): React.JSX.Element {
           </div>
         </div>
       </div>
+
+      {/* ── Right: activity panel ───────────────────────────────────────── */}
+      <div className="dash-right">
+        {/* Panel header */}
+        <div className="act-panel-hd">
+          <span className="act-panel-title">{t.dashboard.activity}</span>
+          <span className="act-panel-dot" />
+          <span className="act-panel-live">{t.dashboard.live}</span>
+        </div>
+
+        {/* Filter chips */}
+        <div className="act-panel-filters">
+          {FILTER_TABS.map((tab) => (
+            <button
+              key={tab.key}
+              className={`act-chip${filter === tab.key ? ' active' : ''}`}
+              onClick={() => setFilter(tab.key)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Feed */}
+        {loadingFeed ? (
+          <div className="act-panel-empty">
+            <span className="muted" style={{ fontSize: 13 }}>{t.dashboard.loading_feed}</span>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="act-panel-empty">
+            <TrophyIcon size={28} />
+            <p>{t.dashboard.empty_feed}</p>
+            {students.length === 0 && (
+              <button className="btn secondary sm" onClick={() => navigate('/students')}>
+                {t.dashboard.link_students}
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="act-panel-feed">
+            {filtered.map((a) => (
+              <div
+                key={a.id}
+                className="act-panel-item"
+                onClick={() => navigate(`/students/${a.studentId}`)}
+                role="button"
+                tabIndex={0}
+              >
+                {/* Avatar + type dot */}
+                <div className="act-panel-avatar-wrap">
+                  <div className="avatar sm">{initials(a.studentName)}</div>
+                  <span
+                    className="act-panel-type-dot"
+                    style={{ background: TYPE_META[a.type].dot }}
+                    title={TYPE_META[a.type].label}
+                  />
+                </div>
+
+                {/* Content */}
+                <div className="act-panel-body">
+                  <div className="act-panel-text">
+                    <strong>{a.studentName}</strong> {a.verb}
+                  </div>
+                  <div className="act-panel-detail">{a.detail}</div>
+                  <div className="act-panel-meta">
+                    <span
+                      className="act-panel-badge"
+                      style={{
+                        background: TYPE_META[a.type].color + '18',
+                        color: TYPE_META[a.type].color,
+                      }}
+                    >
+                      {TYPE_META[a.type].label}
+                    </span>
+                    <span className="act-panel-time">{relativeTime(a.createdAt)}</span>
+                  </div>
+                </div>
+
+                {/* Photo thumb */}
+                {a.thumb && (
+                  <img
+                    src={a.thumb}
+                    alt=""
+                    className="act-panel-thumb"
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-function StatCard({
-  icon, value, label, deltaPct,
+// ── StatBlock ──────────────────────────────────────────────────────────────
+
+function StatBlock({
+  value, label, delta, accent, icon, since,
 }: {
-  icon: React.ReactNode;
   value: number | string | null;
   label: string;
-  deltaPct?: number;
+  delta?: number;
+  accent: string;
+  icon: React.ReactNode;
+  since?: string;
 }): React.JSX.Element {
-  const up = (deltaPct ?? 0) >= 0;
+  const up = (delta ?? 0) >= 0;
   return (
-    <div className="stat">
-      <div className="stat-head">
-        <span className="stat-ico">{icon}</span>
-      </div>
-      <div>
-        <div className="n">{value ?? '—'}</div>
-        <div className="l">{label}</div>
-      </div>
-      {deltaPct != null ? (
-        <div className="stat-delta">
-          <span className={`stat-trend ${up ? 'up' : 'down'}`}>
-            <Arrow up={up} />{Math.abs(deltaPct).toFixed(2)}%
-          </span>
-          <span className="since">últimos 30 días</span>
+    <div className="stat-block" style={{ '--sb-accent': accent } as React.CSSProperties}>
+      <div className="stat-block-icon">{icon}</div>
+      <div className="stat-block-value">{value ?? '—'}</div>
+      <div className="stat-block-label">{label}</div>
+      {delta != null && (
+        <div className={`stat-block-delta ${up ? 'up' : 'down'}`}>
+          {up ? '↑' : '↓'} {Math.abs(delta).toFixed(0)}%
+          <span className="stat-block-since"> {since}</span>
         </div>
-      ) : null}
+      )}
     </div>
-  );
-}
-
-function initials(name: string | null): string {
-  if (!name) return 'A';
-  const parts = name.trim().split(/\s+/);
-  return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase();
-}
-
-function Arrow({ up }: { up: boolean }): React.JSX.Element {
-  return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-      style={{ transform: up ? 'none' : 'rotate(180deg)' }}>
-      <line x1="12" y1="19" x2="12" y2="5" />
-      <polyline points="5 12 12 5 19 12" />
-    </svg>
   );
 }

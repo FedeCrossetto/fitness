@@ -1,6 +1,6 @@
-import { SettingsIcon, BellIcon, BrushIcon, CreditCardIcon, UsersIcon } from '@/components/icons';
+import { SettingsIcon, BellIcon, BrushIcon, CreditCardIcon, UsersIcon, MessageIcon, BookOpenIcon, CheckIcon } from '@/components/icons';
 import { useAuth } from '@/hooks/useAuth';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 
 type SettingsSection = {
   icon: React.ReactNode;
@@ -8,19 +8,50 @@ type SettingsSection = {
   desc: string;
   action: string;
   to?: string;
+  highlight?: boolean;
 };
 
 const SECTIONS: SettingsSection[] = [
-  { icon: <UsersIcon size={20} />, title: 'Perfil', desc: 'Nombre, foto y datos del entrenador.', action: 'Editar perfil' },
-  { icon: <BrushIcon size={20} />, title: 'Marca de la app', desc: 'Nombre, colores y logo de tu app mobile.', action: 'Configurar', to: '/branding' },
-  { icon: <CreditCardIcon size={20} />, title: 'Suscripción', desc: 'Plan actual, facturación y métodos de pago.', action: 'Ver plan' },
-  { icon: <BellIcon size={20} />, title: 'Notificaciones', desc: 'Configurá qué alertas recibís por email y push.', action: 'Configurar' },
-  { icon: <SettingsIcon size={20} />, title: 'Privacidad y seguridad', desc: 'Contraseña, sesiones activas y permisos.', action: 'Gestionar' },
+  { icon: <UsersIcon size={20} />,     title: 'Perfil',                 desc: 'Nombre, foto y datos del entrenador.',                                          action: 'Editar perfil' },
+  { icon: <BrushIcon size={20} />,     title: 'Marca de la app',        desc: 'Nombre, colores y logo de tu app mobile.',                                      action: 'Configurar',   to: '/branding' },
+  { icon: <MessageIcon size={20} />,   title: 'Mensajes automáticos',   desc: 'Configurá mensajes que se envían solos según la actividad de tus alumnos.',     action: 'Configurar',   to: '/settings/auto-messages', highlight: true },
+  { icon: <BookOpenIcon size={20} />, title: 'Formulario de consulta', desc: 'Personalizá el formulario que completan tus alumnos al unirse.',                   action: 'Configurar',   to: '/settings/consultation-form' },
+  { icon: <CheckIcon size={20} />,    title: 'Deslinde de responsabilidad', desc: 'Documento que firman tus alumnos digitalmente antes de iniciar el plan.',  action: 'Configurar',   to: '/settings/waiver' },
+  { icon: <CreditCardIcon size={20} />,title: 'Suscripción',            desc: 'Plan actual, facturación y métodos de pago.',                                   action: 'Ver plan' },
+  { icon: <BellIcon size={20} />,      title: 'Notificaciones',         desc: 'Configurá qué alertas recibís por email y push.',                               action: 'Configurar' },
+  { icon: <SettingsIcon size={20} />,  title: 'Privacidad y seguridad', desc: 'Contraseña, sesiones activas y permisos.',                                      action: 'Gestionar' },
 ];
+
+function SectionRow({ s, isLast }: { s: SettingsSection; isLast: boolean }): React.JSX.Element {
+  const inner = (
+    <div
+      className={s.to ? 'settings-row settings-row--link' : 'settings-row'}
+      style={{
+        borderBottom: !isLast ? '1px solid var(--border)' : 'none',
+        background: s.highlight ? 'color-mix(in srgb, var(--primary) 5%, transparent)' : undefined,
+      }}
+    >
+      <div className="settings-row-icon" style={{ color: s.highlight ? 'var(--primary)' : undefined }}>
+        {s.icon}
+      </div>
+      <div className="settings-row-body">
+        <div className="settings-row-title">{s.title}</div>
+        <div className="settings-row-desc">{s.desc}</div>
+      </div>
+      <span className={`btn ${s.highlight ? 'primary' : 'secondary'} settings-row-btn`}>
+        {s.action}
+      </span>
+    </div>
+  );
+
+  if (s.to) {
+    return <Link to={s.to} style={{ textDecoration: 'none', display: 'block' }}>{inner}</Link>;
+  }
+  return inner;
+}
 
 export function SettingsPage(): React.JSX.Element {
   const { profile } = useAuth();
-  const navigate = useNavigate();
 
   return (
     <div>
@@ -40,33 +71,26 @@ export function SettingsPage(): React.JSX.Element {
       </div>
 
       {/* Settings list */}
-      <div className="card" style={{ padding: 0 }}>
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         {SECTIONS.map((s, i) => (
-          <div
-            key={s.title}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 14,
-              padding: '16px 20px',
-              borderBottom: i < SECTIONS.length - 1 ? '1px solid var(--border)' : 'none',
-              cursor: 'pointer',
-              transition: 'background 120ms',
-            }}
-            onClick={() => s.to && navigate(s.to)}
-            className="row-clickable"
-          >
-            <div className="stat-ico" style={{ flexShrink: 0 }}>{s.icon}</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 2 }}>{s.title}</div>
-              <div style={{ fontSize: 12.5, color: 'var(--text-tertiary)' }}>{s.desc}</div>
-            </div>
-            <button className="btn secondary" style={{ fontSize: 12.5, padding: '7px 14px', flexShrink: 0 }}>
-              {s.action}
-            </button>
-          </div>
+          <SectionRow key={s.title} s={s} isLast={i === SECTIONS.length - 1} />
         ))}
       </div>
+
+      <style>{`
+        .settings-row {
+          display: flex; align-items: center; gap: 14px;
+          padding: 16px 20px; transition: background 120ms;
+        }
+        .settings-row--link:hover { background: var(--surface-elevated); cursor: pointer; }
+        .settings-row-icon { flex-shrink: 0; width: 36px; height: 36px; border-radius: 8px;
+          background: var(--surface-elevated); display: flex; align-items: center;
+          justify-content: center; color: var(--text-secondary); }
+        .settings-row-body { flex: 1; min-width: 0; }
+        .settings-row-title { font-weight: 600; font-size: 14px; margin-bottom: 2px; color: var(--text-primary); }
+        .settings-row-desc { font-size: 12.5px; color: var(--text-tertiary); }
+        .settings-row-btn { font-size: 12.5px; padding: 7px 14px; flex-shrink: 0; pointer-events: none; }
+      `}</style>
     </div>
   );
 }

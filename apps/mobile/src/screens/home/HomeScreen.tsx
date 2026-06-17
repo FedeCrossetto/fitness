@@ -7,7 +7,8 @@ import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { layout, radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
-import { greetingForNow, todayISO, formatShortDate } from '../../lib/dates';
+import { todayISO, formatShortDate } from '../../lib/dates';
+import { useTranslation } from '../../stores/i18nStore';
 import { useClientConfig } from '../../config/useClientConfig';
 import {
   AppText,
@@ -42,6 +43,7 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
   const { colors } = useTheme();
   const clientConfig = useClientConfig();
   const styles = useThemedStyles(createStyles);
+  const { t, i18n } = useTranslation();
 
   const insets = useSafeAreaInsets();
   const scrollY = useSharedValue(0);
@@ -52,6 +54,8 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
   const session = useAuthStore((s) => s.session);
   const profile = useAuthStore((s) => s.profile);
   const userId = session?.user.id;
+  const isAdmin = profile?.role === 'admin';
+  const isTrainer = profile?.role === 'trainer' || profile?.role === 'admin';
 
   const goals = useGoalsStore((s) => s.goals);
   const goalsLoading = useGoalsStore((s) => s.loading);
@@ -245,12 +249,14 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
         <View style={styles.header}>
           <View style={styles.headerText}>
             <AppText variant="h1" color={colors.text.primary} style={styles.greeting}>
-              {greetingForNow()}, {firstName}
+              {t.greeting.morning}, {firstName}
             </AppText>
             <View style={styles.streakRow}>
               <Ionicons name="flame" size={16} color={colors.primary.default} />
               <AppText variant="body13SemiBold" color={colors.primary.default}>
-                {streak > 0 ? `Racha de ${streak} ${streak === 1 ? 'día' : 'días'}` : 'Arrancá tu racha hoy'}
+                {streak > 0
+                  ? i18n(t.greeting.streak, { n: streak, unit: streak === 1 ? t.greeting.streak_day : t.greeting.streak_days })
+                  : t.greeting.streak_start}
               </AppText>
             </View>
           </View>
@@ -272,26 +278,26 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
                 {isToday ? `${completedGoals}/${goals.length || 0}` : '—'}
               </AppText>
               <AppText variant="caps11" color={colors.text.tertiary}>
-                Metas
+                {t.home.goals_unit}
               </AppText>
             </ProgressRing>
             <View style={styles.dayCardInfo}>
               <AppText variant="h3" color={colors.text.primary}>
-                {isToday ? 'Tu día de hoy' : 'Día anterior'}
+                {isToday ? t.home.today_title : t.home.past_title}
               </AppText>
               <AppText variant="body13" color={colors.text.secondary} style={styles.dayCardSub}>
                 {isToday
                   ? goalProgress >= 1
-                    ? '¡Día completo! Sos imparable.'
+                    ? t.home.today_full
                     : completedGoals > 0
-                      ? 'Buen ritmo, seguí así.'
-                      : 'Completá tus metas para sumar racha.'
-                  : 'Seleccioná hoy para ver tus metas activas.'}
+                      ? t.home.today_good
+                      : t.home.today_start
+                  : t.home.past_hint}
               </AppText>
               {isToday && (
                 <View style={styles.dayCardLink}>
                   <AppText variant="body13SemiBold" color={colors.primary.default}>
-                    Ver metas
+                    {t.home.see_goals}
                   </AppText>
                   <Ionicons name="arrow-forward" size={14} color={colors.primary.default} />
                 </View>
@@ -305,7 +311,7 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
         {/* Métricas del día */}
         <View style={styles.metricsRow}>
           <MetricCard
-            label="Calorías"
+            label={t.home.calories}
             value={String(Math.round(totals.kcal))}
             unit={`/ ${kcalGoal} kcal`}
             icon="flame-outline"
@@ -313,18 +319,18 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
             style={styles.metricHalf}
           />
           <MetricCard
-            label="Pasos"
+            label={t.home.steps}
             value={steps > 0 ? steps.toLocaleString('es-AR') : '—'}
             unit={`/ ${clientConfig.defaultStepsGoal.toLocaleString('es-AR')}`}
             icon={healthConnected ? 'walk-outline' : 'link-outline'}
             labelBadge={
               healthConnected
-                ? Platform.OS === 'ios' ? 'Apple Health' : 'Sensor conectado'
+                ? Platform.OS === 'ios' ? t.home.apple_health : t.home.sensor_conn
                 : connectingSteps
-                  ? 'Conectando...'
+                  ? t.home.connecting
                   : Platform.OS === 'ios'
-                    ? 'Conectar Apple Health'
-                    : 'Conectar sensor de pasos'
+                    ? t.home.connect_ios
+                    : t.home.connect_android
             }
             labelBadgeIcon={healthConnected ? 'checkmark-circle' : undefined}
             labelBadgeColor={colors.primary.default}
@@ -339,13 +345,13 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
         {/* Macros del día */}
         <Card style={styles.macrosCard}>
           <AppText variant="caps12" color={colors.text.tertiary} style={styles.macrosTitle}>
-            Macros de hoy
+            {t.home.macros}
           </AppText>
           {(
             [
-              { key: 'P', label: 'Proteínas', value: totals.protein, goal: macroGoals.protein, color: colors.primary.default },
-              { key: 'C', label: 'Carbohidratos', value: totals.carbs, goal: macroGoals.carbs, color: colors.primary.dark },
-              { key: 'G', label: 'Grasas', value: totals.fat, goal: macroGoals.fat, color: colors.primary.deep },
+              { key: 'P', label: t.home.proteins, value: totals.protein, goal: macroGoals.protein, color: colors.primary.default },
+              { key: 'C', label: t.home.carbs, value: totals.carbs, goal: macroGoals.carbs, color: colors.primary.dark },
+              { key: 'G', label: t.home.fats, value: totals.fat, goal: macroGoals.fat, color: colors.primary.deep },
             ] as const
           ).map((macro) => (
             <View key={macro.key} style={styles.macroRow}>
@@ -365,7 +371,7 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
           <Card style={styles.metricHalf} onPress={() => navigation.navigate('Hydration')}>
             <View style={styles.miniHeader}>
               <AppText variant="caps12" color={colors.text.tertiary}>
-                Hidratación
+                {t.home.hydration}
               </AppText>
               <Ionicons name="water-outline" size={16} color={colors.water} />
             </View>
@@ -382,15 +388,15 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
           <Card style={styles.metricHalf} onPress={() => navigation.getParent()?.navigate('TrainingTab' as never)}>
             <View style={styles.miniHeader}>
               <AppText variant="caps12" color={colors.text.tertiary}>
-                Próximo entreno
+                {t.home.next_workout}
               </AppText>
               <Ionicons name="barbell-outline" size={16} color={colors.pillars.training} />
             </View>
             <AppText variant="body14SemiBold" color={colors.text.primary} numberOfLines={2} style={styles.nextTitle}>
-              {trainedToday ? '¡Ya entrenaste hoy!' : nextWorkoutDay?.title ?? 'Sin programa aún'}
+              {trainedToday ? t.home.trained_today : nextWorkoutDay?.title ?? t.home.no_program}
             </AppText>
             <AppText variant="body12" color={colors.text.tertiary} numberOfLines={1} style={styles.miniSub}>
-              {trainedToday ? 'Descansá y recuperá' : nextWorkoutDay?.workout?.title ?? 'Hablá con tu coach'}
+              {trainedToday ? t.home.rest : nextWorkoutDay?.workout?.title ?? t.home.coach_hint}
             </AppText>
           </Card>
         </View>
@@ -398,15 +404,15 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
         {/* Mi Progreso */}
         <View style={styles.sectionHeaderRow}>
           <AppText variant="h3" color={colors.text.primary}>
-            Mi Progreso
+            {t.home.my_progress}
           </AppText>
           <Pressable
             onPress={() => navigation.getParent()?.navigate('ProgressTab' as never)}
             style={styles.seeAllBtn}
-            accessibilityLabel="Ver todo el progreso"
+            accessibilityLabel={t.ui.see_all}
           >
             <AppText variant="body13SemiBold" color={colors.primary.default}>
-              Ver todo
+              {t.ui.see_all}
             </AppText>
             <Ionicons name="arrow-forward" size={14} color={colors.primary.default} />
           </Pressable>
@@ -420,7 +426,7 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
             accessibilityLabel="Ver peso corporal"
           >
             <AppText variant="caps11" color={colors.text.tertiary} style={styles.progressCardLabel}>
-              Peso corporal
+              {t.home.weight}
             </AppText>
             {latestWeight ? (
               <>
@@ -451,7 +457,7 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
             accessibilityLabel="Ver porcentaje de grasa corporal"
           >
             <AppText variant="caps11" color={colors.text.tertiary} style={styles.progressCardLabel}>
-              Grasa corporal
+              {t.home.body_fat}
             </AppText>
             {latestFat ? (
               <>
@@ -481,12 +487,12 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
             accessibilityLabel="Ver hidratación"
           >
             <AppText variant="caps11" color={colors.text.tertiary} style={styles.progressCardLabel}>
-              Hidratación
+              {t.home.hydration}
             </AppText>
             {hydration ? (
               <>
                 <AppText variant="body12" color={colors.text.tertiary} style={styles.progressCardDate}>
-                  Hoy
+                  {t.ui.today}
                 </AppText>
                 <View style={styles.progressValueRow}>
                   <AppText variant="metricMedium" color={colors.text.primary}>
@@ -511,12 +517,12 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
             accessibilityLabel="Ver pasos"
           >
             <AppText variant="caps11" color={colors.text.tertiary} style={styles.progressCardLabel}>
-              Pasos hoy
+              {t.home.steps_today}
             </AppText>
             {steps > 0 ? (
               <>
                 <AppText variant="body12" color={colors.text.tertiary} style={styles.progressCardDate}>
-                  Hoy
+                  {t.ui.today}
                 </AppText>
                 <AppText variant="metricMedium" color={colors.text.primary} style={styles.progressSteps}>
                   {steps.toLocaleString('es-AR')}
@@ -538,7 +544,7 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
         >
           <View style={styles.photosHeader}>
             <AppText variant="caps11" color={colors.text.tertiary}>
-              Fotos de progreso
+              {t.home.photos}
             </AppText>
             <Ionicons name="chevron-forward" size={14} color={colors.text.tertiary} />
           </View>
@@ -564,38 +570,44 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
             <View style={styles.photoEmpty}>
               <Ionicons name="camera-outline" size={26} color={colors.text.tertiary} />
               <AppText variant="body13" color={colors.text.tertiary} style={styles.photoEmptyText}>
-                Agregá tu primera foto de progreso
+                {t.home.add_photo}
               </AppText>
             </View>
           )}
         </Pressable>
 
         {/* Accesos rápidos */}
-        <SectionHeader title="Accesos rápidos" />
+        <SectionHeader title={t.home.quick_access} />
         <View style={styles.quickGrid}>
           {(
             [
-              { label: 'Comunidad', icon: 'people-outline', screen: 'Community' },
-              { label: 'Coach', icon: 'chatbubbles-outline', screen: 'CoachChat' },
-              { label: 'Logros', icon: 'trophy-outline', screen: 'Achievements' },
-              { label: 'Mi plan', icon: 'card-outline', screen: 'Subscription' },
+              { label: t.home.community, icon: 'people-outline', screen: 'Community', adminOnly: false },
+              { label: t.home.coach,     icon: 'chatbubbles-outline', screen: 'CoachChat', adminOnly: false },
+              { label: t.home.achievements, icon: 'trophy-outline', screen: 'Achievements', adminOnly: false },
+              { label: t.home.my_plan,   icon: 'card-outline', screen: 'Subscription', adminOnly: false },
+              { label: t.home.trainer,   icon: 'people-circle-outline', screen: 'TrainerPanel', adminOnly: true },
             ] as const
-          ).map((item) => (
-            <Pressable
-              key={item.screen}
-              accessibilityRole="button"
-              accessibilityLabel={item.label}
-              onPress={() => navigation.navigate(item.screen)}
-              style={({ pressed }) => [styles.quickItem, pressed && styles.quickPressed]}
-            >
-              <View style={styles.quickIcon}>
-                <Ionicons name={item.icon} size={20} color={colors.primary.default} />
-              </View>
-              <AppText variant="body12Medium" color={colors.text.secondary}>
-                {item.label}
-              </AppText>
-            </Pressable>
-          ))}
+          )
+            .filter((item) => !item.adminOnly || isTrainer)
+            .map((item) => (
+              <Pressable
+                key={item.screen}
+                accessibilityRole="button"
+                accessibilityLabel={item.label}
+                onPress={() => navigation.navigate(item.screen)}
+                style={({ pressed }) => [styles.quickItem, pressed && styles.quickPressed]}
+              >
+                <View style={[
+                  styles.quickIcon,
+                  item.adminOnly && { backgroundColor: colors.primary.muted },
+                ]}>
+                  <Ionicons name={item.icon} size={20} color={colors.primary.default} />
+                </View>
+                <AppText variant="body12Medium" color={colors.text.secondary}>
+                  {item.label}
+                </AppText>
+              </Pressable>
+            ))}
         </View>
 
         {/* Resumen kcal extendido */}
@@ -608,9 +620,9 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
               <AppText variant="metricLarge" color={colors.text.primary}>
                 {Math.max(0, Math.round(kcalGoal - totals.kcal))}
               </AppText>
-              <AppText variant="body13" color={colors.text.secondary}>
-                kcal restantes para tu objetivo
-              </AppText>
+          <AppText variant="body13" color={colors.text.secondary}>
+              {t.home.kcal_left}
+            </AppText>
             </View>
             <ProgressRing progress={kcalProgress} size={92} strokeWidth={9} color={colors.pillars.training}>
               <AppText variant="body14SemiBold" color={colors.text.primary}>

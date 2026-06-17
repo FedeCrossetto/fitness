@@ -7,8 +7,14 @@ interface AuthState {
   session: Session | null;
   profile: ProfileRow | null;
   loading: boolean;
-  /** true si el usuario puede usar el panel (trainer o admin) */
+  /** Rol del perfil activo ('client' | 'trainer' | 'admin' | null). */
+  role: ProfileRow['role'] | null;
+  /** true si el usuario puede usar el panel de gestión (trainer o admin). */
   canManage: boolean;
+  /** true solo para role === 'admin'. */
+  isAdmin: boolean;
+  /** true para role === 'trainer' o role === 'admin'. */
+  isTrainer: boolean;
   signOut: () => Promise<void>;
 }
 
@@ -51,10 +57,13 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
     await supabase.auth.signOut();
   };
 
-  const canManage = profile?.role === 'trainer' || profile?.role === 'admin';
+  const role = profile?.role ?? null;
+  const isAdmin = role === 'admin';
+  const isTrainer = role === 'trainer' || role === 'admin';
+  const canManage = isTrainer;
 
   return (
-    <AuthContext.Provider value={{ session, profile, loading, canManage, signOut }}>
+    <AuthContext.Provider value={{ session, profile, loading, role, canManage, isAdmin, isTrainer, signOut }}>
       {children}
     </AuthContext.Provider>
   );

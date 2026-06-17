@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import './styles.css';
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
+import { I18nProvider } from '@/hooks/useTranslation';
 import { Layout } from '@/components/Layout';
 import { LoginPage } from '@/pages/Login';
 import { DownloadPage } from '@/pages/Download';
@@ -17,6 +18,9 @@ import { ChallengesPage } from '@/pages/Challenges';
 import { PaymentsPage } from '@/pages/Payments';
 import { SchedulingPage } from '@/pages/Scheduling';
 import { SettingsPage } from '@/pages/Settings';
+import { AutoMessagesPage } from '@/pages/AutoMessages';
+import { ConsultationFormPage } from '@/pages/ConsultationForm';
+import { WaiverSettingsPage } from '@/pages/WaiverSettings';
 import { AnnouncementsPage } from '@/pages/Announcements';
 import { AddOnsPage } from '@/pages/AddOns';
 
@@ -57,6 +61,9 @@ function App(): React.JSX.Element {
           <Route path="/announcements" element={<AnnouncementsPage />} />
           <Route path="/add-ons" element={<AddOnsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/settings/auto-messages" element={<AutoMessagesPage />} />
+          <Route path="/settings/consultation-form" element={<ConsultationFormPage />} />
+          <Route path="/settings/waiver" element={<WaiverSettingsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
@@ -66,8 +73,10 @@ function App(): React.JSX.Element {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <AuthProvider>
-      <App />
-    </AuthProvider>
+    <I18nProvider>
+      <AuthProvider>
+        <App />
+      </AuthProvider>
+    </I18nProvider>
   </StrictMode>
 );

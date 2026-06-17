@@ -1,46 +1,32 @@
 import { useState } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useTranslation } from '@/hooks/useTranslation';
+import { LANGUAGES } from '@habito/shared';
 import {
-  GridIcon, BrushIcon, UsersIcon, LogOutIcon, SearchIcon,
+  GridIcon, BrushIcon, UsersIcon, LogOutIcon,
   MessageIcon, BellIcon, CalendarIcon, GroupsIcon, TrophyIcon, CreditCardIcon,
-  BookOpenIcon, SettingsIcon, PlusIcon, ChevronDownIcon, ChevronRightIcon,
-  MegaphoneIcon, PuzzleIcon,
+  BookOpenIcon, SettingsIcon, ChevronDownIcon, ChevronRightIcon,
+  MegaphoneIcon,
 } from '@/components/icons';
 
-type NavItem = { to: string; label: string; end?: boolean; icon: () => React.JSX.Element; badge?: number };
-type NavGroup = { section: string; items: NavItem[]; collapsible?: boolean };
+// ── Types ─────────────────────────────────────────────────────────────────────
 
-const NAV: NavGroup[] = [
-  {
-    section: 'MAIN MENU',
-    items: [
-      { to: '/', label: 'Overview', end: true, icon: () => <GridIcon /> },
-      { to: '/messages', label: 'Messages', icon: () => <MessageIcon />, badge: 3 },
-      { to: '/groups', label: 'Groups', icon: () => <GroupsIcon /> },
-      { to: '/challenges', label: 'Challenges', icon: () => <TrophyIcon /> },
-      { to: '/students', label: 'Clients', icon: () => <UsersIcon /> },
-      { to: '/payments', label: 'Payments', icon: () => <CreditCardIcon /> },
-    ],
-  },
-  {
-    section: 'CONTENT',
-    collapsible: false,
-    items: [
-      { to: '/routines', label: 'Master Libraries', icon: () => <BookOpenIcon /> },
-      { to: '/branding', label: 'Branding', icon: () => <BrushIcon /> },
-      { to: '/scheduling', label: 'Scheduling', icon: () => <CalendarIcon /> },
-      { to: '/announcements', label: 'Announcements', icon: () => <MegaphoneIcon /> },
-    ],
-  },
-  {
-    section: 'OTHER',
-    items: [
-      { to: '/add-ons', label: 'Add-ons', icon: () => <PuzzleIcon /> },
-      { to: '/settings', label: 'Settings', icon: () => <SettingsIcon /> },
-    ],
-  },
-];
+type NavItem  = { to: string; label: string; end?: boolean; icon: () => React.JSX.Element; badge?: number };
+type NavGroup = { section: string; items: NavItem[] };
+
+// ── Collapse toggle icon ───────────────────────────────────────────────────────
+
+function CollapseIcon({ collapsed }: { collapsed: boolean }): React.JSX.Element {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {collapsed
+        ? <path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+        : <path d="M10 3L5 8l5 5"  stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+      }
+    </svg>
+  );
+}
 
 function initials(name: string | null | undefined): string {
   if (!name) return 'E';
@@ -48,45 +34,86 @@ function initials(name: string | null | undefined): string {
   return (parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '');
 }
 
+// ── Component ─────────────────────────────────────────────────────────────────
+
 export function Layout(): React.JSX.Element {
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, isAdmin, isTrainer } = useAuth();
+  const { t, language, setLanguage } = useTranslation();
   const navigate = useNavigate();
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-  const [clientSearch, setClientSearch] = useState('');
+  const location = useLocation();
+  const isOverview = location.pathname === '/';
+
+  const [collapsed,        setCollapsed]        = useState<Record<string, boolean>>({});
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() =>
+    localStorage.getItem('sb-collapsed') === '1'
+  );
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed((v) => {
+      const next = !v;
+      localStorage.setItem('sb-collapsed', next ? '1' : '0');
+      return next;
+    });
+  };
 
   const toggleSection = (section: string) => {
     setCollapsed((prev) => ({ ...prev, [section]: !prev[section] }));
   };
 
-  const handleClientSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && clientSearch.trim()) {
-      navigate(`/students?q=${encodeURIComponent(clientSearch.trim())}`);
-      setClientSearch('');
-    }
-  };
+  // Build translated nav — rebuilt on every language change because `t` reference changes
+  const NAV: NavGroup[] = [
+    {
+      section: t.web.nav_main,
+      items: [
+        { to: '/',          label: t.web.overview,      end: true, icon: () => <GridIcon />      },
+        { to: '/messages',  label: t.web.messages,                 icon: () => <MessageIcon />,  badge: 3 },
+        { to: '/groups',    label: t.web.groups,                   icon: () => <GroupsIcon />    },
+        { to: '/challenges',label: t.web.challenges,               icon: () => <TrophyIcon />    },
+        { to: '/students',  label: t.web.clients,                  icon: () => <UsersIcon />     },
+        { to: '/payments',  label: t.web.payments,                 icon: () => <CreditCardIcon />},
+      ],
+    },
+    {
+      section: t.web.nav_content,
+      items: [
+        { to: '/routines',      label: t.web.libraries,      icon: () => <BookOpenIcon /> },
+        { to: '/branding',      label: t.web.branding,       icon: () => <BrushIcon />   },
+        { to: '/scheduling',    label: t.web.scheduling,     icon: () => <CalendarIcon />},
+        { to: '/announcements', label: t.web.announcements,  icon: () => <MegaphoneIcon />},
+      ],
+    },
+    {
+      section: t.web.nav_other,
+      items: [
+        { to: '/settings', label: t.web.settings, icon: () => <SettingsIcon /> },
+      ],
+    },
+  ];
+
+  const sc = sidebarCollapsed;
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
-        {/* Brand */}
-        <NavLink to="/" end className="brand" aria-label="Inicio">
-          <img src="/logo_app_sin_fondo_cuadrado_1024.png" alt="" className="brand-logo" />
-          <div className="brand-text">
-            <span className="brand-name">CustomFit</span>
-          </div>
-        </NavLink>
+      <aside className={`sidebar${sc ? ' sidebar--collapsed' : ''}`}>
 
-        {/* Find a client */}
-        <div className="sidebar-search">
-          <SearchIcon size={14} />
-          <input
-            type="text"
-            placeholder="Find a client"
-            value={clientSearch}
-            onChange={(e) => setClientSearch(e.target.value)}
-            onKeyDown={handleClientSearch}
-            aria-label="Buscar cliente"
-          />
+        {/* Brand + collapse toggle row */}
+        <div className="sidebar-top">
+          <NavLink to="/" end className="brand" aria-label="Inicio">
+            <img src="/logo_app_sin_fondo_cuadrado_1024.png" alt="" className="brand-logo" />
+            {!sc && (
+              <div className="brand-text">
+                <span className="brand-name">CustomFit</span>
+              </div>
+            )}
+          </NavLink>
+          <button
+            className="sidebar-collapse-btn"
+            onClick={toggleSidebar}
+            title={sc ? t.web.expand : t.web.collapse}
+            aria-label={sc ? t.web.expand : t.web.collapse}
+          >
+            <CollapseIcon collapsed={sc} />
+          </button>
         </div>
 
         {/* Nav */}
@@ -95,26 +122,29 @@ export function Layout(): React.JSX.Element {
             const isCollapsed = collapsed[group.section] ?? false;
             return (
               <div key={group.section} className="nav-section">
-                <button
-                  className="nav-section-title"
-                  onClick={() => toggleSection(group.section)}
-                  aria-expanded={!isCollapsed}
-                >
-                  {group.section}
-                  <span className={`nav-section-chevron${isCollapsed ? ' collapsed' : ''}`}>
-                    <ChevronDownIcon size={12} />
-                  </span>
-                </button>
+                {!sc && (
+                  <button
+                    className="nav-section-title"
+                    onClick={() => toggleSection(group.section)}
+                    aria-expanded={!isCollapsed}
+                  >
+                    {group.section}
+                    <span className={`nav-section-chevron${isCollapsed ? ' collapsed' : ''}`}>
+                      <ChevronDownIcon size={12} />
+                    </span>
+                  </button>
+                )}
                 {!isCollapsed && group.items.map((item) => (
                   <NavLink
                     key={item.to}
                     to={item.to}
                     end={item.end}
                     className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
+                    title={sc ? item.label : undefined}
                   >
                     <span className="nav-icon">{item.icon()}</span>
-                    <span className="nav-label">{item.label}</span>
-                    {item.badge ? (
+                    {!sc && <span className="nav-label">{item.label}</span>}
+                    {!sc && item.badge ? (
                       <span className="nav-badge">{item.badge}</span>
                     ) : null}
                   </NavLink>
@@ -128,13 +158,19 @@ export function Layout(): React.JSX.Element {
 
         {/* Footer */}
         <div className="sidebar-footer">
-          <div className="user-card">
-            <div className="avatar">{initials(profile?.full_name).toUpperCase()}</div>
-            <div className="user-meta">
-              <span className="user-name">{profile?.full_name ?? 'Entrenador'}</span>
-              <span className="user-role">Entrenador</span>
+          <div className={`user-card${sc ? ' user-card--compact' : ''}`}>
+            <div className="avatar" title={sc ? (profile?.full_name ?? 'Entrenador') : undefined}>
+              {initials(profile?.full_name).toUpperCase()}
             </div>
-            <button className="signout" onClick={() => void signOut()} aria-label="Cerrar sesión">
+            {!sc && (
+              <div className="user-meta">
+                <span className="user-name">{profile?.full_name ?? 'Entrenador'}</span>
+                <span className={`role-badge ${isAdmin ? 'admin' : 'trainer'}`}>
+                  {isAdmin ? t.web.role_admin : isTrainer ? t.web.role_trainer : t.web.role_user}
+                </span>
+              </div>
+            )}
+            <button className="signout" onClick={() => void signOut()} aria-label={t.auth.sign_out} title={t.auth.sign_out}>
               <LogOutIcon size={16} />
             </button>
           </div>
@@ -146,20 +182,20 @@ export function Layout(): React.JSX.Element {
         <div className="topbar">
           <div className="topbar-spacer" />
           <div className="topbar-actions">
-            <button
-              className="pill-btn pill-btn--outline"
-              onClick={() => navigate('/branding')}
-            >
-              Invitar alumno
-            </button>
-            <button
-              className="icon-action"
-              onClick={() => navigate('/students')}
-              aria-label="Agregar cliente"
-            >
-              <PlusIcon size={16} />
-            </button>
-            <button className="icon-action topbar-bell" aria-label="Notificaciones">
+            {/* Language toggle */}
+            <div className="lang-toggle" role="group" aria-label="Language">
+              {LANGUAGES.map((lang) => (
+                <button
+                  key={lang.code}
+                  className={`lang-btn${language === lang.code ? ' active' : ''}`}
+                  onClick={() => setLanguage(lang.code)}
+                  title={lang.label}
+                >
+                  {lang.flag} {lang.code.toUpperCase()}
+                </button>
+              ))}
+            </div>
+            <button className="icon-action topbar-bell" aria-label={t.web.notifications}>
               <BellIcon size={16} />
               <span className="bell-dot" />
             </button>
@@ -171,7 +207,7 @@ export function Layout(): React.JSX.Element {
           </div>
         </div>
 
-        <div className="main-inner">
+        <div className={`main-inner${isOverview ? ' full-width' : ''}`}>
           <Outlet />
         </div>
       </main>

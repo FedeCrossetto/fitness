@@ -21,20 +21,24 @@ import { useAuthStore } from '../../stores/authStore';
 import { useGoalsStore } from '../../stores/goalsStore';
 import { useProgressStore } from '../../stores/progressStore';
 import { useUiStore } from '../../stores/uiStore';
+import { useTranslation } from '../../stores/i18nStore';
 
-const QUICK_ACTIONS = [
-  { label: '+1 vaso', sublabel: '250 ml', ml: 250, icon: 'water-outline' },
-  { label: '+500 ml', sublabel: 'Botella chica', ml: 500, icon: 'water-outline' },
-  { label: '+1 L', sublabel: 'Botella grande', ml: 1000, icon: 'water-outline' },
-  { label: '-250 ml', sublabel: 'Corregir', ml: -250, icon: 'remove-circle-outline' },
-] as const;
+// Quick actions are built dynamically inside the component using translations
 
 export function HydrationScreen(): React.JSX.Element {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
+  const { t } = useTranslation();
 
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
+
+  const QUICK_ACTIONS = [
+    { label: t.hydration.add_glass, sublabel: t.hydration.ml_250, ml: 250, icon: 'water-outline' },
+    { label: t.hydration.add_500, sublabel: t.hydration.bottle_small, ml: 500, icon: 'water-outline' },
+    { label: t.hydration.add_1000, sublabel: t.hydration.bottle_large, ml: 1000, icon: 'water-outline' },
+    { label: t.hydration.remove, sublabel: t.hydration.fix, ml: -250, icon: 'remove-circle-outline' },
+  ] as const;
 
   const session = useAuthStore((s) => s.session);
   const userId = session?.user.id;
@@ -72,7 +76,7 @@ export function HydrationScreen(): React.JSX.Element {
       if (!userId) return;
       const newTotal = await addWater(userId, ml);
       if (newTotal === null) {
-        useUiStore.getState().showToast('error', 'No pudimos registrar el agua. Probá de nuevo.');
+        useUiStore.getState().showToast('error', t.hydration.add_error);
         return;
       }
       if (ml > 0) {
@@ -87,7 +91,7 @@ export function HydrationScreen(): React.JSX.Element {
       if (newTotal >= goal && !celebratedRef.current) {
         celebratedRef.current = true;
         hapticSuccess();
-        useUiStore.getState().showToast('success', '¡Meta de hidratación cumplida!');
+        useUiStore.getState().showToast('success', t.hydration.met_toast);
       }
     },
     [userId, addWater]
@@ -102,7 +106,7 @@ export function HydrationScreen(): React.JSX.Element {
     if (!userId) return;
     const parsed = Number.parseInt(goalInput, 10);
     if (!Number.isFinite(parsed) || parsed <= 0) {
-      useUiStore.getState().showToast('error', 'Ingresá un objetivo válido en ml.');
+      useUiStore.getState().showToast('error', t.hydration.goal_error);
       return;
     }
     setSavingGoal(true);
@@ -110,7 +114,7 @@ export function HydrationScreen(): React.JSX.Element {
     setSavingGoal(false);
     celebratedRef.current = (useProgressStore.getState().hydrationToday?.total_ml ?? 0) >= parsed;
     hapticSuccess();
-    useUiStore.getState().showToast('success', 'Objetivo diario actualizado');
+    useUiStore.getState().showToast('success', t.hydration.updated_toast);
     setGoalSheetVisible(false);
   }, [userId, goalInput, setHydrationGoal]);
 
@@ -121,9 +125,9 @@ export function HydrationScreen(): React.JSX.Element {
       <View style={styles.header}>
         <IconButton icon="chevron-back" onPress={() => navigation.goBack()} accessibilityLabel="Volver" />
         <AppText variant="h3" color={colors.text.primary}>
-          Hidratación
+          {t.hydration.title}
         </AppText>
-        <IconButton icon="options-outline" onPress={openGoalSheet} accessibilityLabel="Editar objetivo diario" />
+        <IconButton icon="options-outline" onPress={openGoalSheet} accessibilityLabel={t.hydration.edit_goal} />
       </View>
 
       {isLoading ? (
@@ -153,7 +157,7 @@ export function HydrationScreen(): React.JSX.Element {
                 </AppText>
               </View>
               <AppText variant="caps12" color={colors.water} style={styles.litrosLabel}>
-                Litros diarios
+                {t.hydration.daily_liters}
               </AppText>
             </WaterLevelBox>
 
@@ -176,17 +180,17 @@ export function HydrationScreen(): React.JSX.Element {
             <AppText variant="body14" color={colors.text.secondary} align="center" style={styles.waterSub}>
               {progress >= 1 ? (
                 <>
-                  {'¡'}
+                  {t.hydration.goal_met_pre}
                   <AppText variant="body14" color={colors.primary.default}>
-                    Objetivo
+                    {t.hydration.goal_word}
                   </AppText>
-                  {' del día cumplido!'}
+                  {t.hydration.goal_met_post}
                 </>
               ) : (
                 <>
-                  {`Te faltan ${((goalMl - totalMl) / 1000).toFixed(1)} L para tu `}
+                  {t.hydration.remaining_pre.replace('{{amount}}', ((goalMl - totalMl) / 1000).toFixed(1))}
                   <AppText variant="body14" color={colors.primary.default}>
-                    objetivo
+                    {t.hydration.remaining_word}
                   </AppText>
                 </>
               )}
@@ -195,7 +199,7 @@ export function HydrationScreen(): React.JSX.Element {
 
           {/* Botones rápidos */}
           <AppText variant="caps12" color={colors.text.tertiary} style={styles.sectionTitle}>
-            Registrar
+            {t.hydration.log_section}
           </AppText>
           <View style={styles.quickGrid}>
             {QUICK_ACTIONS.map((action) => (
@@ -229,9 +233,9 @@ export function HydrationScreen(): React.JSX.Element {
               <View style={styles.goalInfo}>
                 <AppText variant="caps12" color={colors.text.tertiary}>
                   <AppText variant="caps12" color={colors.primary.default}>
-                    Objetivo
+                    {t.hydration.goal_prefix}
                   </AppText>
-                  {' diario'}
+                  {t.hydration.goal_daily}
                 </AppText>
                 <AppText variant="metricSmall" color={colors.text.primary} style={styles.goalValue}>
                   {goalMl.toLocaleString('es-AR')} ml
@@ -243,17 +247,17 @@ export function HydrationScreen(): React.JSX.Element {
         </ScrollView>
       )}
 
-      <BottomSheet visible={goalSheetVisible} onClose={() => setGoalSheetVisible(false)} title="Objetivo diario">
+      <BottomSheet visible={goalSheetVisible} onClose={() => setGoalSheetVisible(false)} title={t.hydration.daily_goal}>
         <Input
-          label="Objetivo (ml)"
+          label={t.hydration.goal_label}
           icon="water-outline"
           keyboardType="number-pad"
           value={goalInput}
           onChangeText={setGoalInput}
-          placeholder="Ej: 3000"
+          placeholder={t.hydration.goal_ph}
           containerStyle={styles.sheetInput}
         />
-        <Button label="Guardar objetivo" onPress={() => void onSaveGoal()} loading={savingGoal} fullWidth />
+        <Button label={t.hydration.save_goal} onPress={() => void onSaveGoal()} loading={savingGoal} fullWidth />
       </BottomSheet>
     </View>
   );

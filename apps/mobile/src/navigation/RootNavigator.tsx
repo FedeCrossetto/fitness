@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -12,6 +12,12 @@ import { TabBar } from './TabBar';
 import { AddMenuOverlay } from './AddMenuOverlay';
 import { AuthStack, HomeStack, NutritionStack, ProgressStack, TrainingStack } from './stacks';
 import { OnboardingScreen } from '../screens/auth/OnboardingScreen';
+import { WaiverScreen } from '../screens/waiver/WaiverScreen';
+import { supabase } from '../lib/supabase';
+
+const anyClient = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> };
+
+interface WaiverCfg { title: string; body: string; require_before_start: boolean }
 
 const Tabs = createBottomTabNavigator<MainTabsParamList>();
 
@@ -85,22 +91,82 @@ function SplashGate(): React.JSX.Element {
   );
 }
 
-/** Decide entre Auth, Onboarding y App según la sesión de Supabase. */
+/** Decide entre Auth, Onboarding, WaiverGate y App según la sesión de Supabase. */
 export function RootNavigator(): React.JSX.Element {
-  const initializing = useAuthStore((s) => s.initializing);
-  const session = useAuthStore((s) => s.session);
-  const needsOnboarding = useAuthStore((s) => s.needsOnboarding);
-  const checkSession = useAuthStore((s) => s.checkSession);
+  const initializing        = useAuthStore((s) => s.initializing);
+  const session             = useAuthStore((s) => s.session);
+  const profile             = useAuthStore((s) => s.profile);
+  const needsOnboarding     = useAuthStore((s) => s.needsOnboarding);
+  const checkSession        = useAuthStore((s) => s.checkSession);
   const restoreActiveSession = useTrainingStore((s) => s.restoreActiveSession);
+
+  // Waiver gate state
+  const [waiverChecked, setWaiverChecked] = useState(false);
+  const [waiverRequired, setWaiverRequired] = useState(false);
+  const [waiverConfig, setWaiverConfig] = useState<WaiverCfg | null>(null);
 
   useEffect(() => {
     void checkSession();
     void restoreActiveSession();
   }, [checkSession, restoreActiveSession]);
 
-  if (initializing) return <SplashGate />;
+  // After session + profile loaded, check if waiver signature is needed
+  useEffect(() => {
+    if (!session || !profile?.id || needsOnboarding) {
+      setWaiverChecked(true);
+      return;
+    }
+    const trainerId = profile.trainer_id;
+    if (!trainerId) { setWaiverChecked(true); return; }
+
+    void (async () => {
+      try {
+        // Check waiver config exists and is required
+        const { data: cfg } = await anyClient
+          .from('waiver_configs')
+          .select('title, body, require_before_start')
+          .eq('trainer_id', trainerId)
+          .maybeSingle();
+
+        if (!cfg || !(cfg as WaiverCfg).require_before_start) {
+          setWaiverChecked(true);
+          return;
+        }
+
+        // Check if client already signed
+        const { data: sig } = await anyClient
+          .from('waiver_signatures')
+          .select('id')
+          .eq('client_id', profile.id)
+          .eq('trainer_id', trainerId)
+          .maybeSingle();
+
+        if (sig) {
+          setWaiverChecked(true);
+        } else {
+          setWaiverConfig(cfg as WaiverCfg);
+          setWaiverRequired(true);
+          setWaiverChecked(true);
+        }
+      } catch {
+        // If table doesn't exist yet, just skip
+        setWaiverChecked(true);
+      }
+    })();
+  }, [session, profile?.id, profile?.trainer_id, needsOnboarding]);
+
+  if (initializing || !waiverChecked) return <SplashGate />;
   if (!session) return <AuthStack />;
   if (needsOnboarding) return <OnboardingScreen />;
+  if (waiverRequired && waiverConfig && profile?.trainer_id) {
+    return (
+      <WaiverScreen
+        config={waiverConfig}
+        trainerId={profile.trainer_id}
+        onSigned={() => setWaiverRequired(false)}
+      />
+    );
+  }
   return <MainTabs />;
 }
 
