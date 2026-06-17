@@ -2,16 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import type { TrainerBrandingRow } from '@habito/shared/types/database';
 import { buildInviteLink } from '@habito/shared';
+import { getJoinBaseUrl } from '@/lib/inviteClient';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 
 const HEX_RE = /^#([0-9a-fA-F]{6})$/;
-const JOIN_BASE =
-  (import.meta.env.VITE_APP_DOWNLOAD_URL as string | undefined)?.replace(/\/$/, '') ??
-  `${window.location.origin}`;
 
 function buildInviteLinkLocal(code: string): string {
-  return buildInviteLink(code, JOIN_BASE);
+  return buildInviteLink(code, getJoinBaseUrl());
 }
 
 function ColorField({

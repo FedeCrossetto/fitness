@@ -5,7 +5,8 @@ import type { ProfileRow } from '@habito/shared/types/database';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { buildInviteLink, getJoinBaseUrl } from '@/lib/inviteClient';
-import { SearchIcon, UsersIcon } from '@/components/icons';
+import { deleteClientAccount } from '@/lib/clientAccounts';
+import { ChevronRightIcon, SearchIcon, TrashIcon, UsersIcon } from '@/components/icons';
 
 type Student = Pick<ProfileRow, 'id' | 'full_name' | 'goal' | 'created_at' | 'avatar_url'> & {
   client_status: 'pending' | 'active';
@@ -38,6 +39,25 @@ function timeAgo(iso: string): string {
   return `Hace ${m} mes${m > 1 ? 'es' : ''}`;
 }
 
+function ClientRowActions({
+  onOpen,
+  onDelete,
+}: {
+  onOpen: () => void;
+  onDelete: () => void;
+}): React.JSX.Element {
+  return (
+    <div className="client-row-actions" onClick={(e) => e.stopPropagation()}>
+      <button type="button" className="client-row-open" onClick={onOpen} aria-label="Abrir perfil" title="Abrir">
+        <ChevronRightIcon size={17} />
+      </button>
+      <button type="button" className="client-row-trash" onClick={onDelete} aria-label="Eliminar cliente" title="Eliminar">
+        <TrashIcon size={15} />
+      </button>
+    </div>
+  );
+}
+
 export function StudentsPage(): React.JSX.Element {
   const { session } = useAuth();
   const navigate = useNavigate();
@@ -51,6 +71,9 @@ export function StudentsPage(): React.JSX.Element {
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [showQR, setShowQR] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const inviteLink = inviteCode ? buildInviteLink(inviteCode, getJoinBaseUrl()) : null;
 
@@ -99,6 +122,21 @@ export function StudentsPage(): React.JSX.Element {
     setActivating(null);
   };
 
+  const removeClient = async (id: string) => {
+    setDeletingId(id);
+    setDeleteError(null);
+    const result = await deleteClientAccount(id);
+    if (result.ok) {
+      setStudents((prev) => prev.filter((s) => s.id !== id));
+      setConfirmDeleteId(null);
+    } else {
+      setDeleteError(result.message);
+    }
+    setDeletingId(null);
+  };
+
+  const clientToDelete = confirmDeleteId ? students.find((s) => s.id === confirmDeleteId) : null;
+
   const active  = useMemo(() => students.filter((s) => s.client_status !== 'pending'), [students]);
   const pending = useMemo(() => students.filter((s) => s.client_status === 'pending'),  [students]);
   const current = tab === 'active' ? active : pending;
@@ -123,29 +161,32 @@ export function StudentsPage(): React.JSX.Element {
       {/* Invite banner */}
       {inviteCode && inviteLink && (
         <div className="invite-banner">
-          <div className="invite-banner-left">
-            <div className="invite-banner-icon">🔗</div>
-            <div>
-              <div className="invite-banner-title">Link de invitación</div>
-              <div className="invite-banner-sub">
-                Enviá este link por WhatsApp o email. El alumno se registra con Google o email y queda vinculado automáticamente.
-              </div>
+          <div className="invite-banner-text">
+            <div className="invite-banner-title">Link de invitación</div>
+            <div className="invite-banner-sub">
+              Compartilo por WhatsApp o email. El alumno se registra con Google o email y queda vinculado automáticamente.
             </div>
           </div>
-          <div className="invite-banner-right">
-            <div className="invite-code-box" style={{ maxWidth: 320 }}>
-              <span className="invite-code-text" style={{ fontSize: 12, letterSpacing: 0, wordBreak: 'break-all' }}>{inviteLink}</span>
-              <button className="invite-copy-btn" onClick={copyLink} title="Copiar link">
-                {copied ? '✓ Copiado' : 'Copiar link'}
+          <div className="invite-banner-row">
+            <input
+              readOnly
+              className="invite-link-input"
+              value={inviteLink}
+              aria-label="Link de invitación"
+              onFocus={(e) => e.target.select()}
+            />
+            <div className="invite-banner-btns">
+              <button type="button" className="btn secondary sm" onClick={copyLink}>
+                {copied ? 'Copiado' : 'Copiar'}
+              </button>
+              <button
+                type="button"
+                className="btn secondary sm"
+                onClick={() => setShowQR((v) => !v)}
+              >
+                QR
               </button>
             </div>
-            <button
-              className="invite-qr-btn"
-              onClick={() => setShowQR((v) => !v)}
-              title="Ver QR"
-            >
-              QR
-            </button>
           </div>
         </div>
       )}
@@ -246,12 +287,10 @@ export function StudentsPage(): React.JSX.Element {
                   <td className="muted">{s.goal ?? '—'}</td>
                   <td className="muted">{timeAgo(s.created_at)}</td>
                   <td>
-                    <button
-                      className="btn secondary sm"
-                      onClick={(e) => { e.stopPropagation(); navigate(`/students/${s.id}`); }}
-                    >
-                      Abrir →
-                    </button>
+                    <ClientRowActions
+                      onOpen={() => navigate(`/students/${s.id}`)}
+                      onDelete={() => { setDeleteError(null); setConfirmDeleteId(s.id); }}
+                    />
                   </td>
                 </tr>
               ))}
@@ -283,7 +322,7 @@ export function StudentsPage(): React.JSX.Element {
                   <td className="muted">{s.goal ?? '—'}</td>
                   <td className="muted">{timeAgo(s.created_at)}</td>
                   <td>
-                    <div style={{ display: 'flex', gap: 8 }}>
+                    <div className="client-pending-actions">
                       <button
                         className="btn primary sm"
                         onClick={() => void activate(s.id)}
@@ -291,12 +330,10 @@ export function StudentsPage(): React.JSX.Element {
                       >
                         {activating === s.id ? '…' : 'Activar'}
                       </button>
-                      <button
-                        className="btn secondary sm"
-                        onClick={() => navigate(`/students/${s.id}`)}
-                      >
-                        Ver perfil
-                      </button>
+                      <ClientRowActions
+                        onOpen={() => navigate(`/students/${s.id}`)}
+                        onDelete={() => { setDeleteError(null); setConfirmDeleteId(s.id); }}
+                      />
                     </div>
                   </td>
                 </tr>
@@ -306,42 +343,61 @@ export function StudentsPage(): React.JSX.Element {
         )}
       </div>
 
+      {confirmDeleteId && clientToDelete && (
+        <div className="modal-backdrop" onClick={() => !deletingId && setConfirmDeleteId(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2 className="page-title" style={{ fontSize: 18, margin: '0 0 8px' }}>Eliminar cliente</h2>
+            <p style={{ margin: '0 0 20px', fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.55 }}>
+              Se borrará la cuenta de <strong>{clientToDelete.full_name ?? 'este alumno'}</strong> y todos sus datos.
+              Esta acción no se puede deshacer.
+            </p>
+            {deleteError && (
+              <div style={{ marginBottom: 14, padding: '10px 12px', borderRadius: 8, background: '#fef2f2', color: '#b91c1c', fontSize: 13 }}>
+                {deleteError}
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button className="btn secondary" onClick={() => setConfirmDeleteId(null)} disabled={!!deletingId}>
+                Cancelar
+              </button>
+              <button
+                className="btn danger"
+                onClick={() => void removeClient(confirmDeleteId)}
+                disabled={!!deletingId}
+              >
+                {deletingId === confirmDeleteId ? 'Eliminando…' : 'Sí, eliminar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
         /* Invite banner */
         .invite-banner {
-          display: flex; align-items: center; justify-content: space-between; gap: 20px;
-          background: color-mix(in srgb, var(--primary) 6%, var(--surface));
-          border: 1.5px solid color-mix(in srgb, var(--primary) 20%, transparent);
-          border-radius: var(--radius); padding: 16px 20px; margin-bottom: 20px;
-          flex-wrap: wrap;
-        }
-        .invite-banner-left { display: flex; align-items: flex-start; gap: 14px; flex: 1; min-width: 0; }
-        .invite-banner-icon { font-size: 22px; flex-shrink: 0; margin-top: 1px; }
-        .invite-banner-title { font-weight: 700; font-size: 14px; color: var(--text-primary); margin-bottom: 3px; }
-        .invite-banner-sub { font-size: 12.5px; color: var(--text-secondary); line-height: 1.5; }
-        .invite-banner-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-        .invite-code-box {
-          display: flex; align-items: center; gap: 0;
-          border: 1.5px solid var(--border-strong); border-radius: 8px; overflow: hidden;
+          display: flex; flex-direction: column; gap: 14px;
           background: var(--surface);
+          border: 1px solid var(--border);
+          border-radius: var(--radius); padding: 16px 18px; margin-bottom: 20px;
         }
-        .invite-code-text {
-          font-family: monospace; font-size: 17px; font-weight: 700; letter-spacing: 3px;
-          padding: 8px 16px; color: var(--text-primary); text-transform: uppercase;
+        .invite-banner-text { min-width: 0; }
+        .invite-banner-title { font-weight: 600; font-size: 14px; color: var(--text-primary); margin-bottom: 4px; }
+        .invite-banner-sub { font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
+        .invite-banner-row {
+          display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
         }
-        .invite-copy-btn {
-          padding: 8px 14px; background: var(--accent); color: var(--accent-contrast);
-          border: none; cursor: pointer; font-size: 12.5px; font-weight: 600;
-          transition: opacity 150ms; white-space: nowrap;
+        .invite-link-input {
+          flex: 1; min-width: 200px;
+          font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+          font-size: 13px; font-weight: 400; letter-spacing: 0;
+          color: var(--text-secondary);
+          background: var(--surface-elevated);
+          border: 1px solid var(--border);
+          border-radius: 8px; padding: 9px 12px;
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
-        .invite-copy-btn:hover { opacity: .85; }
-        .invite-qr-btn {
-          padding: 8px 14px; background: var(--surface-elevated);
-          border: 1.5px solid var(--border-strong); border-radius: 8px;
-          cursor: pointer; font-size: 12.5px; font-weight: 700; color: var(--text-secondary);
-          transition: background 120ms;
-        }
-        .invite-qr-btn:hover { background: var(--surface-hover); }
+        .invite-link-input:focus { outline: none; border-color: var(--border-strong); color: var(--text-primary); }
+        .invite-banner-btns { display: flex; gap: 8px; flex-shrink: 0; }
 
         /* QR modal */
         .invite-qr-backdrop {
@@ -375,6 +431,25 @@ export function StudentsPage(): React.JSX.Element {
         .students-tab-count.pending { background: #fef3c7; color: #92400e; }
         .cell-sub { font-size: 11.5px; color: var(--text-tertiary); margin-top: 1px; }
         .btn.sm { font-size: 12px; padding: 5px 12px; }
+        .client-row-actions {
+          display: flex; align-items: center; gap: 2px; justify-content: flex-end;
+        }
+        .client-row-open,
+        .client-row-trash {
+          display: inline-flex; align-items: center; justify-content: center;
+          width: 34px; height: 34px; border: none; background: transparent;
+          color: var(--text-tertiary); border-radius: 8px; cursor: pointer;
+          transition: background 140ms ease, color 140ms ease;
+        }
+        .client-row-open:hover { background: var(--surface-elevated); color: var(--text-primary); }
+        .client-row-trash:hover { background: #fef2f2; color: #dc2626; }
+        .client-pending-actions {
+          display: flex; align-items: center; gap: 8px; justify-content: flex-end;
+        }
+        .btn.danger {
+          background: #fef2f2; color: #b91c1c; border: 1.5px solid #fecaca;
+        }
+        .btn.danger:hover { background: #fee2e2; opacity: 1; }
       `}</style>
     </div>
   );

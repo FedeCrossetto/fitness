@@ -427,6 +427,10 @@ export interface Database {
         Args: { p_invite_code: string };
         Returns: Json;
       };
+      delete_client_account: {
+        Args: { p_client_id: string };
+        Returns: undefined;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;

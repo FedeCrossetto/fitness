@@ -81,6 +81,7 @@ export function StudentDetailPage(): React.JSX.Element {
   const [draft, setDraft]             = useState('');
   const [sending, setSending]         = useState(false);
   const [loading, setLoading]         = useState(true);
+  const [activating, setActivating]   = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -146,6 +147,14 @@ export function StudentDetailPage(): React.JSX.Element {
     setSending(false);
   }, [draft, studentId, sending]);
 
+  const activate = async () => {
+    if (!studentId || activating) return;
+    setActivating(true);
+    await supabase.from('profiles').update({ client_status: 'active' } as never).eq('id', studentId);
+    setProfile((prev) => prev ? { ...prev, client_status: 'active' } : prev);
+    setActivating(false);
+  };
+
   if (loading) return <div className="muted" style={{ padding: 32 }}>Cargando…</div>;
   if (!profile) {
     return (
@@ -186,11 +195,20 @@ export function StudentDetailPage(): React.JSX.Element {
             </div>
           </div>
         </div>
-        <div className="sd-header-stats">
-          <StatPill label="Entrenos" value={workouts.length} />
-          <StatPill label="Completados" value={completedW} />
-          <StatPill label="Peso actual" value={latestM?.weight_kg != null ? `${latestM.weight_kg} kg` : '—'} />
-          <StatPill label="% Grasa" value={latestM?.body_fat_pct != null ? `${latestM.body_fat_pct}%` : '—'} />
+        <div className="sd-header-right">
+          <div className="sd-header-stats">
+            <StatPill label="Entrenos" value={workouts.length} />
+            <StatPill label="Completados" value={completedW} />
+            <StatPill label="Peso actual" value={latestM?.weight_kg != null ? `${latestM.weight_kg} kg` : '—'} />
+            <StatPill label="% Grasa" value={latestM?.body_fat_pct != null ? `${latestM.body_fat_pct}%` : '—'} />
+          </div>
+          {isPending && (
+            <div className="sd-header-actions">
+              <button className="btn primary sm" onClick={() => void activate()} disabled={activating}>
+                {activating ? '…' : 'Activar cliente'}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -444,7 +462,9 @@ export function StudentDetailPage(): React.JSX.Element {
         .sd-meta { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
         .sd-chip { font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 4px; background: var(--surface-elevated); color: var(--text-secondary); border: 1px solid var(--border); }
         .sd-since { font-size: 12px; color: var(--text-tertiary); }
-        .sd-header-stats { display: flex; gap: 4px; flex-wrap: wrap; }
+        .sd-header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
+        .sd-header-stats { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+        .sd-header-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 
         /* Stat pills in header */
         .sd-stat-pill { display: flex; flex-direction: column; align-items: center; padding: 8px 16px; border-radius: 8px; background: var(--surface-elevated); min-width: 70px; }

@@ -2,14 +2,17 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import {
+  buildOAuthCallbackUrl,
   clearPendingInviteCode,
+  ensureClientLinked,
   fetchInvitePreview,
-  linkClientByInviteCode,
+  isMobileBrowser,
   normalizeInviteCode,
   readPendingInviteCode,
   savePendingInviteCode,
   type InvitePreview,
 } from '@/lib/inviteClient';
+import { buildAppDeepLink } from '@habito/shared';
 
 const APK_URL = import.meta.env.VITE_ANDROID_APK_URL as string | undefined;
 const TESTFLIGHT_URL = import.meta.env.VITE_IOS_TESTFLIGHT_URL as string | undefined;
@@ -53,7 +56,7 @@ export function JoinPage(): React.JSX.Element {
     void (async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        await linkClientByInviteCode(code);
+        await ensureClientLinked(code);
         clearPendingInviteCode();
         setSuccess(true);
       }
@@ -72,10 +75,12 @@ export function JoinPage(): React.JSX.Element {
         .eq('id', session.user.id)
         .maybeSingle();
       if (profile?.trainer_id) return;
-      const link = await linkClientByInviteCode(code);
+      const link = await ensureClientLinked(code);
       if (link.ok) {
         clearPendingInviteCode();
         setSuccess(true);
+      } else {
+        setError(link.message);
       }
     })();
   }, [code, joined, success]);
@@ -89,7 +94,7 @@ export function JoinPage(): React.JSX.Element {
     setOauthLoading(true);
     savePendingInviteCode(code);
 
-    const redirectTo = `${window.location.origin}/auth/callback`;
+    const redirectTo = buildOAuthCallbackUrl(code);
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo },
@@ -138,7 +143,7 @@ export function JoinPage(): React.JSX.Element {
     }
 
     if (data.session) {
-      const link = await linkClientByInviteCode(code);
+      const link = await ensureClientLinked(code);
       clearPendingInviteCode();
       setSubmitting(false);
       if (!link.ok) {
@@ -180,6 +185,9 @@ export function JoinPage(): React.JSX.Element {
   }
 
   if (success) {
+    const appDeepLink = code ? buildAppDeepLink(code, true) : null;
+    const onMobile = isMobileBrowser();
+
     return (
       <div className="center-screen">
         <div className="login-box card join-card">
@@ -189,10 +197,17 @@ export function JoinPage(): React.JSX.Element {
             Ya estás vinculado a <strong>{preview.trainer_name ?? preview.app_name}</strong>.
             {emailPendingConfirm
               ? ' Revisá tu email y confirmá la cuenta antes de entrar a la app.'
-              : ' Descargá la app e iniciá sesión con la misma cuenta.'}
+              : onMobile
+                ? ' Abrí la app e iniciá sesión con la misma cuenta de Google.'
+                : ' Descargá la app e iniciá sesión con la misma cuenta.'}
           </p>
 
           <div className="join-download-actions">
+            {onMobile && appDeepLink ? (
+              <a className="btn" href={appDeepLink} style={{ textDecoration: 'none', textAlign: 'center' }}>
+                Abrir app Habito
+              </a>
+            ) : null}
             {APK_URL ? (
               <a className="btn" href={APK_URL} download style={{ textDecoration: 'none', textAlign: 'center' }}>
                 Descargar Android

@@ -10,6 +10,7 @@ if (!url || !anonKey) {
 export const supabase = createHabitoClient({
   url,
   anonKey,
-  detectSessionInUrl: true,
+  // AuthCallback maneja el intercambio PKCE manualmente (evita doble exchange → falso error).
+  detectSessionInUrl: false,
   flowType: 'pkce',
 });

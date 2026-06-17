@@ -7,7 +7,7 @@ import { I18nProvider } from '@/hooks/useTranslation';
 import { Layout } from '@/components/Layout';
 import { LoginPage } from '@/pages/Login';
 import { JoinPage } from '@/pages/Join';
-import { AuthCallbackPage } from '@/pages/AuthCallback';
+import { AuthCallbackPage, OAuthRedirectGuard } from '@/pages/AuthCallback';
 import { DownloadPage } from '@/pages/Download';
 import { DashboardPage } from '@/pages/Dashboard';
 import { BrandingPage } from '@/pages/Branding';
@@ -27,10 +27,13 @@ import { AnnouncementsPage } from '@/pages/Announcements';
 import { AddOnsPage } from '@/pages/AddOns';
 
 function Protected(): React.JSX.Element {
-  const { session, canManage, loading, signOut } = useAuth();
+  const { session, canManage, loading, signOut, role } = useAuth();
   if (loading) return <div className="center-screen muted">Cargando…</div>;
   if (!session) return <Navigate to="/login" replace />;
   if (!canManage) {
+    if (role === 'client') {
+      return <Navigate to="/descargar" replace />;
+    }
     return (
       <div className="center-screen">
         <div className="login-box card" style={{ textAlign: 'center' }}>
@@ -57,6 +60,7 @@ function Protected(): React.JSX.Element {
 function App(): React.JSX.Element {
   return (
     <BrowserRouter>
+      <OAuthRedirectGuard />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/descargar" element={<DownloadPage />} />
