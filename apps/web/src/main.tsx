@@ -25,15 +25,26 @@ import { AnnouncementsPage } from '@/pages/Announcements';
 import { AddOnsPage } from '@/pages/AddOns';
 
 function Protected(): React.JSX.Element {
-  const { session, canManage, loading } = useAuth();
+  const { session, canManage, loading, signOut } = useAuth();
   if (loading) return <div className="center-screen muted">Cargando…</div>;
   if (!session) return <Navigate to="/login" replace />;
   if (!canManage) {
     return (
       <div className="center-screen">
-        <div className="login-box card">
+        <div className="login-box card" style={{ textAlign: 'center' }}>
+          <button
+            onClick={() => void signOut()}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 4, marginBottom: 20 }}
+          >
+            ← Volver
+          </button>
           <h2 className="page-title">Sin acceso</h2>
-          <p className="muted">Esta cuenta no tiene rol de entrenador. Pedí acceso al administrador.</p>
+          <p className="muted" style={{ marginBottom: 24 }}>
+            Esta cuenta no tiene rol de entrenador. Iniciá sesión con una cuenta de entrenador.
+          </p>
+          <button className="btn" style={{ width: '100%' }} onClick={() => void signOut()}>
+            Usar otra cuenta
+          </button>
         </div>
       </div>
     );
