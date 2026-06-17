@@ -307,7 +307,7 @@ export function JoinPage(): React.JSX.Element {
 
         <p className="join-foot muted">
           Al registrarte aceptás vincular tu cuenta con este entrenador.
-          Código: <strong>{code}</strong>
+          Tu solicitud quedará pendiente hasta que te active.
         </p>
       </div>
 

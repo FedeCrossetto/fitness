@@ -322,6 +322,8 @@ export const en: Translations = {
     recent_students:'Recent students',
     see_all:        'See all →',
     no_students:    'No students linked yet.',
+    pending_banner: '{{count}} client(s) awaiting approval in Pending.',
+    pending_review: 'Review pending',
     activity:       'Recent activity',
     live:           'Live',
     empty_feed:     'No activity in the last 7 days.',

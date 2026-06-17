@@ -53,7 +53,7 @@ export function LinkTrainerScreen(): React.JSX.Element {
         <Input
           label="Código de invitación"
           icon="key-outline"
-          placeholder="Ej: RESETINV"
+          placeholder="Código de invitación"
           autoCapitalize="characters"
           autoCorrect={false}
           value={code}

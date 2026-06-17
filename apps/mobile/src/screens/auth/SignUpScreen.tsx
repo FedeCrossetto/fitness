@@ -116,7 +116,7 @@ export function SignUpScreen({ navigation, route }: Props): React.JSX.Element {
         <Input
           label="Código de entrenador"
           icon="key-outline"
-          placeholder="Ej: PEPITO"
+          placeholder="Tu código"
           autoCapitalize="characters"
           autoCorrect={false}
           value={trainerCode}

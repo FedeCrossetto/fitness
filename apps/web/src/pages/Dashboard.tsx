@@ -178,6 +178,7 @@ export function DashboardPage(): React.JSX.Element {
   // Left panel state
   const [students, setStudents]         = useState<StudentMin[]>([]);
   const [studentCount, setStudentCount] = useState<number | null>(null);
+  const [pendingCount, setPendingCount] = useState(0);
   const [phaseCount, setPhaseCount]     = useState<number | null>(null);
   const [workouts, setWorkouts]         = useState<Pick<WorkoutLogRow, 'date' | 'completed'>[]>([]);
   const [range, setRange]               = useState<30 | 90>(30);
@@ -196,13 +197,15 @@ export function DashboardPage(): React.JSX.Element {
       const since90 = new Date();
       since90.setDate(since90.getDate() - 90);
 
-      const [{ count: sc }, { count: pc }, { data: studentsData }, { data: wl }] = await Promise.all([
-        supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('trainer_id', userId),
+      const [{ count: sc }, { count: pc }, { count: pending }, { data: studentsData }, { data: wl }] = await Promise.all([
+        supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('trainer_id', userId).eq('client_status', 'active'),
         supabase.from('training_phases').select('id', { count: 'exact', head: true }).eq('trainer_id', userId),
+        supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('trainer_id', userId).eq('client_status', 'pending'),
         supabase
           .from('profiles')
           .select('id, full_name, avatar_url, goal, created_at')
           .eq('trainer_id', userId)
+          .eq('client_status', 'active')
           .order('created_at', { ascending: false })
           .limit(20),
         supabase
@@ -213,6 +216,7 @@ export function DashboardPage(): React.JSX.Element {
 
       if (!active) return;
       setStudentCount(sc ?? 0);
+      setPendingCount(pending ?? 0);
       setPhaseCount(pc ?? 0);
       setStudents((studentsData as StudentMin[] | null) ?? []);
       setWorkouts((wl as Pick<WorkoutLogRow, 'date' | 'completed'>[] | null) ?? []);
@@ -326,6 +330,17 @@ export function DashboardPage(): React.JSX.Element {
             {profile?.full_name?.split(' ')[0] ?? 'Panel'}
           </h1>
         </div>
+
+        {pendingCount > 0 ? (
+          <button
+            type="button"
+            className="dash-pending-banner"
+            onClick={() => navigate('/students?tab=pending')}
+          >
+            <span>{i18n(t.dashboard.pending_banner, { count: pendingCount })}</span>
+            <span className="dash-pending-banner-link">{t.dashboard.pending_review} →</span>
+          </button>
+        ) : null}
 
         {/* Stats strip */}
         <div className="stats-strip">

@@ -66,7 +66,9 @@ export function StudentsPage(): React.JSX.Element {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState(searchParams.get('q') ?? '');
-  const [tab, setTab] = useState<'active' | 'pending'>('active');
+  const [tab, setTab] = useState<'active' | 'pending'>(() =>
+    searchParams.get('tab') === 'pending' ? 'pending' : 'active',
+  );
   const [activating, setActivating] = useState<string | null>(null);
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -78,6 +80,9 @@ export function StudentsPage(): React.JSX.Element {
   const inviteLink = inviteCode ? buildInviteLink(inviteCode, getJoinBaseUrl()) : null;
 
   useEffect(() => { setQuery(searchParams.get('q') ?? ''); }, [searchParams]);
+  useEffect(() => {
+    if (searchParams.get('tab') === 'pending') setTab('pending');
+  }, [searchParams]);
 
   const loadStudents = () => {
     if (!userId) return;
@@ -137,8 +142,8 @@ export function StudentsPage(): React.JSX.Element {
 
   const clientToDelete = confirmDeleteId ? students.find((s) => s.id === confirmDeleteId) : null;
 
-  const active  = useMemo(() => students.filter((s) => s.client_status !== 'pending'), [students]);
-  const pending = useMemo(() => students.filter((s) => s.client_status === 'pending'),  [students]);
+  const active  = useMemo(() => students.filter((s) => s.client_status === 'active'), [students]);
+  const pending = useMemo(() => students.filter((s) => s.client_status === 'pending'), [students]);
   const current = tab === 'active' ? active : pending;
 
   const filtered = useMemo(() => {

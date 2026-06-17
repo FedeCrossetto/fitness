@@ -320,6 +320,8 @@ export const es = {
     recent_students: 'Alumnos recientes',
     see_all:       'Ver todos →',
     no_students:   'Todavía no hay alumnos vinculados.',
+    pending_banner: '{{count}} alumno(s) esperando aprobación en Pendientes.',
+    pending_review: 'Revisar pendientes',
     activity:      'Actividad reciente',
     live:          'En vivo',
     empty_feed:    'Sin actividad en los últimos 7 días.',
