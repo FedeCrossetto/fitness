@@ -6,31 +6,34 @@ import { clearCache } from '../lib/cache';
 import { useBrandingStore } from './brandingStore';
 import {
   applyPendingInviteLink,
+  clearPendingInviteCode,
+  linkClientByInviteCode,
   readPendingInviteCode,
   savePendingInviteCode,
 } from '../services/invite';
+import { INVITE_REQUIRED_MESSAGE } from '../services/clientAccess';
 import { completeOAuthFromUrl, getOAuthRedirectUri } from '../lib/oauthRedirect';
 import type { ProfileRow, UserProfileRow } from '../types/database';
 
 WebBrowser.maybeCompleteAuthSession();
 
 export type OAuthProvider = 'apple' | 'google';
+export type AuthIntent = 'login' | 'signup';
 
 interface AuthState {
   session: Session | null;
   profile: ProfileRow | null;
   userProfile: UserProfileRow | null;
-  /** true mientras se restaura la sesión al iniciar la app */
   initializing: boolean;
   loading: boolean;
   error: string | null;
-  /** true cuando el usuario se registró y todavía no completó el onboarding */
   needsOnboarding: boolean;
 
   checkSession: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<boolean>;
   signUp: (email: string, password: string, fullName: string, trainerCode?: string) => Promise<boolean>;
-  signInWithOAuth: (provider: OAuthProvider, trainerCode?: string) => Promise<boolean>;
+  signInWithOAuth: (provider: OAuthProvider, trainerCode?: string, intent?: AuthIntent) => Promise<boolean>;
+  linkTrainer: (code: string) => Promise<boolean>;
   resetPassword: (email: string) => Promise<boolean>;
   completeOnboarding: (data: { goal: string; level: string }) => Promise<boolean>;
   refreshProfile: () => Promise<void>;
@@ -40,8 +43,9 @@ interface AuthState {
 
 function messageFor(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
+  if (raw.includes('código') || raw.includes('invitación') || raw.includes('entrenador')) return raw;
   if (raw.includes('Invalid login credentials')) {
-    return 'Email o contraseña incorrectos. Si te registraste con Google en la web, usá el botón Google acá (no email/contraseña).';
+    return 'Email o contraseña incorrectos. Si te registraste con Google, usá el botón Google.';
   }
   if (raw.includes('Email not confirmed')) {
     return 'Confirmá tu email desde el link que te enviamos antes de iniciar sesión.';
@@ -68,6 +72,32 @@ async function finishAuthSession(session: Session): Promise<{ profile: ProfileRo
   return loadProfiles(session.user.id);
 }
 
+async function commitSession(
+  session: Session,
+  profile: ProfileRow | null,
+  userProfile: UserProfileRow | null,
+  needsOnboarding?: boolean,
+): Promise<void> {
+  setAuthState(session, profile, userProfile, needsOnboarding ?? !profile?.goal);
+  await useBrandingStore.getState().load();
+}
+
+function setAuthState(
+  session: Session,
+  profile: ProfileRow | null,
+  userProfile: UserProfileRow | null,
+  needsOnboarding: boolean,
+): void {
+  useAuthStore.setState({
+    session,
+    profile,
+    userProfile,
+    needsOnboarding,
+    loading: false,
+    initializing: false,
+  });
+}
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   session: null,
   profile: null,
@@ -90,7 +120,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           needsOnboarding: !profile?.goal,
           initializing: false,
         });
-        void useBrandingStore.getState().load();
+        await useBrandingStore.getState().load();
       } else {
         set({ session: null, profile: null, userProfile: null, initializing: false });
       }
@@ -104,7 +134,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         useBrandingStore.getState().clear();
       } else {
         set({ session });
-        void useBrandingStore.getState().load();
       }
     });
   },
@@ -115,13 +144,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
       if (error) throw error;
       const { profile, userProfile } = await finishAuthSession(data.session!);
-      set({
-        session: data.session,
-        profile,
-        userProfile,
-        needsOnboarding: !profile?.goal,
-        loading: false,
-      });
+      await commitSession(data.session!, profile, userProfile);
       return true;
     } catch (error) {
       set({ loading: false, error: messageFor(error) });
@@ -133,22 +156,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const code = trainerCode?.trim();
-      if (code) await savePendingInviteCode(code);
+      if (!code) {
+        set({ loading: false, error: INVITE_REQUIRED_MESSAGE });
+        return false;
+      }
+      await savePendingInviteCode(code);
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
         options: {
-          data: { full_name: fullName.trim(), ...(code ? { trainer_code: code } : {}) },
+          data: { full_name: fullName.trim(), trainer_code: code },
         },
       });
       if (error) throw error;
       if (!data.session) {
-        // Confirmación por email habilitada en el proyecto
         set({ loading: false, error: 'Revisá tu email para confirmar la cuenta y luego iniciá sesión.' });
         return false;
       }
-      const { profile, userProfile } = await finishAuthSession(data.session!);
-      set({ session: data.session, profile, userProfile, needsOnboarding: true, loading: false });
+      const { profile, userProfile } = await finishAuthSession(data.session);
+      await commitSession(data.session, profile, userProfile, true);
       return true;
     } catch (error) {
       set({ loading: false, error: messageFor(error) });
@@ -156,10 +182,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  signInWithOAuth: async (provider, trainerCode) => {
+  signInWithOAuth: async (provider, trainerCode, intent = 'login') => {
     set({ loading: true, error: null });
     try {
       const pending = trainerCode?.trim() || (await readPendingInviteCode());
+      if (intent === 'signup' && !pending) {
+        set({ loading: false, error: INVITE_REQUIRED_MESSAGE });
+        return false;
+      }
       if (pending) await savePendingInviteCode(pending);
 
       const redirectTo = getOAuthRedirectUri();
@@ -178,16 +208,41 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await completeOAuthFromUrl(result.url);
 
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('No se pudo iniciar sesión con Google.');
+      if (!session) throw new Error('No se pudo iniciar sesión.');
 
       const { profile, userProfile } = await finishAuthSession(session);
-      set({
-        session,
-        profile,
-        userProfile,
-        needsOnboarding: !profile?.goal,
-        loading: false,
-      });
+      const isNewSignup = intent === 'signup' || !profile?.goal;
+      await commitSession(session, profile, userProfile, isNewSignup);
+      return true;
+    } catch (error) {
+      set({ loading: false, error: messageFor(error) });
+      return false;
+    }
+  },
+
+  linkTrainer: async (code) => {
+    set({ loading: true, error: null });
+    try {
+      const { session } = get();
+      if (!session) throw new Error('Sesión expirada. Volvé a iniciar sesión.');
+
+      const clean = code.trim();
+      if (clean.length < 3) {
+        set({ loading: false, error: INVITE_REQUIRED_MESSAGE });
+        return false;
+      }
+
+      await savePendingInviteCode(clean);
+      const link = await linkClientByInviteCode(clean);
+      if (!link.ok) {
+        set({ loading: false, error: link.message });
+        return false;
+      }
+
+      await clearPendingInviteCode();
+      const { profile, userProfile } = await loadProfiles(session.user.id);
+      set({ profile, userProfile, loading: false, error: null });
+      await useBrandingStore.getState().load();
       return true;
     } catch (error) {
       set({ loading: false, error: messageFor(error) });
@@ -239,6 +294,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (!session) return;
     const { profile, userProfile } = await loadProfiles(session.user.id);
     set({ profile, userProfile });
+    await useBrandingStore.getState().load();
   },
 
   signOut: async () => {
@@ -246,6 +302,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       await supabase.auth.signOut();
       await clearCache();
+      await clearPendingInviteCode();
       useBrandingStore.getState().clear();
     } finally {
       set({

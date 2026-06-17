@@ -4,6 +4,7 @@ import { Image } from 'expo-image';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { illustrations, spacing, useTheme } from '../theme';
 import { useAuthStore } from '../stores/authStore';
+import { useBrandingStore } from '../stores/brandingStore';
 import { useTrainingStore } from '../stores/trainingStore';
 import { AppText } from '../components/common';
 import { useClientConfig } from '../config/useClientConfig';
@@ -12,9 +13,11 @@ import { TabBar } from './TabBar';
 import { AddMenuOverlay } from './AddMenuOverlay';
 import { AuthStack, HomeStack, NutritionStack, ProgressStack, TrainingStack } from './stacks';
 import { OnboardingScreen } from '../screens/auth/OnboardingScreen';
+import { LinkTrainerScreen } from '../screens/auth/LinkTrainerScreen';
 import { WaiverScreen } from '../screens/waiver/WaiverScreen';
 import { ConsultationFormScreen } from '../screens/consultation/ConsultationFormScreen';
 import { useInviteDeepLink } from '../hooks/useInviteDeepLink';
+import { needsTrainerLink } from '../services/clientAccess';
 import { supabase } from '../lib/supabase';
 
 const anyClient = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> };
@@ -119,6 +122,12 @@ export function RootNavigator(): React.JSX.Element {
     void restoreActiveSession();
   }, [checkSession, restoreActiveSession]);
 
+  // Recargar colores cuando cambia el entrenador vinculado
+  useEffect(() => {
+    if (!session) return;
+    void useBrandingStore.getState().load();
+  }, [session, profile?.trainer_id, profile?.role]);
+
   // After session + profile loaded, check if waiver signature is needed
   useEffect(() => {
     if (!session || !profile?.id || needsOnboarding) {
@@ -205,6 +214,7 @@ export function RootNavigator(): React.JSX.Element {
 
   if (initializing || !waiverChecked || (waiverChecked && !waiverRequired && !consultationChecked)) return <SplashGate />;
   if (!session) return <AuthStack />;
+  if (needsTrainerLink(profile)) return <LinkTrainerScreen />;
   if (needsOnboarding) return <OnboardingScreen />;
   if (waiverRequired && waiverConfig && profile?.trainer_id) {
     return (

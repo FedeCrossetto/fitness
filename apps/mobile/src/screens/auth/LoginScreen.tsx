@@ -129,20 +129,20 @@ export function LoginScreen({ navigation, route }: Props): React.JSX.Element {
             label="Apple"
             icon="logo-apple"
             variant="secondary"
-            onPress={() => void signInWithOAuth('apple', trainerCode)}
+            onPress={() => void signInWithOAuth('apple', trainerCode, 'login')}
             style={styles.oauthButton}
           />
           <Button
             label="Google"
             icon="logo-google"
             variant="secondary"
-            onPress={() => void signInWithOAuth('google', trainerCode)}
+            onPress={() => void signInWithOAuth('google', trainerCode, 'login')}
             style={styles.oauthButton}
           />
         </View>
 
         <AppText variant="body13" color={colors.text.tertiary} style={styles.oauthHint}>
-          Si te registraste con Google en la web, usá el botón Google (no email/contraseña).
+          ¿Primera vez? Registrate con el código de invitación de tu entrenador.
         </AppText>
 
         <Pressable

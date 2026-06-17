@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { INVITE_CODE_STORAGE_KEY, normalizeInviteCode } from '@habito/shared';
 import { supabase } from '../lib/supabase';
+import { INVITE_LINK_FAILED_MESSAGE } from './clientAccess';
 
 export async function savePendingInviteCode(code: string): Promise<void> {
   const clean = normalizeInviteCode(code);
@@ -28,22 +29,33 @@ export function parseInviteCodeFromUrl(url: string): string | null {
   return null;
 }
 
-export async function linkClientByInviteCode(code: string): Promise<boolean> {
+export async function linkClientByInviteCode(
+  code: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
   const clean = normalizeInviteCode(code);
-  if (!clean) return false;
+  if (!clean) return { ok: false, message: INVITE_LINK_FAILED_MESSAGE };
 
   const { error } = await supabase.rpc('link_client_by_invite_code', {
     p_invite_code: clean,
   });
 
-  return !error;
+  if (error) {
+    const msg = error.message ?? '';
+    if (msg.includes('invalid_invite_code')) return { ok: false, message: INVITE_LINK_FAILED_MESSAGE };
+    if (msg.includes('trainer_cannot_be_client')) {
+      return { ok: false, message: 'Esta cuenta es de entrenador. Usá otra cuenta de alumno.' };
+    }
+    return { ok: false, message: INVITE_LINK_FAILED_MESSAGE };
+  }
+
+  return { ok: true };
 }
 
 export async function applyPendingInviteLink(): Promise<boolean> {
   const code = await readPendingInviteCode();
   if (!code) return false;
 
-  const ok = await linkClientByInviteCode(code);
-  if (ok) await clearPendingInviteCode();
-  return ok;
+  const result = await linkClientByInviteCode(code);
+  if (result.ok) await clearPendingInviteCode();
+  return result.ok;
 }

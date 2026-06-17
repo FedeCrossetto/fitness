@@ -35,25 +35,27 @@ export function applyBranding(base: Colors, branding: TrainerBrandingRow | null)
   let next: Colors = base;
 
   if (primary) {
+    const secondary = accent ?? next.primary.light;
     next = {
       ...next,
       background: branding.color_background ?? next.background,
       primary: {
         ...next.primary,
         default: primary,
-        light: accent ?? next.primary.light,
+        light: secondary,
         dark: primary,
+        deep: accent ?? next.primary.deep,
         muted: hexToRgba(primary, 0.15),
       },
       states: { ...next.states, success: primary },
       pillars: {
         training: primary,
-        nutrition: accent ?? primary,
-        progress: primary,
+        nutrition: secondary,
+        progress: accent ?? primary,
       },
       gradients: {
         ...next.gradients,
-        kinetic: [accent ?? primary, primary] as readonly [string, string],
+        kinetic: [secondary, primary] as readonly [string, string],
         deep: [primary, next.gradients.deep[1]] as readonly [string, string],
       },
     };

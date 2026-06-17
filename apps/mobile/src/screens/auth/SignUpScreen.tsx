@@ -68,7 +68,7 @@ export function SignUpScreen({ navigation, route }: Props): React.JSX.Element {
           Creá tu cuenta
         </AppText>
         <AppText variant="body14" color={colors.text.secondary} style={styles.subtitle}>
-          Tu entrenador, tu nutrición y tu progreso. Empezamos en 1 minuto.
+          Ingresá el código de invitación de tu entrenador. Quedarás pendiente de aprobación antes del acceso completo.
         </AppText>
 
         <Input
@@ -140,7 +140,7 @@ export function SignUpScreen({ navigation, route }: Props): React.JSX.Element {
           label="Crear cuenta"
           onPress={handleSignUp}
           loading={loading}
-          disabled={!fullName || !email || !password}
+          disabled={!fullName || !email || !password || !trainerCode.trim()}
           fullWidth
           style={styles.cta}
         />
@@ -158,14 +158,14 @@ export function SignUpScreen({ navigation, route }: Props): React.JSX.Element {
             label="Apple"
             icon="logo-apple"
             variant="secondary"
-            onPress={() => void signInWithOAuth('apple', trainerCode)}
+            onPress={() => void signInWithOAuth('apple', trainerCode, 'signup')}
             style={styles.oauthButton}
           />
           <Button
             label="Google"
             icon="logo-google"
             variant="secondary"
-            onPress={() => void signInWithOAuth('google', trainerCode)}
+            onPress={() => void signInWithOAuth('google', trainerCode, 'signup')}
             style={styles.oauthButton}
           />
         </View>
