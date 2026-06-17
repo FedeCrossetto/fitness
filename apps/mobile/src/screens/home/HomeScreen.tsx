@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { layout, radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
-import { greetingForNow, formatLongDate, todayISO } from '../../lib/dates';
+import { greetingForNow, todayISO, formatShortDate } from '../../lib/dates';
 import { useClientConfig } from '../../config/useClientConfig';
 import {
   AppText,
@@ -18,6 +19,7 @@ import {
   ProgressRing,
   ProgressiveBlurHeader,
   SectionHeader,
+  WeekStrip,
 } from '../../components/common';
 import { ActiveSessionBanner } from '../../components/training/ActiveSessionBanner';
 import { useAuthStore } from '../../stores/authStore';
@@ -67,6 +69,10 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
   const setSteps = useProgressStore((s) => s.setSteps);
   const healthConnected = useProgressStore((s) => s.healthConnected);
   const setHealthConnected = useProgressStore((s) => s.setHealthConnected);
+  const measurements = useProgressStore((s) => s.measurements);
+  const loadMeasurements = useProgressStore((s) => s.loadMeasurements);
+  const photos = useProgressStore((s) => s.photos);
+  const loadPhotos = useProgressStore((s) => s.loadPhotos);
 
   const phases = useTrainingStore((s) => s.phases);
   const loadProgram = useTrainingStore((s) => s.loadProgram);
@@ -158,6 +164,8 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
       loadHydration(userId),
       loadProgram(),
       loadRecentLogs(userId),
+      loadMeasurements(userId),
+      loadPhotos(userId),
     ]);
     const streakInfo = await computeStreak(userId);
     setStreak(streakInfo.current);
@@ -197,7 +205,20 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
   const kcalProgress = kcalGoal > 0 ? totals.kcal / kcalGoal : 0;
   const hydrationProgress = hydration ? hydration.total_ml / Math.max(hydration.goal_ml, 1) : 0;
 
-  const trainedToday = recentLogs.some((l) => l.date === todayISO());
+  const activeDate = useUiStore((s) => s.activeDate);
+  const today = todayISO();
+  const isToday = activeDate === today;
+
+  // Progress metrics derivados de las mediciones
+  const weightHistory = useMemo(
+    () => measurements.filter((m) => m.weight_kg !== null).sort((a, b) => (a.date < b.date ? 1 : -1)),
+    [measurements]
+  );
+  const latestWeight = weightHistory[0] ?? null;
+  const latestFat = measurements.find((m) => m.body_fat_pct !== null) ?? null;
+  const recentPhotos = photos.slice(0, 3);
+
+  const trainedToday = recentLogs.some((l) => l.date === today);
   const nextWorkoutDay = phases
     .flatMap((p) => p.days)
     .find((d) => d.day_type !== 'descanso' && d.workout !== null);
@@ -220,12 +241,9 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Encabezado con saludo + mascota */}
+        {/* Encabezado con saludo + avatar */}
         <View style={styles.header}>
           <View style={styles.headerText}>
-            <AppText variant="body14" color={colors.text.tertiary}>
-              {formatLongDate(todayISO())}
-            </AppText>
             <AppText variant="h1" color={colors.text.primary} style={styles.greeting}>
               {greetingForNow()}, {firstName}
             </AppText>
@@ -241,14 +259,17 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
           </Pressable>
         </View>
 
+        {/* Strip de días */}
+        <WeekStrip />
+
         <ActiveSessionBanner />
 
         {/* Anillo de objetivo del día */}
-        <Card elevated style={styles.dayCard} onPress={() => navigation.navigate('Goals')}>
+        <Card elevated style={styles.dayCard} onPress={isToday ? () => navigation.navigate('Goals') : undefined}>
           <View style={styles.dayCardRow}>
-            <ProgressRing progress={goalProgress} size={110} strokeWidth={10}>
+            <ProgressRing progress={isToday ? goalProgress : 0} size={110} strokeWidth={10}>
               <AppText variant="metricMedium" color={colors.text.primary}>
-                {completedGoals}/{goals.length || 0}
+                {isToday ? `${completedGoals}/${goals.length || 0}` : '—'}
               </AppText>
               <AppText variant="caps11" color={colors.text.tertiary}>
                 Metas
@@ -256,21 +277,25 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
             </ProgressRing>
             <View style={styles.dayCardInfo}>
               <AppText variant="h3" color={colors.text.primary}>
-                Tu día de hoy
+                {isToday ? 'Tu día de hoy' : 'Día anterior'}
               </AppText>
               <AppText variant="body13" color={colors.text.secondary} style={styles.dayCardSub}>
-                {goalProgress >= 1
-                  ? '¡Día completo! Sos imparable.'
-                  : completedGoals > 0
-                    ? 'Buen ritmo, seguí así.'
-                    : 'Completá tus metas para sumar racha.'}
+                {isToday
+                  ? goalProgress >= 1
+                    ? '¡Día completo! Sos imparable.'
+                    : completedGoals > 0
+                      ? 'Buen ritmo, seguí así.'
+                      : 'Completá tus metas para sumar racha.'
+                  : 'Seleccioná hoy para ver tus metas activas.'}
               </AppText>
-              <View style={styles.dayCardLink}>
-                <AppText variant="body13SemiBold" color={colors.primary.default}>
-                  Ver metas
-                </AppText>
-                <Ionicons name="arrow-forward" size={14} color={colors.primary.default} />
-              </View>
+              {isToday && (
+                <View style={styles.dayCardLink}>
+                  <AppText variant="body13SemiBold" color={colors.primary.default}>
+                    Ver metas
+                  </AppText>
+                  <Ionicons name="arrow-forward" size={14} color={colors.primary.default} />
+                </View>
+              )}
             </View>
           </View>
         </Card>
@@ -370,7 +395,182 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
           </Card>
         </View>
 
-        {/* Anillo de calorías + accesos rápidos */}
+        {/* Mi Progreso */}
+        <View style={styles.sectionHeaderRow}>
+          <AppText variant="h3" color={colors.text.primary}>
+            Mi Progreso
+          </AppText>
+          <Pressable
+            onPress={() => navigation.getParent()?.navigate('ProgressTab' as never)}
+            style={styles.seeAllBtn}
+            accessibilityLabel="Ver todo el progreso"
+          >
+            <AppText variant="body13SemiBold" color={colors.primary.default}>
+              Ver todo
+            </AppText>
+            <Ionicons name="arrow-forward" size={14} color={colors.primary.default} />
+          </Pressable>
+        </View>
+
+        <View style={styles.progressGrid}>
+          {/* Peso corporal */}
+          <Pressable
+            style={styles.progressCard}
+            onPress={() => navigation.getParent()?.navigate('ProgressTab' as never)}
+            accessibilityLabel="Ver peso corporal"
+          >
+            <AppText variant="caps11" color={colors.text.tertiary} style={styles.progressCardLabel}>
+              Peso corporal
+            </AppText>
+            {latestWeight ? (
+              <>
+                <AppText variant="body12" color={colors.text.tertiary} style={styles.progressCardDate}>
+                  {formatShortDate(latestWeight.date)}
+                </AppText>
+                <View style={styles.progressValueRow}>
+                  <AppText variant="metricMedium" color={colors.text.primary}>
+                    {(latestWeight.weight_kg as number).toFixed(1)}
+                  </AppText>
+                  <AppText variant="body13Medium" color={colors.text.tertiary} style={styles.progressUnit}>
+                    kg
+                  </AppText>
+                </View>
+                <View style={[styles.progressBar, { backgroundColor: colors.primary.default }]} />
+              </>
+            ) : (
+              <AppText variant="body16SemiBold" color={colors.text.tertiary} style={styles.progressEmpty}>
+                ...
+              </AppText>
+            )}
+          </Pressable>
+
+          {/* % Grasa */}
+          <Pressable
+            style={styles.progressCard}
+            onPress={() => navigation.getParent()?.navigate('ProgressTab' as never)}
+            accessibilityLabel="Ver porcentaje de grasa corporal"
+          >
+            <AppText variant="caps11" color={colors.text.tertiary} style={styles.progressCardLabel}>
+              Grasa corporal
+            </AppText>
+            {latestFat ? (
+              <>
+                <AppText variant="body12" color={colors.text.tertiary} style={styles.progressCardDate}>
+                  {formatShortDate(latestFat.date)}
+                </AppText>
+                <View style={styles.progressValueRow}>
+                  <AppText variant="metricMedium" color={colors.text.primary}>
+                    {(latestFat.body_fat_pct as number).toFixed(1)}
+                  </AppText>
+                  <AppText variant="body13Medium" color={colors.text.tertiary} style={styles.progressUnit}>
+                    %
+                  </AppText>
+                </View>
+              </>
+            ) : (
+              <AppText variant="body16SemiBold" color={colors.text.tertiary} style={styles.progressEmpty}>
+                ...
+              </AppText>
+            )}
+          </Pressable>
+
+          {/* Hidratación */}
+          <Pressable
+            style={styles.progressCard}
+            onPress={() => navigation.navigate('Hydration')}
+            accessibilityLabel="Ver hidratación"
+          >
+            <AppText variant="caps11" color={colors.text.tertiary} style={styles.progressCardLabel}>
+              Hidratación
+            </AppText>
+            {hydration ? (
+              <>
+                <AppText variant="body12" color={colors.text.tertiary} style={styles.progressCardDate}>
+                  Hoy
+                </AppText>
+                <View style={styles.progressValueRow}>
+                  <AppText variant="metricMedium" color={colors.text.primary}>
+                    {(hydration.total_ml / 1000).toFixed(1)}
+                  </AppText>
+                  <AppText variant="body13Medium" color={colors.text.tertiary} style={styles.progressUnit}>
+                    L
+                  </AppText>
+                </View>
+              </>
+            ) : (
+              <AppText variant="body16SemiBold" color={colors.text.tertiary} style={styles.progressEmpty}>
+                ...
+              </AppText>
+            )}
+          </Pressable>
+
+          {/* Pasos */}
+          <Pressable
+            style={styles.progressCard}
+            onPress={() => navigation.getParent()?.navigate('ProgressTab' as never)}
+            accessibilityLabel="Ver pasos"
+          >
+            <AppText variant="caps11" color={colors.text.tertiary} style={styles.progressCardLabel}>
+              Pasos hoy
+            </AppText>
+            {steps > 0 ? (
+              <>
+                <AppText variant="body12" color={colors.text.tertiary} style={styles.progressCardDate}>
+                  Hoy
+                </AppText>
+                <AppText variant="metricMedium" color={colors.text.primary} style={styles.progressSteps}>
+                  {steps.toLocaleString('es-AR')}
+                </AppText>
+              </>
+            ) : (
+              <AppText variant="body16SemiBold" color={colors.text.tertiary} style={styles.progressEmpty}>
+                ...
+              </AppText>
+            )}
+          </Pressable>
+        </View>
+
+        {/* Fotos de progreso */}
+        <Pressable
+          style={styles.photosCard}
+          onPress={() => navigation.getParent()?.navigate('ProgressTab' as never)}
+          accessibilityLabel="Ver fotos de progreso"
+        >
+          <View style={styles.photosHeader}>
+            <AppText variant="caps11" color={colors.text.tertiary}>
+              Fotos de progreso
+            </AppText>
+            <Ionicons name="chevron-forward" size={14} color={colors.text.tertiary} />
+          </View>
+          {recentPhotos.length > 0 ? (
+            <View style={styles.photoRow}>
+              {recentPhotos.map((photo) => (
+                <Image
+                  key={photo.id}
+                  source={{ uri: photo.photo_url }}
+                  style={styles.photoThumb}
+                  contentFit="cover"
+                />
+              ))}
+              {photos.length > 3 && (
+                <View style={styles.photoMore}>
+                  <AppText variant="body13SemiBold" color={colors.text.tertiary}>
+                    +{photos.length - 3}
+                  </AppText>
+                </View>
+              )}
+            </View>
+          ) : (
+            <View style={styles.photoEmpty}>
+              <Ionicons name="camera-outline" size={26} color={colors.text.tertiary} />
+              <AppText variant="body13" color={colors.text.tertiary} style={styles.photoEmptyText}>
+                Agregá tu primera foto de progreso
+              </AppText>
+            </View>
+          )}
+        </Pressable>
+
+        {/* Accesos rápidos */}
         <SectionHeader title="Accesos rápidos" />
         <View style={styles.quickGrid}>
           {(
@@ -480,4 +680,112 @@ const createStyles = (colors: Colors) => StyleSheet.create({
   kcalCard: { marginTop: spacing.xl },
   kcalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   kcalInfo: { flex: 1 },
+
+  // Mi Progreso section
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  seeAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xxs,
+  },
+  progressGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  progressCard: {
+    width: '48%',
+    flexGrow: 1,
+    minHeight: 110,
+    backgroundColor: colors.surface.base,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    justifyContent: 'flex-start',
+    overflow: 'hidden',
+  },
+  progressCardLabel: {
+    letterSpacing: 0.6,
+    marginBottom: spacing.xxs,
+  },
+  progressCardDate: {
+    marginBottom: spacing.xs,
+  },
+  progressValueRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: spacing.xxs,
+  },
+  progressUnit: {
+    marginBottom: spacing.xs,
+  },
+  progressSteps: {
+    marginTop: spacing.xs,
+  },
+  progressEmpty: {
+    marginTop: spacing.sm,
+    letterSpacing: 2,
+  },
+  progressBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+    borderBottomLeftRadius: radius.lg,
+    borderBottomRightRadius: radius.lg,
+  },
+
+  // Photos card
+  photosCard: {
+    backgroundColor: colors.surface.base,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  photosHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
+  },
+  photoRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  photoThumb: {
+    width: 72,
+    height: 72,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface.elevated,
+  },
+  photoMore: {
+    width: 72,
+    height: 72,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface.elevated,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+  },
+  photoEmpty: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
+  photoEmptyText: {
+    flex: 1,
+  },
 });

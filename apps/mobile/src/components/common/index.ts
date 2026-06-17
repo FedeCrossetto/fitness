@@ -5,6 +5,7 @@ export { Card } from './Card';
 export { MetricCard } from './MetricCard';
 export { ProgressRing } from './ProgressRing';
 export { WaterLevelBox } from './WaterLevelBox';
+export { WeekStrip } from './WeekStrip';
 export { ProgressBar } from './ProgressBar';
 export { Input } from './Input';
 export { Chip } from './Chip';

@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { StyleSheet, View, ActivityIndicator } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Animated, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { illustrations, spacing, useTheme } from '../theme';
@@ -41,13 +41,46 @@ function MainTabs(): React.JSX.Element {
 function SplashGate(): React.JSX.Element {
   const { colors } = useTheme();
   const clientConfig = useClientConfig();
+  const dot1 = useRef(new Animated.Value(0)).current;
+  const dot2 = useRef(new Animated.Value(0)).current;
+  const dot3 = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const pulse = (dot: Animated.Value, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(dot, { toValue: 1, duration: 300, useNativeDriver: true }),
+          Animated.timing(dot, { toValue: 0, duration: 300, useNativeDriver: true }),
+          Animated.delay(600),
+        ])
+      );
+    const a1 = pulse(dot1, 0);
+    const a2 = pulse(dot2, 200);
+    const a3 = pulse(dot3, 400);
+    a1.start(); a2.start(); a3.start();
+    return () => { a1.stop(); a2.stop(); a3.stop(); };
+  }, [dot1, dot2, dot3]);
+
   return (
     <View style={[styles.splash, { backgroundColor: colors.background }]}>
-      <Image source={illustrations.hero} style={styles.mascot} contentFit="contain" priority="high" />
+      <Image source={illustrations.login} style={styles.mascot} contentFit="contain" priority="high" />
       <AppText variant="h2" color={colors.text.primary} style={styles.brand}>
         {clientConfig.appName}
       </AppText>
-      <ActivityIndicator color={colors.primary.default} style={styles.loader} />
+      <View style={styles.loadingRow}>
+        <AppText variant="body14" color={colors.text.tertiary}>
+          Cargando
+        </AppText>
+        {([dot1, dot2, dot3] as Animated.Value[]).map((dot, i) => (
+          <Animated.Text
+            key={i}
+            style={[styles.dot, { color: colors.primary.default, opacity: dot }]}
+          >
+            .
+          </Animated.Text>
+        ))}
+      </View>
     </View>
   );
 }
@@ -77,7 +110,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  mascot: { width: 200, height: 260 },
+  mascot: { width: 220, height: 290 },
   brand: { marginTop: spacing.lg },
-  loader: { marginTop: spacing.xl },
+  loadingRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    marginTop: spacing.xl,
+    gap: 2,
+  },
+  dot: { fontSize: 22, lineHeight: 22, fontWeight: '700' },
 });

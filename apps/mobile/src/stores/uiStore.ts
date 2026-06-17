@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { todayISO } from '../lib/dates';
 
 export type ToastKind = 'success' | 'error' | 'info';
 
@@ -11,11 +12,15 @@ export interface ToastData {
 interface UiState {
   addMenuVisible: boolean;
   toast: ToastData | null;
+  /** Fecha activa en el strip del home (YYYY-MM-DD, hora local). */
+  activeDate: string;
 
   openAddMenu: () => void;
   closeAddMenu: () => void;
   showToast: (kind: ToastKind, message: string) => void;
   hideToast: () => void;
+  setActiveDate: (date: string) => void;
+  resetActiveDate: () => void;
 }
 
 let toastSeq = 0;
@@ -24,6 +29,7 @@ let toastTimer: ReturnType<typeof setTimeout> | null = null;
 export const useUiStore = create<UiState>((set) => ({
   addMenuVisible: false,
   toast: null,
+  activeDate: todayISO(),
 
   openAddMenu: () => set({ addMenuVisible: true }),
   closeAddMenu: () => set({ addMenuVisible: false }),
@@ -39,4 +45,7 @@ export const useUiStore = create<UiState>((set) => ({
     if (toastTimer) clearTimeout(toastTimer);
     set({ toast: null });
   },
+
+  setActiveDate: (date) => set({ activeDate: date }),
+  resetActiveDate: () => set({ activeDate: todayISO() }),
 }));

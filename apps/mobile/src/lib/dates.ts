@@ -52,3 +52,40 @@ export function greetingForNow(): string {
   if (h < 19) return 'Buenas tardes';
   return 'Buenas noches';
 }
+
+const DAY_ABBR = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'] as const;
+const MONTH_SHORT = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'] as const;
+
+/** Info de un día para el strip de calendario. */
+export function getDayInfo(iso: string): {
+  dayNum: number;
+  dayAbbr: string;
+  monthShort: string;
+  year: number;
+} {
+  const d = new Date(`${iso}T12:00:00`);
+  return {
+    dayNum: d.getDate(),
+    dayAbbr: DAY_ABBR[d.getDay()]!,
+    monthShort: MONTH_SHORT[d.getMonth()]!,
+    year: d.getFullYear(),
+  };
+}
+
+/** Genera un array de ISO dates de [start..end] días desde hoy. */
+export function buildDateRange(before: number, after: number): string[] {
+  const result: string[] = [];
+  const today = new Date();
+  for (let i = -before; i <= after; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    result.push(toISODate(d));
+  }
+  return result;
+}
+
+/** Formatea "17 de junio" desde un ISO date. */
+export function formatDayMonth(iso: string): string {
+  const d = new Date(`${iso}T12:00:00`);
+  return `${d.getDate()} de ${MONTH_NAMES[d.getMonth()]}`;
+}
