@@ -7,4 +7,9 @@ if (!url || !anonKey) {
   throw new Error('Faltan VITE_SUPABASE_URL o VITE_SUPABASE_ANON_KEY. Copiá .env.example a .env.local.');
 }
 
-export const supabase = createHabitoClient({ url, anonKey });
+export const supabase = createHabitoClient({
+  url,
+  anonKey,
+  detectSessionInUrl: true,
+  flowType: 'pkce',
+});
