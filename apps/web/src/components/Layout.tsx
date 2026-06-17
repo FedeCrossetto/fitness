@@ -139,7 +139,7 @@ export function Layout(): React.JSX.Element {
                     key={item.to}
                     to={item.to}
                     end={item.end}
-                    className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
+                    className={({ isActive }: { isActive: boolean }) => `nav-link${isActive ? ' active' : ''}`}
                     title={sc ? item.label : undefined}
                   >
                     <span className="nav-icon">{item.icon()}</span>
