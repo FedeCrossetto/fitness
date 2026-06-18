@@ -12,6 +12,21 @@ export interface MacroTotals {
   fat: number;
 }
 
+export function computeMacroTotals(meals: MealLogRow[]): MacroTotals {
+  return meals.reduce<MacroTotals>(
+    (acc, meal) => {
+      if (!meal.is_included) return acc;
+      return {
+        kcal: acc.kcal + (meal.energy_kcal ?? 0),
+        protein: acc.protein + (meal.protein_g ?? 0),
+        carbs: acc.carbs + (meal.carbs_g ?? 0),
+        fat: acc.fat + (meal.fat_g ?? 0),
+      };
+    },
+    { kcal: 0, protein: 0, carbs: 0, fat: 0 }
+  );
+}
+
 export interface NewMealEntry {
   mealType: MealType;
   title: string;
@@ -187,20 +202,7 @@ export const useNutritionStore = create<NutritionState>((set, get) => ({
     await supabase.from('foods').update({ is_favorite: isFavorite }).eq('id', foodId);
   },
 
-  totals: () => {
-    return get().meals.reduce<MacroTotals>(
-      (acc, meal) => {
-        if (!meal.is_included) return acc;
-        return {
-          kcal: acc.kcal + (meal.energy_kcal ?? 0),
-          protein: acc.protein + (meal.protein_g ?? 0),
-          carbs: acc.carbs + (meal.carbs_g ?? 0),
-          fat: acc.fat + (meal.fat_g ?? 0),
-        };
-      },
-      { kcal: 0, protein: 0, carbs: 0, fat: 0 }
-    );
-  },
+  totals: () => computeMacroTotals(get().meals),
 
   mealsByType: (type) => get().meals.filter((m) => m.meal_type === type),
 

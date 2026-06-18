@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,23 +13,23 @@ import {
   CardSkeleton,
   EmptyState,
   ErrorState,
-  HeaderAvatar,
   IconButton,
-  ProgressBar,
-  ProgressRing,
 } from '../../components/common';
+import { MacroDaySummary } from '../../components/nutrition/MacroDaySummary';
 import { useAuthStore } from '../../stores/authStore';
-import { useNutritionStore } from '../../stores/nutritionStore';
+import { useTranslation } from '../../stores/i18nStore';
+import { computeMacroTotals, useNutritionStore } from '../../stores/nutritionStore';
 import type { MacroSource, MealLogRow, MealType } from '../../types/database';
+import type { NutritionStackParamList } from '../../types/navigation';
 import { useTabBarScrollPadding } from '../../hooks/useTabBarScrollPadding';
 
 type Props = NativeStackScreenProps<NutritionStackParamList, 'MealsDay'>;
 
-const MEAL_SECTIONS: { type: MealType; label: string }[] = [
-  { type: 'DES', label: 'Desayuno' },
-  { type: 'ALM', label: 'Almuerzo' },
-  { type: 'MER', label: 'Merienda' },
-  { type: 'CEN', label: 'Cena' },
+const MEAL_SECTION_KEYS: { type: MealType; labelKey: 'breakfast' | 'lunch' | 'snack' | 'dinner' }[] = [
+  { type: 'DES', labelKey: 'breakfast' },
+  { type: 'ALM', labelKey: 'lunch' },
+  { type: 'MER', labelKey: 'snack' },
+  { type: 'CEN', labelKey: 'dinner' },
 ];
 
 function sourceIcon(source: MacroSource | null): keyof typeof Ionicons.glyphMap {
@@ -49,6 +49,7 @@ function sourceIcon(source: MacroSource | null): keyof typeof Ionicons.glyphMap 
 
 export function MealsDayScreen({ navigation }: Props): React.JSX.Element {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const styles = useThemedStyles(createStyles);
 
   const insets = useSafeAreaInsets();
@@ -63,12 +64,10 @@ export function MealsDayScreen({ navigation }: Props): React.JSX.Element {
   const macroGoals = useNutritionStore((s) => s.macroGoals);
   const loadDay = useNutritionStore((s) => s.loadDay);
   const toggleIncluded = useNutritionStore((s) => s.toggleIncluded);
+  const totals = useMemo(() => computeMacroTotals(meals), [meals]);
 
   const [refreshing, setRefreshing] = useState(false);
   const [sheetType, setSheetType] = useState<MealType | null>(null);
-
-  // Recalcula al re-renderizar; el componente ya se re-renderiza cuando cambia `meals`.
-  const totals = useNutritionStore.getState().totals();
 
   const load = useCallback(() => {
     if (userId) void loadDay(userId);
@@ -146,17 +145,13 @@ export function MealsDayScreen({ navigation }: Props): React.JSX.Element {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Cabecera del pilar */}
         <View style={styles.header}>
-          <View style={styles.headerText}>
-            <AppText variant="body14" color={colors.text.tertiary}>
-              {formatLongDate(todayISO())}
-            </AppText>
-            <AppText variant="h1" color={colors.text.primary}>
-              Nutrición
-            </AppText>
-          </View>
-          <HeaderAvatar />
+          <AppText variant="body14" color={colors.text.tertiary}>
+            {formatLongDate(todayISO())}
+          </AppText>
+          <AppText variant="h1" color={colors.text.primary}>
+            {t.nutrition.title}
+          </AppText>
         </View>
 
         {showSkeletons ? (
@@ -169,74 +164,51 @@ export function MealsDayScreen({ navigation }: Props): React.JSX.Element {
           <ErrorState message={error ?? 'No pudimos cargar tus comidas.'} onRetry={load} />
         ) : (
           <>
-            {/* Resumen del día */}
-            <Card elevated style={styles.summaryCard}>
-              <View style={styles.summaryRow}>
-                <ProgressRing progress={kcalGoal > 0 ? totals.kcal / kcalGoal : 0} size={104} strokeWidth={10}>
-                  <AppText variant="metricSmall" color={colors.text.primary}>
-                    {Math.round(totals.kcal)}
-                  </AppText>
-                  <AppText variant="caps11" color={colors.text.tertiary}>
-                    / {kcalGoal} kcal
-                  </AppText>
-                </ProgressRing>
-                <View style={styles.macrosCol}>
-                  {(
-                    [
-                      { key: 'P', value: totals.protein, goal: macroGoals.protein, color: colors.primary.default },
-                      { key: 'C', value: totals.carbs, goal: macroGoals.carbs, color: colors.primary.dark },
-                      { key: 'G', value: totals.fat, goal: macroGoals.fat, color: colors.primary.deep },
-                    ] as const
-                  ).map((macro) => (
-                    <View key={macro.key} style={styles.macroRow}>
-                      <AppText variant="body12SemiBold" color={colors.text.secondary} style={styles.macroKey}>
-                        {macro.key}
-                      </AppText>
-                      <ProgressBar
-                        progress={macro.goal > 0 ? macro.value / macro.goal : 0}
-                        height={6}
-                        color={macro.color}
-                        style={styles.macroBar}
-                      />
-                      <AppText variant="body12Medium" color={colors.text.tertiary} style={styles.macroValue}>
-                        {Math.round(macro.value)}/{macro.goal}g
-                      </AppText>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            </Card>
+            <View style={styles.summaryBlock}>
+              <MacroDaySummary
+                totals={totals}
+                kcalGoal={kcalGoal}
+                macroGoals={macroGoals}
+                onCheckCalories={() => navigation.navigate('BarcodeScanner', { mealType: 'DES' })}
+              />
+            </View>
 
             {showEmpty ? (
               <EmptyState
-                pillar="nutrition"
-                title="Todavía no registraste comidas"
-                message="Sumá tu primera comida del día para seguir tus calorías y macros."
-                actionLabel="Agregar comida"
+                hideIllustration
+                subdued
+                title={t.nutrition.empty_title}
+                message={t.nutrition.empty_message}
+                titleColor={colors.text.primary}
+                messageColor={colors.text.secondary}
+                actionLabel={t.nutrition.add_meal}
+                actionBackgroundColor={colors.primary.default}
+                actionTextColor={colors.primary.onText}
                 onAction={() => setSheetType('DES')}
               />
             ) : null}
 
             {/* Secciones por comida */}
-            {MEAL_SECTIONS.map((section) => {
-              const sectionMeals = useNutritionStore.getState().mealsByType(section.type);
+            {MEAL_SECTION_KEYS.map((section) => {
+              const sectionMeals = meals.filter((m) => m.meal_type === section.type);
+              const sectionLabel = t.nutrition[section.labelKey];
               return (
                 <View key={section.type} style={styles.section}>
                   <View style={styles.sectionHeader}>
                     <AppText variant="h3" color={colors.text.primary}>
-                      {section.label}
+                      {sectionLabel}
                     </AppText>
                     <IconButton
                       icon="add"
                       onPress={() => setSheetType(section.type)}
-                      accessibilityLabel={`Agregar comida a ${section.label}`}
+                      accessibilityLabel={`${t.nutrition.add_meal} — ${sectionLabel}`}
                       size={18}
                       color={colors.primary.default}
                     />
                   </View>
                   {sectionMeals.length === 0 ? (
                     <AppText variant="body13" color={colors.text.disabled} style={styles.sectionEmpty}>
-                      Sin registros
+                      {t.nutrition.no_records}
                     </AppText>
                   ) : (
                     <Card style={styles.sectionCard}>{sectionMeals.map((meal) => renderMeal(meal, section.type))}</Card>
@@ -255,13 +227,13 @@ export function MealsDayScreen({ navigation }: Props): React.JSX.Element {
       </ScrollView>
 
       {/* Opciones para agregar comida */}
-      <BottomSheet visible={sheetType !== null} onClose={() => setSheetType(null)} title="Agregar comida">
+      <BottomSheet visible={sheetType !== null} onClose={() => setSheetType(null)} title={t.nutrition.add_meal}>
         {(
           [
-            { label: 'Buscar en mis alimentos', icon: 'search-outline', target: 'FoodDetail' },
-            { label: 'Escanear código', icon: 'barcode-outline', target: 'BarcodeScanner' },
-            { label: 'Por voz', icon: 'mic-outline', target: 'VoiceLog' },
-            { label: 'Manual', icon: 'create-outline', target: 'FoodDetail' },
+            { label: t.nutrition.search, icon: 'search-outline', target: 'FoodDetail' },
+            { label: t.nutrition.scan, icon: 'barcode-outline', target: 'BarcodeScanner' },
+            { label: t.nutrition.voice, icon: 'mic-outline', target: 'VoiceLog' },
+            { label: t.nutrition.manual_entry, icon: 'create-outline', target: 'FoodDetail' },
           ] as const
         ).map((option) => (
           <Pressable
@@ -288,19 +260,11 @@ export function MealsDayScreen({ navigation }: Props): React.JSX.Element {
 const createStyles = (colors: Colors) => StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.lg,
+    marginBottom: spacing.xl,
   },
-  headerText: { flex: 1 },
-  summaryCard: { marginBottom: spacing.md },
-  summaryRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
-  macrosCol: { flex: 1, gap: spacing.sm },
-  macroRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  macroKey: { width: 16 },
-  macroBar: { flex: 1 },
-  macroValue: { width: 64, textAlign: 'right' },
+  summaryBlock: {
+    marginBottom: spacing.sm,
+  },
   section: { marginTop: spacing.lg },
   sectionHeader: {
     flexDirection: 'row',
@@ -309,7 +273,10 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     marginBottom: spacing.sm,
   },
   sectionEmpty: { paddingVertical: spacing.xs, paddingLeft: spacing.xxs },
-  sectionCard: { paddingVertical: spacing.xxs, paddingHorizontal: spacing.sm },
+  sectionCard: {
+    paddingVertical: spacing.xxs,
+    paddingHorizontal: spacing.sm,
+  },
   mealRow: {
     flexDirection: 'row',
     alignItems: 'center',

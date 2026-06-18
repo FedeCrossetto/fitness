@@ -18,13 +18,12 @@ import {
   Avatar,
   Card,
   CardSkeleton,
-  MetricCard,
   ProgressBar,
-  ProgressRing,
   ProgressiveBlurHeader,
   SectionHeader,
   WeekStrip,
 } from '../../components/common';
+import { HomeMacroProgressCard } from '../../components/home/HomeMacroProgressCard';
 import { ActiveSessionBanner } from '../../components/training/ActiveSessionBanner';
 import { useAuthStore } from '../../stores/authStore';
 import { useGoalsStore } from '../../stores/goalsStore';
@@ -159,7 +158,6 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
 
   const completedGoals = goals.filter((g) => g.completed).length;
   const goalProgress = goals.length > 0 ? completedGoals / goals.length : 0;
-  const kcalProgress = kcalGoal > 0 ? totals.kcal / kcalGoal : 0;
 
   const activeDate = useUiStore((s) => s.activeDate);
   const today = todayISO();
@@ -171,7 +169,6 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
     [measurements]
   );
   const latestWeight = weightHistory[0] ?? null;
-  const latestFat = measurements.find((m) => m.body_fat_pct !== null) ?? null;
   const recentPhotos = photos.slice(0, 3);
 
   // El bucket de fotos es privado: resolvemos URLs firmadas para los thumbnails.
@@ -388,59 +385,13 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
 
         {goalsLoading && goals.length === 0 ? <CardSkeleton /> : null}
 
-        {/* Métricas del día */}
-        <View style={styles.metricsRow}>
-          <MetricCard
-            label={t.home.calories}
-            value={String(Math.round(totals.kcal))}
-            unit={`/ ${kcalGoal} kcal`}
-            icon="flame"
-            accent={CALORIES_ORANGE}
-            onPress={() => navigation.getParent()?.navigate('NutritionTab' as never)}
-            style={styles.metricHalf}
-          />
-          <MetricCard
-            label={t.home.steps}
-            value={steps > 0 ? steps.toLocaleString('es-AR') : '—'}
-            unit={`/ ${clientConfig.defaultStepsGoal.toLocaleString('es-AR')}`}
-            icon="walk"
-            labelBadge={
-              healthConnected
-                ? Platform.OS === 'ios' ? t.home.apple_health : t.home.health_connect
-                : Platform.OS === 'ios'
-                  ? t.home.connect_ios
-                  : t.home.connect_android
-            }
-            labelBadgeIcon={healthConnected ? 'checkmark-circle' : undefined}
-            labelBadgeColor={colors.primary.default}
-            onPress={navigateToHealthSettings}
-            style={styles.metricHalf}
-          />
-        </View>
-
-        {/* Macros del día */}
-        <Card style={styles.macrosCard}>
-          <AppText variant="caps12" color={colors.text.tertiary} style={styles.macrosTitle}>
-            {t.home.macros}
-          </AppText>
-          {(
-            [
-              { key: 'P', label: t.home.proteins, value: totals.protein, goal: macroGoals.protein, color: colors.primary.default },
-              { key: 'C', label: t.home.carbs, value: totals.carbs, goal: macroGoals.carbs, color: colors.primary.dark },
-              { key: 'G', label: t.home.fats, value: totals.fat, goal: macroGoals.fat, color: colors.primary.deep },
-            ] as const
-          ).map((macro) => (
-            <View key={macro.key} style={styles.macroRow}>
-              <AppText variant="body13Medium" color={colors.text.secondary} style={styles.macroLabel}>
-                {macro.label}
-              </AppText>
-              <ProgressBar progress={macro.goal > 0 ? macro.value / macro.goal : 0} color={macro.color} style={styles.macroBar} />
-              <AppText variant="body12Medium" color={colors.text.tertiary} style={styles.macroValue}>
-                {Math.round(macro.value)}/{macro.goal}g
-              </AppText>
-            </View>
-          ))}
-        </Card>
+        {/* Macros — arco de progreso */}
+        <HomeMacroProgressCard
+          totals={totals}
+          kcalGoal={kcalGoal}
+          macroGoals={{ protein: macroGoals.protein, carbs: macroGoals.carbs }}
+          onPress={() => navigation.getParent()?.navigate('NutritionTab' as never)}
+        />
 
         {/* Mi Progreso */}
         <View style={styles.sectionHeaderRow}>
@@ -500,41 +451,50 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
             ) : null}
           </Pressable>
 
-          {/* % Grasa */}
+          {/* Pasos */}
           <Pressable
             style={styles.progressCard}
-            onPress={() => navigateToProgress('Measurements')}
-            accessibilityLabel="Ver porcentaje de grasa corporal"
+            onPress={navigateToHealthSettings}
+            accessibilityLabel={t.home.steps}
           >
             <View style={styles.progressCardHead}>
               <AppText variant="caps11" color={colors.text.tertiary} style={styles.progressCardLabelInline}>
-                {t.home.body_fat}
+                {t.home.steps}
               </AppText>
-              <View style={styles.progressCardIcon} />
+              <View style={styles.progressCardIcon}>
+                <Ionicons name="walk" size={14} color={colors.primary.default} />
+              </View>
             </View>
             <View style={styles.progressCardMeta}>
-              {latestFat ? (
-                <AppText variant="body12" color={colors.text.tertiary} numberOfLines={1}>
-                  {formatShortDate(latestFat.date)}
+              <View style={styles.stepsBadgeRow}>
+                {healthConnected ? (
+                  <Ionicons name="checkmark-circle" size={12} color={colors.primary.default} />
+                ) : null}
+                <AppText variant="body12" color={colors.primary.default} numberOfLines={1}>
+                  {healthConnected
+                    ? Platform.OS === 'ios'
+                      ? t.home.apple_health
+                      : t.home.health_connect
+                    : Platform.OS === 'ios'
+                      ? t.home.connect_ios
+                      : t.home.connect_android}
                 </AppText>
-              ) : null}
+              </View>
             </View>
             <View style={styles.progressCardBody}>
-              {latestFat ? (
-                <View style={styles.progressValueRow}>
-                  <AppText variant="metricMedium" color={colors.text.primary}>
-                    {(latestFat.body_fat_pct as number).toFixed(1)}
-                  </AppText>
-                  <AppText variant="body13Medium" color={colors.text.tertiary} style={styles.progressUnit}>
-                    %
-                  </AppText>
-                </View>
-              ) : (
-                <AppText variant="body16SemiBold" color={colors.text.tertiary} style={styles.progressEmpty}>
-                  ...
+              <View style={styles.progressValueRow}>
+                <AppText variant="metricMedium" color={colors.text.primary}>
+                  {steps > 0 ? steps.toLocaleString('es-AR') : '—'}
                 </AppText>
-              )}
+                <AppText variant="body13Medium" color={colors.text.tertiary} style={styles.progressUnit}>
+                  / {clientConfig.defaultStepsGoal.toLocaleString('es-AR')}
+                </AppText>
+              </View>
             </View>
+            <ProgressBar
+              progress={steps > 0 ? steps / clientConfig.defaultStepsGoal : 0}
+              style={styles.progressHydrationBar}
+            />
           </Pressable>
 
           {/* Hidratación */}
@@ -740,27 +700,6 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
             ))}
         </View>
 
-        {/* Resumen kcal extendido */}
-        <Card elevated style={styles.kcalCard} onPress={() => navigation.getParent()?.navigate('NutritionTab' as never)}>
-          <View style={styles.kcalRow}>
-            <View style={styles.kcalInfo}>
-              <AppText variant="caps12" color={colors.text.tertiary}>
-                Balance calórico
-              </AppText>
-              <AppText variant="metricLarge" color={colors.text.primary}>
-                {Math.max(0, Math.round(kcalGoal - totals.kcal))}
-              </AppText>
-          <AppText variant="body13" color={colors.text.secondary}>
-              {t.home.kcal_left}
-            </AppText>
-            </View>
-            <ProgressRing progress={kcalProgress} size={92} strokeWidth={9} color={colors.pillars.training}>
-              <AppText variant="body14SemiBold" color={colors.text.primary}>
-                {Math.round(kcalProgress * 100)}%
-              </AppText>
-            </ProgressRing>
-          </View>
-        </Card>
       </Animated.ScrollView>
     </View>
   );
@@ -864,14 +803,11 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     gap: 2,
     flexShrink: 0,
   },
-  metricsRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm },
-  metricHalf: { flex: 1 },
-  macrosCard: { marginBottom: spacing.sm },
-  macrosTitle: { marginBottom: spacing.sm },
-  macroRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.sm },
-  macroLabel: { width: 110 },
-  macroBar: { flex: 1 },
-  macroValue: { width: 70, textAlign: 'right' },
+  stepsBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
   miniHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -901,9 +837,6 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  kcalCard: { marginTop: spacing.xl },
-  kcalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  kcalInfo: { flex: 1 },
 
   // Mi Progreso section
   sectionHeaderRow: {

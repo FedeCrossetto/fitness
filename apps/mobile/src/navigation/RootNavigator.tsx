@@ -57,7 +57,6 @@ export function RootNavigator(): React.JSX.Element {
   const session              = useAuthStore((s) => s.session);
   const profile              = useAuthStore((s) => s.profile);
   const needsOnboarding      = useAuthStore((s) => s.needsOnboarding);
-  const checkSession         = useAuthStore((s) => s.checkSession);
   const restoreActiveSession = useTrainingStore((s) => s.restoreActiveSession);
 
   // Waiver gate state
@@ -71,9 +70,8 @@ export function RootNavigator(): React.JSX.Element {
   const [consultationFormCode, setConsultationFormCode] = useState<string | null>(null);
 
   useEffect(() => {
-    void checkSession();
     void restoreActiveSession();
-  }, [checkSession, restoreActiveSession]);
+  }, [restoreActiveSession]);
 
   // Recargar colores cuando cambia el entrenador vinculado
   useEffect(() => {
@@ -206,11 +204,7 @@ export function RootNavigator(): React.JSX.Element {
     !needsOnboarding &&
     (!waiverChecked || (!waiverRequired && !consultationChecked));
 
-  const showLoading =
-    initializing ||
-    loading ||
-    (!!session && !profile) ||
-    gatesPending;
+  const showLoading = initializing || loading || gatesPending;
 
   if (showLoading) return <AuthLoadingOverlay />;
   if (!session) return <AuthStack />;

@@ -276,6 +276,8 @@ PODS:
     - ExpoModulesCore
   - ExpoSpeechRecognition (3.1.3):
     - ExpoModulesCore
+  - ExpoSplashScreen (31.0.13):
+    - ExpoModulesCore
   - ExpoWebBrowser (15.0.11):
     - ExpoModulesCore
   - ExtensionStorage (1.0.0):
@@ -2334,6 +2336,7 @@ DEPENDENCIES:
   - ExpoSecureStore (from `../../../node_modules/expo-secure-store/ios`)
   - ExpoSensors (from `../../../node_modules/expo-sensors/ios`)
   - ExpoSpeechRecognition (from `../../../node_modules/expo-speech-recognition/ios`)
+  - ExpoSplashScreen (from `../../../node_modules/expo-splash-screen/ios`)
   - ExpoWebBrowser (from `../../../node_modules/expo-web-browser/ios`)
   - "ExtensionStorage (from `../../../node_modules/@bacons/apple-targets/ios`)"
   - EXUpdatesInterface (from `../../../node_modules/expo-updates-interface/ios`)
@@ -2488,6 +2491,8 @@ EXTERNAL SOURCES:
     :path: "../../../node_modules/expo-sensors/ios"
   ExpoSpeechRecognition:
     :path: "../../../node_modules/expo-speech-recognition/ios"
+  ExpoSplashScreen:
+    :path: "../../../node_modules/expo-splash-screen/ios"
   ExpoWebBrowser:
     :path: "../../../node_modules/expo-web-browser/ios"
   ExtensionStorage:
@@ -2678,6 +2683,7 @@ SPEC CHECKSUMS:
   ExpoSecureStore: d32f751874a2ceb5aaeebeb3578e165c1ba2b24a
   ExpoSensors: 8f9fe9a9ffd36ca9c2f0fe40dafc0a063f844420
   ExpoSpeechRecognition: 95a6287f24fb8764ded6e9d0dd667a1e9e633dab
+  ExpoSplashScreen: bc3cffefca2716e5f22350ca109badd7e50ec14d
   ExpoWebBrowser: 970dd4c64c29c955c3af664c8058ba768a4c9187
   ExtensionStorage: 5796de20bf181317c376d693fedb64c6781a33ba
   EXUpdatesInterface: 5adf50cb41e079c861da6d9b4b954c3db9a50734

@@ -98,6 +98,51 @@ function setAuthState(
   });
 }
 
+let authListenerRegistered = false;
+
+function ensureAuthListener(): void {
+  if (authListenerRegistered) return;
+  authListenerRegistered = true;
+
+  supabase.auth.onAuthStateChange((_event, session) => {
+    if (!session) {
+      useAuthStore.setState({
+        session: null,
+        profile: null,
+        userProfile: null,
+        needsOnboarding: false,
+        loading: false,
+      });
+      useBrandingStore.getState().clear();
+      return;
+    }
+
+    const { loading, session: current } = useAuthStore.getState();
+    if (loading) return;
+
+    if (current?.user.id === session.user.id) {
+      useAuthStore.setState({ session });
+      return;
+    }
+
+    useAuthStore.setState({ session, profile: null, userProfile: null, loading: true });
+    void (async () => {
+      try {
+        const { profile, userProfile } = await finishAuthSession(session);
+        useAuthStore.setState({
+          profile,
+          userProfile,
+          needsOnboarding: !profile?.goal,
+          loading: false,
+        });
+        await useBrandingStore.getState().load();
+      } catch {
+        useAuthStore.setState({ loading: false });
+      }
+    })();
+  });
+}
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   session: null,
   profile: null,
@@ -108,6 +153,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   needsOnboarding: false,
 
   checkSession: async () => {
+    ensureAuthListener();
     try {
       const { data } = await supabase.auth.getSession();
       const session = data.session;
@@ -127,39 +173,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch {
       set({ initializing: false });
     }
-
-    supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) {
-        set({ session: null, profile: null, userProfile: null, needsOnboarding: false, loading: false });
-        useBrandingStore.getState().clear();
-        return;
-      }
-
-      // signIn / signUp / OAuth ya resuelven perfil en commitSession
-      if (get().loading) return;
-
-      const currentId = get().session?.user.id;
-      if (currentId === session.user.id) {
-        set({ session });
-        return;
-      }
-
-      set({ session, profile: null, userProfile: null, loading: true });
-      void (async () => {
-        try {
-          const { profile, userProfile } = await finishAuthSession(session);
-          set({
-            profile,
-            userProfile,
-            needsOnboarding: !profile?.goal,
-            loading: false,
-          });
-          await useBrandingStore.getState().load();
-        } catch {
-          set({ loading: false });
-        }
-      })();
-    });
   },
 
   signIn: async (email, password) => {
