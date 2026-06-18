@@ -17,6 +17,7 @@ import { showPlatformHealthError } from '../../services/healthPlatform';
 import { useProgressStore } from '../../stores/progressStore';
 import { useGoalsStore } from '../../stores/goalsStore';
 import { useTabBarScrollPadding } from '../../hooks/useTabBarScrollPadding';
+import { useStepsAutoSync } from '../../hooks/useStepsAutoSync';
 import { GarminSyncCard } from '../../components/health/GarminSyncCard';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
@@ -35,7 +36,7 @@ import {
 import { useAuthStore } from '../../stores/authStore';
 import { useUiStore } from '../../stores/uiStore';
 import { useTranslation } from '../../stores/i18nStore';
-import { LANGUAGES } from '@habito/shared';
+import { LANGUAGES } from '@reset-fitness/shared';
 import type { ProfileRow } from '../../types/database';
 import type { HomeStackParamList } from '../../types/navigation';
 
@@ -56,9 +57,9 @@ interface ReminderConfig {
 
 // Static config only — labels/captions/bodies are translated inside the component
 const REMINDER_CONFIGS = [
-  { key: 'agua'    as ReminderKey, storageKey: 'habito:reminder:agua',    icon: 'water-outline'      as const, hour: 10 },
-  { key: 'entreno' as ReminderKey, storageKey: 'habito:reminder:entreno', icon: 'barbell-outline'    as const, hour: 18 },
-  { key: 'comidas' as ReminderKey, storageKey: 'habito:reminder:comidas', icon: 'restaurant-outline' as const, hour: 13 },
+  { key: 'agua'    as ReminderKey, storageKey: 'reset-fitness:reminder:agua',    icon: 'water-outline'      as const, hour: 10 },
+  { key: 'entreno' as ReminderKey, storageKey: 'reset-fitness:reminder:entreno', icon: 'barbell-outline'    as const, hour: 18 },
+  { key: 'comidas' as ReminderKey, storageKey: 'reset-fitness:reminder:comidas', icon: 'restaurant-outline' as const, hour: 13 },
 ];
 
 interface SettingsRowProps {
@@ -621,7 +622,7 @@ export function ProfileScreen({ navigation, route }: Props): React.JSX.Element {
         <Button label={t.profile.sign_out} variant="secondary" onPress={onSignOut} fullWidth style={styles.signOut} />
 
         <AppText variant="body12" color={colors.text.disabled} align="center" style={styles.version}>
-          Habito v1.0.0
+          Reset Fit v1.0.0
         </AppText>
       </ScrollView>
     </View>

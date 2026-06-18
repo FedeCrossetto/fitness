@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../types/database';
 
-export type HabitoClient = SupabaseClient<Database>;
+export type ResetFitnessClient = SupabaseClient<Database>;
 
 export interface CreateClientOptions {
   url: string;
@@ -24,7 +24,7 @@ export interface CreateClientOptions {
  * Fábrica de cliente Supabase tipada y compartida entre mobile y web.
  * Cada app provee su url/anonKey desde sus propias variables de entorno.
  */
-export function createHabitoClient({ url, anonKey, storage, detectSessionInUrl, flowType }: CreateClientOptions): HabitoClient {
+export function createResetFitnessClient({ url, anonKey, storage, detectSessionInUrl, flowType }: CreateClientOptions): ResetFitnessClient {
   return createClient<Database>(url, anonKey, {
     auth: {
       ...(storage ? { storage } : {}),

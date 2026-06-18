@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { RoutineRow, RoutineExerciseRow } from '@habito/shared/types/database';
+import type { RoutineRow, RoutineExerciseRow } from '@reset-fitness/shared/types/database';
 import { supabase } from '@/lib/supabase';
 
 type RoutineWithExercises = RoutineRow & { exercises: RoutineExerciseRow[] };

@@ -46,7 +46,7 @@ export function LinkTrainerScreen(): React.JSX.Element {
           Vinculá tu entrenador
         </AppText>
         <AppText variant="body14" color={colors.text.secondary} style={styles.subtitle}>
-          Habito es por invitación. Ingresá el código que te compartió tu entrenador por WhatsApp o email.
+          Reset Fit es por invitación. Ingresá el código que te compartió tu entrenador por WhatsApp o email.
           Quedarás en su lista como alumno pendiente hasta que te active.
         </AppText>
 

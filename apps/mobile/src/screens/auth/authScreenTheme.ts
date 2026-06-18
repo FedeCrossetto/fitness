@@ -10,6 +10,8 @@ export const authColors = {
   borderFocus: '#0C0C0C',
   buttonPrimary: '#0C0C0C',
   buttonPrimaryText: '#FFFFFF',
+  buttonBrand: '#BEFC50',
+  buttonBrandText: '#0C0C0C',
   errorBg: '#F0F0F0',
   errorText: '#404040',
 } as const;

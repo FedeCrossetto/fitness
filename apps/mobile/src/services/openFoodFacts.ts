@@ -40,7 +40,7 @@ function num(value: number | string | undefined): number | null {
 export async function fetchProductByBarcode(barcode: string): Promise<OffProduct | null> {
   const response = await fetch(
     `${BASE_URL}/${encodeURIComponent(barcode)}?fields=code,product_name,product_name_es,brands,image_front_url,serving_quantity,nutriments`,
-    { headers: { 'User-Agent': 'Habito/1.0 (fitness app)' } }
+    { headers: { 'User-Agent': 'ResetFit/1.0 (fitness app)' } }
   );
   if (!response.ok) {
     throw new Error(`Open Food Facts respondió ${response.status}`);

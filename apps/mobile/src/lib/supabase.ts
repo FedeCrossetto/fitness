@@ -10,7 +10,7 @@ const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
 if (!supabaseUrl || !supabaseAnonKey) {
   console.warn(
-    '[Habito] Faltan EXPO_PUBLIC_SUPABASE_URL / EXPO_PUBLIC_SUPABASE_ANON_KEY. Configurá tu archivo .env.'
+    '[Reset Fit] Faltan EXPO_PUBLIC_SUPABASE_URL / EXPO_PUBLIC_SUPABASE_ANON_KEY. Configurá tu archivo .env.'
   );
 }
 
@@ -47,8 +47,8 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     storage: isWeb ? webStorageAdapter : secureStoreAdapter,
     autoRefreshToken: true,
     persistSession: true,
-    // En web hay que detectar la sesión del callback de OAuth en la URL.
     detectSessionInUrl: isWeb,
+    flowType: 'pkce',
   },
 });
 

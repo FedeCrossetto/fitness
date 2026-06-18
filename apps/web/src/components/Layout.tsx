@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useUnreadMessages } from '@/hooks/useUnreadMessages';
-import { LANGUAGES } from '@habito/shared';
+import { LANGUAGES } from '@reset-fitness/shared';
 import {
   GridIcon, BrushIcon, UsersIcon, LogOutIcon,
   MessageIcon, CalendarIcon, GroupsIcon, TrophyIcon, CreditCardIcon,

@@ -140,8 +140,8 @@ export function ProgressDashboardScreen({ navigation }: Props): React.JSX.Elemen
     } else {
       void showPlatformHealthError(result, {
         no_access: 'Sin acceso',
-        health_no_perm_ios: 'Habito necesita permiso para leer tus pasos en Apple Salud.',
-        health_no_perm_and: 'Habito necesita permiso para leer pasos en Health Connect.',
+        health_no_perm_ios: 'Reset Fit necesita permiso para leer tus pasos en Apple Salud.',
+        health_no_perm_and: 'Reset Fit necesita permiso para leer pasos en Health Connect.',
         health_needs_hc_update: 'Instalá o actualizá Health Connect desde Google Play.',
         health_open: 'Abrir Salud',
         health_open_hc: 'Abrir Health Connect',
@@ -155,7 +155,7 @@ export function ProgressDashboardScreen({ navigation }: Props): React.JSX.Elemen
   const disconnectHealth = useCallback(() => {
     Alert.alert(
       'Desconectar Apple Health',
-      'Se borrarán los datos locales. Para revocar el acceso completo, andá a Ajustes > Privacidad > Salud > Habito.',
+      'Se borrarán los datos locales. Para revocar el acceso completo, andá a Ajustes > Privacidad > Salud > Reset Fit.',
       [
         { text: 'Cancelar', style: 'cancel' },
         {

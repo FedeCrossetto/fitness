@@ -1,12 +1,35 @@
+import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import * as AuthSession from 'expo-auth-session';
 import { supabase } from './supabase';
 
-/** URI fija de retorno OAuth → debe estar en Supabase → Authentication → Redirect URLs */
+const AUTH_CALLBACK_PATH = 'auth/callback';
+const DEFAULT_HTTPS_REDIRECT = 'https://reset-fitness.vercel.app/auth/mobile-callback';
+
+function getAppScheme(): string {
+  const fromConfig = Constants.expoConfig?.scheme;
+  if (typeof fromConfig === 'string' && fromConfig.length > 0) return fromConfig;
+  return 'reset-fitness';
+}
+
+/**
+ * URL HTTPS que Supabase usa como redirect_to (debe estar en Redirect URLs).
+ * Evita depender de custom schemes en el dashboard de Supabase.
+ */
 export function getOAuthRedirectUri(): string {
-  return AuthSession.makeRedirectUri({
-    scheme: 'habito',
-    path: 'auth/callback',
-  });
+  if (Platform.OS === 'web') {
+    return AuthSession.makeRedirectUri({ path: AUTH_CALLBACK_PATH });
+  }
+  const fromEnv = process.env.EXPO_PUBLIC_OAUTH_REDIRECT_URL?.trim();
+  return fromEnv || DEFAULT_HTTPS_REDIRECT;
+}
+
+/** Deep link que la app escucha al volver del browser (ASWebAuthenticationSession). */
+export function getOAuthReturnUri(): string {
+  if (Platform.OS === 'web') {
+    return getOAuthRedirectUri();
+  }
+  return `${getAppScheme()}://${AUTH_CALLBACK_PATH}`;
 }
 
 /** Completa la sesión OAuth desde la URL de retorno (PKCE o tokens en hash). */

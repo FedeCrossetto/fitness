@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { INVITE_CODE_STORAGE_KEY, normalizeInviteCode } from '@habito/shared';
+import { INVITE_CODE_STORAGE_KEY, normalizeInviteCode, type InvitePreview } from '@reset-fitness/shared';
 import { supabase } from '../lib/supabase';
 import { INVITE_LINK_FAILED_MESSAGE } from './clientAccess';
 
@@ -16,7 +16,7 @@ export async function clearPendingInviteCode(): Promise<void> {
   await AsyncStorage.removeItem(INVITE_CODE_STORAGE_KEY);
 }
 
-/** Extrae código de invitación de deep links habito:// o https://.../unirse?code= */
+/** Extrae código de invitación de deep links reset-fitness:// o https://.../unirse?code= */
 export function parseInviteCodeFromUrl(url: string): string | null {
   try {
     const parsed = new URL(url);
@@ -27,6 +27,19 @@ export function parseInviteCodeFromUrl(url: string): string | null {
     if (match?.[1]) return normalizeInviteCode(decodeURIComponent(match[1]));
   }
   return null;
+}
+
+/** Preview del entrenador para validar código antes del registro (sin auth). */
+export async function fetchInvitePreview(code: string): Promise<InvitePreview | null> {
+  const clean = normalizeInviteCode(code);
+  if (!clean) return null;
+
+  const { data, error } = await supabase.rpc('get_invite_preview', {
+    p_invite_code: clean,
+  });
+
+  if (error || !data) return null;
+  return data as unknown as InvitePreview;
 }
 
 export async function linkClientByInviteCode(

@@ -6,7 +6,7 @@ import type {
   WorkoutExerciseRow,
   WorkoutRow,
   WorkoutType,
-} from '@habito/shared/types/database';
+} from '@reset-fitness/shared/types/database';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { ErrorState, LoadingRows } from '@/components/ui';

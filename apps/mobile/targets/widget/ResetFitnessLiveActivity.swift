@@ -3,15 +3,15 @@ import WidgetKit
 import SwiftUI
 
 @main
-struct HabitoWidgetBundle: WidgetBundle {
+struct ResetFitnessWidgetBundle: WidgetBundle {
   var body: some Widget {
-    HabitoWorkoutLiveActivity()
+    ResetFitnessWorkoutLiveActivity()
   }
 }
 
-struct HabitoWorkoutLiveActivity: Widget {
+struct ResetFitnessWorkoutLiveActivity: Widget {
   var body: some WidgetConfiguration {
-    ActivityConfiguration(for: HabitoWorkoutAttributes.self) { context in
+    ActivityConfiguration(for: ResetFitnessWorkoutAttributes.self) { context in
       // Tarjeta de pantalla bloqueada / banner
       LockScreenView(context: context)
         .activityBackgroundTint(Color.black.opacity(0.92))
@@ -55,7 +55,7 @@ struct HabitoWorkoutLiveActivity: Widget {
 // MARK: - Subvistas
 
 private struct LockScreenView: View {
-  let context: ActivityViewContext<HabitoWorkoutAttributes>
+  let context: ActivityViewContext<ResetFitnessWorkoutAttributes>
 
   var body: some View {
     HStack(spacing: 14) {

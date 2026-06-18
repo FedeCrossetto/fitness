@@ -5,7 +5,7 @@ import Constants from 'expo-constants';
 import { Linking, Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
 
-export const PUSH_MESSAGES_PREF_KEY = 'habito:push-messages-enabled';
+export const PUSH_MESSAGES_PREF_KEY = 'reset-fitness:push-messages-enabled';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({

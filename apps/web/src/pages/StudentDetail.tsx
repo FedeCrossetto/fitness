@@ -12,7 +12,7 @@ import type {
   SubscriptionRow,
   UserProfileRow,
   WorkoutLogRow,
-} from '@habito/shared/types/database';
+} from '@reset-fitness/shared/types/database';
 import { supabase } from '@/lib/supabase';
 import { RoutineManager } from '@/components/RoutineManager';
 import { Lightbox } from '@/components/ui';
@@ -1103,16 +1103,16 @@ function openEvidencePDF(ws: WaiverSignature, clientName: string): void {
     <div class="meta-row"><span class="meta-key">Cliente (ID):</span><span class="meta-val">${ws.id}</span></div>
     <div class="meta-row"><span class="meta-key">Fecha y hora:</span><span class="meta-val">${dateStr}</span></div>
     <div class="meta-row"><span class="meta-key">Documento:</span><span class="meta-val">${docTitle}</span></div>
-    <div class="meta-row"><span class="meta-key">Método:</span><span class="meta-val">Firma digital con dedo / mouse en app Habito</span></div>
+    <div class="meta-row"><span class="meta-key">Método:</span><span class="meta-val">Firma digital con dedo / mouse en app Reset Fit</span></div>
   </div>
 </div>
 
 <div class="legal-notice">
-  <strong>Nota legal:</strong> Este documento constituye evidencia de que el firmante aceptó los términos del deslinde de responsabilidad descritos arriba. La firma fue capturada digitalmente mediante la aplicación Habito, con registro de identidad (nombre completo), fecha y hora UTC. El texto guardado corresponde exactamente al documento presentado al firmante al momento de la aceptación (snapshot inmutable). Este registro puede ser utilizado como evidencia ante reclamaciones.
+  <strong>Nota legal:</strong> Este documento constituye evidencia de que el firmante aceptó los términos del deslinde de responsabilidad descritos arriba. La firma fue capturada digitalmente mediante la aplicación Reset Fit, con registro de identidad (nombre completo), fecha y hora UTC. El texto guardado corresponde exactamente al documento presentado al firmante al momento de la aceptación (snapshot inmutable). Este registro puede ser utilizado como evidencia ante reclamaciones.
 </div>
 
 <div class="footer">
-  <span>Generado por Habito · ${new Date().toLocaleDateString('es-AR')}</span>
+  <span>Generado por Reset Fit · ${new Date().toLocaleDateString('es-AR')}</span>
   <span>ID: ${recordId}</span>
 </div>
 

@@ -10,7 +10,7 @@ interface CacheEnvelope<T> {
   cachedAt: number;
 }
 
-const PREFIX = 'habito:cache:';
+const PREFIX = 'reset-fitness:cache:';
 
 export async function readCache<T>(key: string): Promise<T | null> {
   try {

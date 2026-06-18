@@ -1,5 +1,5 @@
 /**
- * Sistema monocromático Habito: escala tonal verde lima sobre base oscura (dark)
+ * Sistema monocromático Reset Fit: escala tonal verde lima sobre base oscura (dark)
  * o clara (light). PROHIBIDO usar colores fuera de esta escala (salvo warning/error).
  *
  * Para probar otra variedad de marca, alcanza con tocar `palette` (dark) y

@@ -50,7 +50,7 @@ grant execute on function private.is_my_client(uuid) to authenticated;
 -- ── 3. trainer_branding: espeja ClientConfig + invite_code ──
 create table if not exists public.trainer_branding (
   trainer_id        uuid primary key references auth.users(id) on delete cascade,
-  app_name          text not null default 'Habito',
+  app_name          text not null default 'Reset Fit',
   invite_code       text not null unique,
   -- Colores (overrides del tema; null = usar default del core)
   color_primary     text,

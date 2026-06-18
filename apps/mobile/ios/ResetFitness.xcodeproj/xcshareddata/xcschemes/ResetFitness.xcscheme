@@ -15,9 +15,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-               BuildableName = "Habito.app"
-               BlueprintName = "Habito"
-               ReferencedContainer = "container:Habito.xcodeproj">
+               BuildableName = "ResetFit.app"
+               BlueprintName = "ResetFitness"
+               ReferencedContainer = "container:ResetFitness.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -33,9 +33,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "00E356ED1AD99517003FC87E"
-               BuildableName = "HabitoTests.xctest"
-               BlueprintName = "HabitoTests"
-               ReferencedContainer = "container:Habito.xcodeproj">
+               BuildableName = "ResetFitnessTests.xctest"
+               BlueprintName = "ResetFitnessTests"
+               ReferencedContainer = "container:ResetFitness.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -55,9 +55,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-            BuildableName = "Habito.app"
-            BlueprintName = "Habito"
-            ReferencedContainer = "container:Habito.xcodeproj">
+            BuildableName = "ResetFit.app"
+            BlueprintName = "ResetFitness"
+            ReferencedContainer = "container:ResetFitness.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -72,9 +72,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-            BuildableName = "Habito.app"
-            BlueprintName = "Habito"
-            ReferencedContainer = "container:Habito.xcodeproj">
+            BuildableName = "ResetFit.app"
+            BlueprintName = "ResetFitness"
+            ReferencedContainer = "container:ResetFitness.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

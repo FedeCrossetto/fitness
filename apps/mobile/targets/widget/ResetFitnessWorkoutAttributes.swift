@@ -2,10 +2,10 @@ import ActivityKit
 import Foundation
 
 // IMPORTANTE: copia EXACTA de
-// modules/activity-controller/ios/HabitoWorkoutAttributes.swift.
+// modules/activity-controller/ios/ResetFitnessWorkoutAttributes.swift.
 // iOS empareja la Live Activity con este widget por el nombre del tipo, así que
 // ambas copias deben quedar idénticas. Si cambiás una, cambiá la otra.
-public struct HabitoWorkoutAttributes: ActivityAttributes {
+public struct ResetFitnessWorkoutAttributes: ActivityAttributes {
   public struct ContentState: Codable, Hashable {
     public var completed: Int
     public var total: Int

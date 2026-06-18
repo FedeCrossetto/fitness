@@ -1,4 +1,4 @@
-# Contexto para implementar pantallas de Habito
+# Contexto para implementar pantallas de Reset Fit
 
 App móvil de fitness (Expo SDK 56 + React Native + React 19 + TypeScript strict). Idioma del producto: ESPAÑOL (es-AR), copy claro, motivador, premium. Estética minimalista deportiva: fondo negro #0C0C0C, acento verde lima #BEFC50, tipografía Inter.
 

@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import type { ProfileRow } from '@habito/shared/types/database';
+import type { ProfileRow } from '@reset-fitness/shared/types/database';
 import { supabase } from '@/lib/supabase';
 
 interface AuthState {

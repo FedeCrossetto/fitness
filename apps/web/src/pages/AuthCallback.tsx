@@ -143,7 +143,7 @@ export function OAuthRedirectGuard(): null {
   useEffect(() => {
     const { pathname, search, hash } = window.location;
 
-    if (pathname === '/auth/callback') return;
+    if (pathname === '/auth/callback' || pathname === '/auth/mobile-callback') return;
 
     if (hash.includes('access_token=') || hash.includes('error=') || hash.includes('error_description=')) {
       navigate(`/auth/callback${search}${hash}`, { replace: true });

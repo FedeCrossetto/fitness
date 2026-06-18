@@ -197,7 +197,7 @@ export const useProgressStore = create<ProgressState>()(
   },
     }),
     {
-      name: 'habito-progress',
+      name: 'reset-fitness-progress',
       storage: createJSONStorage(() => AsyncStorage),
       // Solo persistimos la conexión a Salud; los pasos se re-leen frescos al abrir.
       partialize: (state) => ({

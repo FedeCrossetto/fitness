@@ -102,6 +102,7 @@ interface AuthButtonProps {
   loading?: boolean;
   disabled?: boolean;
   fullWidth?: boolean;
+  variant?: 'default' | 'brand';
   style?: StyleProp<ViewStyle>;
 }
 
@@ -111,9 +112,11 @@ export function AuthButton({
   loading = false,
   disabled = false,
   fullWidth = false,
+  variant = 'default',
   style,
 }: AuthButtonProps): React.JSX.Element {
   const isDisabled = disabled || loading;
+  const isBrand = variant === 'brand';
 
   return (
     <Pressable
@@ -123,6 +126,7 @@ export function AuthButton({
       disabled={isDisabled}
       style={({ pressed }) => [
         styles.primaryBtn,
+        isBrand && styles.primaryBtnBrand,
         fullWidth && styles.fullWidth,
         pressed && !isDisabled && styles.pressed,
         isDisabled && styles.disabled,
@@ -130,9 +134,12 @@ export function AuthButton({
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={authColors.buttonPrimaryText} />
+        <ActivityIndicator color={isBrand ? authColors.buttonBrandText : authColors.buttonPrimaryText} />
       ) : (
-        <AppText variant="body16SemiBold" color={authColors.buttonPrimaryText}>
+        <AppText
+          variant="body16SemiBold"
+          color={isBrand ? authColors.buttonBrandText : authColors.buttonPrimaryText}
+        >
           {label}
         </AppText>
       )}
@@ -202,6 +209,9 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.xl,
     backgroundColor: authColors.buttonPrimary,
+  },
+  primaryBtnBrand: {
+    backgroundColor: authColors.buttonBrand,
   },
   oauthBtn: {
     flexDirection: 'row',

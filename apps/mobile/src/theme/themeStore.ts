@@ -21,7 +21,7 @@ export const useThemeStore = create<ThemeState>()(
       setMode: (mode) => set({ mode }),
     }),
     {
-      name: 'habito-theme',
+      name: 'reset-fitness-theme',
       storage: createJSONStorage(() => AsyncStorage),
     },
   ),

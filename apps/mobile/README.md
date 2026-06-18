@@ -1,4 +1,4 @@
-# Habito
+# Reset Fit
 
 App móvil de fitness/coaching multi-cliente (white-label) con 3 pilares — **Entrenamiento**, **Nutrición** y **Progreso/Salud** — más capa social (comunidad), relación cliente–coach (rutinas, mensajería), metas diarias, logros/rachas y suscripciones con Mercado Pago.
 
@@ -8,7 +8,7 @@ Stack: **Expo SDK 56 · React Native 0.85 · React 19 · TypeScript strict · Re
 
 ## Supuestos y decisiones por defecto
 
-- **Nombre comercial**: "Habito" (configurable por cliente en `src/config/clientConfig.ts`, junto con módulos activos, copy y defaults de negocio).
+- **Nombre comercial**: "Reset Fit" (configurable por cliente en `src/config/clientConfig.ts`, junto con módulos activos, copy y defaults de negocio).
 - **Idioma**: español (es-AR) por defecto; los strings están centralizados en pantallas/config con arquitectura lista para extraer a i18n.
 - **Mascota 3D**: se usan las ilustraciones provistas por el cliente (`assets/mascot/`), recortadas por pose desde los sprite sheets originales con `scripts/crop_mascot.py`.
 - **Fechas de datos diarios** (`date` en DB): fecha local del dispositivo (helpers en `src/lib/dates.ts`); timestamps en UTC.
@@ -71,7 +71,7 @@ supabase functions deploy push-goal-completed --no-verify-jwt
 
 ### 5. OAuth (Apple / Google)
 
-Habilitar los providers en Supabase Auth y agregar el redirect `habito://` a *Redirect URLs*.
+Habilitar los providers en Supabase Auth y agregar el redirect `reset-fitness://` a *Redirect URLs*.
 
 ### 6. Correr la app
 

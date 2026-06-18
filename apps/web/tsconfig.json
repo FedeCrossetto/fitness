@@ -17,8 +17,8 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
     "paths": {
-      "@habito/shared": ["../../packages/shared/src"],
-      "@habito/shared/*": ["../../packages/shared/src/*"],
+      "@reset-fitness/shared": ["../../packages/shared/src"],
+      "@reset-fitness/shared/*": ["../../packages/shared/src/*"],
       "@/*": ["./src/*"]
     }
   },

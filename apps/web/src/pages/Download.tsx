@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { normalizeInviteCode } from '@habito/shared';
+import { normalizeInviteCode } from '@reset-fitness/shared';
 
 type Platform = 'ios' | 'android' | 'other';
 

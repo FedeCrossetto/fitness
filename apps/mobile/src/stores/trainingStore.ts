@@ -50,7 +50,7 @@ export interface ActiveSession {
   calories: number | null;
 }
 
-const ACTIVE_SESSION_KEY = 'habito:activeSession';
+const ACTIVE_SESSION_KEY = 'reset-fitness:activeSession';
 
 function liveStateFrom(
   session: ActiveSession,

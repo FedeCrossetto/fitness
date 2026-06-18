@@ -2,8 +2,8 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeModules, Platform } from 'react-native';
-import { es, en, i } from '@habito/shared';
-import type { Language, Translations } from '@habito/shared';
+import { es, en, i } from '@reset-fitness/shared';
+import type { Language, Translations } from '@reset-fitness/shared';
 
 const TRANSLATIONS: Record<Language, Translations> = { es, en };
 
@@ -36,7 +36,7 @@ export const useI18nStore = create<I18nState>()(
       setLanguage: (lang) => set({ language: lang }),
     }),
     {
-      name: 'habito-language',
+      name: 'reset-fitness-language',
       storage: createJSONStorage(() => AsyncStorage),
     },
   ),

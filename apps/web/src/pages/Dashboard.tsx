@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { ProfileRow, WorkoutLogRow, MealLogRow, ProgressPhotoRow, BodyMeasurementRow } from '@habito/shared/types/database';
+import type { ProfileRow, WorkoutLogRow, MealLogRow, ProgressPhotoRow, BodyMeasurementRow } from '@reset-fitness/shared/types/database';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useTranslation } from '@/hooks/useTranslation';

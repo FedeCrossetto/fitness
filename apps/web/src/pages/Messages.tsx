@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import type { MessageRow, ProfileRow } from '@habito/shared/types/database';
+import type { MessageRow, ProfileRow } from '@reset-fitness/shared/types/database';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { ChatPanel } from '@/components/ChatPanel';

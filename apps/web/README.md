@@ -15,7 +15,7 @@ Este paquete vive en el monorepo. Las dependencias se instalan una sola vez
 desde la raíz (npm workspaces) y la web se levanta con el script del root.
 
 ```bash
-# desde la raíz del repo (habito/)
+# desde la raíz del repo (reset-fitness/)
 npm install                       # instala todos los workspaces
 cp apps/web/.env.example apps/web/.env.local   # completá VITE_SUPABASE_ANON_KEY
 npm run web                       # http://localhost:5173
@@ -37,7 +37,7 @@ La seguridad real la imponen las RLS del backend, no el frontend.
 
 ```
 src/
-  lib/supabase.ts      → cliente (usa la fábrica de @habito/shared)
+  lib/supabase.ts      → cliente (usa la fábrica de @reset-fitness/shared)
   hooks/useAuth.tsx    → sesión + perfil + guard de rol
   components/Layout.tsx→ shell con sidebar
   pages/

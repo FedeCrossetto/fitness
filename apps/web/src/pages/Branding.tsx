@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
-import type { TrainerBrandingRow } from '@habito/shared/types/database';
-import { buildInviteLink } from '@habito/shared';
+import type { TrainerBrandingRow } from '@reset-fitness/shared/types/database';
+import { buildInviteLink } from '@reset-fitness/shared';
 import { getJoinBaseUrl } from '@/lib/inviteClient';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';

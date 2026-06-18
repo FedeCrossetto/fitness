@@ -55,7 +55,7 @@ public class ActivityControllerModule: Module {
     }
 
     Function("isActivityRunning") { () -> Bool in
-      !Activity<HabitoWorkoutAttributes>.activities.isEmpty
+      !Activity<ResetFitnessWorkoutAttributes>.activities.isEmpty
     }
 
     AsyncFunction("startLiveActivity") { (rawData: String, promise: Promise) in
@@ -66,13 +66,13 @@ public class ActivityControllerModule: Module {
         throw ActivityUnavailableException(())
       }
 
-      let state = HabitoWorkoutAttributes.ContentState(
+      let state = ResetFitnessWorkoutAttributes.ContentState(
         completed: args.completed,
         total: args.total
       )
 
       // Si ya hay una corriendo, la actualizamos en lugar de duplicar.
-      if let existing = Activity<HabitoWorkoutAttributes>.activities.first {
+      if let existing = Activity<ResetFitnessWorkoutAttributes>.activities.first {
         Task {
           await existing.update(ActivityContent(state: state, staleDate: nil))
           promise.resolve(existing.id)
@@ -80,7 +80,7 @@ public class ActivityControllerModule: Module {
         return
       }
 
-      let attributes = HabitoWorkoutAttributes(
+      let attributes = ResetFitnessWorkoutAttributes(
         workoutTitle: args.workoutTitle,
         startedAt: args.startedAt
       )
@@ -99,11 +99,11 @@ public class ActivityControllerModule: Module {
       guard let args = UpdateArgs.fromJSON(rawData) else {
         throw ActivityDataException(rawData)
       }
-      guard let activity = Activity<HabitoWorkoutAttributes>.activities.first else {
+      guard let activity = Activity<ResetFitnessWorkoutAttributes>.activities.first else {
         promise.resolve()
         return
       }
-      let state = HabitoWorkoutAttributes.ContentState(
+      let state = ResetFitnessWorkoutAttributes.ContentState(
         completed: args.completed,
         total: args.total
       )
@@ -114,7 +114,7 @@ public class ActivityControllerModule: Module {
     }
 
     AsyncFunction("stopLiveActivity") { (promise: Promise) in
-      let activities = Activity<HabitoWorkoutAttributes>.activities
+      let activities = Activity<ResetFitnessWorkoutAttributes>.activities
       guard !activities.isEmpty else {
         promise.resolve()
         return

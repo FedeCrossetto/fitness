@@ -25,7 +25,7 @@ export interface LiveWorkoutState {
   total: number;
 }
 
-const WORKOUT_NOTIFICATION_ID = 'habito:live-workout';
+const WORKOUT_NOTIFICATION_ID = 'reset-fitness:live-workout';
 const WORKOUT_CHANNEL_ID = 'workout';
 const BRAND_COLOR = '#BEFC50';
 

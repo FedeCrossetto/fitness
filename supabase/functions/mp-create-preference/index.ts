@@ -4,7 +4,7 @@
 //
 // Secrets requeridos (supabase secrets set):
 //   MP_ACCESS_TOKEN  — access token de Mercado Pago (NUNCA en el cliente)
-//   APP_BASE_URL     — URL base para back_urls (ej: https://habito.app)
+//   APP_BASE_URL     — URL base para back_urls (ej: https://resetfit.app)
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
@@ -16,7 +16,7 @@ Deno.serve(async (req) => {
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const mpToken = Deno.env.get('MP_ACCESS_TOKEN');
-  const appBaseUrl = Deno.env.get('APP_BASE_URL') ?? 'https://habito.app';
+  const appBaseUrl = Deno.env.get('APP_BASE_URL') ?? 'https://resetfit.app';
 
   if (!mpToken) {
     return new Response(JSON.stringify({ error: 'MP_ACCESS_TOKEN no configurado' }), { status: 500 });
@@ -82,7 +82,7 @@ Deno.serve(async (req) => {
     items: [
       {
         id: plan.id,
-        title: `Habito — ${plan.name}`,
+        title: `Reset Fit — ${plan.name}`,
         description: plan.description ?? '',
         quantity: 1,
         currency_id: 'ARS',

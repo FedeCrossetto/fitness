@@ -41,7 +41,7 @@ export interface ClientConfig {
 }
 
 export const defaultClientConfig: ClientConfig = {
-  appName: 'R3SET',
+  appName: 'Reset Fit',
   programKey: 'default',
   defaultLocale: 'es',
   defaultHydrationGoalMl: 3000,
@@ -60,7 +60,7 @@ export const defaultClientConfig: ClientConfig = {
     healthKit: true,
   },
   copy: {
-    welcomeTitle: 'BIENVENIDO A R3SET',
+    welcomeTitle: 'BIENVENIDO A RESET FIT',
     welcomeSubtitle: 'Entrená, comé mejor y medí tu progreso. Todo en un solo lugar.',
     onboardingCta: 'Empezar ahora',
   },

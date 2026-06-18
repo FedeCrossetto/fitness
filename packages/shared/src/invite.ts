@@ -1,5 +1,5 @@
 /** Clave para persistir el código de invitación entre OAuth y registro. */
-export const INVITE_CODE_STORAGE_KEY = 'habito_pending_invite_code';
+export const INVITE_CODE_STORAGE_KEY = 'reset-fitness_pending_invite_code';
 
 /** Normaliza un código de invitación. */
 export function normalizeInviteCode(code: string | null | undefined): string {
@@ -20,12 +20,13 @@ export function buildAppDeepLink(code: string, joined = false): string {
   if (clean) params.set('code', clean);
   if (joined) params.set('joined', '1');
   const qs = params.toString();
-  return qs ? `habito://unirse?${qs}` : 'habito://unirse';
+  return qs ? `reset-fitness://unirse?${qs}` : 'reset-fitness://unirse';
 }
 
 export interface InvitePreview {
   app_name: string;
   logo_url: string | null;
   trainer_name: string | null;
+  trainer_avatar_url: string | null;
   invite_code: string;
 }

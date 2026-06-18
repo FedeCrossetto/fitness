@@ -1,9 +1,9 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
-import { es, en, i } from '@habito/shared';
-import type { Language, Translations } from '@habito/shared';
+import { es, en, i } from '@reset-fitness/shared';
+import type { Language, Translations } from '@reset-fitness/shared';
 
 const TRANSLATIONS: Record<Language, Translations> = { es, en };
-const STORAGE_KEY = 'habito-language';
+const STORAGE_KEY = 'reset-fitness-language';
 
 function detectLanguage(): Language {
   const saved = localStorage.getItem(STORAGE_KEY) as Language | null;

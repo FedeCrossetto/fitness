@@ -12,7 +12,7 @@ import {
   savePendingInviteCode,
   type InvitePreview,
 } from '@/lib/inviteClient';
-import { buildAppDeepLink } from '@habito/shared';
+import { buildAppDeepLink } from '@reset-fitness/shared';
 
 const APK_URL = import.meta.env.VITE_ANDROID_APK_URL as string | undefined;
 const TESTFLIGHT_URL = import.meta.env.VITE_IOS_TESTFLIGHT_URL as string | undefined;
@@ -205,7 +205,7 @@ export function JoinPage(): React.JSX.Element {
           <div className="join-download-actions">
             {onMobile && appDeepLink ? (
               <a className="btn" href={appDeepLink} style={{ textDecoration: 'none', textAlign: 'center' }}>
-                Abrir app Habito
+                Abrir Reset Fit
               </a>
             ) : null}
             {APK_URL ? (

@@ -5,7 +5,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      '@habito/shared': new URL('../../packages/shared/src', import.meta.url).pathname,
+      '@reset-fitness/shared': new URL('../../packages/shared/src', import.meta.url).pathname,
       '@': new URL('./src', import.meta.url).pathname,
     },
   },

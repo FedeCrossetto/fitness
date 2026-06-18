@@ -11,6 +11,7 @@ import { Layout } from '@/components/Layout';
 import { LoginPage } from '@/pages/Login';
 import { JoinPage } from '@/pages/Join';
 import { AuthCallbackPage, OAuthRedirectGuard } from '@/pages/AuthCallback';
+import { AuthMobileCallbackPage } from '@/pages/AuthMobileCallback';
 import { DownloadPage } from '@/pages/Download';
 
 // Páginas internas: lazy para no inflar el bundle inicial.
@@ -72,6 +73,7 @@ function App(): React.JSX.Element {
           <Route path="/descargar" element={<DownloadPage />} />
           <Route path="/unirse" element={<JoinPage />} />
           <Route path="/auth/callback" element={<AuthCallbackPage />} />
+          <Route path="/auth/mobile-callback" element={<AuthMobileCallbackPage />} />
           <Route element={<Protected />}>
             <Route path="/" element={<DashboardPage />} />
             <Route path="/messages" element={<MessagesPage />} />

@@ -3,7 +3,7 @@ import {
   buildInviteLink,
   normalizeInviteCode,
   type InvitePreview,
-} from '@habito/shared';
+} from '@reset-fitness/shared';
 import { supabase } from '@/lib/supabase';
 
 export { INVITE_CODE_STORAGE_KEY, buildInviteLink, normalizeInviteCode, type InvitePreview };

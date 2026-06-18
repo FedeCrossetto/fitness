@@ -28,7 +28,7 @@ interface Config {
 
 const TRIGGERS: TriggerDef[] = [
   // Onboarding
-  { group: 'Onboarding', key: 'first_sign_in',    schedule: 'instant',     description: 'Al registrarse por primera vez', defaultMessage: '¡Bienvenido/a a Habito! 🎉 Soy tu entrenador y estoy acá para ayudarte a alcanzar tus objetivos. Cualquier duda, escribime.' },
+  { group: 'Onboarding', key: 'first_sign_in',    schedule: 'instant',     description: 'Al registrarse por primera vez', defaultMessage: '¡Bienvenido/a a Reset Fit! 🎉 Soy tu entrenador y estoy acá para ayudarte a alcanzar tus objetivos. Cualquier duda, escribime.' },
   { group: 'Onboarding', key: 'day_3',             schedule: '9am — Día 3', description: '3 días después del registro',    defaultMessage: '¿Cómo te está yendo estos primeros días? Acordate de registrar tus comidas y tus entrenos para que pueda ver tu progreso.' },
   { group: 'Onboarding', key: 'day_7',             schedule: '9am — Día 7', description: '7 días después del registro',    defaultMessage: '¡Llegaste a tu primera semana! 💪 Seguí así, la constancia es la clave. Revisá tus metas y contame cómo te sentís.' },
   { group: 'Onboarding', key: 'day_14',            schedule: '9am — Día 14', description: '14 días después del registro',  defaultMessage: '¡Dos semanas completadas! ¿Cómo vas con el plan? Este es buen momento para hacer un check-in y ajustar lo que sea necesario.' },

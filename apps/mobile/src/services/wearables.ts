@@ -30,7 +30,7 @@ export function openPlatformHealthSettings(): void {
   openHealthConnectSettingsScreen();
 }
 
-/** Guía para que Garmin / reloj alimente Habito vía Salud o Health Connect. */
+/** Guía para que Garmin / reloj alimente Reset Fit vía Salud o Health Connect. */
 export function showGarminSetupGuide(t: GarminGuideCopy): void {
   const isIos = Platform.OS === 'ios';
   Alert.alert(

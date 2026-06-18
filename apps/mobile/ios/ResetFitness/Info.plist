@@ -7,7 +7,7 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>$(DEVELOPMENT_LANGUAGE)</string>
     <key>CFBundleDisplayName</key>
-    <string>Habito</string>
+    <string>Reset Fit</string>
     <key>CFBundleExecutable</key>
     <string>$(EXECUTABLE_NAME)</string>
     <key>CFBundleIdentifier</key>
@@ -27,8 +27,14 @@
       <dict>
         <key>CFBundleURLSchemes</key>
         <array>
-          <string>habito</string>
-          <string>com.fedecrossetto.habito</string>
+          <string>reset-fitness</string>
+          <string>com.fedecrossetto.resetfitness</string>
+        </array>
+      </dict>
+      <dict>
+        <key>CFBundleURLSchemes</key>
+        <array>
+          <string>exp+reset-fitness</string>
         </array>
       </dict>
     </array>
@@ -46,21 +52,28 @@
       <true/>
     </dict>
     <key>NSCameraUsageDescription</key>
-    <string>Habito usa la cámara para escanear códigos de barras y tomar fotos de progreso.</string>
+    <string>Reset Fit usa la cámara para escanear códigos de barras y tomar fotos de progreso.</string>
     <key>NSFaceIDUsageDescription</key>
     <string>Allow $(PRODUCT_NAME) to access your Face ID biometric data.</string>
     <key>NSHealthShareUsageDescription</key>
-    <string>Habito lee peso, pasos, frecuencia cardíaca y sueño de Apple Health para completar tu progreso.</string>
+    <string>Reset Fit lee peso, pasos, frecuencia cardíaca y sueño de Apple Health para completar tu progreso.</string>
     <key>NSHealthUpdateUsageDescription</key>
-    <string>Habito puede guardar tu peso y entrenamientos en Apple Health.</string>
+    <string>Reset Fit puede guardar tu peso y entrenamientos en Apple Health.</string>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Habito usa el micrófono para registrar comidas por voz.</string>
+    <string>Reset Fit usa el micrófono para registrar comidas por voz.</string>
     <key>NSMotionUsageDescription</key>
-    <string>Habito cuenta tus pasos diarios con el sensor de movimiento.</string>
+    <string>Reset Fit cuenta tus pasos diarios con el sensor de movimiento.</string>
     <key>NSPhotoLibraryUsageDescription</key>
-    <string>Habito accede a tus fotos para tu avatar y fotos de progreso.</string>
+    <string>Reset Fit accede a tus fotos para tu avatar y fotos de progreso.</string>
     <key>NSSpeechRecognitionUsageDescription</key>
-    <string>Habito convierte tu voz en texto para registrar comidas.</string>
+    <string>Reset Fit convierte tu voz en texto para registrar comidas.</string>
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>Reset Fit necesita acceder a la red local para conectarse al servidor de desarrollo (Metro) en tu computadora.</string>
+    <key>NSBonjourServices</key>
+    <array>
+      <string>_expo._tcp</string>
+      <string>_react-native._tcp</string>
+    </array>
     <key>NSSupportsLiveActivities</key>
     <true/>
     <key>RCTNewArchEnabled</key>

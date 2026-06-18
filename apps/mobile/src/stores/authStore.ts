@@ -12,7 +12,7 @@ import {
   savePendingInviteCode,
 } from '../services/invite';
 import { INVITE_REQUIRED_MESSAGE } from '../services/clientAccess';
-import { completeOAuthFromUrl, getOAuthRedirectUri } from '../lib/oauthRedirect';
+import { completeOAuthFromUrl, getOAuthRedirectUri, getOAuthReturnUri } from '../lib/oauthRedirect';
 import type { ProfileRow, UserProfileRow } from '../types/database';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -217,13 +217,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (pending) await savePendingInviteCode(pending);
 
       const redirectTo = getOAuthRedirectUri();
+      const returnUri = getOAuthReturnUri();
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
-        options: { redirectTo, skipBrowserRedirect: true },
+        options: {
+          redirectTo,
+          skipBrowserRedirect: true,
+          queryParams: { prompt: 'select_account' },
+        },
       });
       if (error) throw error;
 
-      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+      const result = await WebBrowser.openAuthSessionAsync(data.url, returnUri);
       if (result.type !== 'success') {
         set({ loading: false });
         return false;
