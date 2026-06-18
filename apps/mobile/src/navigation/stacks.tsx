@@ -1,7 +1,6 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import type { NativeStackNavigationOptions } from '@react-navigation/native-stack';
-import { useTheme } from '../theme';
 import type {
   AuthStackParamList,
   HomeStackParamList,
@@ -9,6 +8,8 @@ import type {
   ProgressStackParamList,
   TrainingStackParamList,
 } from '../types/navigation';
+import { authColors } from '../screens/auth/authScreenTheme';
+import { useTheme } from '../theme';
 
 import { LoginScreen } from '../screens/auth/LoginScreen';
 import { SignUpScreen } from '../screens/auth/SignUpScreen';
@@ -49,9 +50,13 @@ function useStackOptions(): NativeStackNavigationOptions {
 
 const Auth = createNativeStackNavigator<AuthStackParamList>();
 export function AuthStack(): React.JSX.Element {
-  const defaultOptions = useStackOptions();
   return (
-    <Auth.Navigator screenOptions={defaultOptions}>
+    <Auth.Navigator
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: authColors.background },
+      }}
+    >
       <Auth.Screen name="Login" component={LoginScreen} />
       <Auth.Screen name="SignUp" component={SignUpScreen} />
     </Auth.Navigator>

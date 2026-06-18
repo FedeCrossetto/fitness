@@ -130,11 +130,35 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     supabase.auth.onAuthStateChange((_event, session) => {
       if (!session) {
-        set({ session: null, profile: null, userProfile: null, needsOnboarding: false });
+        set({ session: null, profile: null, userProfile: null, needsOnboarding: false, loading: false });
         useBrandingStore.getState().clear();
-      } else {
-        set({ session });
+        return;
       }
+
+      // signIn / signUp / OAuth ya resuelven perfil en commitSession
+      if (get().loading) return;
+
+      const currentId = get().session?.user.id;
+      if (currentId === session.user.id) {
+        set({ session });
+        return;
+      }
+
+      set({ session, profile: null, userProfile: null, loading: true });
+      void (async () => {
+        try {
+          const { profile, userProfile } = await finishAuthSession(session);
+          set({
+            profile,
+            userProfile,
+            needsOnboarding: !profile?.goal,
+            loading: false,
+          });
+          await useBrandingStore.getState().load();
+        } catch {
+          set({ loading: false });
+        }
+      })();
     });
   },
 

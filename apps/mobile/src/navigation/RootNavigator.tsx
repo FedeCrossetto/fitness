@@ -1,13 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
-import { Image } from 'expo-image';
+import React, { useEffect, useState } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { illustrations, spacing, useTheme } from '../theme';
+import { useTheme } from '../theme';
 import { useAuthStore } from '../stores/authStore';
 import { useBrandingStore } from '../stores/brandingStore';
 import { useTrainingStore } from '../stores/trainingStore';
-import { AppText } from '../components/common';
-import { useClientConfig } from '../config/useClientConfig';
+import { AuthLoadingOverlay } from '../components/common';
 import type { MainTabsParamList } from '../types/navigation';
 import { TabBar } from './TabBar';
 import { AddMenuOverlay } from './AddMenuOverlay';
@@ -49,62 +46,16 @@ function MainTabs(): React.JSX.Element {
   );
 }
 
-function SplashGate(): React.JSX.Element {
-  const { colors } = useTheme();
-  const clientConfig = useClientConfig();
-  const dot1 = useRef(new Animated.Value(0)).current;
-  const dot2 = useRef(new Animated.Value(0)).current;
-  const dot3 = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const pulse = (dot: Animated.Value, delay: number) =>
-      Animated.loop(
-        Animated.sequence([
-          Animated.delay(delay),
-          Animated.timing(dot, { toValue: 1, duration: 300, useNativeDriver: true }),
-          Animated.timing(dot, { toValue: 0, duration: 300, useNativeDriver: true }),
-          Animated.delay(600),
-        ])
-      );
-    const a1 = pulse(dot1, 0);
-    const a2 = pulse(dot2, 200);
-    const a3 = pulse(dot3, 400);
-    a1.start(); a2.start(); a3.start();
-    return () => { a1.stop(); a2.stop(); a3.stop(); };
-  }, [dot1, dot2, dot3]);
-
-  return (
-    <View style={[styles.splash, { backgroundColor: colors.background }]}>
-      <Image source={illustrations.login} style={styles.mascot} contentFit="contain" priority="high" />
-      <AppText variant="h2" color={colors.text.primary} style={styles.brand}>
-        {clientConfig.appName}
-      </AppText>
-      <View style={styles.loadingRow}>
-        <AppText variant="body14" color={colors.text.tertiary}>
-          Cargando
-        </AppText>
-        {([dot1, dot2, dot3] as Animated.Value[]).map((dot, i) => (
-          <Animated.Text
-            key={i}
-            style={[styles.dot, { color: colors.primary.default, opacity: dot }]}
-          >
-            .
-          </Animated.Text>
-        ))}
-      </View>
-    </View>
-  );
-}
-
 /** Decide entre Auth, Onboarding, WaiverGate y App según la sesión de Supabase. */
 export function RootNavigator(): React.JSX.Element {
   useInviteDeepLink();
 
-  const initializing        = useAuthStore((s) => s.initializing);
-  const session             = useAuthStore((s) => s.session);
-  const profile             = useAuthStore((s) => s.profile);
-  const needsOnboarding     = useAuthStore((s) => s.needsOnboarding);
-  const checkSession        = useAuthStore((s) => s.checkSession);
+  const initializing         = useAuthStore((s) => s.initializing);
+  const loading              = useAuthStore((s) => s.loading);
+  const session              = useAuthStore((s) => s.session);
+  const profile              = useAuthStore((s) => s.profile);
+  const needsOnboarding      = useAuthStore((s) => s.needsOnboarding);
+  const checkSession         = useAuthStore((s) => s.checkSession);
   const restoreActiveSession = useTrainingStore((s) => s.restoreActiveSession);
 
   // Waiver gate state
@@ -132,10 +83,18 @@ export function RootNavigator(): React.JSX.Element {
   useEffect(() => {
     if (!session || !profile?.id || needsOnboarding) {
       setWaiverChecked(true);
+      setWaiverRequired(false);
       return;
     }
     const trainerId = profile.trainer_id;
-    if (!trainerId) { setWaiverChecked(true); return; }
+    if (!trainerId) {
+      setWaiverChecked(true);
+      setWaiverRequired(false);
+      return;
+    }
+
+    let active = true;
+    setWaiverChecked(false);
 
     void (async () => {
       try {
@@ -147,7 +106,7 @@ export function RootNavigator(): React.JSX.Element {
           .maybeSingle();
 
         if (!cfg || !(cfg as WaiverCfg).require_before_start) {
-          setWaiverChecked(true);
+          if (active) setWaiverChecked(true);
           return;
         }
 
@@ -159,6 +118,8 @@ export function RootNavigator(): React.JSX.Element {
           .eq('trainer_id', trainerId)
           .maybeSingle();
 
+        if (!active) return;
+
         if (sig) {
           setWaiverChecked(true);
         } else {
@@ -167,20 +128,30 @@ export function RootNavigator(): React.JSX.Element {
           setWaiverChecked(true);
         }
       } catch {
-        setWaiverChecked(true);
+        if (active) setWaiverChecked(true);
       }
     })();
+
+    return () => { active = false; };
   }, [session, profile?.id, profile?.trainer_id, needsOnboarding]);
 
   // Consultation form gate: runs after waiver is resolved
   useEffect(() => {
-    if (!waiverChecked || waiverRequired) return; // wait for waiver check first
+    if (!waiverChecked || waiverRequired) return;
     if (!session || !profile?.id || needsOnboarding) {
       setConsultationChecked(true);
+      setConsultationRequired(false);
       return;
     }
     const trainerId = profile.trainer_id;
-    if (!trainerId) { setConsultationChecked(true); return; }
+    if (!trainerId) {
+      setConsultationChecked(true);
+      setConsultationRequired(false);
+      return;
+    }
+
+    let active = true;
+    setConsultationChecked(false);
 
     void (async () => {
       try {
@@ -190,7 +161,10 @@ export function RootNavigator(): React.JSX.Element {
           .eq('trainer_id', trainerId)
           .maybeSingle() as { data: { form_code: string } | null };
 
-        if (!cfg?.form_code?.trim()) { setConsultationChecked(true); return; }
+        if (!cfg?.form_code?.trim()) {
+          if (active) setConsultationChecked(true);
+          return;
+        }
 
         const { data: existing } = await anyClient
           .from('consultation_responses')
@@ -198,6 +172,8 @@ export function RootNavigator(): React.JSX.Element {
           .eq('client_id', profile.id)
           .eq('trainer_id', trainerId)
           .maybeSingle();
+
+        if (!active) return;
 
         if (existing) {
           setConsultationChecked(true);
@@ -207,12 +183,26 @@ export function RootNavigator(): React.JSX.Element {
           setConsultationChecked(true);
         }
       } catch {
-        setConsultationChecked(true);
+        if (active) setConsultationChecked(true);
       }
     })();
+
+    return () => { active = false; };
   }, [waiverChecked, waiverRequired, session, profile?.id, profile?.trainer_id, needsOnboarding]);
 
-  if (initializing || !waiverChecked || (waiverChecked && !waiverRequired && !consultationChecked)) return <SplashGate />;
+  const gatesPending =
+    !!session &&
+    !!profile?.id &&
+    !needsOnboarding &&
+    (!waiverChecked || (!waiverRequired && !consultationChecked));
+
+  const showLoading =
+    initializing ||
+    loading ||
+    (!!session && !profile) ||
+    gatesPending;
+
+  if (showLoading) return <AuthLoadingOverlay />;
   if (!session) return <AuthStack />;
   if (needsTrainerLink(profile)) return <LinkTrainerScreen />;
   if (needsOnboarding) return <OnboardingScreen />;
@@ -237,20 +227,3 @@ export function RootNavigator(): React.JSX.Element {
   }
   return <MainTabs />;
 }
-
-const styles = StyleSheet.create({
-  splash: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  mascot: { width: 220, height: 290 },
-  brand: { marginTop: spacing.lg },
-  loadingRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    marginTop: spacing.xl,
-    gap: 2,
-  },
-  dot: { fontSize: 22, lineHeight: 22, fontWeight: '700' },
-});

@@ -41,7 +41,7 @@ export interface ClientConfig {
 }
 
 export const defaultClientConfig: ClientConfig = {
-  appName: 'Habito',
+  appName: 'R3SET',
   programKey: 'default',
   defaultLocale: 'es',
   defaultHydrationGoalMl: 3000,
@@ -60,7 +60,7 @@ export const defaultClientConfig: ClientConfig = {
     healthKit: true,
   },
   copy: {
-    welcomeTitle: 'Bienvenido a Habito',
+    welcomeTitle: 'BIENVENIDO A R3SET',
     welcomeSubtitle: 'Entrená, comé mejor y medí tu progreso. Todo en un solo lugar.',
     onboardingCta: 'Empezar ahora',
   },

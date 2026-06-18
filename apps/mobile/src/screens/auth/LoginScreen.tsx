@@ -8,22 +8,21 @@ import {
   View,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { illustrations, spacing, radius, Colors, useThemedStyles, useTheme } from '../../theme';
-import { clientConfig } from '../../config/clientConfig';
-import { AppText, Button, Input } from '../../components/common';
+import { spacing } from '../../theme';
+import { brandAssets } from '../../theme/brand';
+import { defaultClientConfig } from '../../config/clientConfig';
+import { AppText } from '../../components/common';
 import { useAuthStore } from '../../stores/authStore';
 import { readPendingInviteCode } from '../../services/invite';
 import type { AuthStackParamList } from '../../types/navigation';
+import { authColors } from './authScreenTheme';
+import { AuthButton, AuthErrorBox, AuthGoogleButton, AuthInput } from './authUi';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 
 export function LoginScreen({ navigation, route }: Props): React.JSX.Element {
-  const { colors } = useTheme();
-  const styles = useThemedStyles(createStyles);
-
   const insets = useSafeAreaInsets();
   const { signIn, signInWithOAuth, loading, error, clearError } = useAuthStore();
   const [email, setEmail] = useState('');
@@ -53,23 +52,25 @@ export function LoginScreen({ navigation, route }: Props): React.JSX.Element {
       <ScrollView
         contentContainerStyle={[
           styles.content,
-          { paddingTop: insets.top + spacing.xl, paddingBottom: insets.bottom + spacing.xl },
+          { paddingTop: insets.top + spacing.xxl, paddingBottom: insets.bottom + spacing.xl },
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.heroWrap}>
-          <Image source={illustrations.hero} style={styles.mascot} contentFit="contain" priority="high" />
+        <View style={styles.logoWrap}>
+          <Image
+            source={brandAssets.r3setLogo}
+            style={styles.logo}
+            contentFit="contain"
+            accessibilityLabel="R3SET"
+            priority="high"
+          />
         </View>
-
-        <AppText variant="h1" color={colors.text.primary}>
-          {clientConfig.copy.welcomeTitle}
-        </AppText>
-        <AppText variant="body14" color={colors.text.secondary} style={styles.subtitle}>
-          {clientConfig.copy.welcomeSubtitle}
+        <AppText variant="body14" color={authColors.textSecondary} style={styles.subtitle}>
+          {defaultClientConfig.copy.welcomeSubtitle}
         </AppText>
 
-        <Input
+        <AuthInput
           label="Email"
           icon="mail-outline"
           placeholder="tu@email.com"
@@ -84,7 +85,7 @@ export function LoginScreen({ navigation, route }: Props): React.JSX.Element {
           error={emailError}
           containerStyle={styles.field}
         />
-        <Input
+        <AuthInput
           label="Contraseña"
           icon="lock-closed-outline"
           placeholder="••••••••"
@@ -98,16 +99,9 @@ export function LoginScreen({ navigation, route }: Props): React.JSX.Element {
           containerStyle={styles.field}
         />
 
-        {error ? (
-          <View style={styles.errorBox}>
-            <Ionicons name="alert-circle" size={16} color={colors.states.error} />
-            <AppText variant="body13" color={colors.states.error} style={styles.errorText}>
-              {error}
-            </AppText>
-          </View>
-        ) : null}
+        {error ? <AuthErrorBox message={error} /> : null}
 
-        <Button
+        <AuthButton
           label="Iniciar sesión"
           onPress={handleLogin}
           loading={loading}
@@ -118,30 +112,17 @@ export function LoginScreen({ navigation, route }: Props): React.JSX.Element {
 
         <View style={styles.dividerRow}>
           <View style={styles.divider} />
-          <AppText variant="caps11" color={colors.text.disabled}>
+          <AppText variant="caps11" color={authColors.textDisabled}>
             o continuar con
           </AppText>
           <View style={styles.divider} />
         </View>
 
-        <View style={styles.oauthRow}>
-          <Button
-            label="Apple"
-            icon="logo-apple"
-            variant="secondary"
-            onPress={() => void signInWithOAuth('apple', trainerCode, 'login')}
-            style={styles.oauthButton}
-          />
-          <Button
-            label="Google"
-            icon="logo-google"
-            variant="secondary"
-            onPress={() => void signInWithOAuth('google', trainerCode, 'login')}
-            style={styles.oauthButton}
-          />
-        </View>
+        <AuthGoogleButton
+          onPress={() => void signInWithOAuth('google', trainerCode, 'login')}
+        />
 
-        <AppText variant="body13" color={colors.text.tertiary} style={styles.oauthHint}>
+        <AppText variant="body13" color={authColors.textTertiary} style={styles.oauthHint}>
           ¿Primera vez? Registrate con el código de invitación de tu entrenador.
         </AppText>
 
@@ -150,9 +131,9 @@ export function LoginScreen({ navigation, route }: Props): React.JSX.Element {
           style={styles.footer}
           accessibilityRole="button"
         >
-          <AppText variant="body14" color={colors.text.secondary}>
+          <AppText variant="body14" color={authColors.textSecondary}>
             ¿No tenés cuenta?{' '}
-            <AppText variant="body14SemiBold" color={colors.primary.default}>
+            <AppText variant="body14SemiBold" color={authColors.textPrimary}>
               Registrate
             </AppText>
           </AppText>
@@ -162,23 +143,19 @@ export function LoginScreen({ navigation, route }: Props): React.JSX.Element {
   );
 }
 
-const createStyles = (colors: Colors) => StyleSheet.create({
-  flex: { flex: 1, backgroundColor: colors.background },
+const styles = StyleSheet.create({
+  flex: { flex: 1, backgroundColor: authColors.background },
   content: { paddingHorizontal: spacing.xl },
-  heroWrap: { alignItems: 'center', marginBottom: spacing.lg },
-  mascot: { width: 150, height: 195 },
-  subtitle: { marginTop: spacing.xs, marginBottom: spacing.xl },
-  field: { marginBottom: spacing.md },
-  errorBox: {
-    flexDirection: 'row',
+  logoWrap: {
     alignItems: 'center',
-    gap: spacing.xs,
-    backgroundColor: 'rgba(239,68,68,0.12)',
-    borderRadius: radius.sm,
-    padding: spacing.sm,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.md,
   },
-  errorText: { flexShrink: 1 },
+  logo: {
+    width: 140,
+    height: 137,
+  },
+  subtitle: { textAlign: 'center', marginBottom: spacing.xxl },
+  field: { marginBottom: spacing.md },
   cta: { marginTop: spacing.xs },
   dividerRow: {
     flexDirection: 'row',
@@ -186,9 +163,7 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     gap: spacing.sm,
     marginVertical: spacing.xl,
   },
-  divider: { flex: 1, height: 1, backgroundColor: colors.border.default },
-  oauthRow: { flexDirection: 'row', gap: spacing.sm },
-  oauthButton: { flex: 1 },
+  divider: { flex: 1, height: 1, backgroundColor: authColors.border },
   oauthHint: { textAlign: 'center', marginTop: spacing.sm, lineHeight: 18 },
   footer: { alignItems: 'center', marginTop: spacing.xxl, minHeight: 44, justifyContent: 'center' },
 });
