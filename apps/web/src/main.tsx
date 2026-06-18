@@ -5,6 +5,7 @@ import './styles.css';
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
 import { I18nProvider } from '@/hooks/useTranslation';
 import { ToastProvider } from '@/hooks/useToast';
+import { FullScreenLoader } from '@/components/ui';
 import { Layout } from '@/components/Layout';
 // Pre-auth y guard: eager (se necesitan en el primer render).
 import { LoginPage } from '@/pages/Login';
@@ -32,7 +33,7 @@ const AddOnsPage           = lazy(() => import('@/pages/AddOns').then((m) => ({ 
 
 function Protected(): React.JSX.Element {
   const { session, canManage, loading, signOut, role } = useAuth();
-  if (loading) return <div className="center-screen muted">Cargando…</div>;
+  if (loading) return <FullScreenLoader />;
   if (!session) return <Navigate to="/login" replace />;
   if (!canManage) {
     if (role === 'client') {
@@ -65,7 +66,7 @@ function App(): React.JSX.Element {
   return (
     <BrowserRouter>
       <OAuthRedirectGuard />
-      <Suspense fallback={<div className="center-screen muted">Cargando…</div>}>
+      <Suspense fallback={<FullScreenLoader />}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/descargar" element={<DownloadPage />} />

@@ -25,6 +25,7 @@ export interface ProfileRow {
   goal: string | null;
   role: UserRole;
   trainer_id: string | null;
+  client_status: 'active' | 'pending';
   locale: string;
   created_at: string;
   updated_at: string;

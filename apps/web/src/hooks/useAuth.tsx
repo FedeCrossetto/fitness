@@ -24,7 +24,7 @@ const AuthContext = createContext<AuthState | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }): React.JSX.Element {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<ProfileRow | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [booting, setBooting] = useState(true);
 
   useEffect(() => {
     let active = true;
@@ -39,7 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
       if (!active) return;
       setSession(data.session);
       if (data.session) await loadProfile(data.session.user.id);
-      setLoading(false);
+      setBooting(false);
     })();
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
@@ -69,6 +69,11 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
   const isAdmin = role === 'admin';
   const isTrainer = role === 'trainer' || role === 'admin';
   const canManage = isTrainer;
+
+  // El perfil está listo si no hay sesión, o si el perfil cargado pertenece a esa sesión.
+  // Evita el flash de "Sin acceso" mientras el perfil se carga tras iniciar sesión.
+  const profileReady = !session || profile?.id === session.user.id;
+  const loading = booting || !profileReady;
 
   return (
     <AuthContext.Provider value={{ session, profile, loading, role, canManage, isAdmin, isTrainer, signOut, refreshProfile }}>

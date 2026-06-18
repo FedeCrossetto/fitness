@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { layout, radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
@@ -42,6 +44,7 @@ export function CoachChatScreen({ navigation }: Props): React.JSX.Element {
 
   const insets = useSafeAreaInsets();
   const session = useAuthStore((s) => s.session);
+  const profile = useAuthStore((s) => s.profile);
   const userId = session?.user.id;
 
   const [messages, setMessages] = useState<MessageRow[]>([]);
@@ -51,6 +54,7 @@ export function CoachChatScreen({ navigation }: Props): React.JSX.Element {
   const [sending, setSending] = useState(false);
   const [routines, setRoutines] = useState<RoutineWithExercises[]>([]);
   const [routinesVisible, setRoutinesVisible] = useState(false);
+  const [coachAvatar, setCoachAvatar] = useState<string | null>(null);
 
   const loadMessages = useCallback(async () => {
     if (!userId) return;
@@ -133,20 +137,33 @@ export function CoachChatScreen({ navigation }: Props): React.JSX.Element {
       );
     })();
 
+    // Avatar del coach (para mostrarlo en el chat).
+    void (async () => {
+      const trainerId = profile?.trainer_id;
+      if (!trainerId) return;
+      const { data } = await supabase.from('profiles').select('avatar_url').eq('id', trainerId).maybeSingle();
+      if (!cancelled && data) setCoachAvatar((data as { avatar_url: string | null }).avatar_url);
+    })();
+
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [userId, profile?.trainer_id]);
 
-  // Realtime: nuevos mensajes del coach (o de otro dispositivo propio)
+  // Realtime: nuevos mensajes del coach + recibos de lectura (UPDATE).
   useEffect(() => {
     if (!userId) return;
     const channel = supabase
       .channel(`messages-${userId}`)
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages', filter: `client_id=eq.${userId}` },
+        { event: '*', schema: 'public', table: 'messages', filter: `client_id=eq.${userId}` },
         (payload) => {
+          if (payload.eventType === 'UPDATE') {
+            const updated = payload.new as MessageRow;
+            setMessages((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
+            return;
+          }
           const incoming = payload.new as MessageRow;
           setMessages((prev) => (prev.some((m) => m.id === incoming.id) ? prev : [...prev, incoming]));
           if (incoming.sender_role === 'trainer') {
@@ -169,7 +186,7 @@ export function CoachChatScreen({ navigation }: Props): React.JSX.Element {
       client_id: userId,
       content,
       sender_role: 'client',
-      read: true,
+      read: false,
       created_at: new Date().toISOString(),
     };
     setMessages((prev) => [...prev, temp]);
@@ -194,19 +211,57 @@ export function CoachChatScreen({ navigation }: Props): React.JSX.Element {
 
   const renderMessage = useCallback(({ item }: { item: MessageRow }) => {
     const own = item.sender_role === 'client';
-    return (
-      <View style={[styles.messageRow, own ? styles.messageRowOwn : styles.messageRowCoach]}>
-        <View style={[styles.bubble, own ? styles.bubbleOwn : styles.bubbleCoach]}>
-          <AppText variant="body14" color={own ? colors.text.inverse : colors.text.primary}>
-            {item.content}
-          </AppText>
-        </View>
-        <AppText variant="body12" color={colors.text.disabled} style={styles.bubbleTime}>
-          {formatTime(item.created_at)}
-        </AppText>
+    const avatarUrl = own ? profile?.avatar_url ?? null : coachAvatar;
+    const avatar = (
+      <View style={styles.chatAvatar}>
+        {avatarUrl ? (
+          <Image source={{ uri: avatarUrl }} style={styles.chatAvatarImg} contentFit="cover" />
+        ) : (
+          <Ionicons name="person" size={14} color={colors.text.tertiary} />
+        )}
       </View>
     );
-  }, [colors, styles]);
+
+    const bubbleContent = (
+      <AppText variant="body14" color={own ? colors.text.inverse : colors.text.primary}>
+        {item.content}
+      </AppText>
+    );
+
+    return (
+      <View style={[styles.messageLine, own ? styles.messageLineOwn : styles.messageLineCoach]}>
+        {!own && avatar}
+        <View style={[styles.messageRow, own ? styles.messageRowOwn : styles.messageRowCoach]}>
+          {own ? (
+            <LinearGradient
+              colors={[colors.primary.default, colors.primary.dark]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 0, y: 1 }}
+              style={[styles.bubble, styles.bubbleOwn]}
+            >
+              {bubbleContent}
+            </LinearGradient>
+          ) : (
+            <View style={[styles.bubble, styles.bubbleCoach]}>{bubbleContent}</View>
+          )}
+          <View style={styles.bubbleMeta}>
+            <AppText variant="body12" color={colors.text.disabled}>
+              {formatTime(item.created_at)}
+            </AppText>
+            {own ? (
+              <Ionicons
+                name={item.read ? 'checkmark-done' : 'checkmark'}
+                size={14}
+                color={item.read ? colors.water : colors.text.disabled}
+                style={styles.bubbleCheck}
+              />
+            ) : null}
+          </View>
+        </View>
+        {own && avatar}
+      </View>
+    );
+  }, [colors, styles, profile?.avatar_url, coachAvatar]);
 
   let body: React.JSX.Element;
   if (loading && messages.length === 0) {
@@ -285,7 +340,7 @@ export function CoachChatScreen({ navigation }: Props): React.JSX.Element {
       <View style={styles.body}>{body}</View>
 
       {/* Composer */}
-      <View style={[styles.composer, { paddingBottom: layout.tabBarHeight + spacing.md }]}>
+      <View style={[styles.composer, { paddingBottom: insets.bottom + spacing.md }]}>
         <Input
           placeholder="Escribile a tu coach…"
           value={draft}
@@ -374,16 +429,36 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     paddingHorizontal: layout.screenPadding,
     paddingVertical: spacing.md,
   },
-  messageRow: { marginBottom: spacing.sm, maxWidth: '80%' },
-  messageRowOwn: { alignSelf: 'flex-end', alignItems: 'flex-end' },
-  messageRowCoach: { alignSelf: 'flex-start', alignItems: 'flex-start' },
+  messageLine: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: spacing.xs,
+    marginBottom: spacing.sm,
+    maxWidth: '86%',
+  },
+  messageLineOwn: { alignSelf: 'flex-end' },
+  messageLineCoach: { alignSelf: 'flex-start' },
+  chatAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface.elevated,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  chatAvatarImg: { width: '100%', height: '100%' },
+  messageRow: { flexShrink: 1 },
+  messageRowOwn: { alignItems: 'flex-end' },
+  messageRowCoach: { alignItems: 'flex-start' },
   bubble: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: radius.lg,
   },
   bubbleOwn: {
-    backgroundColor: colors.primary.default,
     borderBottomRightRadius: radius.sm,
   },
   bubbleCoach: {
@@ -392,7 +467,13 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     borderColor: colors.border.subtle,
     borderBottomLeftRadius: radius.sm,
   },
-  bubbleTime: { marginTop: spacing.xxs },
+  bubbleMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xxs,
+    marginTop: spacing.xxs,
+  },
+  bubbleCheck: { marginLeft: 1 },
   composer: {
     flexDirection: 'row',
     alignItems: 'flex-end',

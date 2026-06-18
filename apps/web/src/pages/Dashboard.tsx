@@ -6,7 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useTranslation } from '@/hooks/useTranslation';
 import { TrophyIcon } from '@/components/icons';
 import { AreaChart } from '@/components/charts';
-import { ErrorState } from '@/components/ui';
+import { ErrorState, Lightbox } from '@/components/ui';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -190,6 +190,9 @@ export function DashboardPage(): React.JSX.Element {
   const [filter, setFilter]           = useState<ActivityType | 'all'>('all');
   const [loadError, setLoadError]     = useState<string | null>(null);
   const [reloadTick, setReloadTick]   = useState(0);
+  // Buckets privados: resolvemos URLs firmadas para los thumbnails del feed.
+  const [thumbs, setThumbs]           = useState<Record<string, string>>({});
+  const [lightbox, setLightbox]       = useState<{ src: string; caption: string } | null>(null);
 
   useEffect(() => {
     if (!userId) return;
@@ -295,6 +298,31 @@ export function DashboardPage(): React.JSX.Element {
 
     return () => { active = false; };
   }, [userId, reloadTick]);
+
+  // Firma los paths de los thumbnails (fotos de progreso y comidas) de buckets privados.
+  useEffect(() => {
+    const pending = activities.filter(
+      (a) => a.thumb && !a.thumb.startsWith('http') && thumbs[a.thumb] === undefined,
+    );
+    if (pending.length === 0) return;
+    let active = true;
+    void (async () => {
+      const entries = await Promise.all(
+        pending.map(async (a) => {
+          const bucket = a.type === 'photo' ? 'progress-photos' : 'meal-photos';
+          const { data } = await supabase.storage.from(bucket).createSignedUrl(a.thumb!, 3600);
+          return [a.thumb!, data?.signedUrl ?? null] as const;
+        }),
+      );
+      if (!active) return;
+      setThumbs((prev) => {
+        const next = { ...prev };
+        for (const [path, url] of entries) if (url) next[path] = url;
+        return next;
+      });
+    })();
+    return () => { active = false; };
+  }, [activities, thumbs]);
 
   // Chart helpers
   const windowed = useMemo(() => {
@@ -518,11 +546,17 @@ export function DashboardPage(): React.JSX.Element {
                 </div>
 
                 {/* Photo thumb */}
-                {a.thumb && (
+                {a.thumb && (a.thumb.startsWith('http') ? a.thumb : thumbs[a.thumb]) && (
                   <img
-                    src={a.thumb}
+                    src={a.thumb.startsWith('http') ? a.thumb : thumbs[a.thumb]}
                     alt=""
                     className="act-panel-thumb"
+                    style={{ cursor: 'zoom-in' }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const url = a.thumb!.startsWith('http') ? a.thumb! : thumbs[a.thumb!];
+                      if (url) setLightbox({ src: url, caption: `${a.studentName} · ${a.detail}` });
+                    }}
                   />
                 )}
               </div>
@@ -530,6 +564,12 @@ export function DashboardPage(): React.JSX.Element {
           </div>
         )}
       </div>
+
+      <Lightbox
+        src={lightbox?.src ?? null}
+        caption={lightbox?.caption}
+        onClose={() => setLightbox(null)}
+      />
     </div>
   );
 }

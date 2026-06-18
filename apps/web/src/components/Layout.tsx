@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useTranslation } from '@/hooks/useTranslation';
+import { useUnreadMessages } from '@/hooks/useUnreadMessages';
 import { LANGUAGES } from '@habito/shared';
 import {
   GridIcon, BrushIcon, UsersIcon, LogOutIcon,
@@ -51,6 +52,7 @@ function Avatar({ name, url, size = 'md', title }: { name?: string | null; url?:
 export function Layout(): React.JSX.Element {
   const { profile, signOut, isAdmin, isTrainer } = useAuth();
   const { t, language, setLanguage } = useTranslation();
+  const unreadMessages = useUnreadMessages();
   const navigate = useNavigate();
   const location = useLocation();
   const isOverview = location.pathname === '/';
@@ -78,7 +80,7 @@ export function Layout(): React.JSX.Element {
       section: t.web.nav_main,
       items: [
         { to: '/',          label: t.web.overview,      end: true, icon: () => <GridIcon />      },
-        { to: '/messages',  label: t.web.messages,                 icon: () => <MessageIcon />,  mock: true },
+        { to: '/messages',  label: t.web.messages,                 icon: () => <MessageIcon />,  badge: unreadMessages || undefined },
         { to: '/groups',    label: t.web.groups,                   icon: () => <GroupsIcon />    },
         { to: '/challenges',label: t.web.challenges,               icon: () => <TrophyIcon />,   mock: true },
         { to: '/students',  label: t.web.clients,                  icon: () => <UsersIcon />     },

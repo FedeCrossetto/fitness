@@ -8,6 +8,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { layout, radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
 import { todayISO, formatShortDate } from '../../lib/dates';
+import { supabase } from '../../lib/supabase';
 import { useTranslation } from '../../stores/i18nStore';
 import { useClientConfig } from '../../config/useClientConfig';
 import {
@@ -29,6 +30,7 @@ import { useNutritionStore } from '../../stores/nutritionStore';
 import { useProgressStore } from '../../stores/progressStore';
 import { useTrainingStore } from '../../stores/trainingStore';
 import { computeStreak } from '../../services/streaks';
+import { signedUrl } from '../../services/storage';
 import { getTodaySteps } from '../../services/steps';
 import { initHealthKit, isExpoGo, readHealthSnapshot } from '../../services/health';
 import { registerPushToken } from '../../services/notifications';
@@ -206,7 +208,6 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
   const completedGoals = goals.filter((g) => g.completed).length;
   const goalProgress = goals.length > 0 ? completedGoals / goals.length : 0;
   const kcalProgress = kcalGoal > 0 ? totals.kcal / kcalGoal : 0;
-  const hydrationProgress = hydration ? hydration.total_ml / Math.max(hydration.goal_ml, 1) : 0;
 
   const activeDate = useUiStore((s) => s.activeDate);
   const today = todayISO();
@@ -221,12 +222,54 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
   const latestFat = measurements.find((m) => m.body_fat_pct !== null) ?? null;
   const recentPhotos = photos.slice(0, 3);
 
+  // El bucket de fotos es privado: resolvemos URLs firmadas para los thumbnails.
+  const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
+  useEffect(() => {
+    const pending = recentPhotos.filter((p) => photoUrls[p.photo_url] === undefined);
+    if (pending.length === 0) return;
+    let cancelled = false;
+    void (async () => {
+      const entries = await Promise.all(
+        pending.map(async (p) => [p.photo_url, await signedUrl('progress-photos', p.photo_url)] as const)
+      );
+      if (cancelled) return;
+      setPhotoUrls((prev) => {
+        const next = { ...prev };
+        for (const [path, url] of entries) if (url) next[path] = url;
+        return next;
+      });
+    })();
+    return () => { cancelled = true; };
+  }, [recentPhotos, photoUrls]);
+
   const trainedToday = recentLogs.some((l) => l.date === today);
   const nextWorkoutDay = phases
     .flatMap((p) => p.days)
     .find((d) => d.day_type !== 'descanso' && d.workout !== null);
 
   const firstName = profile?.full_name?.split(' ')[0] ?? 'Atleta';
+
+  // Mensajes sin leer del coach → badge en el header, en vivo.
+  const [unreadMsgs, setUnreadMsgs] = useState(0);
+  useEffect(() => {
+    if (!userId) return;
+    let active = true;
+    const fetchUnread = async () => {
+      const { count } = await supabase
+        .from('messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('client_id', userId)
+        .eq('sender_role', 'trainer')
+        .eq('read', false);
+      if (active) setUnreadMsgs(count ?? 0);
+    };
+    void fetchUnread();
+    const channel = supabase
+      .channel(`home-msgs-${userId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `client_id=eq.${userId}` }, () => void fetchUnread())
+      .subscribe();
+    return () => { active = false; void supabase.removeChannel(channel); };
+  }, [userId]);
 
   return (
     <View style={styles.flex}>
@@ -259,9 +302,26 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
               </AppText>
             </View>
           </View>
-          <Pressable onPress={() => navigation.navigate('Profile')} accessibilityLabel="Ir a mi perfil">
-            <Avatar name={profile?.full_name} imageUrl={profile?.avatar_url} size={48} />
-          </Pressable>
+          <View style={styles.headerActions}>
+            <Pressable
+              onPress={() => navigation.navigate('CoachChat')}
+              accessibilityLabel={unreadMsgs > 0 ? `Mensajes, ${unreadMsgs} sin leer` : 'Mensajes con tu coach'}
+              style={styles.headerIconBtn}
+              hitSlop={8}
+            >
+              <Ionicons name="chatbubble-ellipses-outline" size={22} color={colors.text.primary} />
+              {unreadMsgs > 0 ? (
+                <View style={styles.headerBadge}>
+                  <AppText variant="caps11" color={colors.primary.onText}>
+                    {unreadMsgs > 9 ? '9+' : unreadMsgs}
+                  </AppText>
+                </View>
+              ) : null}
+            </Pressable>
+            <Pressable onPress={() => navigation.navigate('Profile')} accessibilityLabel="Ir a mi perfil">
+              <Avatar name={profile?.full_name} imageUrl={profile?.avatar_url} size={48} />
+            </Pressable>
+          </View>
         </View>
 
         {/* Strip de días */}
@@ -365,41 +425,6 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
           ))}
         </Card>
 
-        {/* Hidratación + Entreno */}
-        <View style={styles.metricsRow}>
-          <Card style={styles.metricHalf} onPress={() => navigation.navigate('Hydration')}>
-            <View style={styles.miniHeader}>
-              <AppText variant="caps12" color={colors.text.tertiary}>
-                {t.home.hydration}
-              </AppText>
-              <Ionicons name="water-outline" size={16} color={colors.water} />
-            </View>
-            <AppText variant="metricMedium" color={colors.text.primary}>
-              {hydration ? (hydration.total_ml / 1000).toFixed(1) : '0.0'}
-              <AppText variant="body13Medium" color={colors.text.tertiary}>
-                {' '}
-                / {((hydration?.goal_ml ?? clientConfig.defaultHydrationGoalMl) / 1000).toFixed(1)} L
-              </AppText>
-            </AppText>
-            <ProgressBar progress={hydrationProgress} style={styles.miniBar} color={colors.water} />
-          </Card>
-
-          <Card style={styles.metricHalf} onPress={() => navigation.getParent()?.navigate('TrainingTab' as never)}>
-            <View style={styles.miniHeader}>
-              <AppText variant="caps12" color={colors.text.tertiary}>
-                {t.home.next_workout}
-              </AppText>
-              <Ionicons name="barbell-outline" size={16} color={colors.pillars.training} />
-            </View>
-            <AppText variant="body14SemiBold" color={colors.text.primary} numberOfLines={2} style={styles.nextTitle}>
-              {trainedToday ? t.home.trained_today : nextWorkoutDay?.title ?? t.home.no_program}
-            </AppText>
-            <AppText variant="body12" color={colors.text.tertiary} numberOfLines={1} style={styles.miniSub}>
-              {trainedToday ? t.home.rest : nextWorkoutDay?.workout?.title ?? t.home.coach_hint}
-            </AppText>
-          </Card>
-        </View>
-
         {/* Mi Progreso */}
         <View style={styles.sectionHeaderRow}>
           <AppText variant="h3" color={colors.text.primary}>
@@ -485,60 +510,54 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
             onPress={() => navigation.navigate('Hydration')}
             accessibilityLabel="Ver hidratación"
           >
-            <AppText variant="caps11" color={colors.text.tertiary} style={styles.progressCardLabel}>
-              {t.home.hydration}
-            </AppText>
-            {hydration ? (
-              <>
-                <AppText variant="body12" color={colors.text.tertiary} style={styles.progressCardDate}>
-                  {t.ui.today}
-                </AppText>
-                <View style={styles.progressValueRow}>
-                  <AppText variant="metricMedium" color={colors.text.primary}>
-                    {(hydration.total_ml / 1000).toFixed(1)}
-                  </AppText>
-                  <AppText variant="body13Medium" color={colors.text.tertiary} style={styles.progressUnit}>
-                    L
-                  </AppText>
-                </View>
-              </>
-            ) : (
-              <AppText variant="body16SemiBold" color={colors.text.tertiary} style={styles.progressEmpty}>
-                ...
+            <View style={styles.progressCardHead}>
+              <AppText variant="caps11" color={colors.text.tertiary} style={styles.progressCardLabel}>
+                {t.home.hydration}
               </AppText>
-            )}
+              <Ionicons name="water-outline" size={14} color={colors.water} />
+            </View>
+            <AppText variant="metricMedium" color={colors.text.primary} style={styles.progressNextTitle}>
+              {hydration ? (hydration.total_ml / 1000).toFixed(1) : '0.0'}
+              <AppText variant="body13Medium" color={colors.text.tertiary}>
+                {' '}
+                / {((hydration?.goal_ml ?? clientConfig.defaultHydrationGoalMl) / 1000).toFixed(1)} L
+              </AppText>
+            </AppText>
+            <ProgressBar
+              progress={hydration ? hydration.total_ml / Math.max(hydration.goal_ml, 1) : 0}
+              style={styles.progressHydrationBar}
+              color={colors.water}
+            />
           </Pressable>
 
-          {/* Pasos */}
+          {/* Próximo entreno */}
           <Pressable
             style={styles.progressCard}
-            onPress={() => navigation.getParent()?.navigate('ProgressTab' as never)}
-            accessibilityLabel="Ver pasos"
+            onPress={() => navigation.getParent()?.navigate('TrainingTab' as never)}
+            accessibilityLabel="Ver próximo entreno"
           >
-            <AppText variant="caps11" color={colors.text.tertiary} style={styles.progressCardLabel}>
-              {t.home.steps_today}
-            </AppText>
-            {steps > 0 ? (
-              <>
-                <AppText variant="body12" color={colors.text.tertiary} style={styles.progressCardDate}>
-                  {t.ui.today}
-                </AppText>
-                <AppText variant="metricMedium" color={colors.text.primary} style={styles.progressSteps}>
-                  {steps.toLocaleString('es-AR')}
-                </AppText>
-              </>
-            ) : (
-              <AppText variant="body16SemiBold" color={colors.text.tertiary} style={styles.progressEmpty}>
-                ...
+            <View style={styles.progressCardHead}>
+              <AppText variant="caps11" color={colors.text.tertiary} style={styles.progressCardLabel}>
+                {t.home.next_workout}
               </AppText>
-            )}
+              <Ionicons name="barbell-outline" size={14} color={colors.pillars.training} />
+            </View>
+            <AppText variant="body14SemiBold" color={colors.text.primary} numberOfLines={2} style={styles.progressNextTitle}>
+              {trainedToday ? t.home.trained_today : nextWorkoutDay?.title ?? t.home.no_program}
+            </AppText>
+            <AppText variant="body12" color={colors.text.tertiary} numberOfLines={1}>
+              {trainedToday ? t.home.rest : nextWorkoutDay?.workout?.title ?? t.home.coach_hint}
+            </AppText>
           </Pressable>
         </View>
 
         {/* Fotos de progreso */}
         <Pressable
           style={styles.photosCard}
-          onPress={() => navigation.getParent()?.navigate('ProgressTab' as never)}
+          onPress={() =>
+            (navigation.getParent() as { navigate: (name: string, params?: object) => void } | undefined)
+              ?.navigate('ProgressTab', { screen: 'ProgressPhotos' })
+          }
           accessibilityLabel="Ver fotos de progreso"
         >
           <View style={styles.photosHeader}>
@@ -552,9 +571,10 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
               {recentPhotos.map((photo) => (
                 <Image
                   key={photo.id}
-                  source={{ uri: photo.photo_url }}
+                  source={photoUrls[photo.photo_url] ? { uri: photoUrls[photo.photo_url] } : undefined}
                   style={styles.photoThumb}
                   contentFit="cover"
+                  transition={150}
                 />
               ))}
               {photos.length > 3 && (
@@ -644,6 +664,29 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     marginBottom: spacing.lg,
   },
   headerText: { flex: 1 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  headerIconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface.elevated,
+  },
+  headerBadge: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 4,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primary.default,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: colors.background,
+  },
   greeting: { marginTop: 2 },
   streakRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, marginTop: spacing.xs },
   dayCard: { marginBottom: spacing.md },
@@ -723,9 +766,21 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     justifyContent: 'flex-start',
     overflow: 'hidden',
   },
+  progressCardHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   progressCardLabel: {
     letterSpacing: 0.6,
     marginBottom: spacing.xxs,
+  },
+  progressNextTitle: {
+    marginTop: spacing.xs,
+    marginBottom: spacing.xxs,
+  },
+  progressHydrationBar: {
+    marginTop: spacing.sm,
   },
   progressCardDate: {
     marginBottom: spacing.xs,

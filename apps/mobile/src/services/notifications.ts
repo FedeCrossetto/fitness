@@ -13,6 +13,27 @@ Notifications.setNotificationHandler({
   }),
 });
 
+/**
+ * Escucha taps sobre notificaciones de tipo `message` y dispara `onMessage`
+ * (abrir el chat del coach). Cubre también el caso de app abierta desde frío.
+ * Devuelve una función de limpieza.
+ */
+export function listenToMessageTaps(onMessage: () => void): () => void {
+  const isMessage = (resp: Notifications.NotificationResponse | null): boolean =>
+    resp?.notification.request.content.data?.type === 'message';
+
+  // App abierta desde una notificación (cold start).
+  void Notifications.getLastNotificationResponseAsync().then((resp) => {
+    if (isMessage(resp)) onMessage();
+  });
+
+  // Taps mientras la app está abierta / en background.
+  const sub = Notifications.addNotificationResponseReceivedListener((resp) => {
+    if (isMessage(resp)) onMessage();
+  });
+  return () => sub.remove();
+}
+
 /** Pide permisos, obtiene el Expo push token y lo registra en la DB. */
 export async function registerPushToken(userId: string): Promise<boolean> {
   if (!Device.isDevice) return false;

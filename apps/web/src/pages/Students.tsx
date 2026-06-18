@@ -125,8 +125,14 @@ export function StudentsPage(): React.JSX.Element {
 
   const activate = async (id: string) => {
     setActivating(id);
-    const { error } = await supabase.from('profiles').update({ client_status: 'active' }).eq('id', id);
-    if (error) {
+    // .select() para confirmar que realmente se actualizó una fila (RLS podría
+    // bloquear el UPDATE sin devolver error).
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ client_status: 'active' })
+      .eq('id', id)
+      .select('id');
+    if (error || !data || data.length === 0) {
       showToast('error', 'No pudimos activar al cliente. Probá de nuevo.');
     } else {
       setStudents((prev) => prev.map((s) => s.id === id ? { ...s, client_status: 'active' } : s));

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Dimensions, FlatList, StyleSheet, View } from 'react-native';
+import { Alert, Dimensions, FlatList, Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
@@ -30,7 +31,8 @@ type Props = NativeStackScreenProps<ProgressStackParamList, 'ProgressPhotos'>;
 const POSITIONS: PhotoPosition[] = ['frente', 'perfil', 'espalda'];
 const POSITION_LABELS = ['Frente', 'Perfil', 'Espalda'];
 const GRID_GAP = spacing.sm;
-const ITEM_WIDTH = (Dimensions.get('window').width - layout.screenPadding * 2 - GRID_GAP) / 2;
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const ITEM_WIDTH = (SCREEN_WIDTH - layout.screenPadding * 2 - GRID_GAP) / 2;
 
 /** Semanas transcurridas desde la primera foto registrada (mínimo 1). */
 function computeWeekNumber(photos: ProgressPhotoRow[]): number {
@@ -53,11 +55,13 @@ export function ProgressPhotosScreen({ navigation }: Props): React.JSX.Element {
   const photosLoading = useProgressStore((s) => s.photosLoading);
   const loadPhotos = useProgressStore((s) => s.loadPhotos);
   const addPhoto = useProgressStore((s) => s.addPhoto);
+  const deletePhoto = useProgressStore((s) => s.deletePhoto);
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
   const [pickerVisible, setPickerVisible] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [viewer, setViewer] = useState<{ url: string; photo: ProgressPhotoRow } | null>(null);
 
   const activePosition = POSITIONS[activeIndex]!;
 
@@ -98,7 +102,7 @@ export function ProgressPhotosScreen({ navigation }: Props): React.JSX.Element {
       if (!userId) return;
       setUploading(true);
       try {
-        const path = await uploadPrivateImage('progress-photos', userId, uri, `${activePosition}-${todayISO()}`);
+        const path = await uploadPrivateImage('progress-photos', userId, uri, `${activePosition}-${Date.now()}`);
         const weekNumber = computeWeekNumber(useProgressStore.getState().photos);
         const ok = await addPhoto(userId, activePosition, path, weekNumber);
         if (ok) {
@@ -134,6 +138,8 @@ export function ProgressPhotosScreen({ navigation }: Props): React.JSX.Element {
 
   const pickFromLibrary = useCallback(async () => {
     setPickerVisible(false);
+    // iOS/Android usan el selector del sistema (PHPicker / Photo Picker): no requiere
+    // permiso de librería. Pedirlo dispara el diálogo de "acceso limitado" innecesario.
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       quality: 0.7,
@@ -144,13 +150,38 @@ export function ProgressPhotosScreen({ navigation }: Props): React.JSX.Element {
     }
   }, [handlePicked]);
 
+  const confirmDelete = useCallback(
+    (photo: ProgressPhotoRow) => {
+      Alert.alert('Eliminar foto', '¿Seguro que querés eliminar esta foto de progreso?', [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: () => {
+            setViewer(null);
+            void (async () => {
+              const ok = await deletePhoto(photo.id, photo.photo_url);
+              useUiStore.getState().showToast(
+                ok ? 'success' : 'error',
+                ok ? 'Foto eliminada' : 'No pudimos eliminar la foto.'
+              );
+            })();
+          },
+        },
+      ]);
+    },
+    [deletePhoto]
+  );
+
   const renderItem = useCallback(
     ({ item }: { item: ProgressPhotoRow }) => {
       const url = signedUrls[item.photo_url];
       return (
         <Card style={styles.photoCard}>
           {url ? (
-            <Image source={{ uri: url }} style={styles.photo} contentFit="cover" transition={150} />
+            <Pressable onPress={() => setViewer({ url, photo: item })} accessibilityLabel="Ver foto en grande">
+              <Image source={{ uri: url }} style={styles.photo} contentFit="cover" transition={150} />
+            </Pressable>
           ) : (
             <Skeleton width={ITEM_WIDTH - spacing.md * 2} height={ITEM_WIDTH} borderRadius={radius.md} />
           )}
@@ -234,6 +265,43 @@ export function ProgressPhotosScreen({ navigation }: Props): React.JSX.Element {
           fullWidth
         />
       </BottomSheet>
+
+      {/* Visor a pantalla completa */}
+      <Modal visible={viewer !== null} transparent animationType="fade" onRequestClose={() => setViewer(null)}>
+        <Pressable style={styles.viewerBackdrop} onPress={() => setViewer(null)}>
+          <Pressable
+            style={[styles.viewerClose, { top: insets.top + spacing.sm }]}
+            onPress={() => setViewer(null)}
+            accessibilityLabel="Cerrar"
+            hitSlop={12}
+          >
+            <Ionicons name="close" size={26} color="#fff" />
+          </Pressable>
+          {viewer ? (
+            <Pressable
+              style={[styles.viewerDelete, { top: insets.top + spacing.sm }]}
+              onPress={() => confirmDelete(viewer.photo)}
+              accessibilityLabel="Eliminar foto"
+              hitSlop={12}
+            >
+              <Ionicons name="trash-outline" size={22} color="#fff" />
+            </Pressable>
+          ) : null}
+          {viewer ? (
+            <Image source={{ uri: viewer.url }} style={styles.viewerImage} contentFit="contain" transition={150} />
+          ) : null}
+          {viewer ? (
+            <View style={[styles.viewerMeta, { bottom: insets.bottom + spacing.lg }]}>
+              <AppText variant="body16SemiBold" color="#fff">
+                Semana {viewer.photo.week_number}
+              </AppText>
+              <AppText variant="body13" color="rgba(255,255,255,0.7)">
+                {formatLongDate(viewer.photo.recorded_at)}
+              </AppText>
+            </View>
+          ) : null}
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -265,4 +333,41 @@ const createStyles = (colors: Colors) => StyleSheet.create({
   photoWeek: { marginTop: spacing.xs },
   cta: { marginTop: spacing.md },
   sheetButton: { marginBottom: spacing.sm },
+  viewerBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.94)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  viewerImage: {
+    width: SCREEN_WIDTH,
+    height: SCREEN_WIDTH * 1.33,
+    maxHeight: '80%',
+  },
+  viewerClose: {
+    position: 'absolute',
+    right: spacing.lg,
+    zIndex: 2,
+    width: 40,
+    height: 40,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  viewerDelete: {
+    position: 'absolute',
+    left: spacing.lg,
+    zIndex: 2,
+    width: 40,
+    height: 40,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  viewerMeta: {
+    position: 'absolute',
+    alignItems: 'center',
+  },
 });

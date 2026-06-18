@@ -1,4 +1,21 @@
-import { useState, useId } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
+
+/** Mide el ancho real del contenedor para que el chart llene pantallas anchas sin distorsión. */
+function useElementWidth(fallback: number): [React.RefObject<HTMLDivElement | null>, number] {
+  const ref = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(fallback);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width;
+      if (w && w > 0) setWidth(Math.round(w));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return [ref, width];
+}
 
 // ── Smooth bezier path (Catmull-Rom → Cubic Bézier) ─────────────────────────
 
@@ -36,8 +53,8 @@ interface AreaChartProps {
 export function AreaChart({ values, height = 140, color = '#6366f1' }: AreaChartProps): React.JSX.Element {
   const uid  = useId();
   const [hover, setHover] = useState<number | null>(null);
+  const [wrapRef, W] = useElementWidth(600);
 
-  const W   = 600;
   const H   = height;
   const padT = 12;
   const padB = 6;
@@ -65,6 +82,7 @@ export function AreaChart({ values, height = 140, color = '#6366f1' }: AreaChart
   const ttX  = hPt ? Math.max(ttW / 2, Math.min(W - ttW / 2, hPt[0])) : 0;
 
   return (
+    <div ref={wrapRef} style={{ width: '100%' }}>
     <svg
       viewBox={`0 0 ${W} ${H}`}
       style={{ width: '100%', height, display: 'block', overflow: 'visible', cursor: 'crosshair' }}
@@ -188,6 +206,7 @@ export function AreaChart({ values, height = 140, color = '#6366f1' }: AreaChart
         />
       )}
     </svg>
+    </div>
   );
 }
 

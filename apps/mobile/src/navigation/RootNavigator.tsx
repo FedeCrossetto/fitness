@@ -11,10 +11,11 @@ import { AddMenuOverlay } from './AddMenuOverlay';
 import { AuthStack, HomeStack, NutritionStack, ProgressStack, TrainingStack } from './stacks';
 import { OnboardingScreen } from '../screens/auth/OnboardingScreen';
 import { LinkTrainerScreen } from '../screens/auth/LinkTrainerScreen';
+import { PendingActivationScreen } from '../screens/auth/PendingActivationScreen';
 import { WaiverScreen } from '../screens/waiver/WaiverScreen';
 import { ConsultationFormScreen } from '../screens/consultation/ConsultationFormScreen';
 import { useInviteDeepLink } from '../hooks/useInviteDeepLink';
-import { needsTrainerLink } from '../services/clientAccess';
+import { needsTrainerLink, isPendingActivation } from '../services/clientAccess';
 import { supabase } from '../lib/supabase';
 
 const anyClient = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> };
@@ -225,5 +226,7 @@ export function RootNavigator(): React.JSX.Element {
       />
     );
   }
+  // Vinculado pero el entrenador todavía no lo activó → app bloqueada.
+  if (isPendingActivation(profile)) return <PendingActivationScreen />;
   return <MainTabs />;
 }

@@ -4,6 +4,7 @@ import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import { Colors, spacing, radius, layout, shadows, useTheme, useThemedStyles } from '../theme';
 import { hapticSelect, hapticTap } from '../lib/haptics';
 import { AppText } from '../components/common';
@@ -16,14 +17,21 @@ const TAB_META: Record<string, { label: string; icon: keyof typeof Ionicons.glyp
   ProgressTab: { label: 'Progreso', icon: 'stats-chart-outline', iconActive: 'stats-chart' },
 };
 
+// Pantallas full-screen donde el tab bar estorba (chats, etc.).
+const HIDE_ON_ROUTES = ['CoachChat'];
+
 /** Tab bar custom con glassmorphism y FAB central que abre el menú de "agregar". */
-export function TabBar({ state, navigation }: BottomTabBarProps): React.JSX.Element {
+export function TabBar({ state, navigation }: BottomTabBarProps): React.JSX.Element | null {
   const insets = useSafeAreaInsets();
   const openAddMenu = useUiStore((s) => s.openAddMenu);
   const { colors, isDark } = useTheme();
   const styles = useThemedStyles(createStyles);
 
   const activeColor = isDark ? colors.primary.default : colors.primary.dark;
+
+  // Oculta el tab bar cuando el screen enfocado del stack activo lo requiere.
+  const focusedRoute = getFocusedRouteNameFromRoute(state.routes[state.index]!);
+  if (focusedRoute && HIDE_ON_ROUTES.includes(focusedRoute)) return null;
 
   return (
     <View style={[styles.wrapper, { paddingBottom: Math.max(insets.bottom, spacing.xs) }]}>

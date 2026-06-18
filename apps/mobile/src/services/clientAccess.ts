@@ -23,3 +23,13 @@ export function needsTrainerLink(profile: ProfileRow | null | undefined): boolea
   if (isStaffProfile(profile)) return false;
   return profile.role === 'client' && !profile.trainer_id;
 }
+
+/**
+ * Cliente vinculado pero todavía no activado por el entrenador (estado 'pending').
+ * Mientras esté pendiente, la app queda bloqueada (no puede usar funciones).
+ */
+export function isPendingActivation(profile: ProfileRow | null | undefined): boolean {
+  if (!profile) return false;
+  if (isStaffProfile(profile)) return false;
+  return profile.role === 'client' && !!profile.trainer_id && profile.client_status === 'pending';
+}

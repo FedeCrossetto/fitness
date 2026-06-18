@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/useToast';
@@ -7,11 +7,13 @@ import type {
   MealLogRow,
   MessageRow,
   ProfileRow,
+  ProgressPhotoRow,
   UserProfileRow,
   WorkoutLogRow,
 } from '@habito/shared/types/database';
 import { supabase } from '@/lib/supabase';
 import { RoutineManager } from '@/components/RoutineManager';
+import { Lightbox } from '@/components/ui';
 
 const anyClient = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> };
 
@@ -41,7 +43,7 @@ type Profile = Pick<ProfileRow, 'id' | 'full_name' | 'goal' | 'phone' | 'avatar_
   client_status?: 'pending' | 'active';
 };
 
-type Tab = 'resumen' | 'entrenos' | 'nutricion' | 'medidas' | 'mensajes' | 'engagement' | 'deslinde' | 'consulta';
+type Tab = 'resumen' | 'entrenos' | 'nutricion' | 'medidas' | 'fotos' | 'engagement' | 'deslinde' | 'consulta';
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'resumen',    label: 'Resumen'    },
@@ -49,10 +51,12 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'entrenos',   label: 'Entrenos'   },
   { key: 'nutricion',  label: 'Nutrición'  },
   { key: 'medidas',    label: 'Medidas'    },
-  { key: 'mensajes',   label: 'Mensajes'   },
+  { key: 'fotos',      label: 'Fotos'      },
   { key: 'engagement', label: 'Engagement' },
   { key: 'deslinde',   label: 'Deslinde'   },
 ];
+
+const POSITION_LABEL: Record<string, string> = { frente: 'Frente', perfil: 'Perfil', espalda: 'Espalda' };
 
 function initials(name: string | null): string {
   if (!name) return 'A';
@@ -76,17 +80,17 @@ export function StudentDetailPage(): React.JSX.Element {
   const [messages, setMessages]       = useState<MessageRow[]>([]);
   const [waiverSig, setWaiverSig]     = useState<WaiverSignature | null | false>(null); // null=loading, false=not signed
   const [consultation, setConsultation] = useState<ConsultationResponse | null | false>(null); // null=loading, false=not submitted
-  const [draft, setDraft]             = useState('');
-  const [sending, setSending]         = useState(false);
+  const [photos, setPhotos]           = useState<ProgressPhotoRow[]>([]);
+  const [photoUrls, setPhotoUrls]     = useState<Record<string, string>>({});
+  const [lightbox, setLightbox]       = useState<{ src: string; caption: string } | null>(null);
   const [loading, setLoading]         = useState(true);
   const [activating, setActivating]   = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!studentId) return;
     let active = true;
     void (async () => {
-      const [{ data: p }, { data: up }, { data: bm }, { data: wl }, { data: ml }, { data: msgs }, { data: ws }, { data: cr }] = await Promise.all([
+      const [{ data: p }, { data: up }, { data: bm }, { data: wl }, { data: ml }, { data: msgs }, { data: ws }, { data: cr }, { data: pp }] = await Promise.all([
         supabase.from('profiles').select('id, full_name, goal, phone, avatar_url, created_at, client_status').eq('id', studentId).maybeSingle(),
         supabase.from('user_profiles').select('*').eq('user_id', studentId).maybeSingle(),
         supabase.from('body_measurements').select('*').eq('user_id', studentId).order('date', { ascending: false }).limit(10),
@@ -95,6 +99,7 @@ export function StudentDetailPage(): React.JSX.Element {
         supabase.from('messages').select('*').eq('client_id', studentId).order('created_at', { ascending: true }),
         anyClient.from('waiver_signatures').select('id, full_name, signed_at, signature_data, document_snapshot, document_title').eq('client_id', studentId).maybeSingle(),
         anyClient.from('consultation_responses').select('responses, submitted_at').eq('client_id', studentId).maybeSingle(),
+        supabase.from('progress_photos').select('*').eq('user_id', studentId).order('created_at', { ascending: false }),
       ]);
       if (!active) return;
       setProfile((p as Profile | null) ?? null);
@@ -103,58 +108,46 @@ export function StudentDetailPage(): React.JSX.Element {
       setWorkouts((wl as WorkoutLogRow[] | null) ?? []);
       setMeals((ml as MealLogRow[] | null) ?? []);
       setMessages((msgs as MessageRow[] | null) ?? []);
+      setPhotos((pp as ProgressPhotoRow[] | null) ?? []);
       setWaiverSig((ws as WaiverSignature | null) ?? false);
       setConsultation((cr as ConsultationResponse | null) ?? false);
       setLoading(false);
-      await supabase.from('messages').update({ read: true })
-        .eq('client_id', studentId).eq('sender_role', 'client').eq('read', false);
     })();
     return () => { active = false; };
   }, [studentId]);
 
-  // Realtime messages
+  // Bucket privado: firmamos las URLs de las fotos de progreso.
   useEffect(() => {
-    if (!studentId) return;
-    const channel = supabase
-      .channel(`web-messages-${studentId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `client_id=eq.${studentId}` },
-        (payload) => {
-          const msg = payload.new as MessageRow;
-          setMessages((prev) => prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]);
-          if (msg.sender_role === 'client')
-            void supabase.from('messages').update({ read: true }).eq('id', msg.id);
-        }
-      ).subscribe();
-    return () => { void supabase.removeChannel(channel); };
-  }, [studentId]);
+    const pending = photos.filter((p) => photoUrls[p.photo_url] === undefined);
+    if (pending.length === 0) return;
+    let active = true;
+    void (async () => {
+      const entries = await Promise.all(
+        pending.map(async (p) => {
+          const { data } = await supabase.storage.from('progress-photos').createSignedUrl(p.photo_url, 3600);
+          return [p.photo_url, data?.signedUrl ?? null] as const;
+        }),
+      );
+      if (!active) return;
+      setPhotoUrls((prev) => {
+        const next = { ...prev };
+        for (const [path, url] of entries) if (url) next[path] = url;
+        return next;
+      });
+    })();
+    return () => { active = false; };
+  }, [photos, photoUrls]);
 
-  useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [messages]);
-
-  const onSend = useCallback(async () => {
-    const content = draft.trim();
-    if (!content || !studentId || sending) return;
-    setSending(true);
-    const temp: MessageRow = { id: `temp-${Date.now()}`, client_id: studentId, content, sender_role: 'trainer', read: false, created_at: new Date().toISOString() };
-    setMessages((prev) => [...prev, temp]);
-    setDraft('');
-    const { data, error } = await supabase.from('messages').insert({ client_id: studentId, content, sender_role: 'trainer' }).select().single();
-    if (error || !data) {
-      setMessages((prev) => prev.filter((m) => m.id !== temp.id));
-      setDraft(content);
-      showToast('error', 'No se pudo enviar el mensaje. Probá de nuevo.');
-    } else {
-      setMessages((prev) => prev.map((m) => m.id === temp.id ? data as MessageRow : m));
-    }
-    setSending(false);
-  }, [draft, studentId, sending, showToast]);
 
   const activate = async () => {
     if (!studentId || activating) return;
     setActivating(true);
-    const { error } = await supabase.from('profiles').update({ client_status: 'active' }).eq('id', studentId);
-    if (error) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ client_status: 'active' })
+      .eq('id', studentId)
+      .select('id');
+    if (error || !data || data.length === 0) {
       showToast('error', 'No pudimos activar al cliente.');
     } else {
       setProfile((prev) => prev ? { ...prev, client_status: 'active' } : prev);
@@ -229,9 +222,6 @@ export function StudentDetailPage(): React.JSX.Element {
             onClick={() => setTab(t.key)}
           >
             {t.label}
-            {t.key === 'mensajes' && messages.filter((m) => !m.read && m.sender_role === 'client').length > 0 && (
-              <span className="sd-tab-dot" />
-            )}
           </button>
         ))}
       </div>
@@ -373,35 +363,35 @@ export function StudentDetailPage(): React.JSX.Element {
           </div>
         )}
 
-        {/* MENSAJES */}
-        {tab === 'mensajes' && (
-          <div className="card chat-card" style={{ height: 560 }}>
-            <div className="chat-scroll" ref={scrollRef}>
-              {messages.length === 0
-                ? <p className="muted" style={{ textAlign: 'center', margin: 'auto' }}>Todavía no hay mensajes.</p>
-                : messages.map((m) => {
-                    const own = m.sender_role === 'trainer';
-                    return (
-                      <div key={m.id} className={`bubble-row${own ? ' own' : ''}`}>
-                        <div className={`bubble${own ? ' own' : ''}`}>{m.content}</div>
-                        <span className="bubble-time">
-                          {new Date(m.created_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </div>
-                    );
-                  })
-              }
-            </div>
-            <div className="composer">
-              <input
-                className="field-input"
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void onSend(); } }}
-                placeholder="Escribile a tu alumno…"
-              />
-              <button className="btn" onClick={() => void onSend()} disabled={sending || !draft.trim()}>Enviar</button>
-            </div>
+        {/* FOTOS */}
+        {tab === 'fotos' && (
+          <div className="card">
+            <div className="section-title" style={{ marginBottom: 14 }}>Historial de fotos de progreso</div>
+            {photos.length === 0 ? (
+              <p className="muted" style={{ margin: 0 }}>Sin fotos de progreso todavía.</p>
+            ) : (
+              <div className="photo-gallery">
+                {photos.map((ph) => {
+                  const url = photoUrls[ph.photo_url];
+                  const caption = `${POSITION_LABEL[ph.position] ?? ph.position} · ${new Date(ph.recorded_at).toLocaleDateString('es-AR')}`;
+                  return (
+                    <figure key={ph.id} className="photo-gallery-item">
+                      {url ? (
+                        <img
+                          src={url}
+                          alt={caption}
+                          className="photo-gallery-img"
+                          onClick={() => setLightbox({ src: url, caption: `${profile?.full_name ?? 'Alumno'} · ${caption}` })}
+                        />
+                      ) : (
+                        <div className="photo-gallery-skeleton skeleton" />
+                      )}
+                      <figcaption className="photo-gallery-cap">{caption}</figcaption>
+                    </figure>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
@@ -495,7 +485,20 @@ export function StudentDetailPage(): React.JSX.Element {
         .sd-content { min-height: 300px; }
         .sd-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
         @media (max-width: 900px) { .sd-grid-3 { grid-template-columns: 1fr; } }
+
+        .photo-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
+        .photo-gallery-item { margin: 0; display: flex; flex-direction: column; gap: 6px; }
+        .photo-gallery-img {
+          width: 100%; aspect-ratio: 3 / 4; object-fit: cover;
+          border-radius: var(--radius-sm); border: 1px solid var(--border);
+          cursor: zoom-in; transition: transform 160ms var(--ease), box-shadow 160ms var(--ease);
+        }
+        .photo-gallery-img:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+        .photo-gallery-skeleton { width: 100%; aspect-ratio: 3 / 4; border-radius: var(--radius-sm); }
+        .photo-gallery-cap { font-size: 12px; color: var(--text-tertiary); text-transform: capitalize; }
       `}</style>
+
+      <Lightbox src={lightbox?.src ?? null} caption={lightbox?.caption} onClose={() => setLightbox(null)} />
     </div>
   );
 }

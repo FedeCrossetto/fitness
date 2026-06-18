@@ -3,6 +3,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 import { staleWhileRevalidate } from '../lib/cache';
+import { deletePrivateImage } from '../services/storage';
 import { todayISO } from '../lib/dates';
 import { clientConfig } from '../config/clientConfig';
 import type { BodyMeasurementRow, HydrationLogRow, PhotoPosition, ProgressPhotoRow } from '../types/database';
@@ -27,6 +28,7 @@ interface ProgressState {
   saveMeasurement: (userId: string, data: Partial<BodyMeasurementRow>) => Promise<boolean>;
   loadPhotos: (userId: string) => Promise<void>;
   addPhoto: (userId: string, position: PhotoPosition, photoUrl: string, weekNumber: number) => Promise<boolean>;
+  deletePhoto: (photoId: string, photoUrl: string) => Promise<boolean>;
   loadHydration: (userId: string) => Promise<void>;
   addWater: (userId: string, ml: number) => Promise<number | null>;
   setHydrationGoal: (userId: string, goalMl: number) => Promise<void>;
@@ -106,17 +108,28 @@ export const useProgressStore = create<ProgressState>()(
     try {
       const { data, error } = await supabase
         .from('progress_photos')
-        .upsert(
-          { user_id: userId, position, photo_url: photoUrl, week_number: weekNumber, recorded_at: todayISO() },
-          { onConflict: 'user_id,position,recorded_at' }
-        )
+        .insert({ user_id: userId, position, photo_url: photoUrl, week_number: weekNumber, recorded_at: todayISO() })
         .select()
         .single();
       if (error) throw error;
-      const rest = get().photos.filter((p) => p.id !== data.id);
-      set({ photos: [data, ...rest] });
+      set({ photos: [data, ...get().photos] });
       return true;
     } catch {
+      return false;
+    }
+  },
+
+  deletePhoto: async (photoId, photoUrl) => {
+    const previous = get().photos;
+    // Optimista: la sacamos de la UI al instante.
+    set({ photos: previous.filter((p) => p.id !== photoId) });
+    try {
+      const { error } = await supabase.from('progress_photos').delete().eq('id', photoId);
+      if (error) throw error;
+      await deletePrivateImage('progress-photos', photoUrl);
+      return true;
+    } catch {
+      set({ photos: previous }); // revertir si falla
       return false;
     }
   },

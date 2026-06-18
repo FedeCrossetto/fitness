@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { FullScreenLoader } from '@/components/ui';
 
 export function LoginPage(): React.JSX.Element {
   const { session, loading } = useAuth();
@@ -10,7 +11,9 @@ export function LoginPage(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  if (!loading && session) return <Navigate to="/" replace />;
+  // Mientras resuelve auth (o carga el perfil tras login) mostramos loader, no el form.
+  if (loading) return <FullScreenLoader />;
+  if (session) return <Navigate to="/" replace />;
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,6 +27,7 @@ export function LoginPage(): React.JSX.Element {
   return (
     <div className="center-screen">
       <form className="login-box card" onSubmit={(e) => void onSubmit(e)}>
+        <img src="/logo_app_sin_fondo_cuadrado_1024.png" alt="CustomFit" className="login-logo" />
         <h1 className="page-title">CustomFit</h1>
         <p className="page-sub">Panel del entrenador</p>
         {error ? <div className="toast error">{error}</div> : null}

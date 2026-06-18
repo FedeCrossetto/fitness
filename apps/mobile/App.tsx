@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -13,10 +13,15 @@ import {
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { useTheme } from './src/theme';
 import { RootNavigator } from './src/navigation/RootNavigator';
+import { navigationRef, navigateToCoachChat } from './src/navigation/navigationRef';
+import { listenToMessageTaps } from './src/services/notifications';
 import { ToastHost } from './src/components/common';
 
 export default function App(): React.JSX.Element {
   const { colors, isDark } = useTheme();
+
+  // Tap en una notificación de mensaje → abre el chat del coach.
+  useEffect(() => listenToMessageTaps(() => navigateToCoachChat()), []);
 
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
@@ -51,7 +56,7 @@ export default function App(): React.JSX.Element {
   return (
     <GestureHandlerRootView style={[styles.root, { backgroundColor: colors.background }]}>
       <SafeAreaProvider>
-        <NavigationContainer theme={navigationTheme}>
+        <NavigationContainer ref={navigationRef} theme={navigationTheme}>
           <StatusBar style={isDark ? 'light' : 'dark'} />
           <RootNavigator />
           <ToastHost />
