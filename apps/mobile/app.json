@@ -42,7 +42,8 @@
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
         "android.permission.ACTIVITY_RECOGNITION",
-        "android.permission.POST_NOTIFICATIONS"
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.health.READ_STEPS"
       ],
       "predictiveBackGestureEnabled": false
     },
@@ -67,7 +68,9 @@
       [
         "expo-notifications",
         {
-          "color": "#BEFC50"
+          "color": "#BEFC50",
+          "mode": "development",
+          "enableBackgroundRemoteNotifications": false
         }
       ],
       [
@@ -85,12 +88,18 @@
       ],
       "expo-web-browser",
       "@bacons/apple-targets",
+      "expo-health-connect",
       [
         "expo-build-properties",
         {
           "ios": {
             "deploymentTarget": "16.4",
             "userScriptSandboxing": false
+          },
+          "android": {
+            "minSdkVersion": 26,
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35
           }
         }
       ]

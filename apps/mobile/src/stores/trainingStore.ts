@@ -10,6 +10,7 @@ import {
   endLiveWorkout,
   type LiveWorkoutState,
 } from '../services/liveActivity';
+import { useGoalsStore } from './goalsStore';
 import type {
   ExerciseRow,
   TrainingDayRow,
@@ -21,6 +22,12 @@ import type {
 
 export interface WorkoutWithCover extends WorkoutRow {
   cover_image_url: string | null;
+}
+
+async function syncTrainingGoal(userId: string): Promise<void> {
+  const goalsStore = useGoalsStore.getState();
+  await goalsStore.loadToday(userId);
+  await goalsStore.syncAutoGoal(userId, 'training', 1);
 }
 
 export interface PhaseWithDays extends TrainingPhaseRow {
@@ -261,6 +268,8 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
       set({ activeSession: null, lastSavedLog: data });
       await AsyncStorage.removeItem(ACTIVE_SESSION_KEY);
       void endLiveWorkout();
+      void syncTrainingGoal(userId);
+      void get().loadRecentLogs(userId);
       return data;
     } catch {
       return null;
@@ -288,6 +297,7 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
         completed: true,
       });
       if (error) throw error;
+      void syncTrainingGoal(userId);
       void get().loadRecentLogs(userId);
       return true;
     } catch {

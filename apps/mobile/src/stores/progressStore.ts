@@ -23,6 +23,9 @@ interface ProgressState {
   setSteps: (steps: number) => void;
   healthConnected: boolean;
   setHealthConnected: (v: boolean) => void;
+  /** Oculta las fotos de progreso en el home (preferencia local). */
+  homePhotosHidden: boolean;
+  toggleHomePhotosHidden: () => void;
 
   loadMeasurements: (userId: string) => Promise<void>;
   saveMeasurement: (userId: string, data: Partial<BodyMeasurementRow>) => Promise<boolean>;
@@ -46,9 +49,11 @@ export const useProgressStore = create<ProgressState>()(
   hydrationLoading: false,
   steps: 0,
   healthConnected: false,
+  homePhotosHidden: false,
 
   setSteps: (steps) => set({ steps }),
   setHealthConnected: (v) => set({ healthConnected: v }),
+  toggleHomePhotosHidden: () => set({ homePhotosHidden: !get().homePhotosHidden }),
 
   loadMeasurements: async (userId) => {
     set({ measurementsLoading: true, measurementsError: null });
@@ -195,7 +200,10 @@ export const useProgressStore = create<ProgressState>()(
       name: 'habito-progress',
       storage: createJSONStorage(() => AsyncStorage),
       // Solo persistimos la conexión a Salud; los pasos se re-leen frescos al abrir.
-      partialize: (state) => ({ healthConnected: state.healthConnected }),
+      partialize: (state) => ({
+        healthConnected: state.healthConnected,
+        homePhotosHidden: state.homePhotosHidden,
+      }),
     },
   ),
 );

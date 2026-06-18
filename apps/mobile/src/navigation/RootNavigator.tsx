@@ -16,6 +16,7 @@ import { WaiverScreen } from '../screens/waiver/WaiverScreen';
 import { ConsultationFormScreen } from '../screens/consultation/ConsultationFormScreen';
 import { useInviteDeepLink } from '../hooks/useInviteDeepLink';
 import { needsTrainerLink, isPendingActivation } from '../services/clientAccess';
+import { syncPushRegistration } from '../services/notifications';
 import { supabase } from '../lib/supabase';
 
 const anyClient = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> };
@@ -79,6 +80,14 @@ export function RootNavigator(): React.JSX.Element {
     if (!session) return;
     void useBrandingStore.getState().load();
   }, [session, profile?.trainer_id, profile?.role]);
+
+  // Registrar push token al tener sesión activa (no solo al abrir Home).
+  useEffect(() => {
+    const userId = session?.user.id;
+    if (!userId || !profile?.id) return;
+    if (needsOnboarding || needsTrainerLink(profile) || isPendingActivation(profile)) return;
+    void syncPushRegistration(userId);
+  }, [session?.user.id, profile?.id, profile?.trainer_id, profile?.client_status, needsOnboarding]);
 
   // After session + profile loaded, check if waiver signature is needed
   useEffect(() => {

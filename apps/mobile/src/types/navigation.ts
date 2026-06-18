@@ -10,7 +10,7 @@ export type AuthStackParamList = {
 export type HomeStackParamList = {
   HomeMain: undefined;
   Goals: undefined;
-  Profile: undefined;
+  Profile: { section?: 'health' } | undefined;
   Community: undefined;
   Subscription: undefined;
   CoachChat: undefined;

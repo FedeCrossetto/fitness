@@ -46,20 +46,22 @@ export function MetricCard({
           <AppText variant="caps12" color={colors.text.tertiary}>
             {label}
           </AppText>
-          {labelBadge ? (
-            <View style={styles.badgeRow}>
-              {labelBadgeIcon ? (
-                <Ionicons
-                  name={labelBadgeIcon}
-                  size={13}
-                  color={labelBadgeColor ?? colors.primary.default}
-                />
-              ) : null}
-              <AppText variant="body12Medium" color={labelBadgeColor ?? colors.primary.default}>
-                {labelBadge}
-              </AppText>
-            </View>
-          ) : null}
+          <View style={styles.badgeSlot}>
+            {labelBadge ? (
+              <View style={styles.badgeRow}>
+                {labelBadgeIcon ? (
+                  <Ionicons
+                    name={labelBadgeIcon}
+                    size={13}
+                    color={labelBadgeColor ?? colors.primary.default}
+                  />
+                ) : null}
+                <AppText variant="body12Medium" color={labelBadgeColor ?? colors.primary.default}>
+                  {labelBadge}
+                </AppText>
+              </View>
+            ) : null}
+          </View>
         </View>
         {icon ? <Ionicons name={icon} size={16} color={accent ?? colors.primary.default} /> : null}
       </View>
@@ -89,10 +91,14 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.xs,
+    alignItems: 'flex-start',
+    marginBottom: spacing.xxs,
   },
   labelCol: { flex: 1, gap: 2 },
+  badgeSlot: {
+    minHeight: 18,
+    justifyContent: 'center',
+  },
   badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   valueRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.xxs },
   unit: { marginBottom: 4 },

@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import { useFocusEffect } from '@react-navigation/native';
@@ -31,18 +33,20 @@ import { useProgressStore } from '../../stores/progressStore';
 import { useTrainingStore } from '../../stores/trainingStore';
 import { computeStreak } from '../../services/streaks';
 import { signedUrl } from '../../services/storage';
-import { getTodaySteps } from '../../services/steps';
-import { initHealthKit, isExpoGo, readHealthSnapshot } from '../../services/health';
-import { registerPushToken } from '../../services/notifications';
+import { fetchTodaySteps } from '../../services/steps';
+import { useStepsAutoSync } from '../../hooks/useStepsAutoSync';
+import { syncPushRegistration } from '../../services/notifications';
+import { hapticSelect } from '../../lib/haptics';
 import { useUiStore } from '../../stores/uiStore';
-import * as Device from 'expo-device';
-import { Alert, Linking, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import type { HomeStackParamList } from '../../types/navigation';
+
+const CALORIES_ORANGE = '#F97316';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'HomeMain'>;
 
 export function HomeScreen({ navigation }: Props): React.JSX.Element {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const clientConfig = useClientConfig();
   const styles = useThemedStyles(createStyles);
   const { t, i18n } = useTranslation();
@@ -73,11 +77,12 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
   const steps = useProgressStore((s) => s.steps);
   const setSteps = useProgressStore((s) => s.setSteps);
   const healthConnected = useProgressStore((s) => s.healthConnected);
-  const setHealthConnected = useProgressStore((s) => s.setHealthConnected);
   const measurements = useProgressStore((s) => s.measurements);
   const loadMeasurements = useProgressStore((s) => s.loadMeasurements);
   const photos = useProgressStore((s) => s.photos);
   const loadPhotos = useProgressStore((s) => s.loadPhotos);
+  const homePhotosHidden = useProgressStore((s) => s.homePhotosHidden);
+  const toggleHomePhotosHidden = useProgressStore((s) => s.toggleHomePhotosHidden);
 
   const phases = useTrainingStore((s) => s.phases);
   const loadProgram = useTrainingStore((s) => s.loadProgram);
@@ -86,63 +91,6 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
 
   const [streak, setStreak] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
-  const [connectingSteps, setConnectingSteps] = useState(false);
-
-  const connectSteps = useCallback(async () => {
-    if (!userId || connectingSteps) return;
-    if (!Device.isDevice) {
-      useUiStore.getState().showToast('info', 'No disponible en el simulador.');
-      return;
-    }
-    if (isExpoGo) {
-      Alert.alert(
-        'Build nativa requerida',
-        'Apple Health no funciona en Expo Go. Para activarlo necesitás correr un build nativo de la app.',
-        [{ text: 'Entendido' }]
-      );
-      return;
-    }
-    setConnectingSteps(true);
-    if (Platform.OS === 'ios') {
-      const ok = await initHealthKit();
-      if (ok) {
-        const snap = await readHealthSnapshot();
-        if (snap?.steps) {
-          setSteps(snap.steps);
-          void syncAutoGoal(userId, 'steps', snap.steps);
-        }
-        setHealthConnected(true);
-        useUiStore.getState().showToast('success', 'Apple Health conectado');
-      } else {
-        Alert.alert(
-          'Sin acceso',
-          'Habito necesita permiso para leer datos de Apple Health.',
-          [
-            { text: 'Cancelar', style: 'cancel' },
-            { text: 'Abrir Ajustes', onPress: () => void Linking.openSettings() },
-          ]
-        );
-      }
-    } else {
-      const todaySteps = await getTodaySteps();
-      if (todaySteps !== null) {
-        setSteps(todaySteps);
-        void syncAutoGoal(userId, 'steps', todaySteps);
-        setHealthConnected(true);
-        useUiStore.getState().showToast('success', 'Sensor de pasos conectado');
-      } else {
-        Alert.alert(
-          'Sin acceso',
-          'Habito necesita permiso para acceder al sensor de pasos.',
-          [
-            { text: 'Cancelar', style: 'cancel' },
-            { text: 'Abrir Ajustes', onPress: () => void Linking.openSettings() },
-          ]
-        );
-      }
-    }
-    setConnectingSteps(false);
-  }, [userId, connectingSteps, setSteps, syncAutoGoal]);
 
   const totals = useMemo(
     () =>
@@ -176,7 +124,7 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
     setStreak(streakInfo.current);
     // Solo refrescar pasos si el usuario ya conectó explícitamente
     if (useProgressStore.getState().healthConnected) {
-      const todaySteps = await getTodaySteps();
+      const todaySteps = await fetchTodaySteps(true);
       if (todaySteps !== null) {
         setSteps(todaySteps);
         void syncAutoGoal(userId, 'steps', todaySteps);
@@ -185,8 +133,10 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
   }, [userId, loadGoalsToday, loadNutritionDay, loadHydration, loadProgram, loadRecentLogs, setSteps, syncAutoGoal]);
 
   useEffect(() => {
-    if (userId) void registerPushToken(userId);
+    if (userId) void syncPushRegistration(userId);
   }, [userId]);
+
+  useStepsAutoSync(userId, syncAutoGoal);
 
   // Evita re-cargar todo en cada cambio de tab: el estado en memoria ya está al día.
   const lastLoadRef = useRef(0);
@@ -246,6 +196,27 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
   const nextWorkoutDay = phases
     .flatMap((p) => p.days)
     .find((d) => d.day_type !== 'descanso' && d.workout !== null);
+  const nextWorkoutName = nextWorkoutDay?.workout?.title?.split(' — ')[0]
+    ?? nextWorkoutDay?.title
+    ?? null;
+  const nextWorkoutDayLabel = nextWorkoutDay?.title?.match(/D[ií]a\s+\d+/i)?.[0] ?? null;
+
+  const navigateToProgressPhotos = useCallback(() => {
+    (navigation.getParent() as { navigate: (name: string, params?: object) => void } | undefined)
+      ?.navigate('ProgressTab', { screen: 'ProgressPhotos' });
+  }, [navigation]);
+
+  const navigateToHealthSettings = useCallback(() => {
+    navigation.navigate('Profile', { section: 'health' });
+  }, [navigation]);
+
+  const navigateToProgress = useCallback(
+    (screen: 'Dashboard' | 'WeightDetail' | 'Measurements') => {
+      (navigation.getParent() as { navigate: (name: string, params?: object) => void } | undefined)
+        ?.navigate('ProgressTab', { screen });
+    },
+    [navigation]
+  );
 
   const firstName = profile?.full_name?.split(' ')[0] ?? 'Atleta';
 
@@ -294,7 +265,7 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
               {t.greeting.morning}, {firstName}
             </AppText>
             <View style={styles.streakRow}>
-              <Ionicons name="flame" size={16} color={colors.primary.default} />
+              <Ionicons name="flame" size={16} color={CALORIES_ORANGE} />
               <AppText variant="body13SemiBold" color={colors.primary.default}>
                 {streak > 0
                   ? i18n(t.greeting.streak, { n: streak, unit: streak === 1 ? t.greeting.streak_day : t.greeting.streak_days })
@@ -329,39 +300,85 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
 
         <ActiveSessionBanner />
 
-        {/* Anillo de objetivo del día */}
-        <Card elevated style={styles.dayCard} onPress={isToday ? () => navigation.navigate('Goals') : undefined}>
-          <View style={styles.dayCardRow}>
-            <ProgressRing progress={isToday ? goalProgress : 0} size={110} strokeWidth={10}>
-              <AppText variant="metricMedium" color={colors.text.primary}>
-                {isToday ? `${completedGoals}/${goals.length || 0}` : '—'}
-              </AppText>
-              <AppText variant="caps11" color={colors.text.tertiary}>
-                {t.home.goals_unit}
-              </AppText>
-            </ProgressRing>
-            <View style={styles.dayCardInfo}>
-              <AppText variant="h3" color={colors.text.primary}>
-                {isToday ? t.home.today_title : t.home.past_title}
-              </AppText>
-              <AppText variant="body13" color={colors.text.secondary} style={styles.dayCardSub}>
-                {isToday
-                  ? goalProgress >= 1
-                    ? t.home.today_full
-                    : completedGoals > 0
-                      ? t.home.today_good
-                      : t.home.today_start
-                  : t.home.past_hint}
-              </AppText>
-              {isToday && (
-                <View style={styles.dayCardLink}>
-                  <AppText variant="body13SemiBold" color={colors.primary.default}>
-                    {t.home.see_goals}
-                  </AppText>
-                  <Ionicons name="arrow-forward" size={14} color={colors.primary.default} />
-                </View>
-              )}
+        {/* Resumen del día */}
+        <Card
+          elevated
+          style={[styles.dayCard, !isDark && styles.dayCardLight]}
+          onPress={isToday ? () => navigation.navigate('Goals') : undefined}
+        >
+          <LinearGradient
+            colors={
+              isDark
+                ? [colors.primary.muted, 'transparent']
+                : [`${colors.gradients.kinetic[0]}55`, colors.surface.base]
+            }
+            locations={isDark ? [0, 1] : [0, 0.75]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.dayCardGlow}
+            pointerEvents="none"
+          />
+          <View style={styles.dayCardContent}>
+            <View style={styles.dayCardTop}>
+              <View style={styles.dayCardTitleBlock}>
+                <AppText variant="caps12" color={colors.text.tertiary}>
+                  {t.home.goals_unit}
+                </AppText>
+                <AppText variant="h3" color={colors.text.primary}>
+                  {isToday ? t.home.today_title : t.home.past_title}
+                </AppText>
+              </View>
+              <View style={[styles.dayCardCount, !isDark && styles.dayCardCountLight]}>
+                <AppText variant="body16SemiBold" color={colors.primary.dark}>
+                  {isToday ? `${completedGoals}/${goals.length || 0}` : '—'}
+                </AppText>
+              </View>
             </View>
+
+            <ProgressBar
+              progress={isToday ? goalProgress : 0}
+              height={5}
+              color={goalProgress >= 1 ? colors.states.success : colors.primary.default}
+              trackColor={isDark ? undefined : colors.border.subtle}
+              style={styles.dayCardBar}
+            />
+
+            {isToday && goals.length > 0 ? (
+              <View style={styles.dayCardDots}>
+                {goals.map((goal) => (
+                  <View
+                    key={goal.id}
+                    style={[styles.dayCardDot, goal.completed && styles.dayCardDotDone]}
+                  />
+                ))}
+              </View>
+            ) : null}
+
+            <AppText variant="body13" color={colors.text.secondary}>
+              {isToday
+                ? goalProgress >= 1
+                  ? t.home.today_full
+                  : completedGoals > 0
+                    ? t.home.today_good
+                    : t.home.today_start
+                : t.home.past_hint}
+            </AppText>
+
+            {isToday ? (
+              <View style={[styles.dayCardCta, !isDark && styles.dayCardCtaLight]}>
+                <AppText
+                  variant="body13SemiBold"
+                  color={isDark ? colors.primary.default : colors.primary.onText}
+                >
+                  {t.home.see_goals}
+                </AppText>
+                <Ionicons
+                  name="arrow-forward"
+                  size={14}
+                  color={isDark ? colors.primary.default : colors.primary.onText}
+                />
+              </View>
+            ) : null}
           </View>
         </Card>
 
@@ -373,7 +390,8 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
             label={t.home.calories}
             value={String(Math.round(totals.kcal))}
             unit={`/ ${kcalGoal} kcal`}
-            icon="flame-outline"
+            icon="flame"
+            accent={CALORIES_ORANGE}
             onPress={() => navigation.getParent()?.navigate('NutritionTab' as never)}
             style={styles.metricHalf}
           />
@@ -381,22 +399,17 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
             label={t.home.steps}
             value={steps > 0 ? steps.toLocaleString('es-AR') : '—'}
             unit={`/ ${clientConfig.defaultStepsGoal.toLocaleString('es-AR')}`}
-            icon={healthConnected ? 'walk-outline' : 'link-outline'}
+            icon="walk"
             labelBadge={
               healthConnected
-                ? Platform.OS === 'ios' ? t.home.apple_health : t.home.sensor_conn
-                : connectingSteps
-                  ? t.home.connecting
-                  : Platform.OS === 'ios'
-                    ? t.home.connect_ios
-                    : t.home.connect_android
+                ? Platform.OS === 'ios' ? t.home.apple_health : t.home.health_connect
+                : Platform.OS === 'ios'
+                  ? t.home.connect_ios
+                  : t.home.connect_android
             }
             labelBadgeIcon={healthConnected ? 'checkmark-circle' : undefined}
             labelBadgeColor={colors.primary.default}
-            onPress={healthConnected
-              ? () => navigation.getParent()?.navigate('ProgressTab' as never)
-              : () => void connectSteps()
-            }
+            onPress={navigateToHealthSettings}
             style={styles.metricHalf}
           />
         </View>
@@ -446,17 +459,24 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
           {/* Peso corporal */}
           <Pressable
             style={styles.progressCard}
-            onPress={() => navigation.getParent()?.navigate('ProgressTab' as never)}
+            onPress={() => navigateToProgress(latestWeight ? 'WeightDetail' : 'Measurements')}
             accessibilityLabel="Ver peso corporal"
           >
-            <AppText variant="caps11" color={colors.text.tertiary} style={styles.progressCardLabel}>
-              {t.home.weight}
-            </AppText>
-            {latestWeight ? (
-              <>
-                <AppText variant="body12" color={colors.text.tertiary} style={styles.progressCardDate}>
+            <View style={styles.progressCardHead}>
+              <AppText variant="caps11" color={colors.text.tertiary} style={styles.progressCardLabelInline}>
+                {t.home.weight}
+              </AppText>
+              <View style={styles.progressCardIcon} />
+            </View>
+            <View style={styles.progressCardMeta}>
+              {latestWeight ? (
+                <AppText variant="body12" color={colors.text.tertiary} numberOfLines={1}>
                   {formatShortDate(latestWeight.date)}
                 </AppText>
+              ) : null}
+            </View>
+            <View style={styles.progressCardBody}>
+              {latestWeight ? (
                 <View style={styles.progressValueRow}>
                   <AppText variant="metricMedium" color={colors.text.primary}>
                     {(latestWeight.weight_kg as number).toFixed(1)}
@@ -465,29 +485,38 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
                     kg
                   </AppText>
                 </View>
-                <View style={[styles.progressBar, { backgroundColor: colors.primary.default }]} />
-              </>
-            ) : (
-              <AppText variant="body16SemiBold" color={colors.text.tertiary} style={styles.progressEmpty}>
-                ...
-              </AppText>
-            )}
+              ) : (
+                <AppText variant="body16SemiBold" color={colors.text.tertiary} style={styles.progressEmpty}>
+                  ...
+                </AppText>
+              )}
+            </View>
+            {latestWeight ? (
+              <View style={[styles.progressBar, { backgroundColor: colors.primary.default }]} />
+            ) : null}
           </Pressable>
 
           {/* % Grasa */}
           <Pressable
             style={styles.progressCard}
-            onPress={() => navigation.getParent()?.navigate('ProgressTab' as never)}
+            onPress={() => navigateToProgress('Measurements')}
             accessibilityLabel="Ver porcentaje de grasa corporal"
           >
-            <AppText variant="caps11" color={colors.text.tertiary} style={styles.progressCardLabel}>
-              {t.home.body_fat}
-            </AppText>
-            {latestFat ? (
-              <>
-                <AppText variant="body12" color={colors.text.tertiary} style={styles.progressCardDate}>
+            <View style={styles.progressCardHead}>
+              <AppText variant="caps11" color={colors.text.tertiary} style={styles.progressCardLabelInline}>
+                {t.home.body_fat}
+              </AppText>
+              <View style={styles.progressCardIcon} />
+            </View>
+            <View style={styles.progressCardMeta}>
+              {latestFat ? (
+                <AppText variant="body12" color={colors.text.tertiary} numberOfLines={1}>
                   {formatShortDate(latestFat.date)}
                 </AppText>
+              ) : null}
+            </View>
+            <View style={styles.progressCardBody}>
+              {latestFat ? (
                 <View style={styles.progressValueRow}>
                   <AppText variant="metricMedium" color={colors.text.primary}>
                     {(latestFat.body_fat_pct as number).toFixed(1)}
@@ -496,12 +525,12 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
                     %
                   </AppText>
                 </View>
-              </>
-            ) : (
-              <AppText variant="body16SemiBold" color={colors.text.tertiary} style={styles.progressEmpty}>
-                ...
-              </AppText>
-            )}
+              ) : (
+                <AppText variant="body16SemiBold" color={colors.text.tertiary} style={styles.progressEmpty}>
+                  ...
+                </AppText>
+              )}
+            </View>
           </Pressable>
 
           {/* Hidratación */}
@@ -511,18 +540,24 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
             accessibilityLabel="Ver hidratación"
           >
             <View style={styles.progressCardHead}>
-              <AppText variant="caps11" color={colors.text.tertiary} style={styles.progressCardLabel}>
+              <AppText variant="caps11" color={colors.text.tertiary} style={styles.progressCardLabelInline}>
                 {t.home.hydration}
               </AppText>
-              <Ionicons name="water-outline" size={14} color={colors.water} />
+              <View style={styles.progressCardIcon}>
+                <Ionicons name="water" size={14} color={colors.water} />
+              </View>
             </View>
-            <AppText variant="metricMedium" color={colors.text.primary} style={styles.progressNextTitle}>
-              {hydration ? (hydration.total_ml / 1000).toFixed(1) : '0.0'}
-              <AppText variant="body13Medium" color={colors.text.tertiary}>
-                {' '}
-                / {((hydration?.goal_ml ?? clientConfig.defaultHydrationGoalMl) / 1000).toFixed(1)} L
-              </AppText>
-            </AppText>
+            <View style={styles.progressCardMeta} />
+            <View style={styles.progressCardBody}>
+              <View style={styles.progressValueRow}>
+                <AppText variant="metricMedium" color={colors.text.primary}>
+                  {hydration ? (hydration.total_ml / 1000).toFixed(1) : '0.0'}
+                </AppText>
+                <AppText variant="body13Medium" color={colors.text.tertiary} style={styles.progressUnit}>
+                  / {((hydration?.goal_ml ?? clientConfig.defaultHydrationGoalMl) / 1000).toFixed(1)} L
+                </AppText>
+              </View>
+            </View>
             <ProgressBar
               progress={hydration ? hydration.total_ml / Math.max(hydration.goal_ml, 1) : 0}
               style={styles.progressHydrationBar}
@@ -537,63 +572,135 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
             accessibilityLabel="Ver próximo entreno"
           >
             <View style={styles.progressCardHead}>
-              <AppText variant="caps11" color={colors.text.tertiary} style={styles.progressCardLabel}>
+              <AppText variant="caps11" color={colors.text.tertiary} style={styles.progressCardLabelInline}>
                 {t.home.next_workout}
               </AppText>
-              <Ionicons name="barbell-outline" size={14} color={colors.pillars.training} />
+              <View style={styles.progressCardIcon}>
+                <Ionicons name="barbell" size={14} color={colors.pillars.training} />
+              </View>
             </View>
-            <AppText variant="body14SemiBold" color={colors.text.primary} numberOfLines={2} style={styles.progressNextTitle}>
-              {trainedToday ? t.home.trained_today : nextWorkoutDay?.title ?? t.home.no_program}
-            </AppText>
-            <AppText variant="body12" color={colors.text.tertiary} numberOfLines={1}>
-              {trainedToday ? t.home.rest : nextWorkoutDay?.workout?.title ?? t.home.coach_hint}
-            </AppText>
+            <View style={styles.progressCardMeta}>
+              {!trainedToday && nextWorkoutDayLabel ? (
+                <AppText variant="body12" color={colors.text.tertiary} numberOfLines={1}>
+                  {nextWorkoutDayLabel}
+                </AppText>
+              ) : null}
+            </View>
+            <View style={styles.progressCardBody}>
+              {trainedToday ? (
+                <AppText variant="body16SemiBold" color={colors.text.primary} numberOfLines={2}>
+                  {t.home.trained_today}
+                </AppText>
+              ) : nextWorkoutName ? (
+                <AppText variant="body16SemiBold" color={colors.text.primary} numberOfLines={2}>
+                  {nextWorkoutName}
+                </AppText>
+              ) : (
+                <AppText variant="body13" color={colors.text.tertiary} numberOfLines={2}>
+                  {t.home.coach_hint}
+                </AppText>
+              )}
+            </View>
+            {!trainedToday && nextWorkoutName ? (
+              <View style={[styles.progressBar, { backgroundColor: colors.pillars.training }]} />
+            ) : null}
           </Pressable>
         </View>
 
         {/* Fotos de progreso */}
-        <Pressable
-          style={styles.photosCard}
-          onPress={() =>
-            (navigation.getParent() as { navigate: (name: string, params?: object) => void } | undefined)
-              ?.navigate('ProgressTab', { screen: 'ProgressPhotos' })
-          }
-          accessibilityLabel="Ver fotos de progreso"
-        >
+        <Card style={[styles.photosCard, !isDark && styles.photosCardLight]}>
           <View style={styles.photosHeader}>
-            <AppText variant="caps11" color={colors.text.tertiary}>
-              {t.home.photos}
-            </AppText>
-            <Ionicons name="chevron-forward" size={14} color={colors.text.tertiary} />
-          </View>
-          {recentPhotos.length > 0 ? (
-            <View style={styles.photoRow}>
-              {recentPhotos.map((photo) => (
-                <Image
-                  key={photo.id}
-                  source={photoUrls[photo.photo_url] ? { uri: photoUrls[photo.photo_url] } : undefined}
-                  style={styles.photoThumb}
-                  contentFit="cover"
-                  transition={150}
-                />
-              ))}
-              {photos.length > 3 && (
-                <View style={styles.photoMore}>
-                  <AppText variant="body13SemiBold" color={colors.text.tertiary}>
-                    +{photos.length - 3}
-                  </AppText>
+            <View style={styles.photosTitleBlock}>
+              <View style={styles.photosTitleRow}>
+                <View style={styles.photosIconWrap}>
+                  <Ionicons name="images" size={16} color={colors.primary.default} />
                 </View>
-              )}
-            </View>
-          ) : (
-            <View style={styles.photoEmpty}>
-              <Ionicons name="camera-outline" size={26} color={colors.text.tertiary} />
-              <AppText variant="body13" color={colors.text.tertiary} style={styles.photoEmptyText}>
-                {t.home.add_photo}
+                <AppText variant="body14SemiBold" color={colors.text.primary}>
+                  {t.home.photos}
+                </AppText>
+              </View>
+              <AppText variant="body12" color={colors.text.tertiary} style={styles.photosSubtitle}>
+                {t.home.photos_sub}
               </AppText>
             </View>
-          )}
-        </Pressable>
+            <View style={styles.photosActions}>
+              <Pressable
+                onPress={() => {
+                  hapticSelect();
+                  toggleHomePhotosHidden();
+                }}
+                style={({ pressed }) => [styles.photosActionBtn, pressed && styles.photosActionPressed]}
+                accessibilityRole="button"
+                accessibilityLabel={homePhotosHidden ? t.home.photos_show : t.home.photos_hide}
+              >
+                <Ionicons
+                  name={homePhotosHidden ? 'eye-off-outline' : 'eye-outline'}
+                  size={18}
+                  color={colors.text.secondary}
+                />
+              </Pressable>
+              <Pressable
+                onPress={navigateToProgressPhotos}
+                style={({ pressed }) => [styles.photosActionBtn, pressed && styles.photosActionPressed]}
+                accessibilityRole="button"
+                accessibilityLabel={t.ui.see_all}
+              >
+                <Ionicons name="chevron-forward" size={16} color={colors.text.tertiary} />
+              </Pressable>
+            </View>
+          </View>
+
+          <Pressable
+            onPress={navigateToProgressPhotos}
+            style={({ pressed }) => [styles.photosBody, pressed && styles.photosBodyPressed]}
+            accessibilityRole="button"
+            accessibilityLabel={t.home.photos}
+          >
+            {recentPhotos.length > 0 ? (
+              <View style={styles.photoRow}>
+                {recentPhotos.map((photo) => (
+                  <View key={photo.id} style={styles.photoThumbWrap}>
+                    <Image
+                      source={photoUrls[photo.photo_url] ? { uri: photoUrls[photo.photo_url] } : undefined}
+                      style={styles.photoThumb}
+                      contentFit="cover"
+                      transition={150}
+                    />
+                    {homePhotosHidden ? (
+                      <BlurView
+                        intensity={isDark ? 40 : 55}
+                        tint={isDark ? 'dark' : 'light'}
+                        style={styles.photoThumbBlur}
+                      />
+                    ) : null}
+                  </View>
+                ))}
+                {photos.length > 3 ? (
+                  <View style={styles.photoMore}>
+                    <AppText variant="body13SemiBold" color={colors.text.secondary}>
+                      +{photos.length - 3}
+                    </AppText>
+                  </View>
+                ) : null}
+              </View>
+            ) : (
+              <View style={styles.photoEmpty}>
+                <View style={styles.photoEmptyIcon}>
+                  <Ionicons name="camera-outline" size={22} color={colors.primary.default} />
+                </View>
+                <View style={styles.photoEmptyCopy}>
+                  <AppText variant="body14Medium" color={colors.text.primary}>
+                    {t.home.add_photo}
+                  </AppText>
+                  <AppText variant="body12" color={colors.text.tertiary}>
+                    {t.home.photos_sub}
+                  </AppText>
+                </View>
+                <Ionicons name="add-circle-outline" size={22} color={colors.primary.default} />
+              </View>
+            )}
+          </Pressable>
+        </Card>
 
         {/* Accesos rápidos */}
         <SectionHeader title={t.home.quick_access} />
@@ -689,11 +796,60 @@ const createStyles = (colors: Colors) => StyleSheet.create({
   },
   greeting: { marginTop: 2 },
   streakRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, marginTop: spacing.xs },
-  dayCard: { marginBottom: spacing.md },
-  dayCardRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  dayCardInfo: { flex: 1 },
-  dayCardSub: { marginTop: spacing.xxs },
-  dayCardLink: { flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, marginTop: spacing.sm },
+  dayCard: { marginBottom: spacing.md, overflow: 'hidden' },
+  dayCardLight: {
+    backgroundColor: colors.surface.base,
+    borderColor: colors.border.default,
+  },
+  dayCardGlow: { ...StyleSheet.absoluteFillObject },
+  dayCardContent: { gap: spacing.sm },
+  dayCardTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  dayCardTitleBlock: { flex: 1, gap: 2 },
+  dayCardCount: {
+    backgroundColor: colors.primary.muted,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xxs,
+    minWidth: 48,
+    alignItems: 'center',
+  },
+  dayCardCountLight: {
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+  },
+  dayCardBar: { marginTop: spacing.xxs },
+  dayCardDots: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+  dayCardDot: {
+    width: 8,
+    height: 8,
+    borderRadius: radius.pill,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+  },
+  dayCardDotDone: {
+    backgroundColor: colors.primary.default,
+    borderColor: colors.primary.default,
+  },
+  dayCardCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xxs,
+    marginTop: spacing.xxs,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primary.muted,
+  },
+  dayCardCtaLight: {
+    backgroundColor: colors.primary.default,
+  },
   metricsRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm },
   metricHalf: { flex: 1 },
   macrosCard: { marginBottom: spacing.sm },
@@ -757,33 +913,42 @@ const createStyles = (colors: Colors) => StyleSheet.create({
   progressCard: {
     width: '48%',
     flexGrow: 1,
-    minHeight: 110,
+    minHeight: 118,
     backgroundColor: colors.surface.base,
     borderWidth: 1,
     borderColor: colors.border.subtle,
     borderRadius: radius.lg,
     padding: spacing.md,
-    justifyContent: 'flex-start',
     overflow: 'hidden',
   },
   progressCardHead: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    minHeight: 14,
   },
-  progressCardLabel: {
+  progressCardLabelInline: {
     letterSpacing: 0.6,
-    marginBottom: spacing.xxs,
+    flex: 1,
   },
-  progressNextTitle: {
-    marginTop: spacing.xs,
-    marginBottom: spacing.xxs,
+  progressCardIcon: {
+    width: 14,
+    height: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  progressCardMeta: {
+    height: 18,
+    marginTop: spacing.xxs,
+    justifyContent: 'center',
+  },
+  progressCardBody: {
+    minHeight: 40,
+    justifyContent: 'flex-end',
+    marginTop: spacing.xxs,
   },
   progressHydrationBar: {
     marginTop: spacing.sm,
-  },
-  progressCardDate: {
-    marginBottom: spacing.xs,
   },
   progressValueRow: {
     flexDirection: 'row',
@@ -793,11 +958,7 @@ const createStyles = (colors: Colors) => StyleSheet.create({
   progressUnit: {
     marginBottom: spacing.xs,
   },
-  progressSteps: {
-    marginTop: spacing.xs,
-  },
   progressEmpty: {
-    marginTop: spacing.sm,
     letterSpacing: 2,
   },
   progressBar: {
@@ -810,36 +971,81 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     borderBottomRightRadius: radius.lg,
   },
 
-  // Photos card
+  // Photos section
   photosCard: {
-    backgroundColor: colors.surface.base,
-    borderWidth: 1,
-    borderColor: colors.border.subtle,
-    borderRadius: radius.lg,
-    padding: spacing.md,
     marginBottom: spacing.sm,
+    overflow: 'hidden',
+  },
+  photosCardLight: {
+    borderColor: colors.border.default,
   },
   photosHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
+    gap: spacing.sm,
     marginBottom: spacing.sm,
   },
+  photosTitleBlock: { flex: 1, gap: 2 },
+  photosTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  photosIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primary.muted,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photosSubtitle: { marginLeft: 28 + spacing.xs },
+  photosActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xxs,
+  },
+  photosActionBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface.elevated,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+  },
+  photosActionPressed: { opacity: 0.75 },
+  photosBody: {
+    borderRadius: radius.md,
+  },
+  photosBodyPressed: { opacity: 0.9 },
   photoRow: {
     flexDirection: 'row',
     gap: spacing.sm,
   },
-  photoThumb: {
-    width: 72,
-    height: 72,
+  photoThumbWrap: {
+    width: 80,
+    height: 80,
     borderRadius: radius.md,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+  },
+  photoThumb: {
+    width: '100%',
+    height: '100%',
     backgroundColor: colors.surface.elevated,
   },
+  photoThumbBlur: {
+    ...StyleSheet.absoluteFillObject,
+  },
   photoMore: {
-    width: 72,
-    height: 72,
+    width: 80,
+    height: 80,
     borderRadius: radius.md,
-    backgroundColor: colors.surface.elevated,
+    backgroundColor: colors.primary.muted,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
@@ -849,9 +1055,19 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    paddingVertical: spacing.sm,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    backgroundColor: colors.background,
   },
-  photoEmptyText: {
-    flex: 1,
+  photoEmptyIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primary.muted,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
+  photoEmptyCopy: { flex: 1, gap: 2 },
 });

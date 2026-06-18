@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -10,11 +11,16 @@ import { formatLongDate } from '../../lib/dates';
 import { supabase } from '../../lib/supabase';
 import { uploadAvatar } from '../../services/storage';
 import { fetchActiveSubscription, hasActiveAccess } from '../../services/payments';
-import { initHealthKit, isExpoGo } from '../../services/health';
+import { isExpoGo } from '../../services/health';
+import { connectTodaySteps } from '../../services/steps';
+import { showPlatformHealthError } from '../../services/healthPlatform';
 import { useProgressStore } from '../../stores/progressStore';
+import { useGoalsStore } from '../../stores/goalsStore';
+import { useStepsAutoSync } from '../../hooks/useStepsAutoSync';
+import { GarminSyncCard } from '../../components/health/GarminSyncCard';
 import * as Device from 'expo-device';
-import { Linking, Platform } from 'react-native';
-import { cancelReminder, scheduleDailyReminder } from '../../services/notifications';
+import { Platform } from 'react-native';
+import { cancelReminder, scheduleDailyReminder, isPushMessagesEnabled, enablePushMessages, disablePushMessages, getNotificationPermissionStatus, openNotificationSettings } from '../../services/notifications';
 import {
   AppText,
   Avatar,
@@ -84,7 +90,7 @@ function SettingsRow({ icon, label, onPress, last = false }: SettingsRowProps): 
   );
 }
 
-export function ProfileScreen({ navigation }: Props): React.JSX.Element {
+export function ProfileScreen({ navigation, route }: Props): React.JSX.Element {
   const { colors, mode, setMode } = useTheme();
   const { t, i18n, language, setLanguage } = useTranslation();
 
@@ -102,6 +108,22 @@ export function ProfileScreen({ navigation }: Props): React.JSX.Element {
   const styles = useThemedStyles(createStyles);
 
   const insets = useSafeAreaInsets();
+  const scrollRef = useRef<ScrollView>(null);
+  const healthSectionY = useRef(0);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (route.params?.section !== 'health') return;
+      const timer = setTimeout(() => {
+        scrollRef.current?.scrollTo({
+          y: Math.max(0, healthSectionY.current - spacing.md),
+          animated: true,
+        });
+        navigation.setParams({ section: undefined });
+      }, 150);
+      return () => clearTimeout(timer);
+    }, [route.params?.section, navigation])
+  );
 
   const session = useAuthStore((s) => s.session);
   const profile = useAuthStore((s) => s.profile);
@@ -113,6 +135,9 @@ export function ProfileScreen({ navigation }: Props): React.JSX.Element {
   const healthConnected = useProgressStore((s) => s.healthConnected);
   const setHealthConnected = useProgressStore((s) => s.setHealthConnected);
   const setSteps = useProgressStore((s) => s.setSteps);
+  const syncAutoGoal = useGoalsStore((s) => s.syncAutoGoal);
+
+  useStepsAutoSync(userId, syncAutoGoal);
 
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [subscription, setSubscription] = useState<SubscriptionRow | null>(null);
@@ -122,6 +147,9 @@ export function ProfileScreen({ navigation }: Props): React.JSX.Element {
     entreno: false,
     comidas: false,
   });
+  const [pushMessages, setPushMessages] = useState(false);
+  const [pushPermissionDenied, setPushPermissionDenied] = useState(false);
+  const [pushLoading, setPushLoading] = useState(true);
 
   useEffect(() => {
     if (!userId) return;
@@ -152,6 +180,23 @@ export function ProfileScreen({ navigation }: Props): React.JSX.Element {
       setReminders(next);
     })();
   }, []);
+
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    void (async () => {
+      setPushLoading(true);
+      const [enabled, permission] = await Promise.all([
+        isPushMessagesEnabled(),
+        getNotificationPermissionStatus(),
+      ]);
+      if (cancelled) return;
+      setPushMessages(enabled && permission === 'granted');
+      setPushPermissionDenied(enabled && permission === 'denied');
+      setPushLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [userId]);
 
   const onPickAvatar = useCallback(async () => {
     if (!userId || uploadingAvatar) return;
@@ -192,28 +237,18 @@ export function ProfileScreen({ navigation }: Props): React.JSX.Element {
       );
       return;
     }
-    const ok = await initHealthKit();
-    if (ok) {
+
+    const result = await connectTodaySteps();
+    if (result.ok) {
       setHealthConnected(true);
+      setSteps(result.steps);
+      if (userId) void syncAutoGoal(userId, 'steps', result.steps);
       useUiStore.getState().showToast('success', Platform.OS === 'ios' ? t.profile.health_ok_ios : t.profile.health_ok_android);
-    } else {
-      Alert.alert(
-        t.profile.no_access,
-        Platform.OS === 'ios' ? t.profile.health_no_perm_ios : t.profile.health_no_perm_and,
-        [
-          { text: t.profile.cancel, style: 'cancel' },
-          {
-            text: t.profile.health_open,
-            onPress: () => {
-              void Linking.openURL('x-apple-health://').catch(() => {
-                void Linking.openSettings();
-              });
-            },
-          },
-        ]
-      );
+      return;
     }
-  }, [setHealthConnected, t]);
+
+    void showPlatformHealthError(result, t.profile);
+  }, [setHealthConnected, setSteps, syncAutoGoal, userId, t]);
 
   const onDisconnectHealth = useCallback(() => {
     // El Switch ya se movió visualmente — lo revertimos optimistamente y confirmamos
@@ -239,7 +274,43 @@ export function ProfileScreen({ navigation }: Props): React.JSX.Element {
       setReminders((prev) => ({ ...prev, [reminder.key]: !value }));
       useUiStore.getState().showToast('error', t.profile.reminder_error);
     }
-  }, []);
+  }, [t]);
+
+  const onTogglePushMessages = useCallback(async (value: boolean) => {
+    if (!userId) return;
+    if (value) {
+      setPushMessages(true);
+      setPushPermissionDenied(false);
+      const result = await enablePushMessages(userId);
+      if (result === 'enabled') return;
+      setPushMessages(false);
+      if (result === 'denied') {
+        setPushPermissionDenied(true);
+        Alert.alert(
+          t.profile.notifications,
+          t.profile.push_messages_denied,
+          [
+            { text: t.profile.cancel, style: 'cancel' },
+            { text: t.ui.open_settings, onPress: openNotificationSettings },
+          ],
+        );
+        return;
+      }
+      if (result === 'simulator') {
+        useUiStore.getState().showToast('error', t.profile.push_messages_sim);
+        return;
+      }
+      if (result === 'missing_apns') {
+        Alert.alert(t.profile.notifications, t.profile.push_messages_rebuild);
+        return;
+      }
+      useUiStore.getState().showToast('error', t.profile.push_messages_error);
+      return;
+    }
+    setPushMessages(false);
+    setPushPermissionDenied(false);
+    await disablePushMessages(userId);
+  }, [userId, t]);
 
   const onSignOut = useCallback(() => {
     Alert.alert(t.profile.sign_out, t.profile.sign_out_confirm, [
@@ -260,7 +331,7 @@ export function ProfileScreen({ navigation }: Props): React.JSX.Element {
         <View style={styles.headerSpacer} />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+      <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         {/* Tarjeta de identidad */}
         <Card elevated style={styles.identityCard}>
           <View style={styles.identityRow}>
@@ -421,41 +492,75 @@ export function ProfileScreen({ navigation }: Props): React.JSX.Element {
         </Card>
 
         {/* Salud */}
-        <SectionHeader title={t.profile.health} />
-        <Card style={styles.settingsCard}>
-          <View style={styles.row}>
-            <View style={styles.rowIcon}>
-              <Ionicons
-                name={Platform.OS === 'ios' ? 'heart-outline' : 'walk-outline'}
-                size={18}
-                color={colors.primary.default}
+        <View
+          onLayout={(event) => {
+            healthSectionY.current = event.nativeEvent.layout.y;
+          }}
+        >
+          <SectionHeader title={t.profile.health} />
+          <Card style={styles.settingsCard}>
+            <View style={styles.row}>
+              <View style={styles.rowIcon}>
+                <Ionicons
+                  name={Platform.OS === 'ios' ? 'heart-outline' : 'walk-outline'}
+                  size={18}
+                  color={colors.primary.default}
+                />
+              </View>
+              <View style={styles.rowLabel}>
+                <AppText variant="body16Medium" color={colors.text.primary}>
+                  {Platform.OS === 'ios' ? t.profile.apple_health : t.profile.health_connect}
+                </AppText>
+                {!Device.isDevice ? (
+                  <AppText variant="body12" color={colors.text.disabled}>{t.profile.simulator_warn}</AppText>
+                ) : isExpoGo ? (
+                  <AppText variant="body12" color={colors.text.disabled}>{t.profile.native_required}</AppText>
+                ) : (
+                  <AppText variant="body12" color={colors.text.tertiary}>
+                    {Platform.OS === 'ios' ? t.profile.health_sub_ios : t.profile.health_sub_android}
+                  </AppText>
+                )}
+              </View>
+              <Switch
+                value={healthConnected}
+                onValueChange={(value) => value ? void onConnectHealth() : onDisconnectHealth()}
+                disabled={!Device.isDevice || isExpoGo}
+                trackColor={{ false: colors.surface.elevated, true: colors.primary.default }}
+                thumbColor={colors.text.primary}
+                ios_backgroundColor={colors.surface.elevated}
+                accessibilityLabel={Platform.OS === 'ios' ? t.profile.accessibility_connect_ios : t.profile.accessibility_connect_and}
               />
             </View>
-            <View style={styles.rowLabel}>
-              <AppText variant="body16Medium" color={colors.text.primary}>
-                {Platform.OS === 'ios' ? t.profile.apple_health : t.profile.step_sensor}
-              </AppText>
-              {!Device.isDevice ? (
-                <AppText variant="body12" color={colors.text.disabled}>{t.profile.simulator_warn}</AppText>
-              ) : isExpoGo ? (
-                <AppText variant="body12" color={colors.text.disabled}>{t.profile.native_required}</AppText>
-              ) : null}
-            </View>
-            <Switch
-              value={healthConnected}
-              onValueChange={(value) => value ? void onConnectHealth() : onDisconnectHealth()}
-              disabled={!Device.isDevice || isExpoGo}
-              trackColor={{ false: colors.surface.elevated, true: colors.primary.default }}
-              thumbColor={colors.text.primary}
-              ios_backgroundColor={colors.surface.elevated}
-              accessibilityLabel={Platform.OS === 'ios' ? t.profile.accessibility_connect_ios : t.profile.accessibility_connect_and}
-            />
-          </View>
-        </Card>
+          </Card>
+
+          <GarminSyncCard />
+        </View>
 
         {/* Notificaciones */}
         <SectionHeader title={t.profile.notifications} />
         <Card style={styles.settingsCard}>
+          <View style={[styles.row, styles.rowBorder]}>
+            <View style={styles.rowIcon}>
+              <Ionicons name="chatbubble-outline" size={18} color={colors.primary.default} />
+            </View>
+            <View style={styles.rowLabel}>
+              <AppText variant="body16Medium" color={colors.text.primary}>
+                {t.profile.push_messages_lbl}
+              </AppText>
+              <AppText variant="body12" color={pushPermissionDenied ? colors.states.error : colors.text.tertiary}>
+                {pushPermissionDenied ? t.profile.push_messages_denied : t.profile.push_messages_cap}
+              </AppText>
+            </View>
+            <Switch
+              value={pushMessages}
+              onValueChange={(value) => void onTogglePushMessages(value)}
+              disabled={!Device.isDevice || pushLoading}
+              trackColor={{ false: colors.surface.elevated, true: colors.primary.default }}
+              thumbColor={colors.text.primary}
+              ios_backgroundColor={colors.surface.elevated}
+              accessibilityLabel={t.profile.push_messages_lbl}
+            />
+          </View>
           {REMINDERS.map((reminder, index) => (
             <View
               key={reminder.key}

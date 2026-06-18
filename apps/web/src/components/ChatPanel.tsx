@@ -3,6 +3,8 @@ import type { MessageRow } from '@habito/shared/types/database';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/useToast';
+import { notifyPushNewMessage } from '@/lib/pushClient';
+import { refreshUnreadMessages } from '@/hooks/useUnreadMessages';
 
 function initials(name: string | null | undefined): string {
   if (!name) return 'A';
@@ -59,8 +61,13 @@ export function ChatPanel({ clientId, clientName, clientAvatar, placeholder = 'E
   onReadRef.current = onRead;
 
   const markRead = useCallback(async () => {
-    await supabase.from('messages').update({ read: true })
+    const { error } = await supabase.from('messages').update({ read: true })
       .eq('client_id', clientId).eq('sender_role', 'client').eq('read', false);
+    if (error) return;
+    setMessages((prev) => prev.map((m) =>
+      m.sender_role === 'client' && !m.read ? { ...m, read: true } : m
+    ));
+    refreshUnreadMessages();
     onReadRef.current?.();
   }, [clientId]);
 
@@ -93,7 +100,9 @@ export function ChatPanel({ clientId, clientName, clientAvatar, placeholder = 'E
           const msg = payload.new as MessageRow;
           setMessages((prev) => prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]);
           if (msg.sender_role === 'client') {
-            void supabase.from('messages').update({ read: true }).eq('id', msg.id);
+            void supabase.from('messages').update({ read: true }).eq('id', msg.id).then(({ error }) => {
+              if (!error) refreshUnreadMessages();
+            });
             onReadRef.current?.();
           }
         },
@@ -119,6 +128,7 @@ export function ChatPanel({ clientId, clientName, clientAvatar, placeholder = 'E
       showToast('error', 'No se pudo enviar el mensaje. Probá de nuevo.');
     } else {
       setMessages((prev) => prev.map((m) => m.id === temp.id ? (data as MessageRow) : m));
+      void notifyPushNewMessage(clientId, content);
     }
     setSending(false);
   }, [draft, clientId, sending, showToast]);

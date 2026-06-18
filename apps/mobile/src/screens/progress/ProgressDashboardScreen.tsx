@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { Alert, Dimensions, Linking, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Dimensions, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Device from 'expo-device';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,8 +23,9 @@ import { useAuthStore } from '../../stores/authStore';
 import { useProgressStore } from '../../stores/progressStore';
 import { useTrainingStore } from '../../stores/trainingStore';
 import { useUiStore } from '../../stores/uiStore';
-import { getTodaySteps } from '../../services/steps';
-import { initHealthKit, readHealthSnapshot } from '../../services/health';
+import { readHealthSnapshot } from '../../services/health';
+import { connectTodaySteps } from '../../services/steps';
+import { showPlatformHealthError } from '../../services/healthPlatform';
 import type { HealthSnapshot } from '../../services/health';
 import type { ProgressStackParamList } from '../../types/navigation';
 
@@ -59,8 +60,10 @@ export function ProgressDashboardScreen({ navigation }: Props): React.JSX.Elemen
     if (!userId) return;
     await Promise.all([loadMeasurements(userId), loadRecentLogs(userId)]);
     if (useProgressStore.getState().healthConnected) {
-      const [todaySteps, healthSnapshot] = await Promise.all([getTodaySteps(), readHealthSnapshot()]);
-      if (todaySteps !== null) setSteps(todaySteps);
+      const healthSnapshot = await readHealthSnapshot();
+      if (healthSnapshot?.steps !== null && healthSnapshot?.steps !== undefined) {
+        setSteps(healthSnapshot.steps);
+      }
       setSnapshot(healthSnapshot);
     }
   }, [userId, loadMeasurements, loadRecentLogs, setSteps]);
@@ -126,24 +129,27 @@ export function ProgressDashboardScreen({ navigation }: Props): React.JSX.Elemen
 
   const connectHealth = useCallback(async () => {
     setConnecting(true);
-    const ok = await initHealthKit();
-    if (ok) {
+    const result = await connectTodaySteps();
+    if (result.ok) {
+      setSteps(result.steps);
+      setHealthConnected(true);
       const healthSnapshot = await readHealthSnapshot();
       setSnapshot(healthSnapshot);
-      setHealthConnected(true);
-      useUiStore.getState().showToast('success', 'Apple Health conectado');
+      useUiStore.getState().showToast('success', 'Conectado');
     } else {
-      Alert.alert(
-        'Sin acceso',
-        'Habito necesita permiso para leer datos de Apple Health.',
-        [
-          { text: 'Cancelar', style: 'cancel' },
-          { text: 'Abrir Ajustes', onPress: () => void Linking.openSettings() },
-        ]
-      );
+      void showPlatformHealthError(result, {
+        no_access: 'Sin acceso',
+        health_no_perm_ios: 'Habito necesita permiso para leer tus pasos en Apple Salud.',
+        health_no_perm_and: 'Habito necesita permiso para leer pasos en Health Connect.',
+        health_needs_hc_update: 'Instalá o actualizá Health Connect desde Google Play.',
+        health_open: 'Abrir Salud',
+        health_open_hc: 'Abrir Health Connect',
+        install_hc: 'Instalar Health Connect',
+        cancel: 'Cancelar',
+      });
     }
     setConnecting(false);
-  }, [setHealthConnected]);
+  }, [setHealthConnected, setSteps]);
 
   const disconnectHealth = useCallback(() => {
     Alert.alert(

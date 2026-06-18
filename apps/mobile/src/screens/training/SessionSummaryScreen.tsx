@@ -125,7 +125,12 @@ export function SessionSummaryScreen({ navigation, route }: Props): React.JSX.El
         <Button
           label="Volver al programa"
           icon="arrow-back"
-          onPress={() => navigation.popToTop()}
+          onPress={() => {
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Program' }],
+            });
+          }}
           fullWidth
           style={styles.cta}
         />
