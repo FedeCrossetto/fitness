@@ -417,6 +417,10 @@ export interface Database {
         Args: { p_user_id: string; p_date: string };
         Returns: undefined;
       };
+      link_client_by_invite_code: {
+        Args: { p_invite_code: string };
+        Returns: undefined;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;

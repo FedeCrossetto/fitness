@@ -25,6 +25,7 @@ export interface ProfileRow {
   goal: string | null;
   role: UserRole;
   trainer_id: string | null;
+  client_status: 'active' | 'pending';
   locale: string;
   created_at: string;
   updated_at: string;
@@ -366,6 +367,24 @@ export interface TrainerBrandingRow {
   updated_at: string;
 }
 
+export interface AutoMessageConfigRow {
+  id: string;
+  trainer_id: string;
+  trigger_key: string;
+  schedule: string;
+  message: string;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConsultationFormConfigRow {
+  id: string;
+  trainer_id: string;
+  form_code: string;
+  updated_at: string;
+}
+
 /**
  * Convierte una interface en un object type anónimo. Las interfaces no son
  * asignables a `Record<string, unknown>` (TS las trata como aumentables), lo
@@ -408,6 +427,8 @@ export interface Database {
       routine_exercises: TableDef<RoutineExerciseRow, 'routine_id' | 'name'>;
       messages: TableDef<MessageRow, 'client_id' | 'content' | 'sender_role'>;
       trainer_branding: TableDef<TrainerBrandingRow, 'trainer_id' | 'invite_code'>;
+      auto_message_configs: TableDef<AutoMessageConfigRow, 'trainer_id' | 'trigger_key'>;
+      consultation_form_configs: TableDef<ConsultationFormConfigRow, 'trainer_id'>;
     };
     Views: Record<string, never>;
     Functions: {

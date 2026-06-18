@@ -9,6 +9,7 @@ import type {
 } from '@habito/shared/types/database';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { ErrorState, LoadingRows } from '@/components/ui';
 
 type CatalogExercise = Pick<ExerciseRow, 'id' | 'name' | 'image_url' | 'target_muscles'>;
 type WorkoutExerciseWithExercise = WorkoutExerciseRow & { exercise: CatalogExercise | null };
@@ -96,12 +97,12 @@ export function RoutinesPage(): React.JSX.Element {
       name: `Etapa ${nextNumber}`,
       sort_order: phases.length,
       is_active: true,
-    } as never);
+    });
     await load();
   };
 
   const renamePhase = async (id: string, name: string) => {
-    await supabase.from('training_phases').update({ name } as never).eq('id', id);
+    await supabase.from('training_phases').update({ name }).eq('id', id);
   };
 
   const deletePhase = async (id: string) => {
@@ -115,7 +116,7 @@ export function RoutinesPage(): React.JSX.Element {
     const nextNumber = phase.days.reduce((m, d) => Math.max(m, d.day_number), 0) + 1;
     const { data: workout, error: wErr } = await supabase
       .from('workouts')
-      .insert({ trainer_id: trainerId, title: `Día ${nextNumber}`, workout_type: 'fuerza', blocks: 1 } as never)
+      .insert({ trainer_id: trainerId, title: `Día ${nextNumber}`, workout_type: 'fuerza', blocks: 1 })
       .select('id')
       .single();
     if (wErr || !workout) return;
@@ -126,12 +127,12 @@ export function RoutinesPage(): React.JSX.Element {
       day_type: 'fuerza',
       workout_id: (workout as { id: string }).id,
       sort_order: phase.days.length,
-    } as never);
+    });
     await load();
   };
 
   const saveDay = async (id: string, patch: Partial<Pick<TrainingDayRow, 'title' | 'day_type'>>) => {
-    await supabase.from('training_days').update(patch as never).eq('id', id);
+    await supabase.from('training_days').update(patch).eq('id', id);
   };
 
   const deleteDay = async (day: DayWithWorkout) => {
@@ -153,7 +154,7 @@ export function RoutinesPage(): React.JSX.Element {
       sort_order: nextOrder,
       sets: 3,
       reps: '10',
-    } as never);
+    });
     await load();
   };
 
@@ -161,7 +162,7 @@ export function RoutinesPage(): React.JSX.Element {
     id: string,
     patch: Partial<Pick<WorkoutExerciseRow, 'sets' | 'reps' | 'rest_seconds'>>
   ) => {
-    await supabase.from('workout_exercises').update(patch as never).eq('id', id);
+    await supabase.from('workout_exercises').update(patch).eq('id', id);
   };
 
   const removeWorkoutExercise = async (id: string) => {
@@ -182,9 +183,9 @@ export function RoutinesPage(): React.JSX.Element {
       </div>
 
       {loading ? (
-        <div className="card muted">Cargando programa…</div>
+        <div className="card" style={{ padding: 16 }}><LoadingRows rows={3} /></div>
       ) : error ? (
-        <div className="card muted">{error}</div>
+        <ErrorState message={error} onRetry={() => void load()} />
       ) : phases.length === 0 ? (
         <div className="card muted">Todavía no hay etapas. Creá la primera con “Nueva etapa”.</div>
       ) : (

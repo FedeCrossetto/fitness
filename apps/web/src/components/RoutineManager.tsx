@@ -4,10 +4,6 @@ import { supabase } from '@/lib/supabase';
 
 type RoutineWithExercises = RoutineRow & { exercises: RoutineExerciseRow[] };
 
-function asWrite<T>(payload: Partial<T>): never {
-  return payload as never;
-}
-
 export function RoutineManager({ studentId }: { studentId: string }): React.JSX.Element {
   const [routines, setRoutines] = useState<RoutineWithExercises[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,7 +43,7 @@ export function RoutineManager({ studentId }: { studentId: string }): React.JSX.
     setCreating(true);
     const { data } = await supabase
       .from('routines')
-      .insert(asWrite<RoutineRow>({ client_id: studentId, name, days_per_week: 3, active: true }))
+      .insert({ client_id: studentId, name, days_per_week: 3, active: true })
       .select()
       .single();
     setCreating(false);
@@ -61,7 +57,7 @@ export function RoutineManager({ studentId }: { studentId: string }): React.JSX.
     setRoutines((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
   };
   const saveRoutine = async (id: string, patch: Partial<RoutineRow>) => {
-    await supabase.from('routines').update(asWrite<RoutineRow>(patch)).eq('id', id);
+    await supabase.from('routines').update(patch).eq('id', id);
   };
   const deleteRoutine = async (id: string) => {
     if (!confirm('¿Eliminar esta rutina y sus ejercicios?')) return;
@@ -74,7 +70,7 @@ export function RoutineManager({ studentId }: { studentId: string }): React.JSX.
     const order = (routine?.exercises.reduce((m, e) => Math.max(m, e.order_index ?? 0), 0) ?? 0) + 1;
     const { data } = await supabase
       .from('routine_exercises')
-      .insert(asWrite<RoutineExerciseRow>({ routine_id: routineId, name: 'Nuevo ejercicio', sets: 3, reps: '10', order_index: order }))
+      .insert({ routine_id: routineId, name: 'Nuevo ejercicio', sets: 3, reps: '10', order_index: order })
       .select()
       .single();
     if (data) {
@@ -93,7 +89,7 @@ export function RoutineManager({ studentId }: { studentId: string }): React.JSX.
     );
   };
   const saveExercise = async (exId: string, patch: Partial<RoutineExerciseRow>) => {
-    await supabase.from('routine_exercises').update(asWrite<RoutineExerciseRow>(patch)).eq('id', exId);
+    await supabase.from('routine_exercises').update(patch).eq('id', exId);
   };
   const removeExercise = async (routineId: string, exId: string) => {
     setRoutines((prev) =>

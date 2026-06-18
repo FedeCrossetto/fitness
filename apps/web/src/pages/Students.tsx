@@ -4,8 +4,11 @@ import { QRCodeSVG } from 'qrcode.react';
 import type { ProfileRow } from '@habito/shared/types/database';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/hooks/useToast';
+import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
 import { buildInviteLink, getJoinBaseUrl } from '@/lib/inviteClient';
 import { deleteClientAccount } from '@/lib/clientAccounts';
+import { ErrorState, LoadingRows } from '@/components/ui';
 import { ChevronRightIcon, SearchIcon, TrashIcon, UsersIcon } from '@/components/icons';
 
 type Student = Pick<ProfileRow, 'id' | 'full_name' | 'goal' | 'created_at' | 'avatar_url'> & {
@@ -61,10 +64,10 @@ function ClientRowActions({
 export function StudentsPage(): React.JSX.Element {
   const { session } = useAuth();
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [searchParams] = useSearchParams();
   const userId = session?.user.id;
   const [students, setStudents] = useState<Student[]>([]);
-  const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState(searchParams.get('q') ?? '');
   const [tab, setTab] = useState<'active' | 'pending'>(() =>
     searchParams.get('tab') === 'pending' ? 'pending' : 'active',
@@ -84,21 +87,21 @@ export function StudentsPage(): React.JSX.Element {
     if (searchParams.get('tab') === 'pending') setTab('pending');
   }, [searchParams]);
 
-  const loadStudents = () => {
-    if (!userId) return;
-    void (async () => {
-      setLoading(true);
-      const { data } = await supabase
+  const { data: studentsData, loading, error, refetch } = useSupabaseQuery<Student[]>(
+    async () => {
+      const { data, error } = await supabase
         .from('profiles')
         .select('id, full_name, goal, created_at, client_status, avatar_url')
-        .eq('trainer_id', userId)
+        .eq('trainer_id', userId!)
         .order('created_at', { ascending: false });
-      setStudents((data as Student[] | null) ?? []);
-      setLoading(false);
-    })();
-  };
+      if (error) throw error;
+      return (data as Student[] | null) ?? [];
+    },
+    [userId],
+    { enabled: !!userId },
+  );
 
-  useEffect(loadStudents, [userId]);
+  useEffect(() => { if (studentsData) setStudents(studentsData); }, [studentsData]);
 
   // Load invite code from trainer_branding
   useEffect(() => {
@@ -122,8 +125,13 @@ export function StudentsPage(): React.JSX.Element {
 
   const activate = async (id: string) => {
     setActivating(id);
-    await supabase.from('profiles').update({ client_status: 'active' } as never).eq('id', id);
-    setStudents((prev) => prev.map((s) => s.id === id ? { ...s, client_status: 'active' } : s));
+    const { error } = await supabase.from('profiles').update({ client_status: 'active' }).eq('id', id);
+    if (error) {
+      showToast('error', 'No pudimos activar al cliente. Probá de nuevo.');
+    } else {
+      setStudents((prev) => prev.map((s) => s.id === id ? { ...s, client_status: 'active' } : s));
+      showToast('success', 'Cliente activado');
+    }
     setActivating(null);
   };
 
@@ -134,6 +142,7 @@ export function StudentsPage(): React.JSX.Element {
     if (result.ok) {
       setStudents((prev) => prev.filter((s) => s.id !== id));
       setConfirmDeleteId(null);
+      showToast('success', 'Cliente eliminado');
     } else {
       setDeleteError(result.message);
     }
@@ -248,8 +257,10 @@ export function StudentsPage(): React.JSX.Element {
           </span>
         </div>
 
-        {loading ? (
-          <div style={{ padding: 28 }} className="muted">Cargando…</div>
+        {error ? (
+          <div style={{ padding: 20 }}><ErrorState message={error} onRetry={refetch} /></div>
+        ) : loading ? (
+          <div style={{ padding: 16 }}><LoadingRows rows={5} /></div>
         ) : filtered.length === 0 ? (
           <div className="empty-state">
             <span className="empty-ico"><UsersIcon size={22} /></span>

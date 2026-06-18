@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react';
 import { SettingsIcon, BellIcon, BrushIcon, CreditCardIcon, UsersIcon, MessageIcon, BookOpenIcon, CheckIcon } from '@/components/icons';
 import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/hooks/useToast';
 import { Link } from 'react-router-dom';
-import type { ProfileRow } from '@habito/shared/types/database';
 import { supabase } from '@/lib/supabase';
 
 type SettingsSection = {
@@ -61,9 +61,9 @@ function initials(name: string | null | undefined): string {
 
 export function SettingsPage(): React.JSX.Element {
   const { profile, session, refreshProfile } = useAuth();
+  const { showToast } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
-  const [toast, setToast] = useState<{ kind: 'error' | 'success'; msg: string } | null>(null);
 
   const onPickPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -72,16 +72,15 @@ export function SettingsPage(): React.JSX.Element {
     if (!file || !userId) return;
 
     if (!file.type.startsWith('image/')) {
-      setToast({ kind: 'error', msg: 'La foto debe ser una imagen.' });
+      showToast('error', 'La foto debe ser una imagen.');
       return;
     }
     if (file.size > 2 * 1024 * 1024) {
-      setToast({ kind: 'error', msg: 'La foto no puede superar los 2 MB.' });
+      showToast('error', 'La foto no puede superar los 2 MB.');
       return;
     }
 
     setUploading(true);
-    setToast(null);
 
     const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
     const path = `${userId}/avatar.${ext}`;
@@ -93,7 +92,7 @@ export function SettingsPage(): React.JSX.Element {
 
     if (uploadError) {
       setUploading(false);
-      setToast({ kind: 'error', msg: 'No pudimos subir la foto. Intentá de nuevo.' });
+      showToast('error', 'No pudimos subir la foto. Intentá de nuevo.');
       return;
     }
 
@@ -102,30 +101,24 @@ export function SettingsPage(): React.JSX.Element {
 
     const { error: updateError } = await supabase
       .from('profiles')
-      .update({ avatar_url: avatarUrl } as Partial<ProfileRow> as never)
+      .update({ avatar_url: avatarUrl })
       .eq('id', userId);
 
     setUploading(false);
 
     if (updateError) {
-      setToast({ kind: 'error', msg: 'No pudimos guardar la foto en tu perfil.' });
+      showToast('error', 'No pudimos guardar la foto en tu perfil.');
       return;
     }
 
     await refreshProfile();
-    setToast({ kind: 'success', msg: 'Foto actualizada.' });
+    showToast('success', 'Foto actualizada.');
   };
 
   return (
     <div>
       <h1 className="page-title">Settings</h1>
       <p className="page-sub">Configurá tu cuenta y preferencias del panel.</p>
-
-      {toast && (
-        <div className={`settings-toast settings-toast--${toast.kind}`}>
-          {toast.msg}
-        </div>
-      )}
 
       {/* Profile card */}
       <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
@@ -184,15 +177,6 @@ export function SettingsPage(): React.JSX.Element {
         .settings-row-title { font-weight: 600; font-size: 14px; margin-bottom: 2px; color: var(--text-primary); }
         .settings-row-desc { font-size: 12.5px; color: var(--text-tertiary); }
         .settings-row-btn { font-size: 12.5px; padding: 7px 14px; flex-shrink: 0; pointer-events: none; }
-        .settings-toast {
-          margin-bottom: 16px; padding: 10px 14px; border-radius: 8px; font-size: 13px;
-        }
-        .settings-toast--success {
-          background: #dcfce7; border: 1px solid #86efac; color: #166534;
-        }
-        .settings-toast--error {
-          background: #fef2f2; border: 1px solid #fecaca; color: #991b1b;
-        }
       `}</style>
     </div>
   );

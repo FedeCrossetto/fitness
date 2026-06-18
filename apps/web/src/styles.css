@@ -209,6 +209,24 @@ a { color: inherit; text-decoration: none; }
 }
 .nav-link.active .nav-badge { background: rgba(255,255,255,0.25); color: #fff; }
 
+/* Etiqueta para módulos con datos simulados (no conectados a Supabase aún) */
+.nav-mock {
+  margin-left: auto;
+  padding: 1px 6px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-radius: var(--radius-pill);
+  background: rgba(250, 204, 21, 0.16);
+  color: #facc15;
+  border: 1px solid rgba(250, 204, 21, 0.35);
+  flex-shrink: 0;
+}
+.nav-link.active .nav-mock { background: rgba(250, 204, 21, 0.28); color: #fde047; }
+
 .sidebar .spacer { flex: 1; min-height: 16px; }
 
 .sidebar-footer { padding-top: 14px; border-top: 1px solid var(--border); width: 100%; }
@@ -304,9 +322,6 @@ a { color: inherit; text-decoration: none; }
 }
 .pill-btn--outline:hover { background: var(--surface-elevated); opacity: 1; }
 
-/* Notification bell with dot */
-.topbar-bell { position: relative; }
-
 /* Language toggle in topbar */
 .lang-toggle {
   display: flex;
@@ -333,16 +348,6 @@ a { color: inherit; text-decoration: none; }
 }
 .lang-btn:hover { background: var(--surface-hover); color: var(--text-primary); }
 .lang-btn.active { background: var(--primary); color: #fff; }
-.bell-dot {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--bad);
-  border: 1.5px solid var(--bg);
-}
 
 /* Topbar user chip */
 .topbar-user {
@@ -1055,6 +1060,85 @@ tbody tr:hover { background: var(--surface-hover); }
 .toast { padding: 11px 14px; border-radius: var(--radius-sm); margin-bottom: 16px; font-size: 13px; border: 1px solid var(--border-strong); }
 .toast.error { background: var(--surface-elevated); color: var(--text-primary); border-left: 3px solid var(--text-secondary); }
 .toast.success { background: var(--surface-elevated); color: var(--text-secondary); border-left: 3px solid var(--text-primary); }
+
+/* ---------- Toast flotante global ---------- */
+.toast-viewport {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+.toast-float {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 240px;
+  max-width: 360px;
+  padding: 11px 14px;
+  font-size: 13px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow);
+  color: var(--text-primary);
+  pointer-events: auto;
+  animation: toast-in 0.18s ease-out;
+}
+.toast-float-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 800;
+  color: #fff;
+}
+.toast-float.success .toast-float-ico { background: var(--good, #16a34a); }
+.toast-float.error   .toast-float-ico { background: var(--bad, #dc2626); }
+.toast-float.info    .toast-float-ico { background: var(--text-tertiary); }
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ---------- Skeleton / loading ---------- */
+.skeleton {
+  display: inline-block;
+  background: linear-gradient(90deg, var(--surface-elevated) 25%, var(--surface-hover, var(--border)) 50%, var(--surface-elevated) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-pulse 1.3s ease-in-out infinite;
+}
+@keyframes skeleton-pulse {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.loading-rows { display: flex; flex-direction: column; gap: 12px; }
+.loading-row { display: flex; align-items: center; gap: 12px; padding: 12px; }
+.loading-row-lines { display: flex; flex-direction: column; gap: 7px; flex: 1; }
+
+/* ---------- Error state ---------- */
+.error-state { padding: 40px 24px; text-align: center; }
+.error-state-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 12px;
+  border-radius: 50%;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--bad, #dc2626);
+  background: color-mix(in srgb, var(--bad, #dc2626) 14%, transparent);
+}
+.error-state .t { font-weight: 600; margin-bottom: 6px; }
 
 .muted { color: var(--text-tertiary); }
 

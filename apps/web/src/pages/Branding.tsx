@@ -5,6 +5,7 @@ import { buildInviteLink } from '@habito/shared';
 import { getJoinBaseUrl } from '@/lib/inviteClient';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/hooks/useToast';
 
 const HEX_RE = /^#([0-9a-fA-F]{6})$/;
 
@@ -70,13 +71,13 @@ const EMPTY: Form = {
 
 export function BrandingPage(): React.JSX.Element {
   const { session } = useAuth();
+  const { showToast } = useToast();
   const userId = session?.user.id;
   const [form, setForm] = useState<Form>(EMPTY);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [toast, setToast] = useState<{ kind: 'error' | 'success'; msg: string } | null>(null);
   const qrRef = useRef<HTMLDivElement>(null);
 
   const inviteLink = buildInviteLinkLocal(form.invite_code);
@@ -87,7 +88,7 @@ export function BrandingPage(): React.JSX.Element {
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     } catch {
-      setToast({ kind: 'error', msg: 'No pudimos copiar el link.' });
+      showToast('error', 'No pudimos copiar el link.');
     }
   };
 
@@ -132,15 +133,14 @@ export function BrandingPage(): React.JSX.Element {
     e.target.value = '';
     if (!file || !userId) return;
     if (!file.type.startsWith('image/')) {
-      setToast({ kind: 'error', msg: 'El logo debe ser una imagen.' });
+      showToast('error', 'El logo debe ser una imagen.');
       return;
     }
     if (file.size > 2 * 1024 * 1024) {
-      setToast({ kind: 'error', msg: 'El logo no puede superar los 2 MB.' });
+      showToast('error', 'El logo no puede superar los 2 MB.');
       return;
     }
     setUploading(true);
-    setToast(null);
     const ext = (file.name.split('.').pop() || 'png').toLowerCase();
     const path = `${userId}/app-logo.${ext}`;
     const { error } = await supabase.storage.from('avatars').upload(path, file, {
@@ -149,7 +149,7 @@ export function BrandingPage(): React.JSX.Element {
     });
     setUploading(false);
     if (error) {
-      setToast({ kind: 'error', msg: 'No pudimos subir el logo.' });
+      showToast('error', 'No pudimos subir el logo.');
       return;
     }
     const { data } = supabase.storage.from('avatars').getPublicUrl(path);
@@ -158,21 +158,20 @@ export function BrandingPage(): React.JSX.Element {
 
   const onSave = async () => {
     if (!userId) return;
-    setToast(null);
     if (!form.app_name.trim() || !form.invite_code.trim()) {
-      setToast({ kind: 'error', msg: 'Nombre de app y código de invitación son obligatorios.' });
+      showToast('error', 'Nombre de app y código de invitación son obligatorios.');
       return;
     }
     if (form.color_primary && !HEX_RE.test(form.color_primary)) {
-      setToast({ kind: 'error', msg: 'Color primario inválido (#RRGGBB).' });
+      showToast('error', 'Color primario inválido (#RRGGBB).');
       return;
     }
     if (form.color_accent && !HEX_RE.test(form.color_accent)) {
-      setToast({ kind: 'error', msg: 'Color de acento inválido (#RRGGBB).' });
+      showToast('error', 'Color de acento inválido (#RRGGBB).');
       return;
     }
     setSaving(true);
-    const payload: Partial<TrainerBrandingRow> = {
+    const payload = {
       trainer_id: userId,
       app_name: form.app_name.trim(),
       invite_code: form.invite_code.trim().toUpperCase(),
@@ -184,13 +183,10 @@ export function BrandingPage(): React.JSX.Element {
     };
     const { error } = await supabase
       .from('trainer_branding')
-      .upsert(payload as never, { onConflict: 'trainer_id' });
+      .upsert(payload, { onConflict: 'trainer_id' });
     setSaving(false);
-    setToast(
-      error
-        ? { kind: 'error', msg: 'No pudimos guardar. ¿El código de invitación ya existe?' }
-        : { kind: 'success', msg: 'Marca actualizada.' }
-    );
+    if (error) showToast('error', 'No pudimos guardar. ¿El código de invitación ya existe?');
+    else showToast('success', 'Marca actualizada.');
   };
 
   if (loading) return <div className="muted">Cargando…</div>;
@@ -199,8 +195,6 @@ export function BrandingPage(): React.JSX.Element {
     <div>
       <h1 className="page-title">Marca</h1>
       <p className="page-sub">Personalizá cómo se ve tu app para los alumnos.</p>
-
-      {toast ? <div className={`toast ${toast.kind}`}>{toast.msg}</div> : null}
 
       <div className="card form-card">
         <section className="form-section">

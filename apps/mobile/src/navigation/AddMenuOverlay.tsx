@@ -128,7 +128,7 @@ export function AddMenuOverlay(): React.JSX.Element {
 const createStyles = (colors: Colors) =>
   StyleSheet.create({
   container: { flex: 1, justifyContent: 'flex-end' },
-  dim: { ...StyleSheet.absoluteFill, backgroundColor: colors.surface.overlay, opacity: 0.5 },
+  dim: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.surface.overlay, opacity: 0.5 },
   menu: { paddingHorizontal: spacing.lg },
   menuTitle: { marginBottom: spacing.md },
   item: {

@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useTranslation } from '@/hooks/useTranslation';
 import { TrophyIcon } from '@/components/icons';
 import { AreaChart } from '@/components/charts';
+import { ErrorState } from '@/components/ui';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -187,12 +188,16 @@ export function DashboardPage(): React.JSX.Element {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loadingFeed, setLoadingFeed] = useState(true);
   const [filter, setFilter]           = useState<ActivityType | 'all'>('all');
+  const [loadError, setLoadError]     = useState<string | null>(null);
+  const [reloadTick, setReloadTick]   = useState(0);
 
   useEffect(() => {
     if (!userId) return;
     let active = true;
+    setLoadError(null);
 
     void (async () => {
+     try {
       // ── Stats queries ────────────────────────────────────────────────────
       const since90 = new Date();
       since90.setDate(since90.getDate() - 90);
@@ -280,10 +285,16 @@ export function DashboardPage(): React.JSX.Element {
         (bMeas ?? []) as Parameters<typeof buildActivities>[4],
       ));
       setLoadingFeed(false);
+     } catch (err) {
+      if (active) {
+        setLoadError(err instanceof Error ? err.message : 'No pudimos cargar el panel.');
+        setLoadingFeed(false);
+      }
+     }
     })();
 
     return () => { active = false; };
-  }, [userId]);
+  }, [userId, reloadTick]);
 
   // Chart helpers
   const windowed = useMemo(() => {
@@ -445,7 +456,9 @@ export function DashboardPage(): React.JSX.Element {
         </div>
 
         {/* Feed */}
-        {loadingFeed ? (
+        {loadError ? (
+          <ErrorState message={loadError} onRetry={() => setReloadTick((n) => n + 1)} />
+        ) : loadingFeed ? (
           <div className="act-panel-empty">
             <span className="muted" style={{ fontSize: 13 }}>{t.dashboard.loading_feed}</span>
           </div>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/hooks/useToast';
 import type {
   BodyMeasurementRow,
   MealLogRow,
@@ -59,15 +60,12 @@ function initials(name: string | null): string {
   return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase();
 }
 
-function asWrite<T>(payload: Partial<T>): never {
-  return payload as never;
-}
-
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function StudentDetailPage(): React.JSX.Element {
   const { id: studentId } = useParams<{ id: string }>();
   const { profile: trainerProfile } = useAuth();
+  const { showToast } = useToast();
   const [tab, setTab] = useState<Tab>('resumen');
 
   const [profile, setProfile]         = useState<Profile | null>(null);
@@ -108,7 +106,7 @@ export function StudentDetailPage(): React.JSX.Element {
       setWaiverSig((ws as WaiverSignature | null) ?? false);
       setConsultation((cr as ConsultationResponse | null) ?? false);
       setLoading(false);
-      await supabase.from('messages').update(asWrite<MessageRow>({ read: true }))
+      await supabase.from('messages').update({ read: true })
         .eq('client_id', studentId).eq('sender_role', 'client').eq('read', false);
     })();
     return () => { active = false; };
@@ -124,7 +122,7 @@ export function StudentDetailPage(): React.JSX.Element {
           const msg = payload.new as MessageRow;
           setMessages((prev) => prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]);
           if (msg.sender_role === 'client')
-            void supabase.from('messages').update(asWrite<MessageRow>({ read: true })).eq('id', msg.id);
+            void supabase.from('messages').update({ read: true }).eq('id', msg.id);
         }
       ).subscribe();
     return () => { void supabase.removeChannel(channel); };
@@ -141,17 +139,27 @@ export function StudentDetailPage(): React.JSX.Element {
     const temp: MessageRow = { id: `temp-${Date.now()}`, client_id: studentId, content, sender_role: 'trainer', read: false, created_at: new Date().toISOString() };
     setMessages((prev) => [...prev, temp]);
     setDraft('');
-    const { data, error } = await supabase.from('messages').insert(asWrite<MessageRow>({ client_id: studentId, content, sender_role: 'trainer' })).select().single();
-    if (error || !data) { setMessages((prev) => prev.filter((m) => m.id !== temp.id)); setDraft(content); }
-    else setMessages((prev) => prev.map((m) => m.id === temp.id ? data as MessageRow : m));
+    const { data, error } = await supabase.from('messages').insert({ client_id: studentId, content, sender_role: 'trainer' }).select().single();
+    if (error || !data) {
+      setMessages((prev) => prev.filter((m) => m.id !== temp.id));
+      setDraft(content);
+      showToast('error', 'No se pudo enviar el mensaje. Probá de nuevo.');
+    } else {
+      setMessages((prev) => prev.map((m) => m.id === temp.id ? data as MessageRow : m));
+    }
     setSending(false);
-  }, [draft, studentId, sending]);
+  }, [draft, studentId, sending, showToast]);
 
   const activate = async () => {
     if (!studentId || activating) return;
     setActivating(true);
-    await supabase.from('profiles').update({ client_status: 'active' } as never).eq('id', studentId);
-    setProfile((prev) => prev ? { ...prev, client_status: 'active' } : prev);
+    const { error } = await supabase.from('profiles').update({ client_status: 'active' }).eq('id', studentId);
+    if (error) {
+      showToast('error', 'No pudimos activar al cliente.');
+    } else {
+      setProfile((prev) => prev ? { ...prev, client_status: 'active' } : prev);
+      showToast('success', 'Cliente activado');
+    }
     setActivating(false);
   };
 

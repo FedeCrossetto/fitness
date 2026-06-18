@@ -5,14 +5,14 @@ import { useTranslation } from '@/hooks/useTranslation';
 import { LANGUAGES } from '@habito/shared';
 import {
   GridIcon, BrushIcon, UsersIcon, LogOutIcon,
-  MessageIcon, BellIcon, CalendarIcon, GroupsIcon, TrophyIcon, CreditCardIcon,
+  MessageIcon, CalendarIcon, GroupsIcon, TrophyIcon, CreditCardIcon,
   BookOpenIcon, SettingsIcon, ChevronDownIcon, ChevronRightIcon,
   MegaphoneIcon,
 } from '@/components/icons';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type NavItem  = { to: string; label: string; end?: boolean; icon: () => React.JSX.Element; badge?: number };
+type NavItem  = { to: string; label: string; end?: boolean; icon: () => React.JSX.Element; badge?: number; mock?: boolean };
 type NavGroup = { section: string; items: NavItem[] };
 
 // ── Collapse toggle icon ───────────────────────────────────────────────────────
@@ -78,11 +78,11 @@ export function Layout(): React.JSX.Element {
       section: t.web.nav_main,
       items: [
         { to: '/',          label: t.web.overview,      end: true, icon: () => <GridIcon />      },
-        { to: '/messages',  label: t.web.messages,                 icon: () => <MessageIcon />,  badge: 3 },
+        { to: '/messages',  label: t.web.messages,                 icon: () => <MessageIcon />,  mock: true },
         { to: '/groups',    label: t.web.groups,                   icon: () => <GroupsIcon />    },
-        { to: '/challenges',label: t.web.challenges,               icon: () => <TrophyIcon />    },
+        { to: '/challenges',label: t.web.challenges,               icon: () => <TrophyIcon />,   mock: true },
         { to: '/students',  label: t.web.clients,                  icon: () => <UsersIcon />     },
-        { to: '/payments',  label: t.web.payments,                 icon: () => <CreditCardIcon />},
+        { to: '/payments',  label: t.web.payments,                 icon: () => <CreditCardIcon />, mock: true },
       ],
     },
     {
@@ -90,7 +90,7 @@ export function Layout(): React.JSX.Element {
       items: [
         { to: '/routines',      label: t.web.libraries,      icon: () => <BookOpenIcon /> },
         { to: '/branding',      label: t.web.branding,       icon: () => <BrushIcon />   },
-        { to: '/scheduling',    label: t.web.scheduling,     icon: () => <CalendarIcon />},
+        { to: '/scheduling',    label: t.web.scheduling,     icon: () => <CalendarIcon />, mock: true },
         { to: '/announcements', label: t.web.announcements,  icon: () => <MegaphoneIcon />},
       ],
     },
@@ -159,6 +159,9 @@ export function Layout(): React.JSX.Element {
                     {!sc && item.badge ? (
                       <span className="nav-badge">{item.badge}</span>
                     ) : null}
+                    {!sc && item.mock ? (
+                      <span className="nav-mock" title="Datos simulados — aún no conectado">mock</span>
+                    ) : null}
                   </NavLink>
                 ))}
               </div>
@@ -205,10 +208,6 @@ export function Layout(): React.JSX.Element {
                 </button>
               ))}
             </div>
-            <button className="icon-action topbar-bell" aria-label={t.web.notifications}>
-              <BellIcon size={16} />
-              <span className="bell-dot" />
-            </button>
             <div className="topbar-user" onClick={() => navigate('/settings')} role="button" tabIndex={0}>
               <Avatar name={profile?.full_name} url={profile?.avatar_url} size="sm" />
               <span className="topbar-username">{profile?.full_name ?? 'Entrenador'}</span>

@@ -69,7 +69,7 @@ const createStyles = (colors: Colors) =>
       zIndex: 10,
     },
     tintOverlay: {
-      ...StyleSheet.absoluteFill,
+      ...StyleSheet.absoluteFillObject,
       backgroundColor: colors.surface.overlay,
       opacity: 0.6,
     },

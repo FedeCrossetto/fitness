@@ -2,10 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const anyClient = supabase as any;
-// Typed helper for auto_message_configs (table not yet in generated types)
-const autoMsgTable = () => anyClient.from('auto_message_configs');
+const autoMsgTable = () => supabase.from('auto_message_configs');
 
 // ── Types ────────────────────────────────────────────────────────────────────
 

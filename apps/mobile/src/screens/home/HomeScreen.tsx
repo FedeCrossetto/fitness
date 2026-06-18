@@ -54,7 +54,6 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
   const session = useAuthStore((s) => s.session);
   const profile = useAuthStore((s) => s.profile);
   const userId = session?.user.id;
-  const isAdmin = profile?.role === 'admin';
   const isTrainer = profile?.role === 'trainer' || profile?.role === 'admin';
 
   const goals = useGoalsStore((s) => s.goals);

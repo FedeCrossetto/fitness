@@ -200,9 +200,7 @@ const CODE_REF = [
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const anyClient = supabase as any;
-const cfTable = () => anyClient.from('consultation_form_configs');
+const cfTable = () => supabase.from('consultation_form_configs');
 
 export function ConsultationFormPage(): React.JSX.Element {
   const { session } = useAuth();

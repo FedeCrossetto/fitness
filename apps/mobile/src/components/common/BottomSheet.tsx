@@ -44,7 +44,7 @@ const createStyles = (colors: Colors) =>
   StyleSheet.create({
     backdropContainer: { flex: 1, justifyContent: 'flex-end' },
     backdrop: {
-      ...StyleSheet.absoluteFill,
+      ...StyleSheet.absoluteFillObject,
       backgroundColor: colors.surface.overlay,
     },
     sheet: {

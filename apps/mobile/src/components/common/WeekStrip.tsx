@@ -60,9 +60,6 @@ export function WeekStrip({ onDateChange }: WeekStripProps): React.JSX.Element {
     scrollToDate(today);
   }, [resetActiveDate, onDateChange, today, scrollToDate]);
 
-  const { monthShort, year } = getDayInfo(activeDate);
-  const { dayNum } = getDayInfo(activeDate);
-
   return (
     <View style={styles.container}>
       {/* Header row: date label + Hoy button */}
