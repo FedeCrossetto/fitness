@@ -1,13 +1,15 @@
-import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/useToast';
+import { MessageIcon, PlusIcon, DumbbellIcon, ChevronRightIcon } from '@/components/icons';
 import type {
   BodyMeasurementRow,
   MealLogRow,
   MessageRow,
   ProfileRow,
   ProgressPhotoRow,
+  SubscriptionRow,
   UserProfileRow,
   WorkoutLogRow,
 } from '@habito/shared/types/database';
@@ -43,6 +45,23 @@ type Profile = Pick<ProfileRow, 'id' | 'full_name' | 'goal' | 'phone' | 'avatar_
   client_status?: 'pending' | 'active';
 };
 
+type StudentSubscription = Pick<SubscriptionRow, 'status' | 'expires_at' | 'started_at'> & {
+  plan_name: string | null;
+};
+
+function subscriptionStatusLabel(status: SubscriptionRow['status']): string {
+  if (status === 'active') return 'Activa';
+  if (status === 'pending') return 'Pendiente';
+  if (status === 'expired') return 'Vencida';
+  if (status === 'cancelled') return 'Cancelada';
+  return '—';
+}
+
+function formatExpiry(iso: string | null): string {
+  if (!iso) return 'Sin fecha';
+  return new Date(iso).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
 type Tab = 'resumen' | 'entrenos' | 'nutricion' | 'medidas' | 'fotos' | 'engagement' | 'deslinde' | 'consulta';
 
 const TABS: { key: Tab; label: string }[] = [
@@ -64,12 +83,34 @@ function initials(name: string | null): string {
   return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase();
 }
 
+function formatWorkoutDuration(w: WorkoutLogRow): string {
+  const min = w.duration_min ?? (w.duration_seconds != null ? Math.max(1, Math.round(w.duration_seconds / 60)) : null);
+  if (min == null) return '—';
+  return `${min} min`;
+}
+
+function workoutTypeLabel(type: string | null): string {
+  if (type === 'cardio') return 'Cardio';
+  if (type === 'fuerza') return 'Fuerza';
+  return type ?? '—';
+}
+
+function relativeDate(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const d = Math.floor(diff / 86400000);
+  if (d === 0) return 'Hoy';
+  if (d === 1) return 'Ayer';
+  if (d < 7) return `Hace ${d} días`;
+  return new Date(iso).toLocaleDateString('es-AR');
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function StudentDetailPage(): React.JSX.Element {
   const { id: studentId } = useParams<{ id: string }>();
   const { profile: trainerProfile } = useAuth();
   const { showToast } = useToast();
+  const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>('resumen');
 
   const [profile, setProfile]         = useState<Profile | null>(null);
@@ -82,6 +123,7 @@ export function StudentDetailPage(): React.JSX.Element {
   const [consultation, setConsultation] = useState<ConsultationResponse | null | false>(null); // null=loading, false=not submitted
   const [photos, setPhotos]           = useState<ProgressPhotoRow[]>([]);
   const [photoUrls, setPhotoUrls]     = useState<Record<string, string>>({});
+  const [subscription, setSubscription] = useState<StudentSubscription | null>(null);
   const [lightbox, setLightbox]       = useState<{ src: string; caption: string } | null>(null);
   const [loading, setLoading]         = useState(true);
   const [activating, setActivating]   = useState(false);
@@ -90,7 +132,7 @@ export function StudentDetailPage(): React.JSX.Element {
     if (!studentId) return;
     let active = true;
     void (async () => {
-      const [{ data: p }, { data: up }, { data: bm }, { data: wl }, { data: ml }, { data: msgs }, { data: ws }, { data: cr }, { data: pp }] = await Promise.all([
+      const [{ data: p }, { data: up }, { data: bm }, { data: wl }, { data: ml }, { data: msgs }, { data: ws }, { data: cr }, { data: pp }, { data: sub }] = await Promise.all([
         supabase.from('profiles').select('id, full_name, goal, phone, avatar_url, created_at, client_status').eq('id', studentId).maybeSingle(),
         supabase.from('user_profiles').select('*').eq('user_id', studentId).maybeSingle(),
         supabase.from('body_measurements').select('*').eq('user_id', studentId).order('date', { ascending: false }).limit(10),
@@ -100,6 +142,13 @@ export function StudentDetailPage(): React.JSX.Element {
         anyClient.from('waiver_signatures').select('id, full_name, signed_at, signature_data, document_snapshot, document_title').eq('client_id', studentId).maybeSingle(),
         anyClient.from('consultation_responses').select('responses, submitted_at').eq('client_id', studentId).maybeSingle(),
         supabase.from('progress_photos').select('*').eq('user_id', studentId).order('created_at', { ascending: false }),
+        supabase
+          .from('subscriptions')
+          .select('status, expires_at, started_at, plan_id')
+          .eq('user_id', studentId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
       ]);
       if (!active) return;
       setProfile((p as Profile | null) ?? null);
@@ -111,6 +160,27 @@ export function StudentDetailPage(): React.JSX.Element {
       setPhotos((pp as ProgressPhotoRow[] | null) ?? []);
       setWaiverSig((ws as WaiverSignature | null) ?? false);
       setConsultation((cr as ConsultationResponse | null) ?? false);
+
+      if (sub) {
+        const row = sub as Pick<SubscriptionRow, 'status' | 'expires_at' | 'started_at' | 'plan_id'>;
+        let status = row.status;
+        if (status === 'active' && row.expires_at && new Date(row.expires_at) < new Date()) {
+          status = 'expired';
+        }
+        const { data: plan } = await supabase
+          .from('plans')
+          .select('name')
+          .eq('id', row.plan_id)
+          .maybeSingle();
+        setSubscription({
+          status,
+          expires_at: row.expires_at,
+          started_at: row.started_at,
+          plan_name: (plan as { name: string } | null)?.name ?? null,
+        });
+      } else {
+        setSubscription(null);
+      }
       setLoading(false);
     })();
     return () => { active = false; };
@@ -138,6 +208,25 @@ export function StudentDetailPage(): React.JSX.Element {
     return () => { active = false; };
   }, [photos, photoUrls]);
 
+
+  const completedW = workouts.filter((w) => w.completed).length;
+  const lastWorkout = workouts[0] ?? null;
+  const latestM = measurements[0] ?? null;
+
+  const stats = useMemo(() => {
+    const completed = workouts.filter((w) => w.completed);
+    const totalMin = completed.reduce((acc, w) => {
+      const min = w.duration_min ?? (w.duration_seconds != null ? Math.round(w.duration_seconds / 60) : 0);
+      return acc + min;
+    }, 0);
+    const withRpe = completed.filter((w) => w.rpe != null);
+    const avgRpe = withRpe.length > 0
+      ? (withRpe.reduce((acc, w) => acc + (w.rpe ?? 0), 0) / withRpe.length).toFixed(1)
+      : null;
+    const completionRate = workouts.length > 0 ? Math.round((completedW / workouts.length) * 100) : null;
+    const unreadMsgs = messages.filter((m) => !m.read && m.sender_role === 'client').length;
+    return { totalMin, avgRpe, completionRate, unreadMsgs };
+  }, [workouts, completedW, messages]);
 
   const activate = async () => {
     if (!studentId || activating) return;
@@ -167,8 +256,20 @@ export function StudentDetailPage(): React.JSX.Element {
   }
 
   const isPending = profile.client_status === 'pending';
-  const latestM   = measurements[0] ?? null;
-  const completedW = workouts.filter((w) => w.completed).length;
+
+  // Atención recomendada: alertas accionables para el profesional.
+  const alerts: { kind: 'warn' | 'info'; text: string }[] = [];
+  if (isPending) alerts.push({ kind: 'warn', text: 'Cliente pendiente de activación.' });
+  if (meals.length === 0) alerts.push({ kind: 'warn', text: 'No registró comidas todavía.' });
+  if (stats.unreadMsgs > 0) alerts.push({ kind: 'info', text: `Tiene ${stats.unreadMsgs} mensaje${stats.unreadMsgs > 1 ? 's' : ''} sin leer.` });
+  if (!latestM) {
+    alerts.push({ kind: 'warn', text: 'Sin mediciones registradas.' });
+  } else {
+    const missing: string[] = [];
+    if (latestM.waist_cm == null) missing.push('cintura');
+    if (latestM.chest_cm == null) missing.push('pecho');
+    if (missing.length > 0) alerts.push({ kind: 'info', text: `Faltan medidas: ${missing.join(' y ')}.` });
+  }
 
   return (
     <div className="sd-page">
@@ -176,40 +277,81 @@ export function StudentDetailPage(): React.JSX.Element {
       <Link to="/students" className="back-link">← Volver a clientes</Link>
 
       {/* ── Header ── */}
-      <div className="sd-header card">
-        <div className="sd-header-left">
-          <div className="sd-avatar" style={profile.avatar_url ? { padding: 0, overflow: 'hidden' } : undefined}>
-            {profile.avatar_url
-              ? <img src={profile.avatar_url} alt={profile.full_name ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
-              : initials(profile.full_name)
-            }
-          </div>
-          <div className="sd-header-info">
-            <div className="sd-name">{profile.full_name ?? 'Alumno'}</div>
-            <div className="sd-goal">{profile.goal ?? 'Sin objetivo definido'}</div>
-            <div className="sd-meta">
-              {userProfile?.plan_name && <span className="sd-chip">{userProfile.plan_name}</span>}
-              <span className={`badge${isPending ? '' : ' active'}`}>
-                <span className="dot" />{isPending ? 'Pendiente' : 'Activo'}
-              </span>
-              <span className="sd-since">Desde {new Date(profile.created_at).toLocaleDateString('es-AR')}</span>
+      <div className="sd-hero card">
+        <div className="sd-hero-top">
+          <div className="sd-hero-identity">
+            <div className="sd-avatar" style={profile.avatar_url ? { padding: 0, overflow: 'hidden' } : undefined}>
+              {profile.avatar_url
+                ? <img src={profile.avatar_url} alt={profile.full_name ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                : initials(profile.full_name)
+              }
             </div>
+            <div className="sd-header-info">
+              <div className="sd-name-row">
+                <span className="sd-name">{profile.full_name ?? 'Alumno'}</span>
+                <span className={`badge${isPending ? ' amber' : ' active'}`}>
+                  <span className="dot" />{isPending ? 'Pendiente' : 'Activo'}
+                </span>
+              </div>
+              <div className="sd-goal-row">
+                <span className="sd-goal">{profile.goal ?? 'Sin objetivo definido'}</span>
+                {userProfile?.level ? <span className="sd-level">{userProfile.level}</span> : null}
+              </div>
+              <div className="sd-meta">
+                <span>Cliente desde {new Date(profile.created_at).toLocaleDateString('es-AR')}</span>
+                <span className="sd-meta-sep">·</span>
+                <span>Semana {userProfile?.plan_current_week ?? 1}</span>
+                {subscription?.plan_name ? (
+                  <>
+                    <span className="sd-meta-sep">·</span>
+                    <span className="sd-subscription-meta">
+                      {subscription.plan_name}
+                      {subscription.status === 'active' && subscription.expires_at
+                        ? ` · Vence ${formatExpiry(subscription.expires_at)}`
+                        : subscription.status
+                          ? ` · ${subscriptionStatusLabel(subscription.status)}`
+                          : ''}
+                    </span>
+                  </>
+                ) : null}
+                {profile.phone ? (
+                  <>
+                    <span className="sd-meta-sep">·</span>
+                    <span>{profile.phone}</span>
+                  </>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          <div className="sd-header-actions">
+            {isPending ? (
+              <button className="btn primary" onClick={() => void activate()} disabled={activating}>
+                {activating ? 'Activando…' : 'Activar cliente'}
+              </button>
+            ) : (
+              <>
+                <button className="btn secondary sd-action" onClick={() => navigate(`/messages?client=${studentId}`)}>
+                  <MessageIcon size={15} /> Enviar mensaje
+                </button>
+                <button className="btn secondary sd-action" onClick={() => setTab('medidas')}>
+                  <PlusIcon size={15} /> Registrar medición
+                </button>
+                <button className="btn primary sd-action" onClick={() => setTab('entrenos')}>
+                  <DumbbellIcon size={15} /> Asignar entrenamiento
+                </button>
+              </>
+            )}
           </div>
         </div>
-        <div className="sd-header-right">
-          <div className="sd-header-stats">
-            <StatPill label="Entrenos" value={workouts.length} />
-            <StatPill label="Completados" value={completedW} />
-            <StatPill label="Peso actual" value={latestM?.weight_kg != null ? `${latestM.weight_kg} kg` : '—'} />
-            <StatPill label="% Grasa" value={latestM?.body_fat_pct != null ? `${latestM.body_fat_pct}%` : '—'} />
-          </div>
-          {isPending && (
-            <div className="sd-header-actions">
-              <button className="btn primary sm" onClick={() => void activate()} disabled={activating}>
-                {activating ? '…' : 'Activar cliente'}
-              </button>
-            </div>
-          )}
+
+        <div className="sd-stat-grid">
+          <HeroStat label="Entrenos" value={workouts.length} sub={stats.completionRate != null ? `${stats.completionRate}% completados` : undefined} />
+          <HeroStat label="Volumen" value={stats.totalMin > 0 ? `${stats.totalMin} min` : '—'} sub="tiempo total" />
+          <HeroStat label="Peso" value={latestM?.weight_kg != null ? `${latestM.weight_kg} kg` : '—'} sub={latestM ? relativeDate(latestM.date) : 'sin medición'} />
+          <HeroStat label="% Grasa" value={latestM?.body_fat_pct != null ? `${latestM.body_fat_pct}%` : '—'} sub={latestM?.body_fat_pct != null ? 'última medición' : undefined} />
+          <HeroStat label="Comidas" value={meals.length} sub="registros" />
+          <HeroStat label="Mensajes" value={messages.length} sub={stats.unreadMsgs > 0 ? `${stats.unreadMsgs} sin leer` : 'sin pendientes'} highlight={stats.unreadMsgs > 0} />
         </div>
       </div>
 
@@ -231,51 +373,123 @@ export function StudentDetailPage(): React.JSX.Element {
 
         {/* RESUMEN */}
         {tab === 'resumen' && (
-          <div className="sd-grid-3">
-            <div className="card">
-              <div className="section-title" style={{ marginBottom: 14 }}>Datos personales</div>
-              <dl className="data-list">
-                <Datum label="Nivel"       value={userProfile?.level ?? '—'} />
-                <Datum label="Plan"        value={userProfile?.plan_name ?? '—'} />
-                <Datum label="Semana"      value={userProfile ? `${userProfile.plan_current_week ?? 0}${userProfile.plan_duration_weeks ? ` / ${userProfile.plan_duration_weeks}` : ''}` : '—'} />
-                <Datum label="Teléfono"    value={profile.phone ?? '—'} />
-                <Datum label="Se unió"     value={new Date(profile.created_at).toLocaleDateString('es-AR')} />
-              </dl>
-            </div>
-
-            <div className="card">
-              <div className="section-title" style={{ marginBottom: 14 }}>Última medición</div>
-              {latestM ? (
-                <>
-                  <div className="measure-grid">
-                    <Measure label="Peso"    value={latestM.weight_kg}    unit="kg" />
-                    <Measure label="Grasa"   value={latestM.body_fat_pct} unit="%" />
-                    <Measure label="Cintura" value={latestM.waist_cm}     unit="cm" />
-                    <Measure label="Pecho"   value={latestM.chest_cm}     unit="cm" />
+          <div className="sd-summary-grid">
+            {/* Última medición */}
+            <div className="card sd-panel">
+              <div className="sd-panel-head sd-panel-head-row">
+                <div>
+                  <div className="section-title">Última medición</div>
+                  <div className="sd-panel-sub">
+                    {latestM ? new Date(latestM.date).toLocaleDateString('es-AR') : 'Sin registros todavía'}
                   </div>
-                  <div className="stat-foot" style={{ marginTop: 10 }}>{new Date(latestM.date).toLocaleDateString('es-AR')}</div>
-                </>
-              ) : <p className="muted" style={{ margin: 0 }}>Sin mediciones.</p>}
+                </div>
+                <button className="sd-panel-link" onClick={() => setTab('medidas')}>
+                  Ver historial <ChevronRightIcon size={14} />
+                </button>
+              </div>
+              {latestM ? (
+                <div className="sd-measure-grid">
+                  <MeasureTile label="Peso" value={latestM.weight_kg} unit="kg" accent />
+                  <MeasureTile label="Grasa" value={latestM.body_fat_pct} unit="%" />
+                  <MeasureTile label="Cintura" value={latestM.waist_cm} unit="cm" />
+                  <MeasureTile label="Pecho" value={latestM.chest_cm} unit="cm" />
+                </div>
+              ) : (
+                <div className="sd-panel-empty">Todavía no hay mediciones cargadas.</div>
+              )}
             </div>
 
-            <div className="card">
-              <div className="section-title" style={{ marginBottom: 14 }}>Entrenos recientes</div>
-              {workouts.length === 0
-                ? <p className="muted" style={{ margin: 0 }}>Sin entrenamientos.</p>
-                : <ul className="log-list">
-                    {workouts.slice(0, 5).map((w) => (
-                      <li key={w.id} className="log-row">
-                        <div>
-                          <div className="cell-name">{w.workout_name}</div>
-                          <div className="stat-foot">{new Date(w.date).toLocaleDateString('es-AR')}</div>
-                        </div>
-                        <span className={`badge${w.completed ? ' active' : ''}`}>
-                          <span className="dot" />{w.completed ? 'Hecho' : 'Pendiente'}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-              }
+            {/* Último entrenamiento */}
+            <div className="card sd-panel">
+              <div className="sd-panel-head sd-panel-head-row">
+                <div>
+                  <div className="section-title">Último entrenamiento</div>
+                  <div className="sd-panel-sub">
+                    {lastWorkout ? relativeDate(lastWorkout.date) : 'Sin actividad'}
+                  </div>
+                </div>
+                {lastWorkout ? (
+                  <button className="sd-panel-link" onClick={() => setTab('entrenos')}>
+                    Ver detalle <ChevronRightIcon size={14} />
+                  </button>
+                ) : null}
+              </div>
+              {lastWorkout ? (
+                <div className="sd-workout-card">
+                  <div className="sd-workout-card-top">
+                    <div className="sd-workout-card-name">{lastWorkout.workout_name}</div>
+                    <span className={`badge sm${lastWorkout.completed ? ' active' : ' amber'}`}>
+                      <span className="dot" />{lastWorkout.completed ? 'Completado' : 'Pendiente'}
+                    </span>
+                  </div>
+                  <div className="sd-workout-card-stats">
+                    <div><span className="sd-wc-val">{formatWorkoutDuration(lastWorkout)}</span><span className="sd-wc-lbl">duración</span></div>
+                    <div><span className="sd-wc-val">{lastWorkout.completed_exercises?.length ?? 0}</span><span className="sd-wc-lbl">ejercicios</span></div>
+                    <div><span className="sd-wc-val">{lastWorkout.rpe != null ? `${lastWorkout.rpe}/10` : '—'}</span><span className="sd-wc-lbl">RPE</span></div>
+                  </div>
+                  {lastWorkout.rpe != null ? (
+                    <div className="sd-rpe">
+                      <div className="sd-rpe-track"><div className="sd-rpe-fill" style={{ width: `${(lastWorkout.rpe / 10) * 100}%` }} /></div>
+                    </div>
+                  ) : null}
+                  {lastWorkout.comments ? (
+                    <div className="sd-workout-card-comment">"{lastWorkout.comments}"</div>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="sd-panel-empty">Todavía no registró entrenamientos.</div>
+              )}
+            </div>
+
+            {/* Atención recomendada */}
+            <div className="card sd-panel">
+              <div className="sd-panel-head">
+                <div className="section-title">Atención recomendada</div>
+                <div className="sd-panel-sub">Qué conviene revisar hoy</div>
+              </div>
+              {alerts.length === 0 ? (
+                <div className="sd-all-good">
+                  <span className="sd-all-good-check">✓</span>
+                  <span>Todo al día. Sin pendientes.</span>
+                </div>
+              ) : (
+                <ul className="sd-alert-list">
+                  {alerts.map((a, i) => (
+                    <li key={i} className={`sd-alert sd-alert-${a.kind}`}>
+                      <span className="sd-alert-dot" aria-hidden />
+                      <span>{a.text}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {/* Datos del cliente */}
+            <div className="card sd-panel">
+              <div className="sd-panel-head">
+                <div className="section-title">Datos del cliente</div>
+                <div className="sd-panel-sub">Perfil y plan</div>
+              </div>
+              <div className="sd-info-grid">
+                <InfoTile label="Nivel" value={userProfile?.level ?? '—'} />
+                <InfoTile label="Programa" value={userProfile?.plan_name ?? '—'} />
+                <InfoTile label="Semana" value={userProfile ? `${userProfile.plan_current_week ?? 0}${userProfile.plan_duration_weeks ? ` / ${userProfile.plan_duration_weeks}` : ''}` : '—'} />
+                <InfoTile label="Suscripción" value={subscription?.plan_name ?? 'Sin plan activo'} />
+                <InfoTile
+                  label="Vence el"
+                  value={
+                    subscription?.expires_at
+                      ? formatExpiry(subscription.expires_at)
+                      : subscription?.status === 'active'
+                        ? 'Sin fecha'
+                        : '—'
+                  }
+                />
+                <InfoTile label="Estado suscripción" value={subscription ? subscriptionStatusLabel(subscription.status) : '—'} />
+                <InfoTile label="Teléfono" value={profile.phone ?? '—'} />
+                <InfoTile label="Objetivo" value={profile.goal ?? '—'} />
+                <InfoTile label="Se unió" value={new Date(profile.created_at).toLocaleDateString('es-AR')} />
+              </div>
             </div>
           </div>
         )}
@@ -285,28 +499,40 @@ export function StudentDetailPage(): React.JSX.Element {
           <div>
             {studentId && <RoutineManager studentId={studentId} />}
             <div className="card" style={{ marginTop: 16 }}>
-              <div className="section-title" style={{ marginBottom: 14 }}>Historial de entrenamientos</div>
-              {workouts.length === 0
-                ? <p className="muted" style={{ margin: 0 }}>Sin entrenamientos registrados.</p>
-                : <table>
+              <div className="sd-section-head">
+                <div>
+                  <div className="section-title">Historial de entrenamientos</div>
+                  <div className="sd-section-sub">
+                    {workouts.length > 0
+                      ? `${completedW} completados · ${stats.totalMin > 0 ? `${stats.totalMin} min acumulados` : 'sin duración registrada'}${stats.avgRpe ? ` · RPE prom. ${stats.avgRpe}` : ''}`
+                      : 'Sin actividad registrada todavía'}
+                  </div>
+                </div>
+              </div>
+              {workouts.length === 0 ? (
+                <p className="muted" style={{ margin: 0 }}>Sin entrenamientos registrados.</p>
+              ) : (
+                <div className="sd-table-wrap">
+                  <table className="sd-workout-table">
                     <thead>
-                      <tr><th>Entreno</th><th>Fecha</th><th>Estado</th></tr>
+                      <tr>
+                        <th>Entreno</th>
+                        <th>Fecha</th>
+                        <th>Tipo</th>
+                        <th>Duración</th>
+                        <th>RPE</th>
+                        <th>Ejercicios</th>
+                        <th>Estado</th>
+                      </tr>
                     </thead>
                     <tbody>
                       {workouts.map((w) => (
-                        <tr key={w.id}>
-                          <td>{w.workout_name}</td>
-                          <td className="muted">{new Date(w.date).toLocaleDateString('es-AR')}</td>
-                          <td>
-                            <span className={`badge${w.completed ? ' active' : ''}`}>
-                              <span className="dot" />{w.completed ? 'Completado' : 'Pendiente'}
-                            </span>
-                          </td>
-                        </tr>
+                        <WorkoutHistoryRow key={w.id} workout={w} />
                       ))}
                     </tbody>
                   </table>
-              }
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -446,45 +672,217 @@ export function StudentDetailPage(): React.JSX.Element {
 
       <style>{`
         .sd-page { display: flex; flex-direction: column; gap: 0; }
-        /* Header */
-        .sd-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 0; flex-wrap: wrap; padding: 20px 24px; }
-        .sd-header-left { display: flex; align-items: center; gap: 16px; }
-        .sd-avatar {
-          width: 56px; height: 56px; border-radius: 50%;
-          background: color-mix(in srgb, var(--primary) 15%, transparent);
-          color: var(--primary); font-size: 20px; font-weight: 700;
-          display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+
+        /* Hero header */
+        .sd-hero {
+          position: relative;
+          overflow: hidden;
+          padding: 0;
+          margin-bottom: 20px;
         }
-        .sd-name { font-size: 20px; font-weight: 700; color: var(--text-primary); }
-        .sd-goal { font-size: 13px; color: var(--text-tertiary); margin-top: 2px; }
-        .sd-meta { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
-        .sd-chip { font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 4px; background: var(--surface-elevated); color: var(--text-secondary); border: 1px solid var(--border); }
-        .sd-since { font-size: 12px; color: var(--text-tertiary); }
-        .sd-header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
-        .sd-header-stats { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
-        .sd-header-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+        .sd-hero-top {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 16px;
+          padding: 24px 24px 20px;
+          flex-wrap: wrap;
+        }
+        .sd-hero-identity { display: flex; align-items: center; gap: 18px; min-width: 0; flex: 1; }
+        .sd-avatar {
+          width: 72px; height: 72px; border-radius: 50%; flex-shrink: 0;
+          background: var(--surface-elevated);
+          color: var(--text-secondary); font-size: 24px; font-weight: 600;
+          display: flex; align-items: center; justify-content: center;
+          border: 1px solid var(--border);
+        }
+        .sd-name-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .sd-name { font-size: 23px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.025em; line-height: 1.2; }
+        .sd-goal-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 5px; }
+        .sd-goal { font-size: 14px; color: var(--text-secondary); }
+        .sd-level {
+          font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
+          padding: 2px 9px; border-radius: 999px;
+          background: var(--surface-elevated);
+          border: 1px solid var(--border);
+          color: var(--text-secondary);
+        }
+        .sd-meta { display: flex; align-items: center; gap: 7px; margin-top: 10px; flex-wrap: wrap; font-size: 12.5px; color: var(--text-tertiary); }
+        .sd-meta-sep { opacity: .5; }
+        .sd-header-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+        .sd-action { display: inline-flex; align-items: center; gap: 7px; }
+        .sd-action svg { opacity: .85; }
 
-        /* Stat pills in header */
-        .sd-stat-pill { display: flex; flex-direction: column; align-items: center; padding: 8px 16px; border-radius: 8px; background: var(--surface-elevated); min-width: 70px; }
-        .sd-stat-val { font-size: 17px; font-weight: 700; color: var(--text-primary); }
-        .sd-stat-lbl { font-size: 10.5px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .06em; margin-top: 2px; }
+        .sd-stat-grid {
+          display: grid;
+          grid-template-columns: repeat(6, 1fr);
+          gap: 1px;
+          background: var(--border);
+          border-top: 1px solid var(--border);
+        }
+        .sd-hero-stat {
+          background: var(--surface);
+          padding: 16px 18px;
+          display: flex; flex-direction: column; gap: 3px;
+          min-width: 0;
+        }
+        .sd-hero-stat-val { font-size: 21px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.03em; line-height: 1.1; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .sd-hero-stat.highlight .sd-hero-stat-val { color: var(--primary); }
+        .sd-hero-stat-lbl { font-size: 10px; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .07em; }
+        .sd-hero-stat-sub { font-size: 11px; color: var(--text-tertiary); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-        /* Tabs */
-        .sd-tabs { display: flex; border-bottom: 2px solid var(--border); margin-bottom: 20px; overflow-x: auto; }
+        .sd-last-workout {
+          display: flex;
+          gap: 16px;
+          align-items: flex-start;
+          padding: 16px 24px 18px;
+          border-top: 1px solid var(--border);
+        }
+        .sd-last-workout-label {
+          font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em;
+          color: var(--text-tertiary); white-space: nowrap; padding-top: 3px; min-width: 88px;
+        }
+        .sd-last-workout-name { font-size: 15px; font-weight: 600; color: var(--text-primary); }
+        .sd-last-workout-meta {
+          display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
+          font-size: 12.5px; color: var(--text-tertiary); margin-top: 4px;
+        }
+        .sd-dot-sep { opacity: .5; }
+        .sd-last-workout-comment {
+          margin-top: 8px; font-size: 12.5px; color: var(--text-secondary); font-style: italic;
+          padding: 8px 12px; border-radius: 8px; background: var(--surface-elevated); border: 1px solid var(--border);
+          max-width: 640px;
+        }
+
+        .sd-section-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; gap: 12px; }
+        .sd-section-sub { font-size: 12.5px; color: var(--text-tertiary); margin-top: 4px; }
+
+        .sd-table-wrap { overflow-x: auto; margin: 0 -4px; }
+        .sd-workout-table { width: 100%; border-collapse: collapse; min-width: 720px; }
+        .sd-workout-table th {
+          text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase;
+          letter-spacing: .06em; color: var(--text-tertiary); padding: 10px 12px;
+          border-bottom: 1px solid var(--border); white-space: nowrap;
+        }
+        .sd-workout-table td {
+          padding: 12px; border-bottom: 1px solid var(--border); vertical-align: top;
+          font-size: 13.5px; color: var(--text-primary);
+        }
+        .sd-workout-table tr:last-child td { border-bottom: none; }
+        .sd-workout-table tr:hover td { background: var(--surface-hover); }
+        .sd-workout-name { font-weight: 600; color: var(--text-primary); }
+        .sd-workout-comment {
+          font-size: 12px; color: var(--text-tertiary); margin-top: 4px; font-style: italic;
+          max-width: 280px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .badge.sm { font-size: 11px; padding: 2px 8px; }
+
+        @media (max-width: 1100px) { .sd-stat-grid { grid-template-columns: repeat(3, 1fr); } }
+        @media (max-width: 640px) {
+          .sd-stat-grid { grid-template-columns: repeat(2, 1fr); }
+          .sd-hero-top { padding: 16px; }
+          .sd-last-workout { flex-direction: column; padding: 14px 16px 16px; }
+        }
+
+        /* Tabs — segmented control */
+        .sd-tabs {
+          display: inline-flex; gap: 3px; margin-bottom: 24px; overflow-x: auto;
+          padding: 4px; background: var(--surface-elevated);
+          border: 1px solid var(--border); border-radius: 14px; max-width: 100%;
+        }
         .sd-tab {
           display: flex; align-items: center; gap: 6px;
-          padding: 10px 18px; font-size: 13.5px; font-weight: 600;
+          padding: 8px 15px; font-size: 13px; font-weight: 600;
           color: var(--text-tertiary); background: none; border: none; cursor: pointer;
-          border-bottom: 2px solid transparent; margin-bottom: -2px; white-space: nowrap;
-          transition: color 150ms;
+          border-radius: 10px; white-space: nowrap;
+          transition: color 150ms, background 150ms, box-shadow 150ms;
         }
         .sd-tab:hover { color: var(--text-primary); }
-        .sd-tab.active { color: var(--text-primary); border-bottom-color: var(--primary); }
-        .sd-tab-dot { width: 7px; height: 7px; border-radius: 50%; background: #ef4444; flex-shrink: 0; }
+        .sd-tab.active { color: var(--text-primary); background: var(--surface); box-shadow: var(--card-shadow); }
 
         .sd-content { min-height: 300px; }
         .sd-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
         @media (max-width: 900px) { .sd-grid-3 { grid-template-columns: 1fr; } }
+
+        /* Resumen 2×2 grid */
+        .sd-summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+        @media (max-width: 900px) { .sd-summary-grid { grid-template-columns: 1fr; } }
+        .sd-panel-head-row { flex-direction: row; align-items: flex-start; justify-content: space-between; gap: 12px; }
+        .sd-panel-link {
+          display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0;
+          font-size: 12.5px; font-weight: 600; color: var(--primary);
+          background: none; border: none; cursor: pointer; padding: 2px 0;
+        }
+        .sd-panel-link:hover { opacity: .75; }
+        .sd-panel-link svg { opacity: .8; }
+
+        /* Último entrenamiento card */
+        .sd-workout-card { display: flex; flex-direction: column; gap: 14px; }
+        .sd-workout-card-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+        .sd-workout-card-name { font-size: 15px; font-weight: 600; color: var(--text-primary); }
+        .sd-workout-card-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        .sd-workout-card-stats > div { display: flex; flex-direction: column; gap: 2px; }
+        .sd-wc-val { font-size: 18px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+        .sd-wc-lbl { font-size: 11px; color: var(--text-tertiary); }
+        .sd-rpe-track { height: 6px; border-radius: 999px; background: var(--surface-elevated); overflow: hidden; }
+        .sd-rpe-fill { height: 100%; border-radius: 999px; background: var(--primary); }
+        .sd-workout-card-comment { font-size: 12.5px; color: var(--text-secondary); font-style: italic; padding-top: 2px; }
+
+        /* Atención recomendada */
+        .sd-alert-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+        .sd-alert { display: flex; align-items: flex-start; gap: 10px; padding: 11px 0; font-size: 13.5px; color: var(--text-primary); border-bottom: 1px solid var(--border); }
+        .sd-alert:last-child { border-bottom: none; }
+        .sd-alert-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
+        .sd-alert-warn .sd-alert-dot { background: var(--warning, #f59e0b); }
+        .sd-alert-info .sd-alert-dot { background: var(--text-tertiary); }
+        .sd-all-good { display: flex; align-items: center; gap: 10px; padding: 8px 0; font-size: 13.5px; color: var(--text-secondary); }
+        .sd-all-good-check {
+          width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+          display: flex; align-items: center; justify-content: center;
+          font-size: 12px; font-weight: 700; background: var(--green-soft); color: var(--green-strong);
+        }
+
+        /* Resumen panels */
+        .sd-panel { padding: 20px 22px; display: flex; flex-direction: column; gap: 18px; }
+        .sd-panel-head { display: flex; flex-direction: column; gap: 2px; }
+        .sd-panel-sub { font-size: 12.5px; color: var(--text-tertiary); }
+        .sd-panel-empty {
+          padding: 28px 16px; text-align: center; font-size: 13px; color: var(--text-tertiary);
+        }
+        .sd-info-grid {
+          display: grid; grid-template-columns: 1fr 1fr;
+          column-gap: 20px; row-gap: 16px;
+        }
+        .sd-info-tile { min-width: 0; }
+        .sd-info-tile.full { grid-column: 1 / -1; }
+        .sd-info-tile-lbl { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--text-tertiary); margin-bottom: 5px; }
+        .sd-info-tile-val { font-size: 14px; font-weight: 500; color: var(--text-primary); }
+
+        .sd-measure-grid { display: grid; grid-template-columns: 1fr 1fr; column-gap: 20px; row-gap: 18px; }
+        .sd-measure-tile { min-width: 0; }
+        .sd-measure-tile-val { font-size: 26px; font-weight: 700; letter-spacing: -0.03em; color: var(--text-primary); line-height: 1; font-variant-numeric: tabular-nums; }
+        .sd-measure-tile.accent .sd-measure-tile-val { color: var(--primary); }
+        .sd-measure-tile-unit { font-size: 13px; font-weight: 500; color: var(--text-tertiary); }
+        .sd-measure-tile-lbl { font-size: 11.5px; color: var(--text-tertiary); margin-top: 7px; font-weight: 500; }
+
+        .sd-activity-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+        .sd-activity-item {
+          display: flex; align-items: center; gap: 12px;
+          padding: 12px 0; border-bottom: 1px solid var(--border);
+        }
+        .sd-activity-item:last-child { border-bottom: none; }
+        .sd-activity-icon {
+          width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+          display: flex; align-items: center; justify-content: center;
+          font-size: 12px; font-weight: 700;
+          background: var(--green-soft); color: var(--green-strong);
+        }
+        .sd-activity-item:has(.badge.amber) .sd-activity-icon {
+          background: var(--surface-elevated); color: var(--text-tertiary);
+        }
+        .sd-activity-body { flex: 1; min-width: 0; }
+        .sd-activity-title { font-size: 13.5px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .sd-activity-meta { font-size: 12px; color: var(--text-tertiary); margin-top: 2px; }
 
         .photo-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
         .photo-gallery-item { margin: 0; display: flex; flex-direction: column; gap: 6px; }
@@ -505,12 +903,82 @@ export function StudentDetailPage(): React.JSX.Element {
 
 // ── Small helpers ─────────────────────────────────────────────────────────────
 
-function StatPill({ label, value }: { label: string; value: string | number }): React.JSX.Element {
+function HeroStat({
+  label,
+  value,
+  sub,
+  highlight = false,
+}: {
+  label: string;
+  value: string | number;
+  sub?: string;
+  highlight?: boolean;
+}): React.JSX.Element {
   return (
-    <div className="sd-stat-pill">
-      <div className="sd-stat-val">{value}</div>
-      <div className="sd-stat-lbl">{label}</div>
+    <div className={`sd-hero-stat${highlight ? ' highlight' : ''}`}>
+      <div className="sd-hero-stat-lbl">{label}</div>
+      <div className="sd-hero-stat-val">{value}</div>
+      {sub ? <div className="sd-hero-stat-sub">{sub}</div> : null}
     </div>
+  );
+}
+
+function InfoTile({ label, value, full = false }: { label: string; value: string; full?: boolean }): React.JSX.Element {
+  return (
+    <div className={`sd-info-tile${full ? ' full' : ''}`}>
+      <div className="sd-info-tile-lbl">{label}</div>
+      <div className="sd-info-tile-val">{value}</div>
+    </div>
+  );
+}
+
+function MeasureTile({
+  label,
+  value,
+  unit,
+  accent = false,
+}: {
+  label: string;
+  value: number | null;
+  unit: string;
+  accent?: boolean;
+}): React.JSX.Element {
+  return (
+    <div className={`sd-measure-tile${accent ? ' accent' : ''}`}>
+      <div className="sd-measure-tile-val">
+        {value != null ? value : '—'}
+        {value != null ? <span className="sd-measure-tile-unit"> {unit}</span> : null}
+      </div>
+      <div className="sd-measure-tile-lbl">{label}</div>
+    </div>
+  );
+}
+
+function WorkoutHistoryRow({ workout: w }: { workout: WorkoutLogRow }): React.JSX.Element {
+  const exerciseCount = w.completed_exercises?.length ?? null;
+  return (
+    <tr>
+      <td>
+        <div className="sd-workout-name">{w.workout_name}</div>
+        {w.comments ? <div className="sd-workout-comment" title={w.comments}>{w.comments}</div> : null}
+        {w.distance != null ? (
+          <div className="sd-workout-comment">{w.distance} {w.distance_unit ?? 'km'}</div>
+        ) : null}
+      </td>
+      <td className="muted">
+        <div>{new Date(w.date).toLocaleDateString('es-AR')}</div>
+        <div style={{ fontSize: 11.5, marginTop: 2 }}>{relativeDate(w.date)}</div>
+      </td>
+      <td><span className="sd-chip">{workoutTypeLabel(w.workout_type)}</span></td>
+      <td>{formatWorkoutDuration(w)}</td>
+      <td>{w.rpe != null ? `${w.rpe}/10` : '—'}</td>
+      <td>{exerciseCount != null && exerciseCount > 0 ? exerciseCount : '—'}</td>
+      <td>
+        <span className={`badge sm${w.completed ? ' active' : ' amber'}`}>
+          <span className="dot" />{w.completed ? 'Completado' : 'Pendiente'}
+        </span>
+      </td>
+    </tr>
   );
 }
 
@@ -519,15 +987,6 @@ function Datum({ label, value }: { label: string; value: string }): React.JSX.El
     <div className="datum">
       <dt>{label}</dt>
       <dd>{value}</dd>
-    </div>
-  );
-}
-
-function Measure({ label, value, unit }: { label: string; value: number | null; unit: string }): React.JSX.Element {
-  return (
-    <div className="measure">
-      <div className="measure-val">{value != null ? `${value}` : '—'}{value != null && <span className="measure-unit"> {unit}</span>}</div>
-      <div className="measure-label">{label}</div>
     </div>
   );
 }

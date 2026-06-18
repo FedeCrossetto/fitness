@@ -10,7 +10,7 @@ import { layout, radius, spacing, Colors, ThemeMode, useThemedStyles, useTheme }
 import { formatLongDate } from '../../lib/dates';
 import { supabase } from '../../lib/supabase';
 import { uploadAvatar } from '../../services/storage';
-import { fetchActiveSubscription, hasActiveAccess } from '../../services/payments';
+import { fetchActiveSubscriptionWithPlan, hasActiveAccess, type SubscriptionWithPlan } from '../../services/payments';
 import { isExpoGo } from '../../services/health';
 import { connectTodaySteps } from '../../services/steps';
 import { showPlatformHealthError } from '../../services/healthPlatform';
@@ -36,7 +36,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { useUiStore } from '../../stores/uiStore';
 import { useTranslation } from '../../stores/i18nStore';
 import { LANGUAGES } from '@habito/shared';
-import type { ProfileRow, SubscriptionRow } from '../../types/database';
+import type { ProfileRow } from '../../types/database';
 import type { HomeStackParamList } from '../../types/navigation';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'Profile'>;
@@ -140,7 +140,7 @@ export function ProfileScreen({ navigation, route }: Props): React.JSX.Element {
   useStepsAutoSync(userId, syncAutoGoal);
 
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [subscription, setSubscription] = useState<SubscriptionRow | null>(null);
+  const [subscription, setSubscription] = useState<SubscriptionWithPlan | null>(null);
   const [subLoading, setSubLoading] = useState(true);
   const [reminders, setReminders] = useState<Record<ReminderKey, boolean>>({
     agua: false,
@@ -151,24 +151,23 @@ export function ProfileScreen({ navigation, route }: Props): React.JSX.Element {
   const [pushPermissionDenied, setPushPermissionDenied] = useState(false);
   const [pushLoading, setPushLoading] = useState(true);
 
-  useEffect(() => {
+  const loadSubscription = useCallback(async () => {
     if (!userId) return;
-    let cancelled = false;
-    void (async () => {
-      setSubLoading(true);
-      try {
-        const sub = await fetchActiveSubscription(userId);
-        if (!cancelled) setSubscription(sub);
-      } catch {
-        if (!cancelled) setSubscription(null);
-      } finally {
-        if (!cancelled) setSubLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    setSubLoading(true);
+    try {
+      setSubscription(await fetchActiveSubscriptionWithPlan(userId));
+    } catch {
+      setSubscription(null);
+    } finally {
+      setSubLoading(false);
+    }
   }, [userId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadSubscription();
+    }, [loadSubscription]),
+  );
 
   useEffect(() => {
     void (async () => {
@@ -320,6 +319,7 @@ export function ProfileScreen({ navigation, route }: Props): React.JSX.Element {
   }, [signOut]);
 
   const subscriptionActive = hasActiveAccess(subscription);
+  const planName = subscription?.plan_name;
 
   return (
     <View style={styles.flex}>
@@ -367,6 +367,32 @@ export function ProfileScreen({ navigation, route }: Props): React.JSX.Element {
                   </AppText>
                 </View>
               ) : null}
+              {subscriptionActive && planName ? (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => navigation.navigate('Subscription')}
+                  style={styles.subscriptionBadge}
+                >
+                  <Ionicons name="card-outline" size={14} color={colors.primary.default} />
+                  <View style={styles.subscriptionCopy}>
+                    <AppText variant="body13SemiBold" color={colors.text.primary}>
+                      {planName}
+                    </AppText>
+                    {subscription?.expires_at ? (
+                      <AppText variant="body12" color={colors.text.tertiary}>
+                        {i18n(t.profile.plan_expires, {
+                          date: formatLongDate(subscription.expires_at.slice(0, 10)),
+                        })}
+                      </AppText>
+                    ) : (
+                      <AppText variant="body12" color={colors.states.success}>
+                        {t.profile.plan_active}
+                      </AppText>
+                    )}
+                  </View>
+                  <Ionicons name="chevron-forward" size={14} color={colors.text.tertiary} />
+                </Pressable>
+              ) : null}
             </View>
           </View>
         </Card>
@@ -382,13 +408,15 @@ export function ProfileScreen({ navigation, route }: Props): React.JSX.Element {
                 <Ionicons name="checkmark-circle" size={20} color={colors.states.success} />
               </View>
               <View style={styles.planInfo}>
-                <AppText variant="body16SemiBold" color={colors.states.success}>
-                  {subscription.expires_at
-                    ? i18n(t.profile.plan_active_until, { date: formatLongDate(subscription.expires_at.slice(0, 10)) })
-                    : t.profile.plan_active}
+                <AppText variant="body16SemiBold" color={colors.text.primary}>
+                  {planName ?? t.profile.plan_active}
                 </AppText>
-                <AppText variant="body13" color={colors.text.secondary}>
-                  {t.profile.plan_full_access}
+                <AppText variant="body13" color={colors.text.secondary} style={styles.planSub}>
+                  {subscription.expires_at
+                    ? i18n(t.profile.plan_active_until, {
+                        date: formatLongDate(subscription.expires_at.slice(0, 10)),
+                      })
+                    : t.profile.plan_full_access}
                 </AppText>
               </View>
             </View>
@@ -641,6 +669,19 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     borderRadius: radius.sm,
     backgroundColor: colors.primary.muted,
   },
+  subscriptionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    backgroundColor: colors.surface.elevated,
+  },
+  subscriptionCopy: { flex: 1 },
   planCard: { marginBottom: spacing.xxs },
   planRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   planIcon: {

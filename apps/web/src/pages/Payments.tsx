@@ -1,81 +1,390 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import type { PlanRow, SubscriptionRow } from '@habito/shared/types/database';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/hooks/useAuth';
+import { useTranslation } from '@/hooks/useTranslation';
+import { useToast } from '@/hooks/useToast';
+import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
 import { CreditCardIcon } from '@/components/icons';
+import { ErrorState, LoadingRows } from '@/components/ui';
 
-const MOCK_PAYMENTS = [
-  { id: '1', student: 'Ezequiel Amado', plan: 'Plan Premium', amount: 12000, date: '2026-06-10', status: 'paid' as const },
-  { id: '2', student: 'Laura Martínez', plan: 'Plan Básico', amount: 7500, date: '2026-06-08', status: 'paid' as const },
-  { id: '3', student: 'Marcos Pérez', plan: 'Plan Premium', amount: 12000, date: '2026-06-05', status: 'pending' as const },
-  { id: '4', student: 'Sol Fernández', plan: 'Plan Básico', amount: 7500, date: '2026-05-30', status: 'paid' as const },
-];
+// ── Types ──────────────────────────────────────────────────────────────────
 
-const STATUS_LABEL = { paid: 'Pagado', pending: 'Pendiente', overdue: 'Vencido' };
-const STATUS_CLASS = { paid: 'badge solid green', pending: 'badge solid amber', overdue: 'badge solid gray' };
+type StudentMin = { id: string; full_name: string | null };
+
+type PlanWithPrice = PlanRow & {
+  effectivePrice: number;
+  draftPrice: string;
+  hasOverride: boolean;
+};
+
+type PaymentRow = {
+  id: string;
+  studentId: string;
+  studentName: string;
+  planName: string;
+  amount: number;
+  date: string;
+  status: 'paid' | 'pending' | 'overdue' | 'cancelled';
+};
+
+type PaymentsData = {
+  plans: PlanWithPrice[];
+  payments: PaymentRow[];
+};
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function formatMoney(amount: number, locale: string): string {
+  return new Intl.NumberFormat(locale === 'es' ? 'es-AR' : 'en-US', {
+    style: 'currency',
+    currency: 'ARS',
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+function formatInputPrice(value: string, locale: string): string {
+  const n = Number(value.replace(/\D/g, ''));
+  if (!n) return '';
+  return new Intl.NumberFormat(locale === 'es' ? 'es-AR' : 'en-US').format(n);
+}
+
+function mapStatus(status: SubscriptionRow['status']): PaymentRow['status'] {
+  if (status === 'active') return 'paid';
+  if (status === 'pending') return 'pending';
+  if (status === 'expired') return 'overdue';
+  return 'cancelled';
+}
+
+function isThisMonth(iso: string): boolean {
+  const d = new Date(iso);
+  const now = new Date();
+  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+}
+
+function mergePlans(
+  plans: PlanRow[],
+  overrides: { plan_id: string; price_ars: number }[],
+): PlanWithPrice[] {
+  return plans.map((plan) => {
+    const override = overrides.find((o) => o.plan_id === plan.id);
+    const effectivePrice = override ? Number(override.price_ars) : Number(plan.price_ars);
+    return {
+      ...plan,
+      effectivePrice,
+      draftPrice: String(Math.round(effectivePrice)),
+      hasOverride: !!override,
+    };
+  });
+}
+
+function planAccent(id: string): string {
+  if (id === 'quarterly') return 'payments-plan-cell--featured';
+  if (id === 'semiannual') return 'payments-plan-cell--value';
+  return '';
+}
+
+// ── Page ───────────────────────────────────────────────────────────────────
 
 export function PaymentsPage(): React.JSX.Element {
-  const total = MOCK_PAYMENTS.filter((p) => p.status === 'paid').reduce((s, p) => s + p.amount, 0);
-  const pending = MOCK_PAYMENTS.filter((p) => p.status === 'pending').reduce((s, p) => s + p.amount, 0);
+  const { session } = useAuth();
+  const { t, i18n, language } = useTranslation();
+  const { showToast } = useToast();
+  const navigate = useNavigate();
+  const userId = session?.user.id;
+
+  const [plans, setPlans] = useState<PlanWithPrice[]>([]);
+  const [payments, setPayments] = useState<PaymentRow[]>([]);
+  const [savingPlanId, setSavingPlanId] = useState<string | null>(null);
+
+  const locale = language === 'es' ? 'es-AR' : 'en-US';
+
+  const { data, loading, error, refetch } = useSupabaseQuery<PaymentsData>(
+    async () => {
+      const [
+        { data: planRows, error: plansError },
+        { data: overrideRows, error: overridesError },
+        { data: students, error: studentsError },
+      ] = await Promise.all([
+        supabase.from('plans').select('*').eq('active', true).order('duration_days'),
+        supabase.from('trainer_plan_prices').select('plan_id, price_ars').eq('trainer_id', userId!),
+        supabase
+          .from('profiles')
+          .select('id, full_name')
+          .eq('trainer_id', userId!)
+          .eq('client_status', 'active'),
+      ]);
+
+      if (plansError) throw plansError;
+      if (overridesError) throw overridesError;
+      if (studentsError) throw studentsError;
+
+      const mergedPlans = mergePlans(
+        (planRows as PlanRow[] | null) ?? [],
+        (overrideRows as { plan_id: string; price_ars: number }[] | null) ?? [],
+      );
+
+      const studentMap = new Map(
+        ((students as StudentMin[] | null) ?? []).map((s) => [s.id, s.full_name ?? '—']),
+      );
+      const studentIds = [...studentMap.keys()];
+
+      let paymentRows: PaymentRow[] = [];
+      if (studentIds.length > 0) {
+        const { data: subs, error: subsError } = await supabase
+          .from('subscriptions')
+          .select('id, user_id, plan_id, status, started_at, created_at')
+          .in('user_id', studentIds)
+          .order('created_at', { ascending: false })
+          .limit(100);
+
+        if (subsError) throw subsError;
+
+        const planById = new Map(mergedPlans.map((p) => [p.id, p]));
+
+        paymentRows = ((subs as Pick<SubscriptionRow, 'id' | 'user_id' | 'plan_id' | 'status' | 'started_at' | 'created_at'>[] | null) ?? [])
+          .map((sub) => {
+            const plan = planById.get(sub.plan_id);
+            return {
+              id: sub.id,
+              studentId: sub.user_id,
+              studentName: studentMap.get(sub.user_id) ?? '—',
+              planName: plan?.name ?? sub.plan_id,
+              amount: plan?.effectivePrice ?? 0,
+              date: sub.started_at ?? sub.created_at,
+              status: mapStatus(sub.status),
+            };
+          });
+      }
+
+      return { plans: mergedPlans, payments: paymentRows };
+    },
+    [userId],
+    { enabled: !!userId },
+  );
+
+  useEffect(() => {
+    if (data) {
+      setPlans(data.plans);
+      setPayments(data.payments);
+    }
+  }, [data]);
+
+  const stats = useMemo(() => {
+    const collected = payments
+      .filter((p) => p.status === 'paid' && isThisMonth(p.date))
+      .reduce((sum, p) => sum + p.amount, 0);
+    const pending = payments
+      .filter((p) => p.status === 'pending')
+      .reduce((sum, p) => sum + p.amount, 0);
+    return { collected, pending, count: payments.length };
+  }, [payments]);
+
+  const statusLabel: Record<PaymentRow['status'], string> = {
+    paid: t.payments.status_paid,
+    pending: t.payments.status_pending,
+    overdue: t.payments.status_overdue,
+    cancelled: t.payments.status_cancelled,
+  };
+
+  const statusClass: Record<PaymentRow['status'], string> = {
+    paid: 'pay-badge pay-badge--paid',
+    pending: 'pay-badge pay-badge--pending',
+    overdue: 'pay-badge pay-badge--overdue',
+    cancelled: 'pay-badge pay-badge--cancelled',
+  };
+
+  const updateDraftPrice = useCallback((planId: string, value: string) => {
+    setPlans((prev) =>
+      prev.map((p) => (p.id === planId ? { ...p, draftPrice: value.replace(/[^\d]/g, '') } : p)),
+    );
+  }, []);
+
+  const savePlanPrice = useCallback(async (plan: PlanWithPrice) => {
+    if (!userId) return;
+    const price = Number(plan.draftPrice);
+    if (!price || price <= 0) return;
+
+    setSavingPlanId(plan.id);
+    try {
+      const { error: upsertError } = await supabase.from('trainer_plan_prices').upsert(
+        { trainer_id: userId, plan_id: plan.id, price_ars: price, active: true },
+        { onConflict: 'trainer_id,plan_id' },
+      );
+      if (upsertError) throw upsertError;
+
+      setPlans((prev) =>
+        prev.map((p) =>
+          p.id === plan.id
+            ? { ...p, effectivePrice: price, hasOverride: true, draftPrice: String(price) }
+            : p,
+        ),
+      );
+      setPayments((prev) =>
+        prev.map((row) =>
+          row.planName === plan.name ? { ...row, amount: price } : row,
+        ),
+      );
+      showToast('success', t.payments.price_saved);
+    } catch {
+      showToast('error', t.payments.price_error);
+    } finally {
+      setSavingPlanId(null);
+    }
+  }, [userId, showToast, t.payments.price_error, t.payments.price_saved]);
 
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-        <h1 className="page-title" style={{ marginBottom: 0 }}>Payments</h1>
-        <button className="btn" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <CreditCardIcon size={15} /> Nuevo cobro
-        </button>
-      </div>
-      <p className="page-sub">Gestioná los pagos y suscripciones de tus alumnos.</p>
+    <div className="payments-page">
+      <header className="payments-header">
+        <div className="payments-header-text">
+          <h1 className="page-title">{t.payments.title}</h1>
+          <p className="page-sub payments-header-sub">{t.payments.sub}</p>
+        </div>
+      </header>
 
-      <div className="grid" style={{ marginBottom: 24 }}>
-        <div className="stat">
-          <div className="stat-head"><span className="stat-ico"><CreditCardIcon /></span></div>
-          <div>
-            <div className="n">${total.toLocaleString('es-AR')}</div>
-            <div className="l">Cobrado este mes</div>
+      {error ? (
+        <ErrorState message={t.payments.load_error} onRetry={refetch} />
+      ) : loading ? (
+        <LoadingRows rows={4} />
+      ) : (
+        <div className="payments-body">
+          <div className="payments-stats-strip">
+            <div className="payments-stat-block">
+              <span className="payments-stat-block-label">{t.payments.collected_month}</span>
+              <span className="payments-stat-block-value">{formatMoney(stats.collected, language)}</span>
+            </div>
+            <div className="payments-stat-block">
+              <span className="payments-stat-block-label">{t.payments.pending_total}</span>
+              <span className="payments-stat-block-value">
+                {formatMoney(stats.pending, language)}
+              </span>
+            </div>
+            <div className="payments-stat-block">
+              <span className="payments-stat-block-label">{t.payments.transactions}</span>
+              <span className="payments-stat-block-value">{stats.count}</span>
+            </div>
           </div>
-        </div>
-        <div className="stat">
-          <div className="stat-head"><span className="stat-ico"><CreditCardIcon /></span></div>
-          <div>
-            <div className="n">${pending.toLocaleString('es-AR')}</div>
-            <div className="l">Pendiente de cobro</div>
-          </div>
-        </div>
-        <div className="stat">
-          <div className="stat-head"><span className="stat-ico"><CreditCardIcon /></span></div>
-          <div>
-            <div className="n">{MOCK_PAYMENTS.length}</div>
-            <div className="l">Transacciones</div>
-          </div>
-        </div>
-      </div>
 
-      <div className="card" style={{ padding: 0 }}>
-        <div className="table-toolbar">
-          <span style={{ fontWeight: 600, fontSize: 15 }}>Historial de pagos</span>
-          <span className="row-count">{MOCK_PAYMENTS.length} transacciones</span>
+          <section className="card payments-plans-panel">
+            <div className="payments-panel-head">
+              <div>
+                <h2 className="payments-panel-title">{t.payments.plans_title}</h2>
+                <p className="payments-panel-sub">{t.payments.plans_sub}</p>
+              </div>
+            </div>
+            <div className="payments-plans-row">
+              {plans.map((plan) => {
+                const months = Math.max(1, Math.round(plan.duration_days / 30));
+                const perMonth = Math.round(plan.effectivePrice / months);
+                const dirty = plan.draftPrice !== String(Math.round(plan.effectivePrice));
+                const saving = savingPlanId === plan.id;
+                return (
+                  <div
+                    key={plan.id}
+                    className={`payments-plan-cell ${planAccent(plan.id)}`}
+                  >
+                    <div className="payments-plan-cell-head">
+                      <span className="payments-plan-name">{plan.name}</span>
+                      <span className="payments-plan-duration">
+                        {i18n(t.payments.duration_days, { n: plan.duration_days })}
+                      </span>
+                    </div>
+                    {plan.description ? (
+                      <p className="payments-plan-desc">{plan.description}</p>
+                    ) : null}
+                    <div className="payments-price-field">
+                      <label className="payments-price-label" htmlFor={`price-${plan.id}`}>
+                        ARS
+                      </label>
+                      <div className={`payments-price-input-wrap${dirty ? ' dirty' : ''}`}>
+                        <span className="payments-price-currency">$</span>
+                        <input
+                          id={`price-${plan.id}`}
+                          type="text"
+                          inputMode="numeric"
+                          className="payments-price-input"
+                          value={formatInputPrice(plan.draftPrice, language)}
+                          onChange={(e) => updateDraftPrice(plan.id, e.target.value)}
+                          aria-label={plan.name}
+                        />
+                      </div>
+                    </div>
+                    <div className="payments-plan-actions">
+                      <span className="payments-plan-foot">
+                        {i18n(t.payments.per_month, { price: formatMoney(perMonth, language) })}
+                      </span>
+                      <button
+                        type="button"
+                        className={`btn sm payments-save-btn${dirty ? '' : ' secondary'}`}
+                        disabled={!dirty || saving}
+                        onClick={() => void savePlanPrice(plan)}
+                      >
+                        {saving ? '…' : t.payments.save_price}
+                      </button>
+                    </div>
+                    {plan.hasOverride ? (
+                      <span className="payments-custom-tag">{t.payments.custom_price}</span>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="card payments-history-card">
+            <div className="payments-panel-head payments-panel-head--table">
+              <h2 className="payments-panel-title">{t.payments.history_title}</h2>
+              <span className="payments-history-count">
+                {i18n(t.payments.history_count, { n: payments.length })}
+              </span>
+            </div>
+
+            {payments.length === 0 ? (
+              <div className="payments-empty">
+                <div className="payments-empty-icon">
+                  <CreditCardIcon size={22} />
+                </div>
+                <p className="payments-empty-title">{t.payments.empty_history}</p>
+                <p className="payments-empty-sub">{t.payments.empty_history_sub}</p>
+              </div>
+            ) : (
+              <div className="payments-table-wrap">
+                <table className="payments-table">
+                  <thead>
+                    <tr>
+                      <th>{t.payments.col_student}</th>
+                      <th>{t.payments.col_plan}</th>
+                      <th>{t.payments.col_amount}</th>
+                      <th>{t.payments.col_date}</th>
+                      <th>{t.payments.col_status}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {payments.map((p) => (
+                      <tr
+                        key={p.id}
+                        className="payments-table-row"
+                        onClick={() => navigate(`/students/${p.studentId}`)}
+                      >
+                        <td><span className="cell-name">{p.studentName}</span></td>
+                        <td className="muted">{p.planName}</td>
+                        <td className="payments-amount">{formatMoney(p.amount, language)}</td>
+                        <td className="muted">
+                          {new Date(p.date).toLocaleDateString(locale)}
+                        </td>
+                        <td>
+                          <span className={statusClass[p.status]}>{statusLabel[p.status]}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
         </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Alumno</th>
-              <th>Plan</th>
-              <th>Monto</th>
-              <th>Fecha</th>
-              <th>Estado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {MOCK_PAYMENTS.map((p) => (
-              <tr key={p.id}>
-                <td><span className="cell-name">{p.student}</span></td>
-                <td className="muted">{p.plan}</td>
-                <td>${p.amount.toLocaleString('es-AR')}</td>
-                <td className="muted">{new Date(p.date).toLocaleDateString('es-AR')}</td>
-                <td><span className={STATUS_CLASS[p.status]}>{STATUS_LABEL[p.status]}</span></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      )}
     </div>
   );
 }

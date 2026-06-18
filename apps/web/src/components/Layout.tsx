@@ -84,7 +84,7 @@ export function Layout(): React.JSX.Element {
         { to: '/groups',    label: t.web.groups,                   icon: () => <GroupsIcon />    },
         { to: '/challenges',label: t.web.challenges,               icon: () => <TrophyIcon />,   mock: true },
         { to: '/students',  label: t.web.clients,                  icon: () => <UsersIcon />     },
-        { to: '/payments',  label: t.web.payments,                 icon: () => <CreditCardIcon />, mock: true },
+        { to: '/payments',  label: t.web.payments,                 icon: () => <CreditCardIcon /> },
       ],
     },
     {

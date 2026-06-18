@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
+import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { layout, radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
 import { formatLongDate } from '../../lib/dates';
@@ -43,15 +44,14 @@ export function SubscriptionScreen({ navigation }: Props): React.JSX.Element {
   const [checkingOut, setCheckingOut] = useState(false);
   const [refreshingSub, setRefreshingSub] = useState(false);
 
-  // Loader reutilizable por el botón de reintento (onPress no está sujeto a
-  // la regla set-state-in-effect).
   const load = useCallback(async () => {
     if (!userId) return;
     try {
-      const [planList, sub] = await Promise.all([fetchPlans(), fetchActiveSubscription(userId)]);
+      const [planList, sub] = await Promise.all([fetchPlans(userId), fetchActiveSubscription(userId)]);
       setPlans(planList);
       setSubscription(sub);
       setSelectedId((prev) => prev ?? planList.find((p) => p.id === 'quarterly')?.id ?? planList[0]?.id ?? null);
+      setError(null);
     } catch {
       setError('No pudimos cargar los planes.');
     } finally {
@@ -59,27 +59,13 @@ export function SubscriptionScreen({ navigation }: Props): React.JSX.Element {
     }
   }, [userId]);
 
-  // Carga inicial inline: el setState ocurre después del await.
-  useEffect(() => {
-    if (!userId) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const [planList, sub] = await Promise.all([fetchPlans(), fetchActiveSubscription(userId)]);
-        if (cancelled) return;
-        setPlans(planList);
-        setSubscription(sub);
-        setSelectedId((prev) => prev ?? planList.find((p) => p.id === 'quarterly')?.id ?? planList[0]?.id ?? null);
-      } catch {
-        if (!cancelled) setError('No pudimos cargar los planes.');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [userId]);
+  useFocusEffect(
+    useCallback(() => {
+      if (!userId) return;
+      setLoading(true);
+      void load();
+    }, [userId, load]),
+  );
 
   const refreshSubscription = useCallback(async () => {
     if (!userId) return;

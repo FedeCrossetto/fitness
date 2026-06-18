@@ -421,17 +421,19 @@ export function DashboardPage(): React.JSX.Element {
                 <button className={range === 90 ? 'active' : ''} onClick={() => setRange(90)}>90d</button>
               </div>
             </div>
-            <AreaChart values={series} height={148} color="#6366f1" />
+            <div className="dash-chart-body">
+              <AreaChart values={series} height={148} color="#6366f1" />
+            </div>
           </div>
 
           {/* Students list */}
-          <div className="card dash-students-card" style={{ padding: 0 }}>
+          <div className="card dash-students-card">
             <div className="dash-students-header">
               <span className="dash-students-title">{t.dashboard.recent_students}</span>
               <span className="section-link" onClick={() => navigate('/students')}>{t.dashboard.see_all}</span>
             </div>
             {students.length === 0 ? (
-              <p className="muted" style={{ padding: '16px', fontSize: 13 }}>
+              <p className="muted dash-students-empty">
                 {t.dashboard.no_students}
               </p>
             ) : (

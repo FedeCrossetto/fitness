@@ -50,6 +50,23 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: 'Plan inválido' }), { status: 400 });
   }
 
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('trainer_id')
+    .eq('id', userId)
+    .maybeSingle();
+
+  let unitPrice = Number(plan.price_ars);
+  if (profile?.trainer_id) {
+    const { data: override } = await admin
+      .from('trainer_plan_prices')
+      .select('price_ars')
+      .eq('trainer_id', profile.trainer_id)
+      .eq('plan_id', plan_id)
+      .maybeSingle();
+    if (override?.price_ars) unitPrice = Number(override.price_ars);
+  }
+
   // Suscripción pendiente
   const { data: subscription, error: subError } = await admin
     .from('subscriptions')
@@ -69,7 +86,7 @@ Deno.serve(async (req) => {
         description: plan.description ?? '',
         quantity: 1,
         currency_id: 'ARS',
-        unit_price: Number(plan.price_ars),
+        unit_price: unitPrice,
       },
     ],
     external_reference: subscription.id,

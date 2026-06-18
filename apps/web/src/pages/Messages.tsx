@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import type { MessageRow, ProfileRow } from '@habito/shared/types/database';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
@@ -38,8 +39,9 @@ function relativeTime(iso: string): string {
 export function MessagesPage(): React.JSX.Element {
   const { session } = useAuth();
   const userId = session?.user.id;
+  const [searchParams] = useSearchParams();
   const [search, setSearch] = useState('');
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(searchParams.get('client'));
   const [threads, setThreads] = useState<Thread[]>([]);
   const [loading, setLoading] = useState(true);
 

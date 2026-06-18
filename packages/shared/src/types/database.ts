@@ -291,6 +291,14 @@ export interface PlanRow {
   created_at: string;
 }
 
+export interface TrainerPlanPriceRow {
+  trainer_id: string;
+  plan_id: string;
+  price_ars: number;
+  active: boolean;
+  updated_at: string;
+}
+
 export interface SubscriptionRow {
   id: string;
   user_id: string;
@@ -422,6 +430,7 @@ export interface Database {
       progress_photos: TableDef<ProgressPhotoRow, 'user_id' | 'position' | 'photo_url' | 'week_number'>;
       push_tokens: TableDef<PushTokenRow, 'user_id' | 'expo_token'>;
       plans: TableDef<PlanRow, 'id' | 'name' | 'price_ars' | 'duration_days'>;
+      trainer_plan_prices: TableDef<TrainerPlanPriceRow, 'trainer_id' | 'plan_id' | 'price_ars'>;
       subscriptions: TableDef<SubscriptionRow, 'user_id' | 'plan_id'>;
       routines: TableDef<RoutineRow, 'client_id' | 'name'>;
       routine_exercises: TableDef<RoutineExerciseRow, 'routine_id' | 'name'>;
