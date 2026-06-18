@@ -20,6 +20,7 @@ import {
 import { useAuthStore } from '../../stores/authStore';
 import { useTrainingStore, type WorkoutWithExercises } from '../../stores/trainingStore';
 import { useUiStore } from '../../stores/uiStore';
+import { useTabBarScrollPadding } from '../../hooks/useTabBarScrollPadding';
 import type { TrainingStackParamList } from '../../types/navigation';
 
 type Props = NativeStackScreenProps<TrainingStackParamList, 'LiveSession'>;
@@ -32,6 +33,7 @@ export function LiveSessionScreen({ navigation }: Props): React.JSX.Element {
   const styles = useThemedStyles(createStyles);
 
   const insets = useSafeAreaInsets();
+  const scrollBottom = useTabBarScrollPadding();
 
   const session = useAuthStore((s) => s.session);
   const userId = session?.user.id;
@@ -164,7 +166,7 @@ export function LiveSessionScreen({ navigation }: Props): React.JSX.Element {
         renderItem={renderExercise}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[styles.listContent, { paddingBottom: scrollBottom }]}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         ListHeaderComponent={
           <View>
@@ -285,7 +287,6 @@ const createStyles = (colors: Colors) => StyleSheet.create({
   headerTitle: { flex: 1 },
   listContent: {
     paddingHorizontal: layout.screenPadding,
-    paddingBottom: layout.tabBarHeight + spacing.xxl,
   },
   timerWrap: { alignItems: 'center', marginVertical: spacing.md },
   progressRow: {

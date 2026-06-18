@@ -17,6 +17,7 @@ import {
 } from '../../components/common';
 import { useTrainingStore, type WorkoutWithExercises } from '../../stores/trainingStore';
 import { DAY_TYPE_META } from './trainingMeta';
+import { useTabBarScrollPadding } from '../../hooks/useTabBarScrollPadding';
 import type { TrainingStackParamList } from '../../types/navigation';
 
 type Props = NativeStackScreenProps<TrainingStackParamList, 'WorkoutDetail'>;
@@ -28,6 +29,7 @@ export function WorkoutDetailScreen({ navigation, route }: Props): React.JSX.Ele
 
   const { workoutId, dayTitle } = route.params;
   const insets = useSafeAreaInsets();
+  const scrollBottom = useTabBarScrollPadding(spacing.xxl + 72);
 
   const workoutDetail = useTrainingStore((s) => s.workoutDetail);
   const detailLoading = useTrainingStore((s) => s.detailLoading);
@@ -142,7 +144,7 @@ export function WorkoutDetailScreen({ navigation, route }: Props): React.JSX.Ele
         keyExtractor={(item) => item.id}
         renderItem={renderExercise}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[styles.listContent, { paddingBottom: scrollBottom }]}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         ListHeaderComponent={
           <View style={styles.metaWrap}>
@@ -285,7 +287,6 @@ const createStyles = (colors: Colors) => StyleSheet.create({
   listTitle: { marginTop: spacing.lg },
   listContent: {
     paddingHorizontal: layout.screenPadding,
-    paddingBottom: layout.tabBarHeight + spacing.xxl + 72,
   },
   separator: { height: spacing.xs },
   exerciseRow: {

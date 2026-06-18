@@ -18,6 +18,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { useBrandingStore } from '../../stores/brandingStore';
 import { useUiStore } from '../../stores/uiStore';
 import type { ProfileRow, TrainerBrandingRow } from '../../types/database';
+import { useTabBarScrollPadding } from '../../hooks/useTabBarScrollPadding';
 import type { HomeStackParamList } from '../../types/navigation';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'TrainerPanel'>;
@@ -30,6 +31,7 @@ export function TrainerPanelScreen({ navigation }: Props): React.JSX.Element {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
+  const scrollBottom = useTabBarScrollPadding();
 
   const session = useAuthStore((s) => s.session);
   const userId = session?.user.id;
@@ -130,7 +132,7 @@ export function TrainerPanelScreen({ navigation }: Props): React.JSX.Element {
         <View style={styles.headerSpacer} />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingBottom: scrollBottom }]}>
         {/* Marca */}
         <SectionHeader title="Tu marca" />
         <Card style={styles.formCard}>
@@ -252,7 +254,6 @@ const createStyles = (colors: Colors) => StyleSheet.create({
   headerSpacer: { width: layout.minHitTarget },
   content: {
     paddingHorizontal: layout.screenPadding,
-    paddingBottom: layout.tabBarHeight + spacing.xxl,
   },
   formCard: { gap: spacing.sm },
   field: { marginBottom: spacing.xs },

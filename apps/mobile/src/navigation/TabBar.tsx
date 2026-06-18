@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
-import { Colors, spacing, radius, layout, shadows, useTheme, useThemedStyles } from '../theme';
+import { Colors, spacing, radius, layout, useTheme, useThemedStyles } from '../theme';
 import { hapticSelect, hapticTap } from '../lib/haptics';
 import { AppText } from '../components/common';
 import { useUiStore } from '../stores/uiStore';
@@ -41,18 +41,26 @@ export function TabBar({ state, navigation }: BottomTabBarProps): React.JSX.Elem
         {state.routes.map((route, index) => {
           if (route.name === 'AddTab') {
             return (
-              <Pressable
-                key={route.key}
-                accessibilityRole="button"
-                accessibilityLabel="Agregar registro"
-                onPress={() => {
-                  hapticTap();
-                  openAddMenu();
-                }}
-                style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
-              >
-                <Ionicons name="add" size={30} color={colors.primary.onText} />
-              </Pressable>
+              <View key={route.key} style={styles.fabSlot}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Agregar registro"
+                  onPress={() => {
+                    hapticTap();
+                    openAddMenu();
+                  }}
+                  style={({ pressed }) => [
+                    styles.fab,
+                    {
+                      backgroundColor: isDark ? colors.primary.default : colors.primary.dark,
+                      borderColor: isDark ? colors.surface.elevated : colors.background,
+                    },
+                    pressed && styles.fabPressed,
+                  ]}
+                >
+                  <Ionicons name="add" size={32} color={colors.primary.onText} />
+                </Pressable>
+              </View>
             );
           }
 
@@ -123,17 +131,24 @@ const createStyles = (colors: Colors) =>
       gap: 2,
       minHeight: layout.minHitTarget,
     },
+    fabSlot: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'flex-end',
+    },
     fab: {
-      width: 56,
-      height: 56,
+      width: 58,
+      height: 58,
       borderRadius: radius.lg,
-      backgroundColor: colors.primary.default,
+      borderWidth: 3,
       alignItems: 'center',
       justifyContent: 'center',
-      marginHorizontal: spacing.xs,
-      marginTop: -spacing.lg,
-      ...shadows.glow,
-      shadowColor: colors.primary.default,
+      marginTop: -spacing.xl,
+      shadowColor: '#000000',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.28,
+      shadowRadius: 14,
+      elevation: 12,
     },
-    fabPressed: { opacity: 0.85, transform: [{ scale: 0.96 }] },
+    fabPressed: { opacity: 0.9, transform: [{ scale: 0.94 }] },
   });

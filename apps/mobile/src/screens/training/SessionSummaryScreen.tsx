@@ -9,7 +9,7 @@ import { hapticSuccess } from '../../lib/haptics';
 import { AppText, Button, Card, CardSkeleton, ErrorState, MetricCard } from '../../components/common';
 import { useTrainingStore } from '../../stores/trainingStore';
 import type { WorkoutLogRow } from '../../types/database';
-import type { TrainingStackParamList } from '../../types/navigation';
+import { useTabBarScrollPadding } from '../../hooks/useTabBarScrollPadding';
 
 type Props = NativeStackScreenProps<TrainingStackParamList, 'SessionSummary'>;
 
@@ -19,6 +19,7 @@ export function SessionSummaryScreen({ navigation, route }: Props): React.JSX.El
 
   const { logId } = route.params;
   const insets = useSafeAreaInsets();
+  const scrollBottom = useTabBarScrollPadding();
   const loadLogById = useTrainingStore((s) => s.loadLogById);
 
   const [log, setLog] = useState<WorkoutLogRow | null>(null);
@@ -143,7 +144,7 @@ export function SessionSummaryScreen({ navigation, route }: Props): React.JSX.El
       style={styles.flex}
       contentContainerStyle={{
         paddingTop: insets.top + spacing.xl,
-        paddingBottom: layout.tabBarHeight + spacing.xxl,
+        paddingBottom: scrollBottom,
         paddingHorizontal: layout.screenPadding,
       }}
       showsVerticalScrollIndicator={false}

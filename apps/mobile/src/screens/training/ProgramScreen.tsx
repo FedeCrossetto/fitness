@@ -21,7 +21,7 @@ import { ActiveSessionBanner } from '../../components/training/ActiveSessionBann
 import { useAuthStore } from '../../stores/authStore';
 import { useTrainingStore, type PhaseWithDays } from '../../stores/trainingStore';
 import { DAY_TYPE_META } from './trainingMeta';
-import type { TrainingStackParamList } from '../../types/navigation';
+import { useTabBarScrollPadding } from '../../hooks/useTabBarScrollPadding';
 
 type Props = NativeStackScreenProps<TrainingStackParamList, 'Program'>;
 
@@ -30,6 +30,7 @@ export function ProgramScreen({ navigation }: Props): React.JSX.Element {
   const styles = useThemedStyles(createStyles);
 
   const insets = useSafeAreaInsets();
+  const scrollBottom = useTabBarScrollPadding();
 
   const session = useAuthStore((s) => s.session);
   const userId = session?.user.id;
@@ -223,7 +224,7 @@ export function ProgramScreen({ navigation }: Props): React.JSX.Element {
       style={styles.flex}
       contentContainerStyle={{
         paddingTop: insets.top + spacing.md,
-        paddingBottom: layout.tabBarHeight + spacing.xxl,
+        paddingBottom: scrollBottom,
         paddingHorizontal: layout.screenPadding,
       }}
       showsVerticalScrollIndicator={false}

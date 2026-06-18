@@ -35,6 +35,7 @@ import { computeStreak } from '../../services/streaks';
 import { signedUrl } from '../../services/storage';
 import { fetchTodaySteps } from '../../services/steps';
 import { useStepsAutoSync } from '../../hooks/useStepsAutoSync';
+import { useTabBarScrollPadding } from '../../hooks/useTabBarScrollPadding';
 import { syncPushRegistration } from '../../services/notifications';
 import { hapticSelect } from '../../lib/haptics';
 import { useUiStore } from '../../stores/uiStore';
@@ -52,6 +53,7 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
   const { t, i18n } = useTranslation();
 
   const insets = useSafeAreaInsets();
+  const scrollBottom = useTabBarScrollPadding();
   const scrollY = useSharedValue(0);
   const onScroll = useAnimatedScrollHandler((event) => {
     scrollY.value = event.contentOffset.y;
@@ -250,7 +252,7 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
         scrollEventThrottle={16}
         contentContainerStyle={{
           paddingTop: insets.top + spacing.md,
-          paddingBottom: layout.tabBarHeight + spacing.xxl,
+          paddingBottom: scrollBottom,
           paddingHorizontal: layout.screenPadding,
         }}
         refreshControl={
@@ -324,61 +326,63 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
                 <AppText variant="caps12" color={colors.text.tertiary}>
                   {t.home.goals_unit}
                 </AppText>
-                <AppText variant="h3" color={colors.text.primary}>
+                <AppText variant="body16SemiBold" color={colors.text.primary}>
                   {isToday ? t.home.today_title : t.home.past_title}
                 </AppText>
               </View>
               <View style={[styles.dayCardCount, !isDark && styles.dayCardCountLight]}>
-                <AppText variant="body16SemiBold" color={colors.primary.dark}>
+                <AppText variant="body14SemiBold" color={colors.primary.dark}>
                   {isToday ? `${completedGoals}/${goals.length || 0}` : '—'}
                 </AppText>
               </View>
             </View>
 
-            <ProgressBar
-              progress={isToday ? goalProgress : 0}
-              height={5}
-              color={goalProgress >= 1 ? colors.states.success : colors.primary.default}
-              trackColor={isDark ? undefined : colors.border.subtle}
-              style={styles.dayCardBar}
-            />
+            <View style={styles.dayCardProgressRow}>
+              <ProgressBar
+                progress={isToday ? goalProgress : 0}
+                height={4}
+                color={goalProgress >= 1 ? colors.states.success : colors.primary.default}
+                trackColor={isDark ? undefined : colors.border.subtle}
+                style={styles.dayCardBar}
+              />
+              {isToday && goals.length > 0 ? (
+                <View style={styles.dayCardDots}>
+                  {goals.map((goal) => (
+                    <View
+                      key={goal.id}
+                      style={[styles.dayCardDot, goal.completed && styles.dayCardDotDone]}
+                    />
+                  ))}
+                </View>
+              ) : null}
+            </View>
 
-            {isToday && goals.length > 0 ? (
-              <View style={styles.dayCardDots}>
-                {goals.map((goal) => (
-                  <View
-                    key={goal.id}
-                    style={[styles.dayCardDot, goal.completed && styles.dayCardDotDone]}
+            <View style={styles.dayCardFooter}>
+              <AppText variant="body12" color={colors.text.secondary} numberOfLines={1} style={styles.dayCardStatus}>
+                {isToday
+                  ? goalProgress >= 1
+                    ? t.home.today_full
+                    : completedGoals > 0
+                      ? t.home.today_good
+                      : t.home.today_start
+                  : t.home.past_hint}
+              </AppText>
+              {isToday ? (
+                <View style={styles.dayCardCta}>
+                  <AppText
+                    variant="body12SemiBold"
+                    color={isDark ? colors.primary.default : colors.primary.dark}
+                  >
+                    {t.home.see_goals}
+                  </AppText>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={13}
+                    color={isDark ? colors.primary.default : colors.primary.dark}
                   />
-                ))}
-              </View>
-            ) : null}
-
-            <AppText variant="body13" color={colors.text.secondary}>
-              {isToday
-                ? goalProgress >= 1
-                  ? t.home.today_full
-                  : completedGoals > 0
-                    ? t.home.today_good
-                    : t.home.today_start
-                : t.home.past_hint}
-            </AppText>
-
-            {isToday ? (
-              <View style={[styles.dayCardCta, !isDark && styles.dayCardCtaLight]}>
-                <AppText
-                  variant="body13SemiBold"
-                  color={isDark ? colors.primary.default : colors.primary.onText}
-                >
-                  {t.home.see_goals}
-                </AppText>
-                <Ionicons
-                  name="arrow-forward"
-                  size={14}
-                  color={isDark ? colors.primary.default : colors.primary.onText}
-                />
-              </View>
-            ) : null}
+                </View>
+              ) : null}
+            </View>
           </View>
         </Card>
 
@@ -796,26 +800,31 @@ const createStyles = (colors: Colors) => StyleSheet.create({
   },
   greeting: { marginTop: 2 },
   streakRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, marginTop: spacing.xs },
-  dayCard: { marginBottom: spacing.md, overflow: 'hidden' },
+  dayCard: {
+    marginBottom: spacing.md,
+    overflow: 'hidden',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+  },
   dayCardLight: {
     backgroundColor: colors.surface.base,
     borderColor: colors.border.default,
   },
   dayCardGlow: { ...StyleSheet.absoluteFillObject },
-  dayCardContent: { gap: spacing.sm },
+  dayCardContent: { gap: spacing.xs },
   dayCardTop: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing.sm,
   },
-  dayCardTitleBlock: { flex: 1, gap: 2 },
+  dayCardTitleBlock: { flex: 1, gap: 1 },
   dayCardCount: {
     backgroundColor: colors.primary.muted,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xxs,
-    minWidth: 48,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 3,
+    minWidth: 40,
     alignItems: 'center',
   },
   dayCardCountLight: {
@@ -823,11 +832,16 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border.default,
   },
-  dayCardBar: { marginTop: spacing.xxs },
-  dayCardDots: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+  dayCardProgressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  dayCardBar: { flex: 1 },
+  dayCardDots: { flexDirection: 'row', flexWrap: 'nowrap', gap: 4 },
   dayCardDot: {
-    width: 8,
-    height: 8,
+    width: 6,
+    height: 6,
     borderRadius: radius.pill,
     backgroundColor: colors.background,
     borderWidth: 1,
@@ -837,18 +851,18 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     backgroundColor: colors.primary.default,
     borderColor: colors.primary.default,
   },
+  dayCardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  dayCardStatus: { flex: 1 },
   dayCardCta: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.xxs,
-    marginTop: spacing.xxs,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primary.muted,
-  },
-  dayCardCtaLight: {
-    backgroundColor: colors.primary.default,
+    gap: 2,
+    flexShrink: 0,
   },
   metricsRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm },
   metricHalf: { flex: 1 },

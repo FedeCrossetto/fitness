@@ -16,7 +16,7 @@ import { connectTodaySteps } from '../../services/steps';
 import { showPlatformHealthError } from '../../services/healthPlatform';
 import { useProgressStore } from '../../stores/progressStore';
 import { useGoalsStore } from '../../stores/goalsStore';
-import { useStepsAutoSync } from '../../hooks/useStepsAutoSync';
+import { useTabBarScrollPadding } from '../../hooks/useTabBarScrollPadding';
 import { GarminSyncCard } from '../../components/health/GarminSyncCard';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
@@ -137,6 +137,7 @@ export function ProfileScreen({ navigation, route }: Props): React.JSX.Element {
   const setSteps = useProgressStore((s) => s.setSteps);
   const syncAutoGoal = useGoalsStore((s) => s.syncAutoGoal);
 
+  const scrollBottom = useTabBarScrollPadding();
   useStepsAutoSync(userId, syncAutoGoal);
 
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -331,7 +332,7 @@ export function ProfileScreen({ navigation, route }: Props): React.JSX.Element {
         <View style={styles.headerSpacer} />
       </View>
 
-      <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+      <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingBottom: scrollBottom }]}>
         {/* Tarjeta de identidad */}
         <Card elevated style={styles.identityCard}>
           <View style={styles.identityRow}>
@@ -640,7 +641,6 @@ const createStyles = (colors: Colors) => StyleSheet.create({
   headerSpacer: { width: layout.minHitTarget },
   content: {
     paddingHorizontal: layout.screenPadding,
-    paddingBottom: layout.tabBarHeight + spacing.xxl,
   },
   identityCard: { overflow: 'hidden' },
   identityRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },

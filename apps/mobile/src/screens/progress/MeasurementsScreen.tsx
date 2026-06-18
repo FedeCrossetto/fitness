@@ -19,6 +19,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { useProgressStore } from '../../stores/progressStore';
 import { useUiStore } from '../../stores/uiStore';
 import type { BodyMeasurementRow } from '../../types/database';
+import { useTabBarScrollPadding } from '../../hooks/useTabBarScrollPadding';
 import type { ProgressStackParamList } from '../../types/navigation';
 
 type Props = NativeStackScreenProps<ProgressStackParamList, 'Measurements'>;
@@ -164,6 +165,7 @@ export function MeasurementsScreen({ navigation }: Props): React.JSX.Element {
   const styles = useThemedStyles(createStyles);
 
   const insets = useSafeAreaInsets();
+  const scrollBottom = useTabBarScrollPadding();
 
   const session = useAuthStore((s) => s.session);
   const userId = session?.user.id;
@@ -265,7 +267,7 @@ export function MeasurementsScreen({ navigation }: Props): React.JSX.Element {
         <ErrorState message={measurementsError} onRetry={() => userId && void loadMeasurements(userId)} />
       ) : (
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: scrollBottom }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -354,7 +356,6 @@ const createStyles = (colors: Colors) => StyleSheet.create({
   content: { paddingHorizontal: layout.screenPadding },
   scrollContent: {
     paddingHorizontal: layout.screenPadding,
-    paddingBottom: layout.tabBarHeight + spacing.xxl,
   },
   cardTitle: { marginBottom: spacing.sm },
   avatarCard: { marginBottom: spacing.md },

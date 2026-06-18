@@ -20,7 +20,7 @@ import {
 import { useAuthStore } from '../../stores/authStore';
 import { useUiStore } from '../../stores/uiStore';
 import type { PlanRow, SubscriptionRow } from '../../types/database';
-import type { HomeStackParamList } from '../../types/navigation';
+import { useTabBarScrollPadding } from '../../hooks/useTabBarScrollPadding';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'Subscription'>;
 
@@ -33,6 +33,7 @@ export function SubscriptionScreen({ navigation }: Props): React.JSX.Element {
   const styles = useThemedStyles(createStyles);
 
   const insets = useSafeAreaInsets();
+  const scrollBottom = useTabBarScrollPadding();
   const session = useAuthStore((s) => s.session);
   const userId = session?.user.id;
 
@@ -238,7 +239,7 @@ export function SubscriptionScreen({ navigation }: Props): React.JSX.Element {
         <View style={styles.headerSpacer} />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingBottom: scrollBottom }]}>
         {content}
       </ScrollView>
     </View>
@@ -258,7 +259,6 @@ const createStyles = (colors: Colors) => StyleSheet.create({
   headerSpacer: { width: layout.minHitTarget },
   content: {
     paddingHorizontal: layout.screenPadding,
-    paddingBottom: layout.tabBarHeight + spacing.xxl,
   },
   statusCard: { marginBottom: spacing.md },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

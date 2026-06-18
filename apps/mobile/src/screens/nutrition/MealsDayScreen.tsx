@@ -21,7 +21,7 @@ import {
 import { useAuthStore } from '../../stores/authStore';
 import { useNutritionStore } from '../../stores/nutritionStore';
 import type { MacroSource, MealLogRow, MealType } from '../../types/database';
-import type { NutritionStackParamList } from '../../types/navigation';
+import { useTabBarScrollPadding } from '../../hooks/useTabBarScrollPadding';
 
 type Props = NativeStackScreenProps<NutritionStackParamList, 'MealsDay'>;
 
@@ -52,6 +52,7 @@ export function MealsDayScreen({ navigation }: Props): React.JSX.Element {
   const styles = useThemedStyles(createStyles);
 
   const insets = useSafeAreaInsets();
+  const scrollBottom = useTabBarScrollPadding();
   const session = useAuthStore((s) => s.session);
   const userId = session?.user.id;
 
@@ -137,7 +138,7 @@ export function MealsDayScreen({ navigation }: Props): React.JSX.Element {
       <ScrollView
         contentContainerStyle={{
           paddingTop: insets.top + spacing.md,
-          paddingBottom: layout.tabBarHeight + spacing.xxl,
+          paddingBottom: scrollBottom,
           paddingHorizontal: layout.screenPadding,
         }}
         refreshControl={

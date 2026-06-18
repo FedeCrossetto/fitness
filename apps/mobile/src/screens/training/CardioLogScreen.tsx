@@ -20,6 +20,7 @@ import {
 import { useAuthStore } from '../../stores/authStore';
 import { useTrainingStore } from '../../stores/trainingStore';
 import { useUiStore } from '../../stores/uiStore';
+import { useTabBarScrollPadding } from '../../hooks/useTabBarScrollPadding';
 import type { TrainingStackParamList } from '../../types/navigation';
 
 type Props = NativeStackScreenProps<TrainingStackParamList, 'CardioLog'>;
@@ -32,6 +33,7 @@ export function CardioLogScreen({ navigation }: Props): React.JSX.Element {
   const styles = useThemedStyles(createStyles);
 
   const insets = useSafeAreaInsets();
+  const scrollBottom = useTabBarScrollPadding();
 
   const session = useAuthStore((s) => s.session);
   const userId = session?.user.id;
@@ -89,7 +91,7 @@ export function CardioLogScreen({ navigation }: Props): React.JSX.Element {
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: scrollBottom }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
@@ -198,7 +200,6 @@ const createStyles = (colors: Colors) => StyleSheet.create({
   headerTitle: { flex: 1 },
   content: {
     paddingHorizontal: layout.screenPadding,
-    paddingBottom: layout.tabBarHeight + spacing.xxl,
   },
   formCard: { marginBottom: spacing.lg },
   label: { marginBottom: spacing.xs },

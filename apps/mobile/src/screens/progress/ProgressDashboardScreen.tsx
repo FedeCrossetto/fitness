@@ -27,7 +27,7 @@ import { readHealthSnapshot } from '../../services/health';
 import { connectTodaySteps } from '../../services/steps';
 import { showPlatformHealthError } from '../../services/healthPlatform';
 import type { HealthSnapshot } from '../../services/health';
-import type { ProgressStackParamList } from '../../types/navigation';
+import { useTabBarScrollPadding } from '../../hooks/useTabBarScrollPadding';
 
 type Props = NativeStackScreenProps<ProgressStackParamList, 'Dashboard'>;
 
@@ -38,6 +38,7 @@ export function ProgressDashboardScreen({ navigation }: Props): React.JSX.Elemen
   const styles = useThemedStyles(createStyles);
 
   const insets = useSafeAreaInsets();
+  const scrollBottom = useTabBarScrollPadding();
 
   const session = useAuthStore((s) => s.session);
   const userId = session?.user.id;
@@ -177,7 +178,7 @@ export function ProgressDashboardScreen({ navigation }: Props): React.JSX.Elemen
       style={styles.flex}
       contentContainerStyle={{
         paddingTop: insets.top + spacing.md,
-        paddingBottom: layout.tabBarHeight + spacing.xxl,
+        paddingBottom: scrollBottom,
         paddingHorizontal: layout.screenPadding,
       }}
       refreshControl={

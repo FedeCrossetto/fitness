@@ -22,6 +22,7 @@ import { useGoalsStore } from '../../stores/goalsStore';
 import { useProgressStore } from '../../stores/progressStore';
 import { useUiStore } from '../../stores/uiStore';
 import { useTranslation } from '../../stores/i18nStore';
+import { useTabBarScrollPadding } from '../../hooks/useTabBarScrollPadding';
 
 // Quick actions are built dynamically inside the component using translations
 
@@ -31,6 +32,7 @@ export function HydrationScreen(): React.JSX.Element {
   const { t } = useTranslation();
 
   const insets = useSafeAreaInsets();
+  const scrollBottom = useTabBarScrollPadding();
   const navigation = useNavigation();
 
   const QUICK_ACTIONS = [
@@ -137,7 +139,7 @@ export function HydrationScreen(): React.JSX.Element {
         </View>
       ) : (
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: scrollBottom }]}
           showsVerticalScrollIndicator={false}
         >
           <Card elevated style={styles.waterCard}>
@@ -275,7 +277,6 @@ const createStyles = (colors: Colors) => StyleSheet.create({
   content: { paddingHorizontal: layout.screenPadding },
   scrollContent: {
     paddingHorizontal: layout.screenPadding,
-    paddingBottom: layout.tabBarHeight + spacing.xxl,
   },
   waterCard: { alignItems: 'center', paddingVertical: spacing.xl, marginBottom: spacing.lg },
   valueRow: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs },

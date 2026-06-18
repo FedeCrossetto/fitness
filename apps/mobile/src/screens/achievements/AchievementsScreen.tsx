@@ -9,7 +9,7 @@ import { illustrations, layout, radius, spacing, Colors, useThemedStyles, useThe
 import { computeAchievements, computeStreak, type Achievement, type StreakInfo } from '../../services/streaks';
 import { AppText, CardSkeleton, ErrorState, IconButton } from '../../components/common';
 import { useAuthStore } from '../../stores/authStore';
-import type { HomeStackParamList } from '../../types/navigation';
+import { useTabBarScrollPadding } from '../../hooks/useTabBarScrollPadding';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'Achievements'>;
 
@@ -20,6 +20,7 @@ export function AchievementsScreen({ navigation }: Props): React.JSX.Element {
   const styles = useThemedStyles(createStyles);
 
   const insets = useSafeAreaInsets();
+  const scrollBottom = useTabBarScrollPadding();
   const session = useAuthStore((s) => s.session);
   const userId = session?.user.id;
 
@@ -98,7 +99,7 @@ export function AchievementsScreen({ navigation }: Props): React.JSX.Element {
         numColumns={2}
         columnWrapperStyle={styles.gridRow}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[styles.listContent, { paddingBottom: scrollBottom }]}
         ListHeaderComponent={
           <View style={styles.hero}>
             <Image source={illustrations.victory} style={styles.mascot} contentFit="contain" />
@@ -156,7 +157,6 @@ const createStyles = (colors: Colors) => StyleSheet.create({
   statePad: { paddingHorizontal: layout.screenPadding },
   listContent: {
     paddingHorizontal: layout.screenPadding,
-    paddingBottom: layout.tabBarHeight + spacing.xxl,
   },
   hero: { alignItems: 'center', paddingTop: spacing.sm },
   mascot: { width: 140, height: 160, marginBottom: spacing.sm },

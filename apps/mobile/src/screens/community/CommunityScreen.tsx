@@ -13,7 +13,7 @@ import {
   Input,
   ProgressBar,
 } from '../../components/common';
-import type { HomeStackParamList } from '../../types/navigation';
+import { useTabBarScrollPadding } from '../../hooks/useTabBarScrollPadding';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'Community'>;
 
@@ -55,6 +55,7 @@ export function CommunityScreen({ navigation }: Props): React.JSX.Element {
   const styles = useThemedStyles(createStyles);
 
   const insets = useSafeAreaInsets();
+  const scrollBottom = useTabBarScrollPadding();
   const [query, setQuery] = useState('');
 
   const filtered = useMemo(() => {
@@ -108,7 +109,7 @@ export function CommunityScreen({ navigation }: Props): React.JSX.Element {
         renderItem={renderTeam}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[styles.listContent, { paddingBottom: scrollBottom }]}
         ListHeaderComponent={
           <View>
             {/* Mi equipo */}
@@ -183,7 +184,6 @@ const createStyles = (colors: Colors) => StyleSheet.create({
   headerSpacer: { width: layout.minHitTarget },
   listContent: {
     paddingHorizontal: layout.screenPadding,
-    paddingBottom: layout.tabBarHeight + spacing.xxl,
   },
   myTeamCard: { marginBottom: spacing.md },
   myTeamName: { marginTop: spacing.xxs },

@@ -24,6 +24,7 @@ import { useProgressStore } from '../../stores/progressStore';
 import { useUiStore } from '../../stores/uiStore';
 import { signedUrl, uploadPrivateImage } from '../../services/storage';
 import type { PhotoPosition, ProgressPhotoRow } from '../../types/database';
+import { useTabBarScrollPadding } from '../../hooks/useTabBarScrollPadding';
 import type { ProgressStackParamList } from '../../types/navigation';
 
 type Props = NativeStackScreenProps<ProgressStackParamList, 'ProgressPhotos'>;
@@ -47,6 +48,7 @@ export function ProgressPhotosScreen({ navigation }: Props): React.JSX.Element {
   const styles = useThemedStyles(createStyles);
 
   const insets = useSafeAreaInsets();
+  const scrollBottom = useTabBarScrollPadding();
 
   const session = useAuthStore((s) => s.session);
   const userId = session?.user.id;
@@ -234,7 +236,7 @@ export function ProgressPhotosScreen({ navigation }: Props): React.JSX.Element {
           renderItem={renderItem}
           numColumns={2}
           columnWrapperStyle={styles.column}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, { paddingBottom: scrollBottom }]}
           showsVerticalScrollIndicator={false}
           ListFooterComponent={
             <Button
@@ -320,7 +322,6 @@ const createStyles = (colors: Colors) => StyleSheet.create({
   content: { paddingHorizontal: layout.screenPadding },
   listContent: {
     paddingHorizontal: layout.screenPadding,
-    paddingBottom: layout.tabBarHeight + spacing.xxl,
   },
   column: { gap: GRID_GAP },
   photoCard: { width: ITEM_WIDTH, marginBottom: spacing.sm },

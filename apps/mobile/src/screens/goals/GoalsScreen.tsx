@@ -25,7 +25,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { useGoalsStore } from '../../stores/goalsStore';
 import { useUiStore } from '../../stores/uiStore';
 import type { DailyGoalRow, GoalType } from '../../types/database';
-import type { HomeStackParamList } from '../../types/navigation';
+import { useTabBarScrollPadding } from '../../hooks/useTabBarScrollPadding';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'Goals'>;
 
@@ -59,6 +59,7 @@ export function GoalsScreen({ navigation }: Props): React.JSX.Element {
   const styles = useThemedStyles(createStyles);
 
   const insets = useSafeAreaInsets();
+  const scrollBottom = useTabBarScrollPadding();
 
   const session = useAuthStore((s) => s.session);
   const userId = session?.user.id;
@@ -254,7 +255,7 @@ export function GoalsScreen({ navigation }: Props): React.JSX.Element {
         keyExtractor={(g) => g.id}
         renderItem={renderGoal}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[styles.listContent, { paddingBottom: scrollBottom }]}
         ListHeaderComponent={
           <Card elevated style={styles.summaryCard}>
             <View style={styles.summaryRow}>
@@ -373,7 +374,6 @@ const createStyles = (colors: Colors) => StyleSheet.create({
   body: { paddingHorizontal: layout.screenPadding },
   listContent: {
     paddingHorizontal: layout.screenPadding,
-    paddingBottom: layout.tabBarHeight + spacing.xxl,
   },
   summaryCard: { marginBottom: spacing.md },
   summaryRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },

@@ -23,6 +23,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { useProgressStore } from '../../stores/progressStore';
 import { useUiStore } from '../../stores/uiStore';
 import type { BodyMeasurementRow } from '../../types/database';
+import { useTabBarScrollPadding } from '../../hooks/useTabBarScrollPadding';
 import type { ProgressStackParamList } from '../../types/navigation';
 
 type Props = NativeStackScreenProps<ProgressStackParamList, 'WeightDetail'>;
@@ -40,6 +41,7 @@ export function WeightDetailScreen({ navigation }: Props): React.JSX.Element {
   const styles = useThemedStyles(createStyles);
 
   const insets = useSafeAreaInsets();
+  const scrollBottom = useTabBarScrollPadding();
 
   const session = useAuthStore((s) => s.session);
   const userId = session?.user.id;
@@ -192,7 +194,7 @@ export function WeightDetailScreen({ navigation }: Props): React.JSX.Element {
           data={filteredRows}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, { paddingBottom: scrollBottom }]}
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
             <View>
@@ -258,7 +260,6 @@ const createStyles = (colors: Colors) => StyleSheet.create({
   content: { paddingHorizontal: layout.screenPadding },
   listContent: {
     paddingHorizontal: layout.screenPadding,
-    paddingBottom: layout.tabBarHeight + spacing.xxl,
   },
   chartCard: { marginTop: spacing.md, marginBottom: spacing.md },
   noRange: { paddingVertical: spacing.xl },
