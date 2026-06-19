@@ -1,96 +1,136 @@
-import React from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
-import { Image } from 'expo-image';
+import React, { useRef } from 'react';
+import { Animated, Pressable, StyleSheet, View } from 'react-native';
+import Swipeable from 'react-native-gesture-handler/Swipeable';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, radius, spacing, useThemedStyles, useTheme } from '../../theme';
 import { AppText } from '../common/AppText';
 import { formatPortionLabel } from './mealUiUtils';
+import { FoodIconThumb } from './FoodIconThumb';
 import { NUTRITION_MACRO_COLORS } from './nutritionTheme';
-import type { MacroSource, MealLogRow } from '../../types/database';
+import { hapticMedium, hapticWarning } from '../../lib/haptics';
+import type { MealLogRow } from '../../types/database';
 
 const CHECK_ON_GREEN = '#111111';
+const DELETE_ACTION_WIDTH = 72;
 
 interface MealFoodRowProps {
   meal: MealLogRow;
   brand?: string | null;
+  iconKey?: string | null;
   onPress: () => void;
   onToggleIncluded: () => void;
+  onDelete: () => void;
 }
 
-function sourcePlaceholder(source: MacroSource | null): keyof typeof Ionicons.glyphMap {
-  switch (source) {
-    case 'openfoodfacts':
-    case 'barcode':
-      return 'barcode-outline';
-    case 'voice':
-      return 'mic-outline';
-    case 'user_food':
-    case 'catalog':
-      return 'bookmark-outline';
-    default:
-      return 'restaurant-outline';
-  }
-}
-
-export function MealFoodRow({ meal, brand, onPress, onToggleIncluded }: MealFoodRowProps): React.JSX.Element {
-  const { colors } = useTheme();
+export function MealFoodRow({
+  meal,
+  brand,
+  iconKey,
+  onPress,
+  onToggleIncluded,
+  onDelete,
+}: MealFoodRowProps): React.JSX.Element {
+  const { colors, isDark } = useTheme();
   const styles = useThemedStyles(createStyles);
+  const swipeRef = useRef<Swipeable>(null);
 
   const title = meal.title ?? meal.product_display_name ?? 'Comida';
   const subtitle = brand?.trim() || (meal.macro_source === 'openfoodfacts' ? 'Open Food Facts' : 'Manual');
   const kcal = Math.round(meal.energy_kcal ?? 0);
-  const portion = formatPortionLabel(meal.portion_grams);
+  const portion = formatPortionLabel(meal.portion_grams, meal.portion_unit);
+  const rowBackground = isDark ? colors.surface.elevated : colors.surface.base;
 
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`Editar ${title}`}
-      onPress={onPress}
-      style={({ pressed }) => [styles.row, !meal.is_included && styles.excluded, pressed && styles.pressed]}
-    >
-      <View style={styles.thumbWrap}>
-        {meal.photo_url ? (
-          <Image source={{ uri: meal.photo_url }} style={styles.thumb} contentFit="cover" />
-        ) : (
-          <View style={styles.thumbPlaceholder}>
-            <Ionicons name={sourcePlaceholder(meal.macro_source)} size={15} color={colors.text.tertiary} />
-          </View>
-        )}
-      </View>
+  const handleToggle = (): void => {
+    onToggleIncluded();
+  };
 
-      <View style={styles.main}>
-        <AppText variant="body13SemiBold" color={colors.text.primary} numberOfLines={1}>
-          {title}
-        </AppText>
-        <AppText variant="body12" color={colors.text.tertiary} numberOfLines={1} style={styles.subtitle}>
-          {subtitle}
-        </AppText>
-      </View>
+  const handleDelete = (): void => {
+    hapticWarning();
+    swipeRef.current?.close();
+    onDelete();
+  };
 
-      <View style={styles.meta}>
-        <AppText variant="body12Medium" color={colors.text.primary} numberOfLines={1}>
-          {portion}
-        </AppText>
-        <AppText variant="body12" color={colors.text.tertiary} numberOfLines={1}>
-          {kcal} kcal
-        </AppText>
-      </View>
+  const renderRightActions = (
+    _progress: Animated.AnimatedInterpolation<number>,
+    dragX: Animated.AnimatedInterpolation<number>,
+  ) => {
+    const scale = dragX.interpolate({
+      inputRange: [-DELETE_ACTION_WIDTH, 0],
+      outputRange: [1, 0.85],
+      extrapolate: 'clamp',
+    });
 
+    return (
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={meal.is_included ? 'Excluir de los totales' : 'Incluir en los totales'}
-        onPress={(e) => {
-          e.stopPropagation();
-          onToggleIncluded();
-        }}
-        hitSlop={10}
-        style={styles.checkWrap}
+        accessibilityLabel={`Eliminar ${title}`}
+        onPress={handleDelete}
+        style={styles.deletePressable}
       >
-        <View style={[styles.checkCircle, meal.is_included && styles.checkCircleActive]}>
-          {meal.is_included ? <Ionicons name="checkmark" size={9} color={CHECK_ON_GREEN} /> : null}
-        </View>
+        <Animated.View style={[styles.deleteAction, { transform: [{ scale }] }]}>
+          <Ionicons name="trash-outline" size={22} color="#FFFFFF" />
+        </Animated.View>
       </Pressable>
-    </Pressable>
+    );
+  };
+
+  return (
+    <Swipeable
+      ref={swipeRef}
+      renderRightActions={renderRightActions}
+      overshootRight={false}
+      friction={2}
+      rightThreshold={40}
+      activeOffsetX={[-20, 20]}
+    >
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Editar ${title}`}
+        onPress={onPress}
+        style={({ pressed }) => [
+          styles.row,
+          { backgroundColor: rowBackground },
+          !meal.is_included && styles.excluded,
+          pressed && styles.pressed,
+        ]}
+      >
+        <FoodIconThumb iconKey={iconKey ?? meal.icon_key} remoteUrl={meal.photo_url} size={36} />
+
+        <View style={styles.main}>
+          <AppText variant="body13SemiBold" color={colors.text.primary} numberOfLines={1}>
+            {title}
+          </AppText>
+          <AppText variant="body12" color={colors.text.tertiary} numberOfLines={1} style={styles.subtitle}>
+            {subtitle}
+          </AppText>
+        </View>
+
+        <View style={styles.meta}>
+          <AppText variant="body12Medium" color={colors.text.primary} numberOfLines={1}>
+            {portion}
+          </AppText>
+          <AppText variant="body12" color={colors.text.tertiary} numberOfLines={1}>
+            {kcal} kcal
+          </AppText>
+        </View>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={meal.is_included ? 'Excluir de los totales' : 'Incluir en los totales'}
+          onPressIn={() => hapticMedium()}
+          onPress={(e) => {
+            e.stopPropagation();
+            handleToggle();
+          }}
+          hitSlop={10}
+          style={styles.checkWrap}
+        >
+          <View style={[styles.checkCircle, meal.is_included && styles.checkCircleActive]}>
+            {meal.is_included ? <Ionicons name="checkmark" size={9} color={CHECK_ON_GREEN} /> : null}
+          </View>
+        </Pressable>
+      </Pressable>
+    </Swipeable>
   );
 }
 
@@ -104,22 +144,6 @@ const createStyles = (colors: Colors) =>
     },
     excluded: { opacity: 0.5 },
     pressed: { opacity: 0.75 },
-    thumbWrap: {
-      width: 36,
-      height: 36,
-      borderRadius: radius.sm,
-      overflow: 'hidden',
-    },
-    thumb: {
-      width: '100%',
-      height: '100%',
-    },
-    thumbPlaceholder: {
-      flex: 1,
-      backgroundColor: colors.surface.elevated,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
     main: {
       flex: 1,
       gap: 0,
@@ -149,5 +173,16 @@ const createStyles = (colors: Colors) =>
     checkCircleActive: {
       backgroundColor: NUTRITION_MACRO_COLORS.carbs,
       borderColor: NUTRITION_MACRO_COLORS.carbs,
+    },
+    deletePressable: {
+      width: DELETE_ACTION_WIDTH,
+      marginLeft: spacing.xxs,
+    },
+    deleteAction: {
+      flex: 1,
+      backgroundColor: colors.states.error,
+      borderRadius: radius.md,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
   });

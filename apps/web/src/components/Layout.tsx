@@ -7,7 +7,7 @@ import { LANGUAGES } from '@reset-fitness/shared';
 import {
   GridIcon, BrushIcon, UsersIcon, LogOutIcon,
   MessageIcon, CalendarIcon, GroupsIcon, TrophyIcon, CreditCardIcon,
-  BookOpenIcon, SettingsIcon, ChevronDownIcon, ChevronRightIcon,
+  BookOpenIcon, NutritionIcon, SettingsIcon, ChevronDownIcon, ChevronRightIcon,
   MegaphoneIcon,
 } from '@/components/icons';
 
@@ -91,6 +91,7 @@ export function Layout(): React.JSX.Element {
       section: t.web.nav_content,
       items: [
         { to: '/routines',      label: t.web.libraries,      icon: () => <BookOpenIcon /> },
+        { to: '/foods',         label: t.web.foods,          icon: () => <NutritionIcon /> },
         { to: '/branding',      label: t.web.branding,       icon: () => <BrushIcon />   },
         { to: '/scheduling',    label: t.web.scheduling,     icon: () => <CalendarIcon />, mock: true },
         { to: '/announcements', label: t.web.announcements,  icon: () => <MegaphoneIcon />},

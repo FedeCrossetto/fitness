@@ -3,6 +3,10 @@
  * Mantener sincronizado con el esquema SQL.
  */
 
+import type { ServingUnit } from '../nutrition/servingUnits';
+
+export type { ServingUnit };
+
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type UserRole = 'client' | 'trainer' | 'admin';
@@ -186,6 +190,51 @@ export interface TrainingDayRow {
   updated_at: string;
 }
 
+export type FoodSubmissionStatus = 'pending' | 'approved' | 'rejected';
+
+export interface TrainerFoodRow {
+  id: string;
+  trainer_id: string;
+  name: string;
+  brand: string | null;
+  barcode: string | null;
+  kcal_100g: number | null;
+  protein_g_100g: number | null;
+  carbs_g_100g: number | null;
+  fat_g_100g: number | null;
+  default_serving_grams: number | null;
+  serving_unit: ServingUnit;
+  icon_key: string | null;
+  openfoodfacts_code: string | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FoodSubmissionRow {
+  id: string;
+  trainer_id: string;
+  submitted_by: string;
+  personal_food_id: string | null;
+  trainer_food_id: string | null;
+  status: FoodSubmissionStatus;
+  name: string;
+  brand: string | null;
+  barcode: string | null;
+  kcal_100g: number | null;
+  protein_g_100g: number | null;
+  carbs_g_100g: number | null;
+  fat_g_100g: number | null;
+  default_serving_grams: number | null;
+  serving_unit: ServingUnit;
+  icon_key: string | null;
+  rejection_note: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface FoodRow {
   id: string;
   user_id: string;
@@ -197,10 +246,13 @@ export interface FoodRow {
   carbs_g_100g: number | null;
   fat_g_100g: number | null;
   default_serving_grams: number | null;
+  serving_unit: ServingUnit;
   source: FoodSource;
   openfoodfacts_code: string | null;
   voice_transcript: string | null;
   is_favorite: boolean;
+  icon_key: string | null;
+  trainer_food_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -213,15 +265,18 @@ export interface MealLogRow {
   title: string | null;
   photo_url: string | null;
   food_id: string | null;
+  trainer_food_id: string | null;
   openfoodfacts_code: string | null;
   product_display_name: string | null;
   macro_source: MacroSource | null;
   portion_grams: number | null;
+  portion_unit: ServingUnit;
   energy_kcal: number | null;
   protein_g: number | null;
   carbs_g: number | null;
   fat_g: number | null;
   is_included: boolean;
+  icon_key: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -423,6 +478,8 @@ export interface Database {
       workout_exercises: TableDef<WorkoutExerciseRow, 'workout_id' | 'exercise_id'>;
       training_days: TableDef<TrainingDayRow, 'phase_id' | 'day_number' | 'title'>;
       foods: TableDef<FoodRow, 'user_id' | 'name' | 'source'>;
+      trainer_foods: TableDef<TrainerFoodRow, 'trainer_id' | 'name'>;
+      food_submissions: TableDef<FoodSubmissionRow, 'trainer_id' | 'submitted_by' | 'name'>;
       meal_logs: TableDef<MealLogRow, 'user_id' | 'meal_type'>;
       food_images: TableDef<FoodImageRow, 'key' | 'image_url'>;
       hydration_logs: TableDef<HydrationLogRow, 'user_id'>;

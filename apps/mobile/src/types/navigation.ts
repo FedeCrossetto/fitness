@@ -32,13 +32,16 @@ export type NutritionStackParamList = {
   FoodDetail: {
     mealType: MealType;
     foodId?: string;
+    trainerFoodId?: string;
     barcode?: string;
     mealLogId?: string;
-    /** pick = elegir de mis alimentos; manual = formulario nuevo */
-    entryMode?: 'pick' | 'manual';
+    /** create = nuevo alimento en Creados; edit = editar alimento creado */
+    entryMode?: 'create' | 'edit';
+    initialName?: string;
+    voiceTranscript?: string;
   };
-  BarcodeScanner: { mealType: MealType };
-  VoiceLog: { mealType: MealType };
+  BarcodeScanner: { mealType: MealType; purpose?: 'create' | 'add' };
+  VoiceLog: { mealType: MealType; purpose?: 'create' | 'add' };
 };
 
 export type ProgressStackParamList = {

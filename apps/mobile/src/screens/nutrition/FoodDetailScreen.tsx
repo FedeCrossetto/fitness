@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,6 +8,7 @@ import { layout, radius, spacing, Colors, useThemedStyles, useTheme } from '../.
 import {
   AppText,
   Button,
+  Card,
   CardSkeleton,
   Chip,
   IconButton,
@@ -15,20 +16,43 @@ import {
   SegmentedTabs,
   Skeleton,
 } from '../../components/common';
-import { FoodSearchRow } from '../../components/nutrition/FoodSearchRow';
-import { hapticSuccess } from '../../lib/haptics';
-import { fetchProductByBarcode, macrosForPortion, type OffProduct } from '../../services/openFoodFacts';
+import { FoodIconPicker, DEFAULT_FOOD_ICON_KEY } from '../../components/nutrition/FoodIconPicker';
+import { FoodIconThumb } from '../../components/nutrition/FoodIconThumb';
+import { isFoodIconKey, type FoodIconKey } from '../../components/nutrition/foodIconCatalog';
+import {
+  DEFAULT_SERVING_UNIT,
+  defaultPortionAmount,
+  formatMacroAmount,
+  formatMacroDisplay,
+  formatPortionAmount,
+  isServingUnit,
+  hasStoredMacros,
+  macrosForServing,
+  macrosToStored,
+  parseMacroAmount,
+  parsePortionAmount,
+  QUICK_PORTIONS_BY_UNIT,
+  quickPortionLabel,
+  resolveMacroBasisUnit,
+  sanitizeMacroInput,
+  sanitizePortionInput,
+  SERVING_UNITS,
+  type ServingUnit,
+  type StoredMacros,
+} from '@reset-fitness/shared';
+import { hapticSuccess, hapticWarning } from '../../lib/haptics';
+import { storedMacrosFromPer100, validateFoodForm } from '../../lib/foodFormValidation';
+import { fetchProductByBarcode, type OffProduct } from '../../services/openFoodFacts';
 import { useAuthStore } from '../../stores/authStore';
 import { useNutritionStore } from '../../stores/nutritionStore';
 import { useTranslation } from '../../stores/i18nStore';
 import { useUiStore } from '../../stores/uiStore';
-import type { FoodRow, MacroSource, MealType } from '../../types/database';
+import type { FoodRow, MacroSource, MealType, TrainerFoodRow } from '../../types/database';
 import type { NutritionStackParamList } from '../../types/navigation';
 
 type Props = NativeStackScreenProps<NutritionStackParamList, 'FoodDetail'>;
 
 const MEAL_TYPES: MealType[] = ['DES', 'ALM', 'MER', 'CEN'];
-const QUICK_PORTIONS = [50, 100, 150, 200];
 
 interface Per100 {
   kcal: number | null;
@@ -38,7 +62,6 @@ interface Per100 {
 }
 
 type OffStatus = 'idle' | 'loading' | 'error' | 'notfound' | 'done';
-type PickTab = 'all' | 'favorites' | 'created';
 
 function mealLabelKey(type: MealType): 'breakfast' | 'lunch' | 'snack' | 'dinner' | 'intermediate' {
   switch (type) {
@@ -55,45 +78,94 @@ function mealLabelKey(type: MealType): 'breakfast' | 'lunch' | 'snack' | 'dinner
   }
 }
 
+type FoodMacroFields = Pick<
+  FoodRow,
+  'kcal_100g' | 'protein_g_100g' | 'carbs_g_100g' | 'fat_g_100g' | 'default_serving_grams' | 'serving_unit'
+>;
+
+function applyStoredFoodMacros(
+  food: FoodMacroFields,
+  setters: {
+    setPer100: (value: Per100 | null) => void;
+    setPortion: (value: string) => void;
+    setPortionUnit: (value: ServingUnit) => void;
+  },
+): void {
+  const stored: StoredMacros = {
+    kcal: food.kcal_100g,
+    protein: food.protein_g_100g,
+    carbs: food.carbs_g_100g,
+    fat: food.fat_g_100g,
+  };
+  if (!hasStoredMacros(stored)) {
+    setters.setPer100(null);
+    return;
+  }
+  const unit = isServingUnit(food.serving_unit) ? food.serving_unit : DEFAULT_SERVING_UNIT;
+  const amount = food.default_serving_grams ?? defaultPortionAmount(unit);
+  setters.setPer100(stored);
+  setters.setPortion(formatPortionAmount(amount, unit));
+  setters.setPortionUnit(unit);
+}
+
 export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Element {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const { t, i18n } = useTranslation();
 
   const insets = useSafeAreaInsets();
-  const { mealType, foodId, barcode, mealLogId, entryMode } = route.params;
+  const { mealType, foodId, trainerFoodId, barcode, mealLogId, entryMode, initialName, voiceTranscript } =
+    route.params;
 
   const session = useAuthStore((s) => s.session);
   const userId = session?.user.id;
 
-  const myFoods = useNutritionStore((s) => s.myFoods);
   const dayMeals = useNutritionStore((s) => s.meals);
-  const foodsLoading = useNutritionStore((s) => s.foodsLoading);
   const loadMyFoods = useNutritionStore((s) => s.loadMyFoods);
+  const loadTrainerCatalog = useNutritionStore((s) => s.loadTrainerCatalog);
   const saveFood = useNutritionStore((s) => s.saveFood);
-  const toggleFavoriteFood = useNutritionStore((s) => s.toggleFavoriteFood);
+  const updateFood = useNutritionStore((s) => s.updateFood);
+  const deleteFood = useNutritionStore((s) => s.deleteFood);
+  const submitFoodForApproval = useNutritionStore((s) => s.submitFoodForApproval);
   const addMeal = useNutritionStore((s) => s.addMeal);
   const updateMeal = useNutritionStore((s) => s.updateMeal);
   const deleteMeal = useNutritionStore((s) => s.deleteMeal);
 
   const isEdit = mealLogId !== undefined;
-  const isPickList = !isEdit && entryMode === 'pick' && foodId === undefined && barcode === undefined;
-  const isManualNew = !isEdit && entryMode === 'manual' && foodId === undefined && barcode === undefined;
+  /** Crear alimento propio (solapa Creados) → solicitud al entrenador. */
+  const isCatalogCreate =
+    !isEdit && entryMode === 'create' && foodId === undefined && trainerFoodId === undefined;
+  /** Editar alimento creado por el usuario. */
+  const isCatalogEdit = !isEdit && entryMode === 'edit' && foodId !== undefined;
+  /** Registrar porción en el día (desayuno, almuerzo, etc.). */
+  const isAddToMeal = !isCatalogCreate && !isCatalogEdit;
 
   // Modo edición: semilla inicial desde el registro existente (sin efecto, sin flash).
   const editMeal = mealLogId ? dayMeals.find((m) => m.id === mealLogId) ?? null : null;
 
-  const [name, setName] = useState(editMeal?.title ?? editMeal?.product_display_name ?? '');
+  const [name, setName] = useState(
+    editMeal?.title ?? editMeal?.product_display_name ?? initialName ?? '',
+  );
   const [portion, setPortion] = useState(
     editMeal?.portion_grams != null ? String(editMeal.portion_grams) : '100'
   );
+  const [portionUnit, setPortionUnit] = useState<ServingUnit>(() => {
+    if (editMeal?.portion_unit && isServingUnit(editMeal.portion_unit)) return editMeal.portion_unit;
+    return DEFAULT_SERVING_UNIT;
+  });
   const [per100, setPer100] = useState<Per100 | null>(null);
-  const [kcalText, setKcalText] = useState(editMeal ? String(Math.round(editMeal.energy_kcal ?? 0)) : '');
-  const [proteinText, setProteinText] = useState(
-    editMeal ? String(Math.round(editMeal.protein_g ?? 0)) : ''
+  const [kcalText, setKcalText] = useState(
+    editMeal?.energy_kcal != null ? formatMacroAmount(editMeal.energy_kcal) : '',
   );
-  const [carbsText, setCarbsText] = useState(editMeal ? String(Math.round(editMeal.carbs_g ?? 0)) : '');
-  const [fatText, setFatText] = useState(editMeal ? String(Math.round(editMeal.fat_g ?? 0)) : '');
+  const [proteinText, setProteinText] = useState(
+    editMeal?.protein_g != null ? formatMacroAmount(editMeal.protein_g) : '',
+  );
+  const [carbsText, setCarbsText] = useState(
+    editMeal?.carbs_g != null ? formatMacroAmount(editMeal.carbs_g) : '',
+  );
+  const [fatText, setFatText] = useState(
+    editMeal?.fat_g != null ? formatMacroAmount(editMeal.fat_g) : '',
+  );
   const [mealTypeIdx, setMealTypeIdx] = useState(() => {
     if (editMeal) {
       const idx = MEAL_TYPES.indexOf(editMeal.meal_type);
@@ -104,10 +176,17 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
   const [offProduct, setOffProduct] = useState<OffProduct | null>(null);
   const [offStatus, setOffStatus] = useState<OffStatus>(barcode !== undefined ? 'loading' : 'idle');
   const [selectedFood, setSelectedFood] = useState<FoodRow | null>(null);
-  const [saveToFoods, setSaveToFoods] = useState(false);
-  const [search, setSearch] = useState('');
-  const [pickTab, setPickTab] = useState<PickTab>('all');
+  const [selectedTrainerFood, setSelectedTrainerFood] = useState<TrainerFoodRow | null>(null);
   const [saving, setSaving] = useState(false);
+  const [catalogEditLoaded, setCatalogEditLoaded] = useState(false);
+  const offAlertShown = useRef<'notfound' | 'error' | null>(null);
+  const [iconKey, setIconKey] = useState<FoodIconKey>(() => {
+    if (editMeal?.icon_key && isFoodIconKey(editMeal.icon_key)) return editMeal.icon_key;
+    return DEFAULT_FOOD_ICON_KEY;
+  });
+
+  const remotePhoto = offProduct?.imageUrl ?? null;
+  const showIconPicker = true;
 
   // Modo barcode: buscar en Open Food Facts
   const loadOff = async () => {
@@ -161,16 +240,58 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
     };
   }, [barcode]);
 
-  // Cargar mis alimentos para el selector o precarga por foodId
   useEffect(() => {
-    if (!userId || (!isPickList && foodId === undefined)) return;
-    void loadMyFoods(userId);
-  }, [userId, isPickList, foodId, loadMyFoods]);
+    if (barcode === undefined) return;
+    if (offStatus === 'notfound' && offAlertShown.current !== 'notfound') {
+      offAlertShown.current = 'notfound';
+      Alert.alert(t.nutrition.scan_not_found_title, t.nutrition.scan_not_found_message, [
+        { text: t.ui.confirm },
+      ]);
+    } else if (offStatus === 'error' && offAlertShown.current !== 'error') {
+      offAlertShown.current = 'error';
+      Alert.alert(t.nutrition.scan_error_title, t.nutrition.scan_error_message, [
+        { text: t.ui.retry, onPress: () => {
+          setOffStatus('loading');
+          void loadOff();
+        } },
+        { text: t.ui.cancel, style: 'cancel' },
+      ]);
+    } else if (offStatus === 'done') {
+      offAlertShown.current = null;
+    }
+  }, [barcode, offStatus, t]);
 
-  // Modo foodId: cargar el catálogo y precargar el alimento elegido.
-  // applyFood se llama después del await (no es setState síncrono dentro del efecto).
+  // Cargar alimentos personales al editar catálogo
   useEffect(() => {
-    if (foodId === undefined || !userId || selectedFood !== null) return;
+    if (!userId || foodId === undefined) return;
+    void loadMyFoods(userId);
+  }, [userId, foodId, loadMyFoods]);
+
+  // Modo foodId: precargar alimento personal (agregar al día o editar catálogo).
+  useEffect(() => {
+    if (foodId === undefined || !userId) return;
+
+    if (isCatalogEdit) {
+      if (catalogEditLoaded) return;
+      let cancelled = false;
+      void (async () => {
+        await loadMyFoods(userId);
+        if (cancelled) return;
+        const food = useNutritionStore.getState().myFoods.find((f) => f.id === foodId);
+        if (!food) return;
+        setName(food.name);
+        if (food.icon_key && isFoodIconKey(food.icon_key)) {
+          setIconKey(food.icon_key);
+        }
+        applyStoredFoodMacros(food, { setPer100, setPortion, setPortionUnit });
+        setCatalogEditLoaded(true);
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (selectedFood !== null) return;
     let cancelled = false;
     void (async () => {
       await loadMyFoods(userId);
@@ -179,255 +300,176 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
       if (!food) return;
       setSelectedFood(food);
       setName(food.name);
-      if (food.kcal_100g !== null) {
-        setPer100({
-          kcal: food.kcal_100g,
-          protein: food.protein_g_100g,
-          carbs: food.carbs_g_100g,
-          fat: food.fat_g_100g,
-        });
-        setPortion(String(food.default_serving_grams ?? 100));
-      } else {
-        setPer100(null);
+      if (food.icon_key && isFoodIconKey(food.icon_key)) {
+        setIconKey(food.icon_key);
       }
+      applyStoredFoodMacros(food, { setPer100, setPortion, setPortionUnit });
     })();
     return () => {
       cancelled = true;
     };
-  }, [foodId, userId, selectedFood, loadMyFoods]);
+  }, [foodId, userId, isCatalogEdit, catalogEditLoaded, selectedFood, loadMyFoods]);
 
-  const portionNum = Number(portion) || 0;
+  // Modo trainerFoodId: precargar alimento del catálogo del entrenador.
+  useEffect(() => {
+    if (trainerFoodId === undefined || !userId || selectedTrainerFood !== null) return;
+    let cancelled = false;
+    void (async () => {
+      await loadTrainerCatalog(userId);
+      if (cancelled) return;
+      const food = useNutritionStore.getState().trainerFoods.find((f) => f.id === trainerFoodId);
+      if (!food) return;
+      setSelectedTrainerFood(food);
+      setName(food.name);
+      if (food.icon_key && isFoodIconKey(food.icon_key)) {
+        setIconKey(food.icon_key);
+      }
+      applyStoredFoodMacros(food, { setPer100, setPortion, setPortionUnit });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [trainerFoodId, userId, selectedTrainerFood, loadTrainerCatalog]);
+
+  const portionNum = parsePortionAmount(portion, portionUnit);
+  const macroBasisUnit = resolveMacroBasisUnit({
+    offProduct: !!offProduct,
+    foodServingUnit: selectedTrainerFood?.serving_unit ?? selectedFood?.serving_unit,
+    portionUnit,
+  });
   const computed = per100
-    ? macrosForPortion(per100, portionNum)
+    ? macrosForServing(per100, portionNum, macroBasisUnit)
     : {
-        kcal: Number(kcalText) || 0,
-        protein: Number(proteinText) || 0,
-        carbs: Number(carbsText) || 0,
-        fat: Number(fatText) || 0,
+        kcal: parseMacroAmount(kcalText) ?? 0,
+        protein: parseMacroAmount(proteinText) ?? 0,
+        carbs: parseMacroAmount(carbsText) ?? 0,
+        fat: parseMacroAmount(fatText) ?? 0,
       };
 
   const macroSource: MacroSource = offProduct
     ? 'openfoodfacts'
-    : selectedFood
-      ? 'user_food'
-      : 'manual';
+    : selectedTrainerFood
+      ? 'catalog'
+      : selectedFood
+        ? 'user_food'
+        : voiceTranscript
+          ? 'voice'
+          : 'manual';
 
-  const filteredFoods = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    let list = myFoods;
-    if (pickTab === 'favorites') list = list.filter((f) => f.is_favorite);
-    if (pickTab === 'created') list = list.filter((f) => f.source === 'manual' || f.source === 'voice');
-    if (query) list = list.filter((f) => f.name.toLowerCase().includes(query) || (f.brand ?? '').toLowerCase().includes(query));
-    return [...list].sort((a, b) => {
-      if (a.is_favorite !== b.is_favorite) return a.is_favorite ? -1 : 1;
-      return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
-    });
-  }, [myFoods, search, pickTab]);
-
-  const recentFoods = useMemo(
-    () => [...myFoods].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()).slice(0, 8),
-    [myFoods],
+  const mealTabs = useMemo(
+    () => MEAL_TYPES.map((type) => t.nutrition[mealLabelKey(type)]),
+    [t],
   );
 
-  const recentMeals = useMemo(() => {
-    const seen = new Set<string>();
-    return [...dayMeals]
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-      .filter((m) => {
-        const key = m.food_id ?? m.title ?? m.id;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      })
-      .slice(0, 5);
-  }, [dayMeals]);
+  const requiresMacroInput = isCatalogCreate || isCatalogEdit || (!selectedFood && !selectedTrainerFood && !offProduct);
+  const hasCatalogMacros = selectedFood != null || selectedTrainerFood != null || offProduct != null;
 
-  const pickFood = (food: FoodRow) => {
-    navigation.replace('FoodDetail', { mealType, foodId: food.id });
+  const showFormError = (messageKey: keyof typeof t.nutrition) => {
+    hapticWarning();
+    Alert.alert(t.nutrition.validation_title, t.nutrition[messageKey] as string, [{ text: t.ui.confirm }]);
   };
 
-  const goToManual = () => {
-    navigation.replace('FoodDetail', { mealType, entryMode: 'manual' });
-  };
-
-  const goToPick = () => {
-    navigation.replace('FoodDetail', { mealType, entryMode: 'pick' });
-  };
-
-  if (isPickList) {
-    const pickTabs = [t.nutrition.tab_all, t.nutrition.tab_favorites, t.nutrition.tab_created];
-    const pickTabIndex = pickTab === 'all' ? 0 : pickTab === 'favorites' ? 1 : 2;
-    const mealLabel = t.nutrition[mealLabelKey(mealType)];
-
-    return (
-      <View style={styles.flex}>
-        <View style={[styles.pickTop, { paddingTop: insets.top + spacing.sm }]}>
-          <View style={styles.pickSearchRow}>
-            <Input
-              icon="search-outline"
-              value={search}
-              onChangeText={setSearch}
-              placeholder={t.nutrition.search_foods}
-              containerStyle={styles.pickSearchInput}
-            />
-            <IconButton icon="close" onPress={() => navigation.goBack()} accessibilityLabel="Cerrar" />
-          </View>
-          <SegmentedTabs
-            tabs={pickTabs}
-            activeIndex={pickTabIndex}
-            onChange={(idx) => setPickTab(idx === 0 ? 'all' : idx === 1 ? 'favorites' : 'created')}
-          />
-          <AppText variant="body12" color={colors.text.tertiary} style={styles.pickMealHint}>
-            {i18n(t.nutrition.add_to_meal, { meal: mealLabel })}
-          </AppText>
-        </View>
-
-        <ScrollView
-          contentContainerStyle={{
-            paddingHorizontal: layout.screenPadding,
-            paddingBottom: insets.bottom + 88,
-          }}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          {foodsLoading && myFoods.length === 0 ? (
-            <CardSkeleton />
-          ) : (
-            <>
-              {!search.trim() && pickTab === 'all' ? (
-                <>
-                  <AppText variant="caps11" color={colors.text.tertiary} style={styles.pickSectionLabel}>
-                    {t.nutrition.recent_foods}
-                  </AppText>
-                  {recentFoods.length === 0 ? (
-                    <AppText variant="body13" color={colors.text.disabled} style={styles.pickSectionEmpty}>
-                      {t.nutrition.pick_empty}
-                    </AppText>
-                  ) : (
-                    recentFoods.map((food) => (
-                      <FoodSearchRow
-                        key={`recent-${food.id}`}
-                        food={food}
-                        onPress={() => pickFood(food)}
-                        onToggleFavorite={() => void toggleFavoriteFood(food.id)}
-                      />
-                    ))
-                  )}
-
-                  <AppText variant="caps11" color={colors.text.tertiary} style={styles.pickSectionLabelSpaced}>
-                    {t.nutrition.recent_meals}
-                  </AppText>
-                  {recentMeals.length === 0 ? (
-                    <AppText variant="body13" color={colors.text.disabled} style={styles.pickSectionEmpty}>
-                      {t.nutrition.no_recent_meals}
-                    </AppText>
-                  ) : (
-                    recentMeals.map((meal) => (
-                      <Pressable
-                        key={`meal-${meal.id}`}
-                        accessibilityRole="button"
-                        onPress={() => {
-                          if (meal.food_id) {
-                            const food = myFoods.find((f) => f.id === meal.food_id);
-                            if (food) pickFood(food);
-                            return;
-                          }
-                          navigation.navigate('FoodDetail', { mealType, mealLogId: meal.id });
-                        }}
-                        style={({ pressed }) => [styles.recentMealRow, pressed && styles.pressed]}
-                      >
-                        <View style={styles.recentMealMain}>
-                          <AppText variant="body14SemiBold" color={colors.text.primary} numberOfLines={1}>
-                            {meal.title ?? meal.product_display_name}
-                          </AppText>
-                          <AppText variant="body12" color={colors.text.tertiary}>
-                            {Math.round(meal.energy_kcal ?? 0)} kcal
-                          </AppText>
-                        </View>
-                        <Ionicons name="chevron-forward" size={16} color={colors.text.tertiary} />
-                      </Pressable>
-                    ))
-                  )}
-                </>
-              ) : null}
-
-              {search.trim() || pickTab !== 'all' ? (
-                <>
-                  <AppText variant="caps11" color={colors.text.tertiary} style={styles.pickSectionLabel}>
-                    {pickTab === 'favorites' ? t.nutrition.tab_favorites : pickTab === 'created' ? t.nutrition.tab_created : t.nutrition.tab_all}
-                  </AppText>
-                  {filteredFoods.length === 0 ? (
-                    <View style={styles.pickEmpty}>
-                      <AppText variant="body14" color={colors.text.secondary} align="center">
-                        {t.nutrition.no_records}
-                      </AppText>
-                      <Button label={t.nutrition.create_new_food} onPress={goToManual} fullWidth style={styles.pickEmptyBtn} />
-                    </View>
-                  ) : (
-                    filteredFoods.map((food) => (
-                      <FoodSearchRow
-                        key={food.id}
-                        food={food}
-                        onPress={() => pickFood(food)}
-                        onToggleFavorite={() => void toggleFavoriteFood(food.id)}
-                      />
-                    ))
-                  )}
-                </>
-              ) : null}
-            </>
-          )}
-        </ScrollView>
-
-        <View style={[styles.pickBottomBar, { paddingBottom: insets.bottom + spacing.sm }]}>
-          <Pressable style={styles.pickBottomAction} onPress={() => navigation.navigate('BarcodeScanner', { mealType })}>
-            <Ionicons name="barcode-outline" size={20} color={colors.text.primary} />
-            <AppText variant="body12" color={colors.text.secondary}>
-              {t.nutrition.scan}
-            </AppText>
-          </Pressable>
-          <Pressable style={styles.pickBottomAction} onPress={() => navigation.navigate('VoiceLog', { mealType })}>
-            <Ionicons name="mic-outline" size={20} color={colors.text.primary} />
-            <AppText variant="body12" color={colors.text.secondary}>
-              {t.nutrition.voice}
-            </AppText>
-          </Pressable>
-          <Pressable style={styles.pickBottomAction} onPress={goToManual}>
-            <Ionicons name="create-outline" size={20} color={colors.text.primary} />
-            <AppText variant="body12" color={colors.text.secondary}>
-              {t.nutrition.manual_entry}
-            </AppText>
-          </Pressable>
-        </View>
-      </View>
-    );
-  }
-
-  const onSave = async () => {
-    if (!userId) return;
-    const title = name.trim();
-    if (!title) {
-      useUiStore.getState().showToast('error', 'Poné un nombre para la comida.');
-      return;
+  const validateBeforeSave = (): boolean => {
+    const errorKey = validateFoodForm({
+      name,
+      portionAmount: portionNum,
+      offStatus,
+      hasCatalogMacros,
+      storedMacros: storedMacrosFromPer100(per100),
+      computedKcal: computed.kcal,
+      computedProtein: computed.protein,
+      computedCarbs: computed.carbs,
+      computedFat: computed.fat,
+      requiresMacroInput,
+    });
+    if (errorKey) {
+      showFormError(errorKey);
+      return false;
     }
+    return true;
+  };
+
+  const onSaveCatalogEdit = async () => {
+    if (!userId || foodId === undefined) return;
+    if (!validateBeforeSave()) return;
+    const title = name.trim();
     setSaving(true);
 
-    let linkedFoodId: string | null = selectedFood?.id ?? null;
-    if (saveToFoods && !isEdit && !selectedFood) {
-      const saved = await saveFood(userId, {
-        name: title,
-        source: offProduct ? 'openfoodfacts' : 'manual',
-        brand: offProduct?.brands ?? null,
-        barcode: offProduct?.code ?? barcode ?? null,
-        openfoodfacts_code: offProduct?.code ?? null,
-        kcal_100g: per100?.kcal ?? null,
-        protein_g_100g: per100?.protein ?? null,
-        carbs_g_100g: per100?.carbs ?? null,
-        fat_g_100g: per100?.fat ?? null,
-        default_serving_grams: portionNum > 0 ? portionNum : null,
-      });
-      if (saved) linkedFoodId = saved.id;
+    const servingAmount = portionNum > 0 ? portionNum : defaultPortionAmount(portionUnit);
+    const per100Macros = per100 ?? macrosToStored(computed, servingAmount, portionUnit);
+
+    const updated = await updateFood(foodId, {
+      name: title,
+      kcal_100g: per100Macros.kcal,
+      protein_g_100g: per100Macros.protein,
+      carbs_g_100g: per100Macros.carbs,
+      fat_g_100g: per100Macros.fat,
+      default_serving_grams: servingAmount,
+      serving_unit: portionUnit,
+      icon_key: iconKey,
+    });
+
+    setSaving(false);
+    if (updated) {
+      hapticSuccess();
+      useUiStore.getState().showToast('success', t.nutrition.food_updated);
+      navigation.goBack();
+    } else {
+      Alert.alert(t.nutrition.validation_title, t.nutrition.save_food_error, [{ text: t.ui.confirm }]);
     }
+  };
+
+  const onSaveCatalog = async () => {
+    if (!userId) return;
+    if (!validateBeforeSave()) return;
+    const title = name.trim();
+    setSaving(true);
+
+    const servingAmount = portionNum > 0 ? portionNum : defaultPortionAmount(portionUnit);
+    const per100Macros = per100 ?? macrosToStored(computed, servingAmount, portionUnit);
+
+    const saved = await saveFood(userId, {
+      name: title,
+      source: offProduct ? 'openfoodfacts' : voiceTranscript ? 'voice' : barcode ? 'barcode' : 'manual',
+      brand: offProduct?.brands ?? null,
+      barcode: offProduct?.code ?? barcode ?? null,
+      openfoodfacts_code: offProduct?.code ?? null,
+      voice_transcript: voiceTranscript ?? null,
+      kcal_100g: per100Macros.kcal,
+      protein_g_100g: per100Macros.protein,
+      carbs_g_100g: per100Macros.carbs,
+      fat_g_100g: per100Macros.fat,
+      default_serving_grams: servingAmount,
+      serving_unit: portionUnit,
+      icon_key: iconKey,
+    });
+
+    setSaving(false);
+    if (saved) {
+      await submitFoodForApproval(userId, saved);
+      hapticSuccess();
+      useUiStore.getState().showToast('success', t.nutrition.food_saved_pending);
+      navigation.goBack();
+    } else {
+      Alert.alert(t.nutrition.validation_title, t.nutrition.save_food_error, [{ text: t.ui.confirm }]);
+    }
+  };
+
+  const onSave = async () => {
+    if (isCatalogCreate) {
+      await onSaveCatalog();
+      return;
+    }
+    if (isCatalogEdit) {
+      await onSaveCatalogEdit();
+      return;
+    }
+    if (!userId) return;
+    if (!validateBeforeSave()) return;
+    const title = name.trim();
+    setSaving(true);
+
+    const resolvedIconKey = iconKey;
 
     const ok = isEdit
       ? await updateMeal(mealLogId, {
@@ -435,22 +477,29 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
           product_display_name: title,
           meal_type: MEAL_TYPES[mealTypeIdx],
           portion_grams: portionNum > 0 ? portionNum : null,
+          portion_unit: macroBasisUnit,
           energy_kcal: computed.kcal,
           protein_g: computed.protein,
           carbs_g: computed.carbs,
           fat_g: computed.fat,
+          icon_key: resolvedIconKey,
+          photo_url: null,
         })
       : await addMeal(userId, {
           mealType: MEAL_TYPES[mealTypeIdx],
           title,
-          foodId: linkedFoodId,
+          foodId: selectedFood?.id ?? null,
+          trainerFoodId: selectedTrainerFood?.id ?? null,
           openfoodfactsCode: offProduct?.code ?? null,
           macroSource,
           portionGrams: portionNum > 0 ? portionNum : null,
+          portionUnit: macroBasisUnit,
           kcal: computed.kcal,
           protein: computed.protein,
           carbs: computed.carbs,
           fat: computed.fat,
+          iconKey: resolvedIconKey ?? selectedFood?.icon_key ?? selectedTrainerFood?.icon_key ?? null,
+          photoUrl: null,
         });
 
     setSaving(false);
@@ -459,11 +508,11 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
       useUiStore.getState().showToast('success', isEdit ? 'Cambios guardados' : 'Comida agregada');
       navigation.goBack();
     } else {
-      useUiStore.getState().showToast('error', 'No pudimos guardar la comida.');
+      Alert.alert(t.nutrition.validation_title, t.nutrition.save_meal_error, [{ text: t.ui.confirm }]);
     }
   };
 
-  const onDelete = () => {
+  const onDeleteMeal = () => {
     if (!mealLogId) return;
     Alert.alert('Eliminar registro', '¿Seguro que querés eliminar esta comida?', [
       { text: 'Cancelar', style: 'cancel' },
@@ -486,6 +535,29 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
     ]);
   };
 
+  const onDeleteCatalogFood = () => {
+    if (foodId === undefined) return;
+    Alert.alert(t.nutrition.delete_food_title, i18n(t.nutrition.delete_food_confirm, { name: name.trim() || 'este alimento' }), [
+      { text: t.ui.cancel, style: 'cancel' },
+      {
+        text: t.ui.delete,
+        style: 'destructive',
+        onPress: () => {
+          void (async () => {
+            const ok = await deleteFood(foodId);
+            if (ok) {
+              hapticSuccess();
+              useUiStore.getState().showToast('success', t.nutrition.food_deleted);
+              navigation.goBack();
+            } else {
+              useUiStore.getState().showToast('error', 'No pudimos eliminar el alimento.');
+            }
+          })();
+        },
+      },
+    ]);
+  };
+
   const offFailed = offStatus === 'error' || offStatus === 'notfound';
 
   return (
@@ -501,22 +573,41 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
       >
         <View style={styles.header}>
           <AppText variant="h2" color={colors.text.primary}>
-            {isEdit ? 'Editar comida' : isManualNew ? t.nutrition.manual_entry : 'Agregar comida'}
+            {isEdit
+              ? 'Editar comida'
+              : isCatalogEdit
+                ? t.nutrition.edit_food_title
+                : isCatalogCreate
+                  ? t.nutrition.create_food_title
+                  : 'Agregar comida'}
           </AppText>
           <IconButton icon="close" onPress={() => navigation.goBack()} accessibilityLabel="Cerrar" />
         </View>
 
-        {isManualNew ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={goToPick}
-            style={({ pressed }) => [styles.switchModeLink, pressed && styles.pressed]}
-          >
-            <Ionicons name="bookmark-outline" size={16} color={colors.primary.default} />
-            <AppText variant="body13SemiBold" color={colors.primary.default}>
-              {t.nutrition.add_from_saved_title}
-            </AppText>
-          </Pressable>
+        {isCatalogCreate || isCatalogEdit ? (
+          <AppText variant="body13" color={colors.text.tertiary} style={styles.catalogHint}>
+            {t.nutrition.create_food_hint}
+          </AppText>
+        ) : null}
+
+        {isAddToMeal && name.trim() ? (
+          <View style={styles.heroRow}>
+            <FoodIconThumb iconKey={iconKey} size={52} />
+            <View style={styles.heroText}>
+              <AppText variant="body16SemiBold" color={colors.text.primary} numberOfLines={2}>
+                {name.trim()}
+              </AppText>
+              <AppText variant="body12" color={colors.text.tertiary}>
+                {selectedTrainerFood
+                  ? t.nutrition.catalog_foods
+                  : selectedFood
+                    ? t.nutrition.my_foods_title
+                    : offProduct
+                      ? 'Open Food Facts'
+                      : t.nutrition.portion_label}
+              </AppText>
+            </View>
+          </View>
         ) : null}
 
         {offStatus === 'loading' ? (
@@ -530,7 +621,9 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
               <View style={styles.offErrorBanner}>
                 <Ionicons name="alert-circle-outline" size={18} color={colors.states.warning} />
                 <AppText variant="body13" color={colors.text.secondary} style={styles.offErrorText}>
-                  No encontramos ese producto. Cargalo manualmente.
+                  {offStatus === 'notfound'
+                    ? t.nutrition.scan_not_found_message
+                    : t.nutrition.scan_error_message}
                 </AppText>
                 {offStatus === 'error' ? (
                   <Pressable
@@ -549,68 +642,94 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
               </View>
             ) : null}
 
-            {/* Producto Open Food Facts */}
-            {offProduct ? (
-              <View style={styles.offCard}>
-                {offProduct.imageUrl ? (
-                  <Image source={{ uri: offProduct.imageUrl }} style={styles.offImage} contentFit="cover" />
-                ) : null}
+            {offProduct && remotePhoto ? (
+              <View style={styles.offCardCompact}>
+                <Image source={{ uri: remotePhoto }} style={styles.offImageSmall} contentFit="cover" />
                 <View style={styles.offInfo}>
-                  <AppText variant="body14SemiBold" color={colors.text.primary} numberOfLines={2}>
-                    {offProduct.productName}
+                  <AppText variant="body12" color={colors.text.tertiary}>
+                    Referencia del producto
                   </AppText>
-                  {offProduct.brands ? (
-                    <AppText variant="body12" color={colors.text.secondary} numberOfLines={1}>
-                      {offProduct.brands}
-                    </AppText>
-                  ) : null}
-                  <AppText variant="body12" color={colors.text.tertiary} style={styles.offAttribution}>
-                    © Open Food Facts (ODbL)
+                  <AppText variant="body13" color={colors.text.secondary} numberOfLines={1}>
+                    {offProduct.brands ?? offProduct.productName}
                   </AppText>
                 </View>
               </View>
             ) : null}
 
-            <Input
-              label="Nombre"
-              value={name}
-              onChangeText={setName}
-              placeholder="Ej: Milanesa con puré"
-              containerStyle={styles.field}
-            />
+            {isCatalogCreate || isCatalogEdit || isEdit || !name.trim() ? (
+              <Input
+                label="Nombre"
+                value={name}
+                onChangeText={setName}
+                placeholder="Ej: Milanesa con puré"
+                containerStyle={styles.field}
+              />
+            ) : null}
 
-            <AppText variant="caps12" color={colors.text.tertiary} style={styles.fieldLabel}>
-              Comida
-            </AppText>
-            <SegmentedTabs tabs={[...MEAL_TYPES]} activeIndex={mealTypeIdx} onChange={setMealTypeIdx} />
+            {showIconPicker ? (
+              <Card style={styles.sectionCard}>
+                <AppText variant="caps12" color={colors.text.tertiary} style={styles.sectionTitle}>
+                  {t.nutrition.food_icon_label}
+                </AppText>
+                <FoodIconPicker value={iconKey} onChange={setIconKey} />
+              </Card>
+            ) : null}
 
-            <Input
-              label="Porción (g)"
-              value={portion}
-              onChangeText={setPortion}
-              keyboardType="numeric"
-              placeholder="100"
-              containerStyle={styles.field}
-            />
-            <View style={styles.chipsRow}>
-              {QUICK_PORTIONS.map((grams) => (
-                <Chip
-                  key={grams}
-                  label={`${grams}g`}
-                  active={portionNum === grams}
-                  onPress={() => setPortion(String(grams))}
-                />
-              ))}
-            </View>
+            {isAddToMeal ? (
+              <Card style={styles.sectionCard}>
+                <AppText variant="caps12" color={colors.text.tertiary} style={styles.sectionTitle}>
+                  Comida
+                </AppText>
+                <SegmentedTabs tabs={mealTabs} activeIndex={mealTypeIdx} onChange={setMealTypeIdx} />
+              </Card>
+            ) : null}
+
+            <Card style={styles.sectionCard}>
+              <AppText variant="caps12" color={colors.text.tertiary} style={styles.sectionTitle}>
+                {isCatalogCreate || isCatalogEdit ? t.nutrition.default_serving_label : t.nutrition.portion_label}
+              </AppText>
+              <View style={styles.chipsRow}>
+                {SERVING_UNITS.map((unit) => (
+                  <Chip
+                    key={unit.value}
+                    label={unit.short}
+                    active={portionUnit === unit.value}
+                    onPress={() => {
+                      const nextUnit = unit.value;
+                      setPortionUnit(nextUnit);
+                      const parsed = parsePortionAmount(portion, nextUnit);
+                      setPortion(formatPortionAmount(parsed || defaultPortionAmount(nextUnit), nextUnit));
+                    }}
+                  />
+                ))}
+              </View>
+              <Input
+                value={portion}
+                onChangeText={(text) => setPortion(sanitizePortionInput(text, portionUnit))}
+                keyboardType={portionUnit === 'unit' ? 'number-pad' : 'decimal-pad'}
+                placeholder={portionUnit === 'unit' ? '1' : '100'}
+                containerStyle={styles.fieldCompact}
+              />
+              <View style={styles.chipsRow}>
+                {QUICK_PORTIONS_BY_UNIT[portionUnit].map((amount) => (
+                  <Chip
+                    key={amount}
+                    label={quickPortionLabel(amount, portionUnit)}
+                    active={portionNum === amount}
+                    onPress={() => setPortion(formatPortionAmount(amount, portionUnit))}
+                  />
+                ))}
+              </View>
+            </Card>
 
             {(per100 || isEdit || Number(kcalText) > 0) ? (
               <View style={styles.macroCardsRow}>
                 {(
                   [
                     { label: 'kcal', value: String(computed.kcal) },
-                    { label: t.nutrition.proteins_label, value: `${computed.protein} g` },
-                    { label: t.nutrition.carbs_label, value: `${computed.carbs} g` },
-                    { label: t.nutrition.fats_label, value: `${computed.fat} g` },
+                    { label: t.nutrition.proteins_label, value: `${formatMacroDisplay(computed.protein)} g` },
+                    { label: t.nutrition.carbs_label, value: `${formatMacroDisplay(computed.carbs)} g` },
+                    { label: t.nutrition.fats_label, value: `${formatMacroDisplay(computed.fat)} g` },
                   ] as const
                 ).map((stat) => (
                   <View key={stat.label} style={styles.macroCard}>
@@ -631,16 +750,16 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
                   <Input
                     label="Kcal"
                     value={kcalText}
-                    onChangeText={setKcalText}
-                    keyboardType="numeric"
+                    onChangeText={(text) => setKcalText(sanitizeMacroInput(text))}
+                    keyboardType="decimal-pad"
                     placeholder="0"
                     containerStyle={styles.manualField}
                   />
                   <Input
                     label="Proteínas (g)"
                     value={proteinText}
-                    onChangeText={setProteinText}
-                    keyboardType="numeric"
+                    onChangeText={(text) => setProteinText(sanitizeMacroInput(text))}
+                    keyboardType="decimal-pad"
                     placeholder="0"
                     containerStyle={styles.manualField}
                   />
@@ -649,16 +768,16 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
                   <Input
                     label="Carbos (g)"
                     value={carbsText}
-                    onChangeText={setCarbsText}
-                    keyboardType="numeric"
+                    onChangeText={(text) => setCarbsText(sanitizeMacroInput(text))}
+                    keyboardType="decimal-pad"
                     placeholder="0"
                     containerStyle={styles.manualField}
                   />
                   <Input
                     label="Grasas (g)"
                     value={fatText}
-                    onChangeText={setFatText}
-                    keyboardType="numeric"
+                    onChangeText={(text) => setFatText(sanitizeMacroInput(text))}
+                    keyboardType="decimal-pad"
                     placeholder="0"
                     containerStyle={styles.manualField}
                   />
@@ -666,29 +785,13 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
               </>
             ) : null}
 
-            {!isEdit && !selectedFood ? (
-              <Pressable
-                onPress={() => setSaveToFoods((v) => !v)}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: saveToFoods }}
-                style={styles.checkRow}
-              >
-                <Ionicons
-                  name={saveToFoods ? 'checkbox' : 'square-outline'}
-                  size={22}
-                  color={saveToFoods ? colors.primary.default : colors.text.tertiary}
-                />
-                <AppText variant="body14" color={colors.text.secondary}>
-                  Guardar en mis alimentos
-                </AppText>
-              </Pressable>
-            ) : null}
-
             <Button
               label={
-                isEdit
-                  ? 'Guardar cambios'
-                  : i18n(t.nutrition.add_to_meal, { meal: t.nutrition[mealLabelKey(MEAL_TYPES[mealTypeIdx])] })
+                isCatalogCreate || isCatalogEdit
+                  ? t.nutrition.save_food
+                  : isEdit
+                    ? 'Guardar cambios'
+                    : i18n(t.nutrition.add_to_meal, { meal: t.nutrition[mealLabelKey(MEAL_TYPES[mealTypeIdx])] })
               }
               onPress={() => void onSave()}
               loading={saving}
@@ -697,10 +800,19 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
             />
 
             {isEdit ? (
-              <Pressable onPress={onDelete} accessibilityRole="button" style={styles.deleteButton}>
+              <Pressable onPress={onDeleteMeal} accessibilityRole="button" style={styles.deleteButton}>
                 <Ionicons name="trash-outline" size={18} color={colors.states.error} />
                 <AppText variant="body16SemiBold" color={colors.states.error}>
                   Eliminar
+                </AppText>
+              </Pressable>
+            ) : null}
+
+            {isCatalogEdit ? (
+              <Pressable onPress={onDeleteCatalogFood} accessibilityRole="button" style={styles.deleteButton}>
+                <Ionicons name="trash-outline" size={18} color={colors.states.error} />
+                <AppText variant="body16SemiBold" color={colors.states.error}>
+                  {t.nutrition.delete_food}
                 </AppText>
               </Pressable>
             ) : null}
@@ -732,6 +844,52 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     marginBottom: spacing.md,
   },
   offErrorText: { flex: 1 },
+  offCardCompact: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    alignItems: 'center',
+    backgroundColor: colors.surface.base,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    borderRadius: radius.md,
+    padding: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  offImageSmall: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surface.elevated,
+  },
+  heroRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    marginBottom: spacing.md,
+    padding: spacing.md,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface.base,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+  },
+  heroText: {
+    flex: 1,
+    gap: 2,
+  },
+  sectionCard: {
+    marginTop: spacing.md,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  sectionTitle: {
+    marginBottom: spacing.xxs,
+  },
+  fieldCompact: {
+    marginTop: spacing.xs,
+  },
+  catalogHint: {
+    marginBottom: spacing.md,
+  },
   offCard: {
     flexDirection: 'row',
     gap: spacing.md,

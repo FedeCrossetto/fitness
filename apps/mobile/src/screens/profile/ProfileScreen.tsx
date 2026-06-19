@@ -19,6 +19,7 @@ import { useGoalsStore } from '../../stores/goalsStore';
 import { useTabBarScrollPadding } from '../../hooks/useTabBarScrollPadding';
 import { useStepsAutoSync } from '../../hooks/useStepsAutoSync';
 import { GarminSyncCard } from '../../components/health/GarminSyncCard';
+import { NUTRITION_MACRO_COLORS } from '../../components/nutrition/nutritionTheme';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 import { cancelReminder, scheduleDailyReminder, isPushMessagesEnabled, enablePushMessages, disablePushMessages, getNotificationPermissionStatus, openNotificationSettings } from '../../services/notifications';
@@ -93,6 +94,7 @@ function SettingsRow({ icon, label, onPress, last = false }: SettingsRowProps): 
 
 export function ProfileScreen({ navigation, route }: Props): React.JSX.Element {
   const { colors, mode, setMode } = useTheme();
+  const switchTrackColor = { false: colors.surface.elevated, true: NUTRITION_MACRO_COLORS.carbs };
   const { t, i18n, language, setLanguage } = useTranslation();
 
   const THEME_MODES: { mode: ThemeMode; label: string }[] = [
@@ -555,7 +557,7 @@ export function ProfileScreen({ navigation, route }: Props): React.JSX.Element {
                 value={healthConnected}
                 onValueChange={(value) => value ? void onConnectHealth() : onDisconnectHealth()}
                 disabled={!Device.isDevice || isExpoGo}
-                trackColor={{ false: colors.surface.elevated, true: colors.primary.default }}
+                trackColor={switchTrackColor}
                 thumbColor={colors.text.primary}
                 ios_backgroundColor={colors.surface.elevated}
                 accessibilityLabel={Platform.OS === 'ios' ? t.profile.accessibility_connect_ios : t.profile.accessibility_connect_and}
@@ -585,7 +587,7 @@ export function ProfileScreen({ navigation, route }: Props): React.JSX.Element {
               value={pushMessages}
               onValueChange={(value) => void onTogglePushMessages(value)}
               disabled={!Device.isDevice || pushLoading}
-              trackColor={{ false: colors.surface.elevated, true: colors.primary.default }}
+              trackColor={switchTrackColor}
               thumbColor={colors.text.primary}
               ios_backgroundColor={colors.surface.elevated}
               accessibilityLabel={t.profile.push_messages_lbl}
@@ -610,7 +612,7 @@ export function ProfileScreen({ navigation, route }: Props): React.JSX.Element {
               <Switch
                 value={reminders[reminder.key]}
                 onValueChange={(value) => void onToggleReminder(reminder, value)}
-                trackColor={{ false: colors.surface.elevated, true: colors.primary.default }}
+                trackColor={switchTrackColor}
                 thumbColor={colors.text.primary}
                 ios_backgroundColor={colors.surface.elevated}
                 accessibilityLabel={reminder.label}

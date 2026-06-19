@@ -19,7 +19,7 @@ export function BarcodeScannerScreen({ navigation, route }: Props): React.JSX.El
   const styles = useThemedStyles(createStyles);
 
   const insets = useSafeAreaInsets();
-  const { mealType } = route.params;
+  const { mealType, purpose = 'add' } = route.params;
   const [permission, requestPermission] = useCameraPermissions();
   const scannedRef = useRef(false);
 
@@ -27,7 +27,11 @@ export function BarcodeScannerScreen({ navigation, route }: Props): React.JSX.El
     if (scannedRef.current || !result.data) return;
     scannedRef.current = true;
     hapticSuccess();
-    navigation.replace('FoodDetail', { mealType, barcode: result.data });
+    navigation.replace('FoodDetail', {
+      mealType,
+      barcode: result.data,
+      ...(purpose === 'create' ? { entryMode: 'create' as const } : {}),
+    });
   };
 
   return (

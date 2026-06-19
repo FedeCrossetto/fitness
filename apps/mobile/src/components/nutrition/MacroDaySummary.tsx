@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, spacing, useThemedStyles, useTheme } from '../../theme';
 import { useTranslation } from '../../stores/i18nStore';
@@ -13,14 +13,12 @@ interface MacroDaySummaryProps {
   totals: MacroTotals;
   kcalGoal: number;
   macroGoals: { protein: number; carbs: number; fat: number };
-  onCheckCalories?: () => void;
 }
 
 export function MacroDaySummary({
   totals,
   kcalGoal,
   macroGoals,
-  onCheckCalories,
 }: MacroDaySummaryProps): React.JSX.Element {
   const { colors, isDark } = useTheme();
   const styles = useThemedStyles(createStyles);
@@ -76,20 +74,6 @@ export function MacroDaySummary({
           })}
         </View>
       </View>
-
-      {onCheckCalories ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t.nutrition.check_calories}
-          onPress={onCheckCalories}
-          style={({ pressed }) => [styles.searchBar, pressed && styles.searchPressed]}
-        >
-          <AppText variant="body13" color={colors.text.tertiary}>
-            {t.nutrition.check_calories}
-          </AppText>
-          <Ionicons name="scan-outline" size={20} color={colors.text.secondary} />
-        </Pressable>
-      ) : null}
     </View>
   );
 }
@@ -105,7 +89,8 @@ const createStyles = (colors: Colors) =>
     row: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: spacing.lg,
+      justifyContent: 'space-between',
+      width: '100%',
     },
     dayPill: {
       paddingHorizontal: spacing.sm,
@@ -125,29 +110,20 @@ const createStyles = (colors: Colors) =>
     },
     macrosCol: {
       flex: 1,
-      gap: 10,
+      marginLeft: spacing.xxl,
+      paddingLeft: spacing.xl,
+      paddingRight: spacing.xxs,
+      gap: 12,
       justifyContent: 'center',
+      alignItems: 'flex-end',
     },
     macroItem: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 8,
+      gap: 12,
     },
     macroText: {
-      flex: 1,
       gap: 2,
+      minWidth: 88,
     },
-    searchBar: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      height: 44,
-      paddingHorizontal: spacing.md,
-      borderRadius: 10,
-      backgroundColor: colors.background,
-      borderWidth: 1,
-      borderColor: colors.border.subtle,
-      borderStyle: 'dashed',
-    },
-    searchPressed: { opacity: 0.75 },
   });

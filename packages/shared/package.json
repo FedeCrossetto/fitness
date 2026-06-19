@@ -8,7 +8,11 @@
   "exports": {
     ".": "./src/index.ts",
     "./types/database": "./src/types/database.ts",
-    "./supabase/client": "./src/supabase/client.ts"
+    "./supabase/client": "./src/supabase/client.ts",
+    "./nutrition/foodIconAssets": {
+      "react-native": "./src/nutrition/foodIconAssets.native.ts",
+      "default": "./src/nutrition/foodIconAssets.web.ts"
+    }
   },
   "peerDependencies": {
     "@supabase/supabase-js": "^2.108.1"

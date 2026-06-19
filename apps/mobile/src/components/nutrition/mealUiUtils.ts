@@ -1,5 +1,6 @@
+import { formatMacroDisplay, formatServingLabel } from '@reset-fitness/shared';
 import type { MacroTotals } from '../../stores/nutritionStore';
-import type { MealLogRow } from '../../types/database';
+import type { MealLogRow, ServingUnit } from '../../types/database';
 
 export function computeSectionTotals(meals: MealLogRow[]): MacroTotals {
   return meals.reduce<MacroTotals>(
@@ -16,11 +17,13 @@ export function computeSectionTotals(meals: MealLogRow[]): MacroTotals {
   );
 }
 
-export function formatPortionLabel(grams: number | null): string {
-  if (grams == null || grams <= 0) return '—';
-  return `${Math.round(grams)} g`;
+export function formatPortionLabel(
+  amount: number | null,
+  unit?: ServingUnit | null,
+): string {
+  return formatServingLabel(amount, unit ?? 'g');
 }
 
 export function formatMacroSummaryLine(totals: MacroTotals): string {
-  return `${Math.round(totals.kcal)} kcal • ${Math.round(totals.protein)} P | ${Math.round(totals.carbs)} C | ${Math.round(totals.fat)} G`;
+  return `${Math.round(totals.kcal)} kcal • ${formatMacroDisplay(totals.protein)} P | ${formatMacroDisplay(totals.carbs)} C | ${formatMacroDisplay(totals.fat)} G`;
 }

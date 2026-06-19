@@ -3,6 +3,8 @@
  * Datos bajo licencia ODbL — la UI que muestre estos datos debe atribuir "Open Food Facts".
  */
 
+import { macrosForServing } from '@reset-fitness/shared';
+
 export interface OffProduct {
   code: string;
   productName: string;
@@ -65,17 +67,10 @@ export async function fetchProductByBarcode(barcode: string): Promise<OffProduct
   };
 }
 
-/** Recalcula macros totales para una porción dada (los valores base son por 100 g). */
+/** Recalcula macros totales para una porción dada (valores base por 100 g). */
 export function macrosForPortion(
   per100: { kcal: number | null; protein: number | null; carbs: number | null; fat: number | null },
-  portionGrams: number
+  portionGrams: number,
 ): { kcal: number; protein: number; carbs: number; fat: number } {
-  const factor = portionGrams / 100;
-  const scale = (v: number | null) => (v === null ? 0 : Math.round(v * factor * 10) / 10);
-  return {
-    kcal: Math.round((per100.kcal ?? 0) * factor),
-    protein: scale(per100.protein),
-    carbs: scale(per100.carbs),
-    fat: scale(per100.fat),
-  };
+  return macrosForServing(per100, portionGrams, 'g');
 }

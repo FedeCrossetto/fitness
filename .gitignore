@@ -34,6 +34,12 @@ yarn-error.*
 .env
 .env*.local
 
+# seed script output
+apps/mobile/scripts/food-icons-seed.generated.sql
+
+# Supabase CLI local cache
+supabase/.temp/
+
 # typescript
 *.tsbuildinfo
 

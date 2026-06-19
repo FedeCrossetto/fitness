@@ -2,9 +2,10 @@ import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { nutritionPalette } from './nutritionTheme';
 
-const BLOCKS = 10;
-const BLOCK_H = 3;
-const BLOCK_W = 4;
+/** Bloques apilados tipo Jenga: pocos segmentos, más anchos y rectangulares. */
+const BLOCKS = 8;
+const BLOCK_H = 6;
+const BLOCK_W = 12;
 const BLOCK_GAP = 3;
 
 interface MacroSegmentBarProps {
@@ -35,7 +36,7 @@ export function MacroSegmentBar({
               styles.block,
               {
                 backgroundColor: filled ? color : trackColor,
-                marginBottom: i < BLOCKS - 1 ? BLOCK_GAP : 0,
+                opacity: filled ? 1 : 0.85,
               },
             ]}
           />
@@ -47,12 +48,13 @@ export function MacroSegmentBar({
 
 const styles = StyleSheet.create({
   wrap: {
-    flexDirection: 'column-reverse',
-    justifyContent: 'flex-start',
+    flexDirection: 'column',
+    justifyContent: 'flex-end',
+    gap: BLOCK_GAP,
   },
   block: {
     width: BLOCK_W,
     height: BLOCK_H,
-    borderRadius: 1.5,
+    borderRadius: 1,
   },
 });

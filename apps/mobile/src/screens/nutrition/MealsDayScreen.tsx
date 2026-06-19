@@ -4,13 +4,19 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { layout, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
-import { formatLongDate, todayISO } from '../../lib/dates';
+import { formatLongDate } from '../../lib/dates';
 import { AppText, CardSkeleton, ErrorState } from '../../components/common';
+import { FoodSearchBar } from '../../components/nutrition/FoodSearchBar';
+import { FoodSearchSheet } from '../../components/nutrition/FoodSearchSheet';
 import { MacroDaySummary } from '../../components/nutrition/MacroDaySummary';
+import { MealSectionActionsSheet } from '../../components/nutrition/MealSectionActionsSheet';
 import { MealSectionCard } from '../../components/nutrition/MealSectionCard';
+import { defaultMealTypeForNow, mealLabelKey } from '../../lib/meals';
+import { hapticSuccess } from '../../lib/haptics';
 import { useAuthStore } from '../../stores/authStore';
 import { useTranslation } from '../../stores/i18nStore';
 import { computeMacroTotals, useNutritionStore } from '../../stores/nutritionStore';
+import { useUiStore } from '../../stores/uiStore';
 import type { MealLogRow, MealType } from '../../types/database';
 import type { NutritionStackParamList } from '../../types/navigation';
 import { useTabBarScrollPadding } from '../../hooks/useTabBarScrollPadding';
@@ -27,7 +33,7 @@ const MEAL_SECTIONS: { type: MealType; labelKey: 'breakfast' | 'lunch' | 'snack'
 
 export function MealsDayScreen({ navigation }: Props): React.JSX.Element {
   const { colors } = useTheme();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const styles = useThemedStyles(createStyles);
 
   const insets = useSafeAreaInsets();
@@ -44,15 +50,26 @@ export function MealsDayScreen({ navigation }: Props): React.JSX.Element {
   const loadDay = useNutritionStore((s) => s.loadDay);
   const loadMyFoods = useNutritionStore((s) => s.loadMyFoods);
   const toggleIncluded = useNutritionStore((s) => s.toggleIncluded);
-  const totals = useMemo(() => computeMacroTotals(meals), [meals]);
+  const deleteMeal = useNutritionStore((s) => s.deleteMeal);
+  const duplicateMeals = useNutritionStore((s) => s.duplicateMeals);
+
+  const activeDate = useUiStore((s) => s.activeDate);
+  const dayMeals = useMemo(
+    () => meals.filter((m) => m.date === activeDate),
+    [meals, activeDate],
+  );
+  const totals = useMemo(() => computeMacroTotals(dayMeals), [dayMeals]);
 
   const [refreshing, setRefreshing] = useState(false);
+  const [searchSheetVisible, setSearchSheetVisible] = useState(false);
+  const [searchMealType, setSearchMealType] = useState<MealType>(defaultMealTypeForNow());
+  const [actionsMealType, setActionsMealType] = useState<MealType | null>(null);
 
   const load = useCallback(() => {
     if (!userId) return;
-    void loadDay(userId);
+    void loadDay(userId, activeDate);
     void loadMyFoods(userId);
-  }, [userId, loadDay, loadMyFoods]);
+  }, [userId, activeDate, loadDay, loadMyFoods]);
 
   useFocusEffect(
     useCallback(() => {
@@ -63,20 +80,52 @@ export function MealsDayScreen({ navigation }: Props): React.JSX.Element {
   const onRefresh = useCallback(async () => {
     if (!userId) return;
     setRefreshing(true);
-    await Promise.all([loadDay(userId), loadMyFoods(userId)]);
+    await Promise.all([loadDay(userId, activeDate), loadMyFoods(userId)]);
     setRefreshing(false);
-  }, [userId, loadDay, loadMyFoods]);
+  }, [userId, activeDate, loadDay, loadMyFoods]);
 
-  const hasOffData = meals.some((m) => m.openfoodfacts_code !== null);
-  const showSkeletons = loading && meals.length === 0;
-  const showError = !loading && error !== null && meals.length === 0;
+  const hasOffData = dayMeals.some((m) => m.openfoodfacts_code !== null);
+  const showSkeletons = loading && dayMeals.length === 0;
+  const showError = !loading && error !== null && dayMeals.length === 0;
 
   const openSearch = (mealType: MealType) => {
-    navigation.navigate('FoodDetail', { mealType, entryMode: 'pick' });
+    setSearchMealType(mealType);
+    setSearchSheetVisible(true);
   };
 
   const editMeal = (meal: MealLogRow) => {
     navigation.navigate('FoodDetail', { mealType: meal.meal_type, mealLogId: meal.id });
+  };
+
+  const removeMeal = (mealId: string) => {
+    void (async () => {
+      const ok = await deleteMeal(mealId);
+      if (ok) {
+        useUiStore.getState().showToast('success', 'Comida eliminada');
+      } else {
+        useUiStore.getState().showToast('error', 'No pudimos eliminar la comida.');
+      }
+    })();
+  };
+
+  const actionsSection = MEAL_SECTIONS.find((s) => s.type === actionsMealType);
+  const actionsMeals = actionsMealType ? dayMeals.filter((m) => m.meal_type === actionsMealType) : [];
+
+  const duplicateSectionMeals = (targetMealType: MealType) => {
+    if (!userId || !actionsMealType) return;
+    void (async () => {
+      const copied = await duplicateMeals(userId, actionsMealType, targetMealType);
+      setActionsMealType(null);
+      if (copied > 0) {
+        hapticSuccess();
+        useUiStore.getState().showToast(
+          'success',
+          i18n(t.nutrition.duplicate_meal_success, { meal: t.nutrition[mealLabelKey(targetMealType)] }),
+        );
+      } else {
+        useUiStore.getState().showToast('error', t.nutrition.duplicate_meal_empty);
+      }
+    })();
   };
 
   return (
@@ -94,7 +143,7 @@ export function MealsDayScreen({ navigation }: Props): React.JSX.Element {
       >
         <View style={styles.header}>
           <AppText variant="body14" color={colors.text.tertiary}>
-            {formatLongDate(todayISO())}
+            {formatLongDate(activeDate)}
           </AppText>
           <AppText variant="h1" color={colors.text.primary}>
             {t.nutrition.title}
@@ -112,17 +161,12 @@ export function MealsDayScreen({ navigation }: Props): React.JSX.Element {
         ) : (
           <>
             <View style={styles.summaryBlock}>
-              <MacroDaySummary
-                totals={totals}
-                kcalGoal={kcalGoal}
-                macroGoals={macroGoals}
-                onCheckCalories={() => openSearch('DES')}
-              />
+              <MacroDaySummary totals={totals} kcalGoal={kcalGoal} macroGoals={macroGoals} />
             </View>
 
             <View style={styles.mealsList}>
               {MEAL_SECTIONS.map((section) => {
-                const sectionMeals = meals.filter((m) => m.meal_type === section.type);
+                const sectionMeals = dayMeals.filter((m) => m.meal_type === section.type);
                 return (
                   <MealSectionCard
                     key={section.type}
@@ -131,11 +175,20 @@ export function MealsDayScreen({ navigation }: Props): React.JSX.Element {
                     meals={sectionMeals}
                     myFoods={myFoods}
                     onAdd={() => openSearch(section.type)}
+                    onMenuPress={() => setActionsMealType(section.type)}
                     onEditMeal={editMeal}
                     onToggleIncluded={(id) => void toggleIncluded(id)}
+                    onDeleteMeal={removeMeal}
                   />
                 );
               })}
+            </View>
+
+            <View style={styles.searchBlock}>
+              <FoodSearchBar
+                placeholder={t.nutrition.search_foods}
+                onPress={() => openSearch(defaultMealTypeForNow())}
+              />
             </View>
 
             {hasOffData ? (
@@ -146,6 +199,24 @@ export function MealsDayScreen({ navigation }: Props): React.JSX.Element {
           </>
         )}
       </ScrollView>
+
+      <FoodSearchSheet
+        visible={searchSheetVisible}
+        mealType={searchMealType}
+        onClose={() => setSearchSheetVisible(false)}
+        navigation={navigation}
+      />
+
+      {actionsSection ? (
+        <MealSectionActionsSheet
+          visible={actionsMealType !== null}
+          sourceMealType={actionsSection.type}
+          sourceTitle={t.nutrition[actionsSection.labelKey]}
+          itemCount={actionsMeals.length}
+          onClose={() => setActionsMealType(null)}
+          onDuplicate={duplicateSectionMeals}
+        />
+      ) : null}
     </View>
   );
 }
@@ -161,6 +232,9 @@ const createStyles = (colors: Colors) =>
     },
     mealsList: {
       gap: spacing.sm,
+    },
+    searchBlock: {
+      marginTop: spacing.md,
     },
     attribution: { marginTop: spacing.xl },
   });

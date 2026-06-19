@@ -6,6 +6,7 @@ import { AppText } from '../common/AppText';
 import { MealFoodRow } from './MealFoodRow';
 import { computeSectionTotals, formatMacroSummaryLine } from './mealUiUtils';
 import { nutritionCardStyle } from './nutritionTheme';
+import { useTranslation } from '../../stores/i18nStore';
 import type { FoodRow, MealLogRow, MealType } from '../../types/database';
 
 interface MealSectionCardProps {
@@ -14,23 +15,29 @@ interface MealSectionCardProps {
   meals: MealLogRow[];
   myFoods: FoodRow[];
   onAdd: () => void;
+  onMenuPress: () => void;
   onEditMeal: (meal: MealLogRow) => void;
   onToggleIncluded: (mealId: string) => void;
+  onDeleteMeal: (mealId: string) => void;
 }
 
 export function MealSectionCard({
   title,
-  meals,
-  myFoods,
   onAdd,
+  onMenuPress,
   onEditMeal,
   onToggleIncluded,
+  onDeleteMeal,
+  meals,
+  myFoods,
 }: MealSectionCardProps): React.JSX.Element {
   const { colors, isDark } = useTheme();
   const styles = useThemedStyles(createStyles);
+  const { t } = useTranslation();
 
   const totals = useMemo(() => computeSectionTotals(meals), [meals]);
   const brandByFoodId = useMemo(() => new Map(myFoods.map((f) => [f.id, f.brand])), [myFoods]);
+  const iconKeyByFoodId = useMemo(() => new Map(myFoods.map((f) => [f.id, f.icon_key])), [myFoods]);
 
   return (
     <View style={[styles.card, nutritionCardStyle(colors, isDark)]}>
@@ -38,7 +45,15 @@ export function MealSectionCard({
         <AppText variant="body16SemiBold" color={colors.text.primary}>
           {title}
         </AppText>
-        <Ionicons name="nutrition-outline" size={16} color={colors.text.disabled} />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t.nutrition.meal_actions_subtitle}
+          onPress={onMenuPress}
+          hitSlop={8}
+          style={({ pressed }) => [styles.menuBtn, pressed && styles.menuBtnPressed]}
+        >
+          <Ionicons name="ellipsis-horizontal" size={18} color={colors.text.secondary} />
+        </Pressable>
       </View>
 
       <View style={styles.summaryRow}>
@@ -56,8 +71,10 @@ export function MealSectionCard({
               <MealFoodRow
                 meal={meal}
                 brand={meal.food_id ? brandByFoodId.get(meal.food_id) : null}
+                iconKey={meal.icon_key ?? (meal.food_id ? iconKeyByFoodId.get(meal.food_id) : null)}
                 onPress={() => onEditMeal(meal)}
                 onToggleIncluded={() => onToggleIncluded(meal.id)}
+                onDelete={() => onDeleteMeal(meal.id)}
               />
             </View>
           ))}
@@ -90,6 +107,15 @@ const createStyles = (colors: Colors) =>
       alignItems: 'center',
       justifyContent: 'space-between',
     },
+    menuBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: radius.pill,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.surface.elevated,
+    },
+    menuBtnPressed: { opacity: 0.75 },
     summaryRow: {
       flexDirection: 'row',
       alignItems: 'center',

@@ -9,7 +9,7 @@ import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { layout, radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
-import { todayISO, formatShortDate } from '../../lib/dates';
+import { todayISO, formatShortDate, formatDayMonth } from '../../lib/dates';
 import { supabase } from '../../lib/supabase';
 import { useTranslation } from '../../stores/i18nStore';
 import { useClientConfig } from '../../config/useClientConfig';
@@ -27,7 +27,7 @@ import { HomeMacroProgressCard } from '../../components/home/HomeMacroProgressCa
 import { ActiveSessionBanner } from '../../components/training/ActiveSessionBanner';
 import { useAuthStore } from '../../stores/authStore';
 import { useGoalsStore } from '../../stores/goalsStore';
-import { useNutritionStore } from '../../stores/nutritionStore';
+import { computeMacroTotals, useNutritionStore } from '../../stores/nutritionStore';
 import { useProgressStore } from '../../stores/progressStore';
 import { useTrainingStore } from '../../stores/trainingStore';
 import { computeStreak } from '../../services/streaks';
@@ -69,6 +69,7 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
   const syncAutoGoal = useGoalsStore((s) => s.syncAutoGoal);
 
   const meals = useNutritionStore((s) => s.meals);
+  const nutritionLoading = useNutritionStore((s) => s.loading);
   const loadNutritionDay = useNutritionStore((s) => s.loadDay);
   const kcalGoal = useNutritionStore((s) => s.kcalGoal);
   const macroGoals = useNutritionStore((s) => s.macroGoals);
@@ -93,28 +94,26 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
   const [streak, setStreak] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
 
-  const totals = useMemo(
-    () =>
-      meals.reduce(
-        (acc, m) => {
-          if (!m.is_included) return acc;
-          return {
-            kcal: acc.kcal + (m.energy_kcal ?? 0),
-            protein: acc.protein + (m.protein_g ?? 0),
-            carbs: acc.carbs + (m.carbs_g ?? 0),
-            fat: acc.fat + (m.fat_g ?? 0),
-          };
-        },
-        { kcal: 0, protein: 0, carbs: 0, fat: 0 }
-      ),
-    [meals]
+  const activeDate = useUiStore((s) => s.activeDate);
+  const today = todayISO();
+  const isToday = activeDate === today;
+
+  const dayMeals = useMemo(
+    () => meals.filter((m) => m.date === activeDate),
+    [meals, activeDate],
   );
+
+  const totals = useMemo(() => computeMacroTotals(dayMeals), [dayMeals]);
+
+  const macroCardTitle = isToday
+    ? t.home.macro_progress_title
+    : i18n(t.home.macro_progress_day, { date: formatDayMonth(activeDate) });
 
   const loadAll = useCallback(async () => {
     if (!userId) return;
     await Promise.all([
       loadGoalsToday(userId),
-      loadNutritionDay(userId),
+      loadNutritionDay(userId, activeDate),
       loadHydration(userId),
       loadProgram(),
       loadRecentLogs(userId),
@@ -131,7 +130,12 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
         void syncAutoGoal(userId, 'steps', todaySteps);
       }
     }
-  }, [userId, loadGoalsToday, loadNutritionDay, loadHydration, loadProgram, loadRecentLogs, setSteps, syncAutoGoal]);
+  }, [userId, activeDate, loadGoalsToday, loadNutritionDay, loadHydration, loadProgram, loadRecentLogs, setSteps, syncAutoGoal]);
+
+  useEffect(() => {
+    if (!userId) return;
+    void loadNutritionDay(userId, activeDate);
+  }, [userId, activeDate, loadNutritionDay]);
 
   useEffect(() => {
     if (userId) void syncPushRegistration(userId);
@@ -158,10 +162,6 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
 
   const completedGoals = goals.filter((g) => g.completed).length;
   const goalProgress = goals.length > 0 ? completedGoals / goals.length : 0;
-
-  const activeDate = useUiStore((s) => s.activeDate);
-  const today = todayISO();
-  const isToday = activeDate === today;
 
   // Progress metrics derivados de las mediciones
   const weightHistory = useMemo(
@@ -385,13 +385,17 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
 
         {goalsLoading && goals.length === 0 ? <CardSkeleton /> : null}
 
-        {/* Macros — arco de progreso */}
-        <HomeMacroProgressCard
-          totals={totals}
-          kcalGoal={kcalGoal}
-          macroGoals={{ protein: macroGoals.protein, carbs: macroGoals.carbs }}
-          onPress={() => navigation.getParent()?.navigate('NutritionTab' as never)}
-        />
+        {nutritionLoading && dayMeals.length === 0 ? (
+          <CardSkeleton />
+        ) : (
+          <HomeMacroProgressCard
+            totals={totals}
+            kcalGoal={kcalGoal}
+            macroGoals={{ protein: macroGoals.protein, carbs: macroGoals.carbs }}
+            title={macroCardTitle}
+            onPress={() => navigation.getParent()?.navigate('NutritionTab' as never)}
+          />
+        )}
 
         {/* Mi Progreso */}
         <View style={styles.sectionHeaderRow}>
@@ -411,6 +415,7 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
         </View>
 
         <View style={styles.progressGrid}>
+          <View style={styles.progressGridRow}>
           {/* Peso corporal */}
           <Pressable
             style={styles.progressCard}
@@ -421,7 +426,9 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
               <AppText variant="caps11" color={colors.text.tertiary} style={styles.progressCardLabelInline}>
                 {t.home.weight}
               </AppText>
-              <View style={styles.progressCardIcon} />
+              <View style={styles.progressCardIcon}>
+                <Ionicons name="scale-outline" size={14} color={colors.primary.default} />
+              </View>
             </View>
             <View style={styles.progressCardMeta}>
               {latestWeight ? (
@@ -446,9 +453,7 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
                 </AppText>
               )}
             </View>
-            {latestWeight ? (
-              <View style={[styles.progressBar, { backgroundColor: colors.primary.default }]} />
-            ) : null}
+            <ProgressBar progress={latestWeight ? 1 : 0} style={styles.progressHydrationBar} />
           </Pressable>
 
           {/* Pasos */}
@@ -496,7 +501,9 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
               style={styles.progressHydrationBar}
             />
           </Pressable>
+          </View>
 
+          <View style={styles.progressGridRow}>
           {/* Hidratación */}
           <Pressable
             style={styles.progressCard}
@@ -565,10 +572,13 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
                 </AppText>
               )}
             </View>
-            {!trainedToday && nextWorkoutName ? (
-              <View style={[styles.progressBar, { backgroundColor: colors.pillars.training }]} />
-            ) : null}
+            <ProgressBar
+              progress={trainedToday ? 1 : nextWorkoutName ? 0.35 : 0}
+              color={colors.pillars.training}
+              style={styles.progressHydrationBar}
+            />
           </Pressable>
+          </View>
         </View>
 
         {/* Fotos de progreso */}
@@ -852,21 +862,21 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     gap: spacing.xxs,
   },
   progressGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: spacing.sm,
     marginBottom: spacing.sm,
   },
+  progressGridRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
   progressCard: {
-    width: '48%',
-    flexGrow: 1,
-    minHeight: 118,
+    flex: 1,
+    height: 124,
     backgroundColor: colors.surface.base,
     borderWidth: 1,
     borderColor: colors.border.subtle,
     borderRadius: radius.lg,
     padding: spacing.md,
-    overflow: 'hidden',
   },
   progressCardHead: {
     flexDirection: 'row',
@@ -907,15 +917,6 @@ const createStyles = (colors: Colors) => StyleSheet.create({
   },
   progressEmpty: {
     letterSpacing: 2,
-  },
-  progressBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 3,
-    borderBottomLeftRadius: radius.lg,
-    borderBottomRightRadius: radius.lg,
   },
 
   // Photos section

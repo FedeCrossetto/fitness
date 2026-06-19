@@ -8,7 +8,8 @@
     "ignoreDeprecations": "5.0",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@reset-fitness/shared/nutrition/foodIconAssets": ["../../packages/shared/src/nutrition/foodIconAssets.native.ts"]
     }
   },
   "include": ["**/*.ts", "**/*.tsx"],

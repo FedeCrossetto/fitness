@@ -5,6 +5,13 @@ import { Colors, radius, spacing, useTheme, useThemedStyles } from '../../theme'
 import { hapticSelect } from '../../lib/haptics';
 import { AppText } from './AppText';
 
+/** Spring corto, sin overshoot — aplica a todos los SegmentedTabs de la app. */
+const TAB_HIGHLIGHT_SPRING = {
+  damping: 26,
+  stiffness: 240,
+  overshootClamping: true,
+} as const;
+
 interface SegmentedTabsProps {
   tabs: string[];
   activeIndex: number;
@@ -23,7 +30,7 @@ export function SegmentedTabs({ tabs, activeIndex, onChange }: SegmentedTabsProp
     setWidth(event.nativeEvent.layout.width - spacing.xxs * 2);
   };
 
-  offset.value = withSpring(activeIndex * tabWidth, { damping: 18, stiffness: 180 });
+  offset.value = withSpring(activeIndex * tabWidth, TAB_HIGHLIGHT_SPRING);
 
   const highlightStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: offset.value }],

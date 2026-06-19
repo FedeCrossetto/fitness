@@ -16,6 +16,7 @@ import { DownloadPage } from '@/pages/Download';
 
 // Páginas internas: lazy para no inflar el bundle inicial.
 const DashboardPage        = lazy(() => import('@/pages/Dashboard').then((m) => ({ default: m.DashboardPage })));
+const FoodsPage            = lazy(() => import('@/pages/Foods').then((m) => ({ default: m.FoodsPage })));
 const BrandingPage         = lazy(() => import('@/pages/Branding').then((m) => ({ default: m.BrandingPage })));
 const StudentsPage         = lazy(() => import('@/pages/Students').then((m) => ({ default: m.StudentsPage })));
 const StudentDetailPage    = lazy(() => import('@/pages/StudentDetail').then((m) => ({ default: m.StudentDetailPage })));
@@ -83,6 +84,7 @@ function App(): React.JSX.Element {
             <Route path="/students/:id" element={<StudentDetailPage />} />
             <Route path="/payments" element={<PaymentsPage />} />
             <Route path="/routines" element={<RoutinesPage />} />
+            <Route path="/foods" element={<FoodsPage />} />
             <Route path="/branding" element={<BrandingPage />} />
             <Route path="/scheduling" element={<SchedulingPage />} />
             <Route path="/announcements" element={<AnnouncementsPage />} />

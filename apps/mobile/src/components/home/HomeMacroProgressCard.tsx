@@ -5,6 +5,7 @@ import Svg, { Path } from 'react-native-svg';
 import { Colors, radius, spacing, useThemedStyles, useTheme } from '../../theme';
 import { useTranslation } from '../../stores/i18nStore';
 import { AppText } from '../common/AppText';
+import { formatMacroDisplay } from '@reset-fitness/shared';
 import { NUTRITION_MACRO_COLORS } from '../nutrition/nutritionTheme';
 
 const CALORIES_ICON_COLOR = '#F97316';
@@ -21,6 +22,7 @@ interface HomeMacroProgressCardProps {
   totals: MacroTotals;
   kcalGoal: number;
   macroGoals: { protein: number; carbs: number };
+  title?: string;
   onPress?: () => void;
 }
 
@@ -51,6 +53,7 @@ export function HomeMacroProgressCard({
   totals,
   kcalGoal,
   macroGoals,
+  title,
   onPress,
 }: HomeMacroProgressCardProps): React.JSX.Element {
   const { colors, isDark } = useTheme();
@@ -92,7 +95,7 @@ export function HomeMacroProgressCard({
       icon: 'egg-outline',
       color: NUTRITION_MACRO_COLORS.protein,
       label: t.home.proteins,
-      consumed: `${Math.round(totals.protein)}g`,
+      consumed: `${formatMacroDisplay(totals.protein)}g`,
       goal: `${macroGoals.protein}g`,
     },
     {
@@ -100,7 +103,7 @@ export function HomeMacroProgressCard({
       icon: 'bread-slice-outline',
       color: NUTRITION_MACRO_COLORS.carbs,
       label: t.home.carbs,
-      consumed: `${Math.round(totals.carbs)}g`,
+      consumed: `${formatMacroDisplay(totals.carbs)}g`,
       goal: `${macroGoals.carbs}g`,
     },
   ];
@@ -113,7 +116,7 @@ export function HomeMacroProgressCard({
       style={({ pressed }) => [styles.card, pressed && styles.pressed]}
     >
       <AppText variant="body14SemiBold" color={colors.text.primary}>
-        {t.home.macro_progress_title}
+        {title ?? t.home.macro_progress_title}
       </AppText>
 
       <View style={styles.gaugeWrap}>

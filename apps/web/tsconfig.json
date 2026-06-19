@@ -19,6 +19,7 @@
     "paths": {
       "@reset-fitness/shared": ["../../packages/shared/src"],
       "@reset-fitness/shared/*": ["../../packages/shared/src/*"],
+      "@reset-fitness/shared/nutrition/foodIconAssets": ["../../packages/shared/src/nutrition/foodIconAssets.web.ts"],
       "@/*": ["./src/*"]
     }
   },

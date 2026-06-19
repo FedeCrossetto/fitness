@@ -37,7 +37,7 @@ export function VoiceLogScreen({ navigation, route }: Props): React.JSX.Element 
   const styles = useThemedStyles(createStyles);
 
   const insets = useSafeAreaInsets();
-  const { mealType } = route.params;
+  const { mealType, purpose = 'add' } = route.params;
 
   const session = useAuthStore((s) => s.session);
   const userId = session?.user.id;
@@ -117,7 +117,25 @@ export function VoiceLogScreen({ navigation, route }: Props): React.JSX.Element 
 
   const detectedKcal = extractKcal(transcript);
 
+  const handleContinueCreate = () => {
+    const title = transcript.trim().slice(0, 80);
+    if (!title) {
+      useUiStore.getState().showToast('error', 'Decí o escribí el nombre del alimento.');
+      return;
+    }
+    navigation.replace('FoodDetail', {
+      mealType,
+      entryMode: 'create',
+      initialName: title,
+      voiceTranscript: transcript.trim(),
+    });
+  };
+
   const handleSave = async (editAfter: boolean) => {
+    if (purpose === 'create') {
+      handleContinueCreate();
+      return;
+    }
     if (!userId) return;
     const title = transcript.trim().slice(0, 80) || 'Comida por voz';
     setSaving(true);
@@ -241,20 +259,22 @@ export function VoiceLogScreen({ navigation, route }: Props): React.JSX.Element 
                     : 'No detectamos calorías; se registrará con 0 kcal (podés editarlo después).'}
                 </AppText>
                 <Button
-                  label="Continuar"
+                  label={purpose === 'create' ? 'Continuar' : 'Continuar'}
                   onPress={() => void handleSave(false)}
                   loading={saving}
                   fullWidth
                   style={styles.cta}
                 />
-                <Button
-                  label="Editar detalles"
-                  variant="secondary"
-                  onPress={() => void handleSave(true)}
-                  disabled={saving}
-                  fullWidth
-                  style={styles.secondaryCta}
-                />
+                {purpose === 'add' ? (
+                  <Button
+                    label="Editar detalles"
+                    variant="secondary"
+                    onPress={() => void handleSave(true)}
+                    disabled={saving}
+                    fullWidth
+                    style={styles.secondaryCta}
+                  />
+                ) : null}
                 <Button
                   label="Volver a grabar"
                   variant="ghost"

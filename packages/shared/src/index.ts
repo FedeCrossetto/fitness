@@ -2,3 +2,6 @@ export * from './types/database';
 export * from './supabase/client';
 export * from './i18n/index';
 export * from './invite';
+export * from './nutrition/foodIcons';
+export * from './nutrition/servingUnits';
+export * from './nutrition/macroServing';
