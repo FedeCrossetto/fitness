@@ -9,7 +9,7 @@ export type UserRole = 'client' | 'trainer' | 'admin';
 export type GoalType = 'hydration' | 'steps' | 'training' | 'meals' | 'custom';
 export type GoalUnit = 'ml' | 'steps' | 'minutes' | 'meals' | 'boolean';
 export type WorkoutType = 'fuerza' | 'cardio' | 'descanso' | 'movilidad' | 'tecnica';
-export type MealType = 'DES' | 'ALM' | 'MER' | 'CEN';
+export type MealType = 'DES' | 'ALM' | 'MER' | 'CEN' | 'COL';
 export type FoodSource = 'manual' | 'voice' | 'barcode' | 'openfoodfacts' | 'import';
 export type MacroSource = 'openfoodfacts' | 'manual' | 'user_food' | 'catalog' | 'voice' | 'barcode';
 export type PhotoPosition = 'frente' | 'perfil' | 'espalda';
@@ -421,6 +421,10 @@ export interface Database {
       link_client_by_invite_code: {
         Args: { p_invite_code: string };
         Returns: undefined;
+      };
+      get_invite_preview: {
+        Args: { p_invite_code: string };
+        Returns: Record<string, unknown>;
       };
     };
     Enums: Record<string, never>;

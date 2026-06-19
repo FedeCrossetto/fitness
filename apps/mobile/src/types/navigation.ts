@@ -34,6 +34,8 @@ export type NutritionStackParamList = {
     foodId?: string;
     barcode?: string;
     mealLogId?: string;
+    /** pick = elegir de mis alimentos; manual = formulario nuevo */
+    entryMode?: 'pick' | 'manual';
   };
   BarcodeScanner: { mealType: MealType };
   VoiceLog: { mealType: MealType };

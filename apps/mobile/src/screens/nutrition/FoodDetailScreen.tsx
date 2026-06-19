@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,14 +12,15 @@ import {
   Chip,
   IconButton,
   Input,
-  SectionHeader,
   SegmentedTabs,
   Skeleton,
 } from '../../components/common';
+import { FoodSearchRow } from '../../components/nutrition/FoodSearchRow';
 import { hapticSuccess } from '../../lib/haptics';
 import { fetchProductByBarcode, macrosForPortion, type OffProduct } from '../../services/openFoodFacts';
 import { useAuthStore } from '../../stores/authStore';
 import { useNutritionStore } from '../../stores/nutritionStore';
+import { useTranslation } from '../../stores/i18nStore';
 import { useUiStore } from '../../stores/uiStore';
 import type { FoodRow, MacroSource, MealType } from '../../types/database';
 import type { NutritionStackParamList } from '../../types/navigation';
@@ -37,13 +38,30 @@ interface Per100 {
 }
 
 type OffStatus = 'idle' | 'loading' | 'error' | 'notfound' | 'done';
+type PickTab = 'all' | 'favorites' | 'created';
+
+function mealLabelKey(type: MealType): 'breakfast' | 'lunch' | 'snack' | 'dinner' | 'intermediate' {
+  switch (type) {
+    case 'DES':
+      return 'breakfast';
+    case 'ALM':
+      return 'lunch';
+    case 'MER':
+      return 'snack';
+    case 'CEN':
+      return 'dinner';
+    default:
+      return 'intermediate';
+  }
+}
 
 export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Element {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
+  const { t, i18n } = useTranslation();
 
   const insets = useSafeAreaInsets();
-  const { mealType, foodId, barcode, mealLogId } = route.params;
+  const { mealType, foodId, barcode, mealLogId, entryMode } = route.params;
 
   const session = useAuthStore((s) => s.session);
   const userId = session?.user.id;
@@ -59,7 +77,8 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
   const deleteMeal = useNutritionStore((s) => s.deleteMeal);
 
   const isEdit = mealLogId !== undefined;
-  const isPicker = !isEdit && barcode === undefined && foodId === undefined;
+  const isPickList = !isEdit && entryMode === 'pick' && foodId === undefined && barcode === undefined;
+  const isManualNew = !isEdit && entryMode === 'manual' && foodId === undefined && barcode === undefined;
 
   // Modo edición: semilla inicial desde el registro existente (sin efecto, sin flash).
   const editMeal = mealLogId ? dayMeals.find((m) => m.id === mealLogId) ?? null : null;
@@ -87,6 +106,7 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
   const [selectedFood, setSelectedFood] = useState<FoodRow | null>(null);
   const [saveToFoods, setSaveToFoods] = useState(false);
   const [search, setSearch] = useState('');
+  const [pickTab, setPickTab] = useState<PickTab>('all');
   const [saving, setSaving] = useState(false);
 
   // Modo barcode: buscar en Open Food Facts
@@ -141,27 +161,11 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
     };
   }, [barcode]);
 
-  // Cargar mis alimentos para el selector
+  // Cargar mis alimentos para el selector o precarga por foodId
   useEffect(() => {
-    if (!userId || !isPicker) return;
+    if (!userId || (!isPickList && foodId === undefined)) return;
     void loadMyFoods(userId);
-  }, [userId, isPicker, loadMyFoods]);
-
-  const applyFood = (food: FoodRow) => {
-    setSelectedFood(food);
-    setName(food.name);
-    if (food.kcal_100g !== null) {
-      setPer100({
-        kcal: food.kcal_100g,
-        protein: food.protein_g_100g,
-        carbs: food.carbs_g_100g,
-        fat: food.fat_g_100g,
-      });
-      setPortion(String(food.default_serving_grams ?? 100));
-    } else {
-      setPer100(null);
-    }
-  };
+  }, [userId, isPickList, foodId, loadMyFoods]);
 
   // Modo foodId: cargar el catálogo y precargar el alimento elegido.
   // applyFood se llama después del await (no es setState síncrono dentro del efecto).
@@ -208,7 +212,196 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
       ? 'user_food'
       : 'manual';
 
-  const filteredFoods = myFoods.filter((f) => f.name.toLowerCase().includes(search.trim().toLowerCase()));
+  const filteredFoods = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    let list = myFoods;
+    if (pickTab === 'favorites') list = list.filter((f) => f.is_favorite);
+    if (pickTab === 'created') list = list.filter((f) => f.source === 'manual' || f.source === 'voice');
+    if (query) list = list.filter((f) => f.name.toLowerCase().includes(query) || (f.brand ?? '').toLowerCase().includes(query));
+    return [...list].sort((a, b) => {
+      if (a.is_favorite !== b.is_favorite) return a.is_favorite ? -1 : 1;
+      return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+    });
+  }, [myFoods, search, pickTab]);
+
+  const recentFoods = useMemo(
+    () => [...myFoods].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()).slice(0, 8),
+    [myFoods],
+  );
+
+  const recentMeals = useMemo(() => {
+    const seen = new Set<string>();
+    return [...dayMeals]
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .filter((m) => {
+        const key = m.food_id ?? m.title ?? m.id;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, 5);
+  }, [dayMeals]);
+
+  const pickFood = (food: FoodRow) => {
+    navigation.replace('FoodDetail', { mealType, foodId: food.id });
+  };
+
+  const goToManual = () => {
+    navigation.replace('FoodDetail', { mealType, entryMode: 'manual' });
+  };
+
+  const goToPick = () => {
+    navigation.replace('FoodDetail', { mealType, entryMode: 'pick' });
+  };
+
+  if (isPickList) {
+    const pickTabs = [t.nutrition.tab_all, t.nutrition.tab_favorites, t.nutrition.tab_created];
+    const pickTabIndex = pickTab === 'all' ? 0 : pickTab === 'favorites' ? 1 : 2;
+    const mealLabel = t.nutrition[mealLabelKey(mealType)];
+
+    return (
+      <View style={styles.flex}>
+        <View style={[styles.pickTop, { paddingTop: insets.top + spacing.sm }]}>
+          <View style={styles.pickSearchRow}>
+            <Input
+              icon="search-outline"
+              value={search}
+              onChangeText={setSearch}
+              placeholder={t.nutrition.search_foods}
+              containerStyle={styles.pickSearchInput}
+            />
+            <IconButton icon="close" onPress={() => navigation.goBack()} accessibilityLabel="Cerrar" />
+          </View>
+          <SegmentedTabs
+            tabs={pickTabs}
+            activeIndex={pickTabIndex}
+            onChange={(idx) => setPickTab(idx === 0 ? 'all' : idx === 1 ? 'favorites' : 'created')}
+          />
+          <AppText variant="body12" color={colors.text.tertiary} style={styles.pickMealHint}>
+            {i18n(t.nutrition.add_to_meal, { meal: mealLabel })}
+          </AppText>
+        </View>
+
+        <ScrollView
+          contentContainerStyle={{
+            paddingHorizontal: layout.screenPadding,
+            paddingBottom: insets.bottom + 88,
+          }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {foodsLoading && myFoods.length === 0 ? (
+            <CardSkeleton />
+          ) : (
+            <>
+              {!search.trim() && pickTab === 'all' ? (
+                <>
+                  <AppText variant="caps11" color={colors.text.tertiary} style={styles.pickSectionLabel}>
+                    {t.nutrition.recent_foods}
+                  </AppText>
+                  {recentFoods.length === 0 ? (
+                    <AppText variant="body13" color={colors.text.disabled} style={styles.pickSectionEmpty}>
+                      {t.nutrition.pick_empty}
+                    </AppText>
+                  ) : (
+                    recentFoods.map((food) => (
+                      <FoodSearchRow
+                        key={`recent-${food.id}`}
+                        food={food}
+                        onPress={() => pickFood(food)}
+                        onToggleFavorite={() => void toggleFavoriteFood(food.id)}
+                      />
+                    ))
+                  )}
+
+                  <AppText variant="caps11" color={colors.text.tertiary} style={styles.pickSectionLabelSpaced}>
+                    {t.nutrition.recent_meals}
+                  </AppText>
+                  {recentMeals.length === 0 ? (
+                    <AppText variant="body13" color={colors.text.disabled} style={styles.pickSectionEmpty}>
+                      {t.nutrition.no_recent_meals}
+                    </AppText>
+                  ) : (
+                    recentMeals.map((meal) => (
+                      <Pressable
+                        key={`meal-${meal.id}`}
+                        accessibilityRole="button"
+                        onPress={() => {
+                          if (meal.food_id) {
+                            const food = myFoods.find((f) => f.id === meal.food_id);
+                            if (food) pickFood(food);
+                            return;
+                          }
+                          navigation.navigate('FoodDetail', { mealType, mealLogId: meal.id });
+                        }}
+                        style={({ pressed }) => [styles.recentMealRow, pressed && styles.pressed]}
+                      >
+                        <View style={styles.recentMealMain}>
+                          <AppText variant="body14SemiBold" color={colors.text.primary} numberOfLines={1}>
+                            {meal.title ?? meal.product_display_name}
+                          </AppText>
+                          <AppText variant="body12" color={colors.text.tertiary}>
+                            {Math.round(meal.energy_kcal ?? 0)} kcal
+                          </AppText>
+                        </View>
+                        <Ionicons name="chevron-forward" size={16} color={colors.text.tertiary} />
+                      </Pressable>
+                    ))
+                  )}
+                </>
+              ) : null}
+
+              {search.trim() || pickTab !== 'all' ? (
+                <>
+                  <AppText variant="caps11" color={colors.text.tertiary} style={styles.pickSectionLabel}>
+                    {pickTab === 'favorites' ? t.nutrition.tab_favorites : pickTab === 'created' ? t.nutrition.tab_created : t.nutrition.tab_all}
+                  </AppText>
+                  {filteredFoods.length === 0 ? (
+                    <View style={styles.pickEmpty}>
+                      <AppText variant="body14" color={colors.text.secondary} align="center">
+                        {t.nutrition.no_records}
+                      </AppText>
+                      <Button label={t.nutrition.create_new_food} onPress={goToManual} fullWidth style={styles.pickEmptyBtn} />
+                    </View>
+                  ) : (
+                    filteredFoods.map((food) => (
+                      <FoodSearchRow
+                        key={food.id}
+                        food={food}
+                        onPress={() => pickFood(food)}
+                        onToggleFavorite={() => void toggleFavoriteFood(food.id)}
+                      />
+                    ))
+                  )}
+                </>
+              ) : null}
+            </>
+          )}
+        </ScrollView>
+
+        <View style={[styles.pickBottomBar, { paddingBottom: insets.bottom + spacing.sm }]}>
+          <Pressable style={styles.pickBottomAction} onPress={() => navigation.navigate('BarcodeScanner', { mealType })}>
+            <Ionicons name="barcode-outline" size={20} color={colors.text.primary} />
+            <AppText variant="body12" color={colors.text.secondary}>
+              {t.nutrition.scan}
+            </AppText>
+          </Pressable>
+          <Pressable style={styles.pickBottomAction} onPress={() => navigation.navigate('VoiceLog', { mealType })}>
+            <Ionicons name="mic-outline" size={20} color={colors.text.primary} />
+            <AppText variant="body12" color={colors.text.secondary}>
+              {t.nutrition.voice}
+            </AppText>
+          </Pressable>
+          <Pressable style={styles.pickBottomAction} onPress={goToManual}>
+            <Ionicons name="create-outline" size={20} color={colors.text.primary} />
+            <AppText variant="body12" color={colors.text.secondary}>
+              {t.nutrition.manual_entry}
+            </AppText>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
 
   const onSave = async () => {
     if (!userId) return;
@@ -308,10 +501,23 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
       >
         <View style={styles.header}>
           <AppText variant="h2" color={colors.text.primary}>
-            {isEdit ? 'Editar comida' : 'Agregar comida'}
+            {isEdit ? 'Editar comida' : isManualNew ? t.nutrition.manual_entry : 'Agregar comida'}
           </AppText>
           <IconButton icon="close" onPress={() => navigation.goBack()} accessibilityLabel="Cerrar" />
         </View>
+
+        {isManualNew ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={goToPick}
+            style={({ pressed }) => [styles.switchModeLink, pressed && styles.pressed]}
+          >
+            <Ionicons name="bookmark-outline" size={16} color={colors.primary.default} />
+            <AppText variant="body13SemiBold" color={colors.primary.default}>
+              {t.nutrition.add_from_saved_title}
+            </AppText>
+          </Pressable>
+        ) : null}
 
         {offStatus === 'loading' ? (
           <>
@@ -397,27 +603,29 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
               ))}
             </View>
 
-            {per100 ? (
-              <View style={styles.statsRow}>
+            {(per100 || isEdit || Number(kcalText) > 0) ? (
+              <View style={styles.macroCardsRow}>
                 {(
                   [
-                    { label: 'Kcal', value: String(computed.kcal) },
-                    { label: 'Prot', value: `${computed.protein}g` },
-                    { label: 'Carbs', value: `${computed.carbs}g` },
-                    { label: 'Grasas', value: `${computed.fat}g` },
+                    { label: 'kcal', value: String(computed.kcal) },
+                    { label: t.nutrition.proteins_label, value: `${computed.protein} g` },
+                    { label: t.nutrition.carbs_label, value: `${computed.carbs} g` },
+                    { label: t.nutrition.fats_label, value: `${computed.fat} g` },
                   ] as const
                 ).map((stat) => (
-                  <View key={stat.label} style={styles.statCell}>
-                    <AppText variant="metricSmall" color={colors.text.primary}>
+                  <View key={stat.label} style={styles.macroCard}>
+                    <AppText variant="body14SemiBold" color={colors.text.primary}>
                       {stat.value}
                     </AppText>
-                    <AppText variant="caps11" color={colors.text.tertiary}>
+                    <AppText variant="body12" color={colors.text.tertiary} numberOfLines={1}>
                       {stat.label}
                     </AppText>
                   </View>
                 ))}
               </View>
-            ) : (
+            ) : null}
+
+            {!per100 ? (
               <>
                 <View style={styles.manualRow}>
                   <Input
@@ -456,7 +664,7 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
                   />
                 </View>
               </>
-            )}
+            ) : null}
 
             {!isEdit && !selectedFood ? (
               <Pressable
@@ -476,62 +684,12 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
               </Pressable>
             ) : null}
 
-            {/* Catálogo personal (modo búsqueda/manual) */}
-            {isPicker ? (
-              <>
-                <SectionHeader title="Mis alimentos" />
-                <Input
-                  icon="search-outline"
-                  value={search}
-                  onChangeText={setSearch}
-                  placeholder="Buscar en mis alimentos"
-                  containerStyle={styles.field}
-                />
-                {foodsLoading && myFoods.length === 0 ? (
-                  <CardSkeleton />
-                ) : filteredFoods.length === 0 ? (
-                  <AppText variant="body13" color={colors.text.disabled} style={styles.foodsEmpty}>
-                    {myFoods.length === 0 ? 'Todavía no guardaste alimentos.' : 'Sin resultados para tu búsqueda.'}
-                  </AppText>
-                ) : (
-                  filteredFoods.map((food) => (
-                    <Pressable
-                      key={food.id}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Elegir ${food.name}`}
-                      onPress={() => applyFood(food)}
-                      style={({ pressed }) => [
-                        styles.foodRow,
-                        selectedFood?.id === food.id && styles.foodRowActive,
-                        pressed && styles.pressed,
-                      ]}
-                    >
-                      <View style={styles.foodInfo}>
-                        <AppText variant="body14Medium" color={colors.text.primary} numberOfLines={1}>
-                          {food.name}
-                        </AppText>
-                        <AppText variant="body12" color={colors.text.tertiary} numberOfLines={1}>
-                          {food.brand ? `${food.brand} · ` : ''}
-                          {food.kcal_100g !== null ? `${Math.round(food.kcal_100g)} kcal / 100g` : 'Sin datos por 100g'}
-                        </AppText>
-                      </View>
-                      <IconButton
-                        icon={food.is_favorite ? 'star' : 'star-outline'}
-                        onPress={() => void toggleFavoriteFood(food.id)}
-                        accessibilityLabel={food.is_favorite ? 'Quitar de favoritos' : 'Marcar como favorito'}
-                        size={18}
-                        color={food.is_favorite ? colors.primary.default : colors.text.tertiary}
-                        backgroundColor="transparent"
-                        style={styles.starButton}
-                      />
-                    </Pressable>
-                  ))
-                )}
-              </>
-            ) : null}
-
             <Button
-              label={isEdit ? 'Guardar cambios' : 'Agregar'}
+              label={
+                isEdit
+                  ? 'Guardar cambios'
+                  : i18n(t.nutrition.add_to_meal, { meal: t.nutrition[mealLabelKey(MEAL_TYPES[mealTypeIdx])] })
+              }
               onPress={() => void onSave()}
               loading={saving}
               fullWidth
@@ -595,6 +753,22 @@ const createStyles = (colors: Colors) => StyleSheet.create({
   field: { marginTop: spacing.md },
   fieldLabel: { marginTop: spacing.md, marginBottom: spacing.xs },
   chipsRow: { flexDirection: 'row', gap: spacing.xs, marginTop: spacing.sm },
+  macroCardsRow: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    marginTop: spacing.md,
+  },
+  macroCard: {
+    flex: 1,
+    backgroundColor: colors.surface.base,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xxs,
+    alignItems: 'center',
+    gap: 2,
+  },
   statsRow: {
     flexDirection: 'row',
     backgroundColor: colors.surface.base,
@@ -615,6 +789,73 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     minHeight: layout.minHitTarget,
   },
   foodsEmpty: { paddingVertical: spacing.sm },
+  pickEmpty: {
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.xl,
+  },
+  pickEmptyBtn: { alignSelf: 'stretch' },
+  pickFooterBtn: { marginTop: spacing.lg },
+  pickTop: {
+    paddingHorizontal: layout.screenPadding,
+    paddingBottom: spacing.sm,
+    gap: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border.subtle,
+  },
+  pickSearchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  pickSearchInput: { flex: 1, marginTop: 0 },
+  pickMealHint: { marginTop: -spacing.xxs },
+  pickSectionLabel: {
+    letterSpacing: 0.6,
+    marginTop: spacing.md,
+    marginBottom: spacing.xxs,
+  },
+  pickSectionLabelSpaced: {
+    letterSpacing: 0.6,
+    marginTop: spacing.lg,
+    marginBottom: spacing.xxs,
+  },
+  pickSectionEmpty: {
+    paddingVertical: spacing.sm,
+  },
+  recentMealRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
+  recentMealMain: { flex: 1, gap: 2 },
+  pickBottomBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingTop: spacing.sm,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.surface.base,
+    borderTopWidth: 1,
+    borderTopColor: colors.border.subtle,
+  },
+  pickBottomAction: {
+    alignItems: 'center',
+    gap: 4,
+    minWidth: 72,
+    paddingVertical: spacing.xxs,
+  },
+  switchModeLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xxs,
+    marginBottom: spacing.sm,
+    minHeight: layout.minHitTarget,
+  },
   foodRow: {
     flexDirection: 'row',
     alignItems: 'center',

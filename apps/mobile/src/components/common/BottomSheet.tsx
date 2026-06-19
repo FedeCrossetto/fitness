@@ -9,10 +9,11 @@ interface BottomSheetProps {
   visible: boolean;
   onClose: () => void;
   title?: string;
+  subtitle?: string;
   children: React.ReactNode;
 }
 
-export function BottomSheet({ visible, onClose, title, children }: BottomSheetProps): React.JSX.Element {
+export function BottomSheet({ visible, onClose, title, subtitle, children }: BottomSheetProps): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
@@ -26,9 +27,16 @@ export function BottomSheet({ visible, onClose, title, children }: BottomSheetPr
             <View style={styles.handle} />
             {title ? (
               <View style={styles.header}>
-                <AppText variant="h3" color={colors.text.primary}>
-                  {title}
-                </AppText>
+                <View style={styles.headerText}>
+                  <AppText variant="h3" color={colors.text.primary}>
+                    {title}
+                  </AppText>
+                  {subtitle ? (
+                    <AppText variant="body13" color={colors.text.tertiary}>
+                      {subtitle}
+                    </AppText>
+                  ) : null}
+                </View>
                 <IconButton icon="close" onPress={onClose} accessibilityLabel="Cerrar" size={18} />
               </View>
             ) : null}
@@ -67,7 +75,12 @@ const createStyles = (colors: Colors) =>
     header: {
       flexDirection: 'row',
       justifyContent: 'space-between',
-      alignItems: 'center',
+      alignItems: 'flex-start',
       marginBottom: spacing.md,
+      gap: spacing.sm,
+    },
+    headerText: {
+      flex: 1,
+      gap: 2,
     },
   });

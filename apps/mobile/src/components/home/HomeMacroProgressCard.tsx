@@ -5,7 +5,7 @@ import Svg, { Path } from 'react-native-svg';
 import { Colors, radius, spacing, useThemedStyles, useTheme } from '../../theme';
 import { useTranslation } from '../../stores/i18nStore';
 import { AppText } from '../common/AppText';
-import { NUTRITION_MACRO_COLORS, NUTRITION_MOCK } from '../nutrition/nutritionTheme';
+import { NUTRITION_MACRO_COLORS } from '../nutrition/nutritionTheme';
 
 const CALORIES_ICON_COLOR = '#F97316';
 
@@ -22,11 +22,6 @@ interface HomeMacroProgressCardProps {
   kcalGoal: number;
   macroGoals: { protein: number; carbs: number };
   onPress?: () => void;
-  useMockWhenEmpty?: boolean;
-}
-
-function isEmptyTotals(totals: MacroTotals): boolean {
-  return totals.kcal === 0 && totals.protein === 0 && totals.carbs === 0;
 }
 
 const GAUGE_STROKE = 14;
@@ -57,31 +52,12 @@ export function HomeMacroProgressCard({
   kcalGoal,
   macroGoals,
   onPress,
-  useMockWhenEmpty = true,
 }: HomeMacroProgressCardProps): React.JSX.Element {
   const { colors, isDark } = useTheme();
   const styles = useThemedStyles(createStyles);
   const { t } = useTranslation();
 
-  const display = useMemo(() => {
-    if (useMockWhenEmpty && isEmptyTotals(totals)) {
-      return {
-        totals: {
-          kcal: NUTRITION_MOCK.totals.kcal,
-          protein: NUTRITION_MOCK.totals.protein,
-          carbs: NUTRITION_MOCK.totals.carbs,
-        },
-        kcalGoal: NUTRITION_MOCK.kcalGoal,
-        macroGoals: {
-          protein: NUTRITION_MOCK.macroGoals.protein,
-          carbs: NUTRITION_MOCK.macroGoals.carbs,
-        },
-      };
-    }
-    return { totals, kcalGoal, macroGoals };
-  }, [totals, kcalGoal, macroGoals, useMockWhenEmpty]);
-
-  const kcalProgress = display.kcalGoal > 0 ? Math.min(display.totals.kcal / display.kcalGoal, 1) : 0;
+  const kcalProgress = kcalGoal > 0 ? Math.min(totals.kcal / kcalGoal, 1) : 0;
   const percent = Math.round(kcalProgress * 100);
 
   const gauge = useMemo(() => {
@@ -108,24 +84,24 @@ export function HomeMacroProgressCard({
       icon: 'fire',
       color: CALORIES_ICON_COLOR,
       label: t.home.calories,
-      consumed: String(Math.round(display.totals.kcal)),
-      goal: String(display.kcalGoal),
+      consumed: String(Math.round(totals.kcal)),
+      goal: String(kcalGoal),
     },
     {
       key: 'protein',
       icon: 'egg-outline',
       color: NUTRITION_MACRO_COLORS.protein,
       label: t.home.proteins,
-      consumed: `${Math.round(display.totals.protein)}g`,
-      goal: `${display.macroGoals.protein}g`,
+      consumed: `${Math.round(totals.protein)}g`,
+      goal: `${macroGoals.protein}g`,
     },
     {
       key: 'carbs',
       icon: 'bread-slice-outline',
       color: NUTRITION_MACRO_COLORS.carbs,
       label: t.home.carbs,
-      consumed: `${Math.round(display.totals.carbs)}g`,
-      goal: `${display.macroGoals.carbs}g`,
+      consumed: `${Math.round(totals.carbs)}g`,
+      goal: `${macroGoals.carbs}g`,
     },
   ];
 

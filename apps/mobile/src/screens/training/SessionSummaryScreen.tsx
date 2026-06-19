@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { TrainingStackParamList } from '../../types/navigation';
 import { illustrations, layout, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
 import { formatShortDate } from '../../lib/dates';
 import { hapticSuccess } from '../../lib/haptics';

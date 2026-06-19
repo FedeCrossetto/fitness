@@ -6,7 +6,7 @@ import { useTranslation } from '../../stores/i18nStore';
 import { AppText } from '../common/AppText';
 import { MacroSegmentBar } from './MacroSegmentBar';
 import { MacroSegmentRing, NUTRITION_MACRO_COLORS } from './MacroSegmentRing';
-import { NUTRITION_MOCK } from './nutritionTheme';
+import { nutritionCardStyle } from './nutritionTheme';
 import type { MacroTotals } from '../../stores/nutritionStore';
 
 interface MacroDaySummaryProps {
@@ -14,11 +14,6 @@ interface MacroDaySummaryProps {
   kcalGoal: number;
   macroGoals: { protein: number; carbs: number; fat: number };
   onCheckCalories?: () => void;
-  useMockWhenEmpty?: boolean;
-}
-
-function isEmptyTotals(totals: MacroTotals): boolean {
-  return totals.kcal === 0 && totals.protein === 0 && totals.carbs === 0 && totals.fat === 0;
 }
 
 export function MacroDaySummary({
@@ -26,9 +21,8 @@ export function MacroDaySummary({
   kcalGoal,
   macroGoals,
   onCheckCalories,
-  useMockWhenEmpty = true,
 }: MacroDaySummaryProps): React.JSX.Element {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const styles = useThemedStyles(createStyles);
   const { t, i18n } = useTranslation();
 
@@ -41,26 +35,10 @@ export function MacroDaySummary({
     [t],
   );
 
-  const display = useMemo(() => {
-    if (useMockWhenEmpty && isEmptyTotals(totals)) {
-      return {
-        totals: NUTRITION_MOCK.totals,
-        kcalGoal: NUTRITION_MOCK.kcalGoal,
-        macroGoals: NUTRITION_MOCK.macroGoals,
-      };
-    }
-    return { totals, kcalGoal, macroGoals };
-  }, [totals, kcalGoal, macroGoals, useMockWhenEmpty]);
-
   return (
-    <View style={styles.module}>
+    <View style={[styles.module, nutritionCardStyle(colors, isDark)]}>
       <View style={styles.row}>
-        <MacroSegmentRing
-          totals={display.totals}
-          macroGoals={display.macroGoals}
-          size={168}
-          strokeWidth={8}
-        >
+        <MacroSegmentRing totals={totals} macroGoals={macroGoals} size={168} strokeWidth={8}>
           <View style={styles.dayPill}>
             <AppText variant="caps11" color={colors.text.tertiary}>
               {t.ui.today}
@@ -69,18 +47,18 @@ export function MacroDaySummary({
           <View style={styles.kcalRow}>
             <Ionicons name="nutrition-outline" size={20} color={colors.text.primary} />
             <AppText variant="metricMedium" color={colors.text.primary} style={styles.kcalValue}>
-              {Math.round(display.totals.kcal)}
+              {Math.round(totals.kcal)}
             </AppText>
           </View>
           <AppText variant="body12" color={colors.text.secondary}>
-            {i18n(t.nutrition.kcal_goal, { n: display.kcalGoal })}
+            {i18n(t.nutrition.kcal_goal, { n: kcalGoal })}
           </AppText>
         </MacroSegmentRing>
 
         <View style={styles.macrosCol}>
           {macroRows.map((row) => {
-            const value = display.totals[row.key];
-            const goal = display.macroGoals[row.goalKey];
+            const value = totals[row.key];
+            const goal = macroGoals[row.goalKey];
             const progress = goal > 0 ? value / goal : 0;
             return (
               <View key={row.key} style={styles.macroItem}>
@@ -119,10 +97,7 @@ export function MacroDaySummary({
 const createStyles = (colors: Colors) =>
   StyleSheet.create({
     module: {
-      backgroundColor: colors.surface.base,
       borderRadius: 14,
-      borderWidth: 1,
-      borderColor: colors.border.subtle,
       paddingHorizontal: spacing.md,
       paddingVertical: spacing.md,
       gap: spacing.md,
