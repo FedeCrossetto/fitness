@@ -54,6 +54,7 @@ export async function fetchActiveSubscription(userId: string): Promise<Subscript
     .from('subscriptions')
     .select('*')
     .eq('user_id', userId)
+    .neq('status', 'pending')
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();

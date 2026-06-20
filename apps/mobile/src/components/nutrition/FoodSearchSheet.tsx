@@ -280,30 +280,23 @@ export function FoodSearchSheet({
                 ))
               )
             ) : tab === 'created' ? (
-              <>
-                <FoodCreateActions
-                  onManual={startCreateManual}
-                  onScan={startCreateScan}
-                  onVoice={startCreateVoice}
-                />
-                {filteredFoods.length === 0 ? (
-                  <AppText variant="body14" color={colors.text.secondary} align="center" style={styles.empty}>
-                    {t.nutrition.pick_empty}
-                  </AppText>
-                ) : (
-                  filteredFoods.map((food) => (
-                    <FoodSearchRow
-                      key={food.id}
-                      food={food}
-                      onPress={() => pickFood(food)}
-                      onEdit={() => editCreatedFood(food)}
-                      pendingApproval={pendingFoodIds.has(food.id)}
-                      onToggleFavorite={() => void toggleFavoriteFood(food.id)}
-                      onDelete={() => confirmDeleteFood(food)}
-                    />
-                  ))
-                )}
-              </>
+              filteredFoods.length === 0 ? (
+                <AppText variant="body14" color={colors.text.secondary} align="center" style={styles.empty}>
+                  {t.nutrition.pick_empty}
+                </AppText>
+              ) : (
+                filteredFoods.map((food) => (
+                  <FoodSearchRow
+                    key={food.id}
+                    food={food}
+                    onPress={() => pickFood(food)}
+                    onEdit={() => editCreatedFood(food)}
+                    pendingApproval={pendingFoodIds.has(food.id)}
+                    onToggleFavorite={() => void toggleFavoriteFood(food.id)}
+                    onDelete={() => confirmDeleteFood(food)}
+                  />
+                ))
+              )
             ) : filteredFoods.length === 0 ? (
               <AppText variant="body14" color={colors.text.secondary} align="center" style={styles.empty}>
                 {t.nutrition.no_records}
@@ -319,6 +312,18 @@ export function FoodSearchSheet({
               ))
             )}
           </ScrollView>
+
+          {/* Footer fijo: crear alimento nuevo (siempre visible, separado de buscar) */}
+          <View style={styles.createFooter}>
+            <AppText variant="caps12" color={colors.text.tertiary} style={styles.createFooterLabel}>
+              {t.nutrition.create_new_food}
+            </AppText>
+            <FoodCreateActions
+              onManual={startCreateManual}
+              onScan={startCreateScan}
+              onVoice={startCreateVoice}
+            />
+          </View>
         </View>
       </View>
     </Modal>
@@ -383,5 +388,14 @@ const createStyles = (colors: Colors) =>
     },
     empty: {
       marginTop: spacing.xl,
+    },
+    createFooter: {
+      borderTopWidth: 1,
+      borderTopColor: colors.border.subtle,
+      paddingTop: spacing.md,
+      marginTop: spacing.xs,
+    },
+    createFooterLabel: {
+      marginBottom: spacing.sm,
     },
   });

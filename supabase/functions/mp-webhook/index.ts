@@ -70,23 +70,27 @@ Deno.serve(async (req) => {
     return new Response('ok', { status: 200 });
   }
 
-  const mpToken = Deno.env.get('MP_ACCESS_TOKEN');
-  if (!mpToken) {
-    return new Response('MP_ACCESS_TOKEN no configurado', { status: 500 });
-  }
+  // Opcional: solo fallback para pagos sin entrenador. En el modelo por
+  // entrenador se usa el token de cada uno (param ?trainer=).
+  const mpToken = Deno.env.get('MP_ACCESS_TOKEN') ?? '';
 
   const url = new URL(req.url);
   const queryDataId = url.searchParams.get('data.id') ?? url.searchParams.get('id');
+  // Si la preferencia se creó con el token de un entrenador, viene este param.
+  const trainerId = url.searchParams.get('trainer');
 
-  // Validación de firma: el manifest usa el data.id del query string.
+  // Validación de firma con el secret de la PLATAFORMA. Solo aplica a los pagos
+  // de la plataforma: los de cada entrenador vienen firmados con el secret de SU
+  // cuenta, así que para esos la verificación real es re-consultar el pago con su
+  // token (no se puede falsificar un pago aprobado en la cuenta del entrenador).
   const webhookSecret = Deno.env.get('MP_WEBHOOK_SECRET');
-  if (webhookSecret) {
+  if (webhookSecret && !trainerId) {
     const valid = await isValidMpSignature(req, queryDataId, webhookSecret);
     if (!valid) {
       console.error('Firma de webhook MP inválida; notificación rechazada');
       return new Response('firma inválida', { status: 401 });
     }
-  } else {
+  } else if (!webhookSecret && !trainerId) {
     console.warn('MP_WEBHOOK_SECRET no configurado: se omite validación de firma (no recomendado en producción)');
   }
 
@@ -106,9 +110,32 @@ Deno.serve(async (req) => {
     return new Response('sin payment id', { status: 200 });
   }
 
+  const admin = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+  );
+
+  // Cobro directo: si la preferencia se creó con el token de un entrenador,
+  // consultamos el pago con ESE token (la plata está en su cuenta).
+  let queryToken = mpToken;
+  if (trainerId) {
+    const { data: mpAccount } = await admin
+      .from('trainer_mp_accounts')
+      .select('access_token')
+      .eq('trainer_id', trainerId)
+      .eq('active', true)
+      .maybeSingle();
+    if (mpAccount?.access_token) queryToken = mpAccount.access_token;
+  }
+
+  if (!queryToken) {
+    console.error('Sin token para consultar el pago (entrenador sin cuenta MP)');
+    return new Response('sin token', { status: 200 });
+  }
+
   // Consultar el pago real a la API de MP (nunca confiar en el payload del webhook)
   const paymentResponse = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
-    headers: { Authorization: `Bearer ${mpToken}` },
+    headers: { Authorization: `Bearer ${queryToken}` },
   });
   if (!paymentResponse.ok) {
     console.error('No se pudo consultar el pago', paymentId);
@@ -120,11 +147,6 @@ Deno.serve(async (req) => {
   if (!subscriptionId) {
     return new Response('sin referencia de suscripción', { status: 200 });
   }
-
-  const admin = createClient(
-    Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-  );
 
   const { data: subscription } = await admin
     .from('subscriptions')
@@ -151,6 +173,14 @@ Deno.serve(async (req) => {
         expires_at: expiresAt.toISOString(),
       })
       .eq('id', subscriptionId);
+
+    // Pago aprobado = activar el acceso del alumno (se integra con is_active_client()).
+    if (subscription.user_id) {
+      await admin
+        .from('profiles')
+        .update({ client_status: 'active' })
+        .eq('id', subscription.user_id);
+    }
   } else if (payment.status === 'rejected' || payment.status === 'cancelled') {
     await admin
       .from('subscriptions')

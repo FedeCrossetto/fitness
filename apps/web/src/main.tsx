@@ -13,6 +13,7 @@ import { JoinPage } from '@/pages/Join';
 import { AuthCallbackPage, OAuthRedirectGuard } from '@/pages/AuthCallback';
 import { AuthMobileCallbackPage } from '@/pages/AuthMobileCallback';
 import { DownloadPage } from '@/pages/Download';
+import { PaymentReturnPage } from '@/pages/PaymentReturn';
 
 // Páginas internas: lazy para no inflar el bundle inicial.
 const DashboardPage        = lazy(() => import('@/pages/Dashboard').then((m) => ({ default: m.DashboardPage })));
@@ -74,6 +75,7 @@ function App(): React.JSX.Element {
           <Route path="/unirse" element={<JoinPage />} />
           <Route path="/auth/callback" element={<AuthCallbackPage />} />
           <Route path="/auth/mobile-callback" element={<AuthMobileCallbackPage />} />
+          <Route path="/pago/:result" element={<PaymentReturnPage />} />
           <Route element={<Protected />}>
             <Route path="/" element={<DashboardPage />} />
             <Route path="/messages" element={<MessagesPage />} />

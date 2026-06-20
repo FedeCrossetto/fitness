@@ -2,13 +2,13 @@ import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as WebBrowser from 'expo-web-browser';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { HomeStackParamList } from '../../types/navigation';
 import { layout, radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
 import { formatLongDate } from '../../lib/dates';
-import { createCheckout, fetchActiveSubscription, fetchPlans, hasActiveAccess } from '../../services/payments';
+import { fetchActiveSubscription, fetchPlans, hasActiveAccess } from '../../services/payments';
+import { useCheckout } from '../../hooks/useCheckout';
 import {
   AppText,
   Button,
@@ -43,8 +43,9 @@ export function SubscriptionScreen({ navigation }: Props): React.JSX.Element {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [checkingOut, setCheckingOut] = useState(false);
   const [refreshingSub, setRefreshingSub] = useState(false);
+
+  const { checkingOut, startCheckout } = useCheckout(userId, (sub) => setSubscription(sub));
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -81,22 +82,10 @@ export function SubscriptionScreen({ navigation }: Props): React.JSX.Element {
     }
   }, [userId]);
 
-  const onSubscribe = useCallback(async () => {
-    if (!selectedId || !userId || checkingOut) return;
-    setCheckingOut(true);
-    try {
-      const { checkoutUrl } = await createCheckout(selectedId);
-      await WebBrowser.openBrowserAsync(checkoutUrl);
-      // Al volver del checkout, re-chequeamos el estado de la suscripción
-      setSubscription(await fetchActiveSubscription(userId));
-    } catch (err) {
-      useUiStore
-        .getState()
-        .showToast('error', err instanceof Error ? err.message : 'No pudimos iniciar el pago. Intentá de nuevo.');
-    } finally {
-      setCheckingOut(false);
-    }
-  }, [selectedId, userId, checkingOut]);
+  const onSubscribe = useCallback(() => {
+    if (!selectedId) return;
+    void startCheckout(selectedId);
+  }, [selectedId, startCheckout]);
 
   const active = hasActiveAccess(subscription);
   const pending = subscription?.status === 'pending';

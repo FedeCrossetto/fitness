@@ -15,12 +15,14 @@ Deno.serve(async (req) => {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-  const mpToken = Deno.env.get('MP_ACCESS_TOKEN');
+  // Token de plataforma OPCIONAL: solo se usa como fallback para alumnos sin
+  // entrenador. En el modelo "cada entrenador cobra lo suyo" no hace falta.
+  const mpToken = Deno.env.get('MP_ACCESS_TOKEN') ?? '';
   const appBaseUrl = Deno.env.get('APP_BASE_URL') ?? 'https://resetfit.app';
-
-  if (!mpToken) {
-    return new Response(JSON.stringify({ error: 'MP_ACCESS_TOKEN no configurado' }), { status: 500 });
-  }
+  const mpClientId = Deno.env.get('MP_CLIENT_ID');
+  const mpClientSecret = Deno.env.get('MP_CLIENT_SECRET');
+  // Comisión de la plataforma (%). 0 = el entrenador recibe el 100%.
+  const platformFeePct = Number(Deno.env.get('MP_PLATFORM_FEE_PCT') ?? '0');
 
   // Autenticación del usuario que invoca
   const authHeader = req.headers.get('Authorization') ?? '';
@@ -57,6 +59,9 @@ Deno.serve(async (req) => {
     .maybeSingle();
 
   let unitPrice = Number(plan.price_ars);
+  let sellerToken = mpToken; // fallback: token de la plataforma
+  let trainerIdForHook = '';
+
   if (profile?.trainer_id) {
     const { data: override } = await admin
       .from('trainer_plan_prices')
@@ -65,6 +70,57 @@ Deno.serve(async (req) => {
       .eq('plan_id', plan_id)
       .maybeSingle();
     if (override?.price_ars) unitPrice = Number(override.price_ars);
+
+    // Cobro directo al entrenador: usamos SU access token de MercadoPago.
+    const { data: mpAccount } = await admin
+      .from('trainer_mp_accounts')
+      .select('access_token, refresh_token, token_expires_at')
+      .eq('trainer_id', profile.trainer_id)
+      .eq('active', true)
+      .maybeSingle();
+
+    if (!mpAccount?.access_token) {
+      return new Response(
+        JSON.stringify({ error: 'trainer_payments_not_configured' }),
+        { status: 409, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+
+    sellerToken = mpAccount.access_token;
+    trainerIdForHook = profile.trainer_id;
+
+    // Refrescar el token si está vencido o por vencer (buffer 1 día).
+    const expMs = mpAccount.token_expires_at ? new Date(mpAccount.token_expires_at).getTime() : 0;
+    const needsRefresh = expMs > 0 && expMs - Date.now() < 24 * 60 * 60 * 1000;
+    if (needsRefresh && mpAccount.refresh_token && mpClientId && mpClientSecret) {
+      const refreshResp = await fetch('https://api.mercadopago.com/oauth/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_id: mpClientId,
+          client_secret: mpClientSecret,
+          grant_type: 'refresh_token',
+          refresh_token: mpAccount.refresh_token,
+        }),
+      });
+      if (refreshResp.ok) {
+        const r = (await refreshResp.json()) as {
+          access_token: string; refresh_token?: string; expires_in?: number;
+        };
+        sellerToken = r.access_token;
+        await admin
+          .from('trainer_mp_accounts')
+          .update({
+            access_token: r.access_token,
+            refresh_token: r.refresh_token ?? mpAccount.refresh_token,
+            token_expires_at: r.expires_in
+              ? new Date(Date.now() + r.expires_in * 1000).toISOString()
+              : null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('trainer_id', profile.trainer_id);
+      }
+    }
   }
 
   // Suscripción pendiente
@@ -77,8 +133,22 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: 'No se pudo crear la suscripción' }), { status: 500 });
   }
 
+  if (!sellerToken) {
+    return new Response(
+      JSON.stringify({ error: 'trainer_payments_not_configured' }),
+      { status: 409, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
+
+  // Comisión de la plataforma (solo aplica con cobro vía cuenta del entrenador).
+  const marketplaceFee =
+    trainerIdForHook && platformFeePct > 0
+      ? Math.round((unitPrice * platformFeePct) / 100)
+      : 0;
+
   // Preferencia de Mercado Pago
-  const preferenceBody = {
+  const preferenceBody: Record<string, unknown> = {
+    ...(marketplaceFee > 0 ? { marketplace_fee: marketplaceFee } : {}),
     items: [
       {
         id: plan.id,
@@ -97,12 +167,16 @@ Deno.serve(async (req) => {
       pending: `${appBaseUrl}/pago/pendiente`,
     },
     auto_return: 'approved',
+    // El webhook necesita saber a qué entrenador (token) consultar el pago.
+    notification_url: trainerIdForHook
+      ? `${supabaseUrl}/functions/v1/mp-webhook?trainer=${trainerIdForHook}`
+      : `${supabaseUrl}/functions/v1/mp-webhook`,
   };
 
   const mpResponse = await fetch('https://api.mercadopago.com/checkout/preferences', {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${mpToken}`,
+      Authorization: `Bearer ${sellerToken}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(preferenceBody),

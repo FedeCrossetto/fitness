@@ -24,6 +24,7 @@ import {
   WeekStrip,
 } from '../../components/common';
 import { HomeMacroProgressCard } from '../../components/home/HomeMacroProgressCard';
+import { SubscriptionBanner } from '../../components/home/SubscriptionBanner';
 import { ActiveSessionBanner } from '../../components/training/ActiveSessionBanner';
 import { useAuthStore } from '../../stores/authStore';
 import { useGoalsStore } from '../../stores/goalsStore';
@@ -298,6 +299,8 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
         <WeekStrip />
 
         <ActiveSessionBanner />
+
+        <SubscriptionBanner onPress={() => navigation.navigate('Subscription')} />
 
         {/* Resumen del día */}
         <Card

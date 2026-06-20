@@ -363,14 +363,14 @@ export function ProfileScreen({ navigation, route }: Props): React.JSX.Element {
               </AppText>
               <View style={styles.identityChips}>
                 <Chip label={userProfile?.level ?? t.profile.fallback_level} active style={styles.levelChip} />
+                {profile?.goal ? (
+                  <View style={styles.goalBadge}>
+                    <AppText variant="body13Medium" color={colors.text.secondary} numberOfLines={1}>
+                      {profile.goal}
+                    </AppText>
+                  </View>
+                ) : null}
               </View>
-              {profile?.goal ? (
-                <View style={styles.goalBadge}>
-                  <AppText variant="body13Medium" color={colors.text.secondary}>
-                    {profile.goal}
-                  </AppText>
-                </View>
-              ) : null}
               {subscriptionActive && planName ? (
                 <Pressable
                   accessibilityRole="button"
@@ -662,12 +662,23 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     borderColor: colors.surface.elevated,
   },
   identityInfo: { flex: 1 },
-  identityChips: { flexDirection: 'row', marginTop: spacing.xs },
-  levelChip: { minHeight: 28, paddingVertical: spacing.xxs },
+  identityChips: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginTop: spacing.sm,
+  },
+  levelChip: {
+    minHeight: 30,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xxs,
+    borderRadius: radius.sm,
+  },
   goalBadge: {
-    alignSelf: 'flex-start',
-    marginTop: spacing.xs,
-    paddingHorizontal: spacing.sm,
+    justifyContent: 'center',
+    minHeight: 30,
+    paddingHorizontal: spacing.md,
     paddingVertical: spacing.xxs,
     borderRadius: radius.sm,
     backgroundColor: colors.primary.muted,

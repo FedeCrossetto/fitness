@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { PlanRow, SubscriptionRow } from '@reset-fitness/shared/types/database';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
@@ -32,6 +32,7 @@ type PaymentRow = {
 type PaymentsData = {
   plans: PlanWithPrice[];
   payments: PaymentRow[];
+  students: StudentMin[];
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -85,6 +86,29 @@ function planAccent(id: string): string {
   return '';
 }
 
+// Isotipo de MercadoPago (óvalo celeste + handshake).
+function MpLogo({ size = 20 }: { size?: number }): React.JSX.Element {
+  // Logo oficial de MercadoPago: wordmark "mercado pago" en azul + amarillo
+  return (
+    <svg width={size * 3.6} height={size} viewBox="0 0 108 30" fill="none" aria-hidden style={{ flexShrink: 0 }}>
+      {/* Isotipo — círculo azul con onda */}
+      <circle cx="15" cy="15" r="15" fill="#009EE3" />
+      <path
+        d="M8.5 16.2c1.6-3.2 5-5.2 8.7-4.6 2 .3 3.8 1.4 5 3l-2.1 1.5c-.8-1.1-2-1.8-3.4-1.9-2.1-.2-4 1-4.8 2.9L8.5 16.2z"
+        fill="#fff"
+      />
+      <path
+        d="M22.2 14.6c.5 1 .7 2.1.5 3.2-.4 2.4-2.4 4.2-4.8 4.4-1.5.1-3-.5-4-1.6l2.1-1.5c.5.5 1.2.8 2 .8 1.2-.1 2.2-1 2.5-2.2l2.1 1.5-.4-4.6z"
+        fill="#FFE600"
+      />
+      {/* Wordmark "mercado" */}
+      <text x="35" y="20" fontFamily="system-ui, sans-serif" fontSize="11" fontWeight="700" fill="#009EE3" letterSpacing="-0.2">mercado</text>
+      {/* Wordmark "pago" */}
+      <text x="35" y="30" fontFamily="system-ui, sans-serif" fontSize="11" fontWeight="700" fill="#009EE3" letterSpacing="-0.2" opacity="0.75">pago</text>
+    </svg>
+  );
+}
+
 // ── Page ───────────────────────────────────────────────────────────────────
 
 export function PaymentsPage(): React.JSX.Element {
@@ -96,7 +120,53 @@ export function PaymentsPage(): React.JSX.Element {
 
   const [plans, setPlans] = useState<PlanWithPrice[]>([]);
   const [payments, setPayments] = useState<PaymentRow[]>([]);
+  const [students, setStudents] = useState<StudentMin[]>([]);
   const [savingPlanId, setSavingPlanId] = useState<string | null>(null);
+
+  // Registro de pago manual
+  const [regOpen, setRegOpen] = useState(false);
+  const [regStudent, setRegStudent] = useState('');
+  const [regPlan, setRegPlan] = useState('');
+  const [regSubmitting, setRegSubmitting] = useState(false);
+
+  // Conexión MercadoPago (OAuth)
+  const [mpConnected, setMpConnected] = useState(false);
+  const [mpBusy, setMpBusy] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Estado de conexión MP del entrenador.
+  useEffect(() => {
+    if (!userId) return;
+    void (async () => {
+      const { data } = await supabase.rpc('trainer_mp_connected');
+      setMpConnected(data === true);
+    })();
+  }, [userId]);
+
+  // Resultado del callback OAuth (?mp=connected | error).
+  useEffect(() => {
+    const mp = searchParams.get('mp');
+    if (!mp) return;
+    if (mp === 'connected') {
+      setMpConnected(true);
+      showToast('success', t.payments.mp_connected_toast);
+    } else {
+      showToast('error', t.payments.mp_error_toast);
+    }
+    searchParams.delete('mp');
+    setSearchParams(searchParams, { replace: true });
+  }, [searchParams, setSearchParams, showToast, t.payments.mp_connected_toast, t.payments.mp_error_toast]);
+
+  const connectMercadoPago = useCallback(async () => {
+    setMpBusy(true);
+    const { data, error: fnError } = await supabase.functions.invoke<{ authUrl: string }>('mp-oauth-start');
+    setMpBusy(false);
+    if (fnError || !data?.authUrl) {
+      showToast('error', t.payments.mp_connect_error);
+      return;
+    }
+    window.location.href = data.authUrl; // redirige a MercadoPago para autorizar
+  }, [showToast, t.payments.mp_connect_error]);
 
   const locale = language === 'es' ? 'es-AR' : 'en-US';
 
@@ -136,6 +206,7 @@ export function PaymentsPage(): React.JSX.Element {
           .from('subscriptions')
           .select('id, user_id, plan_id, status, started_at, created_at')
           .in('user_id', studentIds)
+          .neq('status', 'pending')
           .order('created_at', { ascending: false })
           .limit(100);
 
@@ -158,7 +229,7 @@ export function PaymentsPage(): React.JSX.Element {
           });
       }
 
-      return { plans: mergedPlans, payments: paymentRows };
+      return { plans: mergedPlans, payments: paymentRows, students: (students as StudentMin[] | null) ?? [] };
     },
     [userId],
     { enabled: !!userId },
@@ -168,8 +239,32 @@ export function PaymentsPage(): React.JSX.Element {
     if (data) {
       setPlans(data.plans);
       setPayments(data.payments);
+      setStudents(data.students);
     }
   }, [data]);
+
+  const openRegister = () => {
+    setRegStudent(students[0]?.id ?? '');
+    setRegPlan(plans[0]?.id ?? '');
+    setRegOpen(true);
+  };
+
+  const submitRegisterPayment = useCallback(async () => {
+    if (!regStudent || !regPlan || regSubmitting) return;
+    setRegSubmitting(true);
+    const { error: rpcError } = await supabase.rpc('register_manual_payment', {
+      p_client_id: regStudent,
+      p_plan_id: regPlan,
+    });
+    setRegSubmitting(false);
+    if (rpcError) {
+      showToast('error', t.payments.register_error);
+      return;
+    }
+    showToast('success', t.payments.register_success);
+    setRegOpen(false);
+    refetch();
+  }, [regStudent, regPlan, regSubmitting, showToast, t.payments.register_error, t.payments.register_success, refetch]);
 
   const stats = useMemo(() => {
     const collected = payments
@@ -241,6 +336,23 @@ export function PaymentsPage(): React.JSX.Element {
           <h1 className="page-title">{t.payments.title}</h1>
           <p className="page-sub payments-header-sub">{t.payments.sub}</p>
         </div>
+        <div className="payments-header-actions">
+          {mpConnected ? (
+            <span className="payments-mp-badge">
+              <svg width="8" height="8" viewBox="0 0 8 8" aria-hidden style={{ flexShrink: 0 }}>
+                <circle cx="4" cy="4" r="4" fill="currentColor" />
+              </svg>
+              {t.payments.mp_connected}
+            </span>
+          ) : (
+            <button className="btn btn-mp" onClick={() => void connectMercadoPago()} disabled={mpBusy}>
+              {mpBusy ? <span className="btn-mp-busy">…</span> : <MpLogo size={16} />}
+            </button>
+          )}
+          <button className="btn" onClick={openRegister} disabled={loading || !!error}>
+            {t.payments.register_payment}
+          </button>
+        </div>
       </header>
 
       {error ? (
@@ -266,7 +378,7 @@ export function PaymentsPage(): React.JSX.Element {
             </div>
           </div>
 
-          <section className="card payments-plans-panel">
+          <section className="payments-plans-panel">
             <div className="payments-panel-head">
               <div>
                 <h2 className="payments-panel-title">{t.payments.plans_title}</h2>
@@ -290,6 +402,9 @@ export function PaymentsPage(): React.JSX.Element {
                         {i18n(t.payments.duration_days, { n: plan.duration_days })}
                       </span>
                     </div>
+                    {plan.hasOverride ? (
+                      <span className="payments-custom-tag">{t.payments.custom_price}</span>
+                    ) : null}
                     {plan.description ? (
                       <p className="payments-plan-desc">{plan.description}</p>
                     ) : null}
@@ -323,9 +438,6 @@ export function PaymentsPage(): React.JSX.Element {
                         {saving ? '…' : t.payments.save_price}
                       </button>
                     </div>
-                    {plan.hasOverride ? (
-                      <span className="payments-custom-tag">{t.payments.custom_price}</span>
-                    ) : null}
                   </div>
                 );
               })}
@@ -371,7 +483,10 @@ export function PaymentsPage(): React.JSX.Element {
                         <td className="muted">{p.planName}</td>
                         <td className="payments-amount">{formatMoney(p.amount, language)}</td>
                         <td className="muted">
-                          {new Date(p.date).toLocaleDateString(locale)}
+                          <span>{new Date(p.date).toLocaleDateString(locale)}</span>
+                          <span className="payments-time">
+                            {new Date(p.date).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}
+                          </span>
                         </td>
                         <td>
                           <span className={statusClass[p.status]}>{statusLabel[p.status]}</span>
@@ -383,6 +498,51 @@ export function PaymentsPage(): React.JSX.Element {
               </div>
             )}
           </section>
+        </div>
+      )}
+
+      {regOpen && (
+        <div className="pay-modal-backdrop" onClick={() => setRegOpen(false)} role="dialog" aria-modal="true">
+          <div className="pay-modal card" onClick={(e) => e.stopPropagation()}>
+            <h2 className="payments-panel-title">{t.payments.register_title}</h2>
+            <p className="payments-panel-sub" style={{ marginBottom: 18 }}>{t.payments.register_sub}</p>
+            {students.length === 0 ? (
+              <p className="muted" style={{ margin: '8px 0 18px' }}>{t.payments.register_no_students}</p>
+            ) : (
+              <>
+                <label className="pay-modal-field">
+                  <span>{t.payments.register_student}</span>
+                  <select value={regStudent} onChange={(e) => setRegStudent(e.target.value)}>
+                    {students.map((s) => (
+                      <option key={s.id} value={s.id}>{s.full_name ?? '—'}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="pay-modal-field">
+                  <span>{t.payments.register_plan}</span>
+                  <select value={regPlan} onChange={(e) => setRegPlan(e.target.value)}>
+                    {plans.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} — {formatMoney(p.effectivePrice, language)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            )}
+            <div className="pay-modal-actions">
+              <button className="btn secondary" onClick={() => setRegOpen(false)}>
+                {t.ui.cancel}
+              </button>
+              <button
+                className="btn"
+                onClick={() => void submitRegisterPayment()}
+                disabled={regSubmitting || !regStudent || !regPlan || students.length === 0}
+              >
+                {regSubmitting ? '…' : t.payments.register_confirm}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
