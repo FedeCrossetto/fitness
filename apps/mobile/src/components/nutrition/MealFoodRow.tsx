@@ -17,6 +17,7 @@ interface MealFoodRowProps {
   meal: MealLogRow;
   brand?: string | null;
   iconKey?: string | null;
+  readOnly?: boolean;
   onPress: () => void;
   onToggleIncluded: () => void;
   onDelete: () => void;
@@ -26,6 +27,7 @@ export function MealFoodRow({
   meal,
   brand,
   iconKey,
+  readOnly = false,
   onPress,
   onToggleIncluded,
   onDelete,
@@ -74,46 +76,39 @@ export function MealFoodRow({
     );
   };
 
-  return (
-    <Swipeable
-      ref={swipeRef}
-      renderRightActions={renderRightActions}
-      overshootRight={false}
-      friction={2}
-      rightThreshold={40}
-      activeOffsetX={[-20, 20]}
+  const rowContent = (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={readOnly ? `Ver ${title}` : `Editar ${title}`}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.row,
+        { backgroundColor: rowBackground },
+        !meal.is_included && styles.excluded,
+        pressed && styles.pressed,
+      ]}
     >
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Editar ${title}`}
-        onPress={onPress}
-        style={({ pressed }) => [
-          styles.row,
-          { backgroundColor: rowBackground },
-          !meal.is_included && styles.excluded,
-          pressed && styles.pressed,
-        ]}
-      >
-        <FoodIconThumb iconKey={iconKey ?? meal.icon_key} remoteUrl={meal.photo_url} size={36} />
+      <FoodIconThumb iconKey={iconKey ?? meal.icon_key} remoteUrl={meal.photo_url} size={36} />
 
-        <View style={styles.main}>
-          <AppText variant="body13SemiBold" color={colors.text.primary} numberOfLines={1}>
-            {title}
-          </AppText>
-          <AppText variant="body12" color={colors.text.tertiary} numberOfLines={1} style={styles.subtitle}>
-            {subtitle}
-          </AppText>
-        </View>
+      <View style={styles.main}>
+        <AppText variant="body13SemiBold" color={colors.text.primary} numberOfLines={1}>
+          {title}
+        </AppText>
+        <AppText variant="body12" color={colors.text.tertiary} numberOfLines={1} style={styles.subtitle}>
+          {subtitle}
+        </AppText>
+      </View>
 
-        <View style={styles.meta}>
-          <AppText variant="body12Medium" color={colors.text.primary} numberOfLines={1}>
-            {portion}
-          </AppText>
-          <AppText variant="body12" color={colors.text.tertiary} numberOfLines={1}>
-            {kcal} kcal
-          </AppText>
-        </View>
+      <View style={styles.meta}>
+        <AppText variant="body12Medium" color={colors.text.primary} numberOfLines={1}>
+          {portion}
+        </AppText>
+        <AppText variant="body12" color={colors.text.tertiary} numberOfLines={1}>
+          {kcal} kcal
+        </AppText>
+      </View>
 
+      {!readOnly ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={meal.is_included ? 'Excluir de los totales' : 'Incluir en los totales'}
@@ -129,7 +124,24 @@ export function MealFoodRow({
             {meal.is_included ? <Ionicons name="checkmark" size={9} color={CHECK_ON_GREEN} /> : null}
           </View>
         </Pressable>
-      </Pressable>
+      ) : null}
+    </Pressable>
+  );
+
+  if (readOnly) {
+    return rowContent;
+  }
+
+  return (
+    <Swipeable
+      ref={swipeRef}
+      renderRightActions={renderRightActions}
+      overshootRight={false}
+      friction={2}
+      rightThreshold={40}
+      activeOffsetX={[-20, 20]}
+    >
+      {rowContent}
     </Swipeable>
   );
 }

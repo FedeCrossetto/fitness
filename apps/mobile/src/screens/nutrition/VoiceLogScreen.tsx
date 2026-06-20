@@ -17,6 +17,7 @@ import { illustrations, layout, radius, shadows, spacing, Colors, useThemedStyle
 import { AppText, Button, ErrorState, IconButton, Input } from '../../components/common';
 import { hapticSuccess } from '../../lib/haptics';
 import { useAuthStore } from '../../stores/authStore';
+import { useTranslation } from '../../stores/i18nStore';
 import { useNutritionStore } from '../../stores/nutritionStore';
 import { useUiStore } from '../../stores/uiStore';
 import type { NutritionStackParamList } from '../../types/navigation';
@@ -34,6 +35,7 @@ function extractKcal(text: string): number {
 
 export function VoiceLogScreen({ navigation, route }: Props): React.JSX.Element {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const styles = useThemedStyles(createStyles);
 
   const insets = useSafeAreaInsets();
@@ -120,7 +122,7 @@ export function VoiceLogScreen({ navigation, route }: Props): React.JSX.Element 
   const handleContinueCreate = () => {
     const title = transcript.trim().slice(0, 80);
     if (!title) {
-      useUiStore.getState().showToast('error', 'Decí o escribí el nombre del alimento.');
+      useUiStore.getState().showToast('error', t.nutrition.voice_name_required);
       return;
     }
     navigation.replace('FoodDetail', {
@@ -151,7 +153,7 @@ export function VoiceLogScreen({ navigation, route }: Props): React.JSX.Element 
     });
     setSaving(false);
     if (!ok) {
-      useUiStore.getState().showToast('error', 'No pudimos registrar la comida.');
+      useUiStore.getState().showToast('error', t.nutrition.meal_register_error);
       return;
     }
     hapticSuccess();
@@ -162,7 +164,7 @@ export function VoiceLogScreen({ navigation, route }: Props): React.JSX.Element 
         return;
       }
     }
-    useUiStore.getState().showToast('success', 'Comida registrada');
+    useUiStore.getState().showToast('success', t.nutrition.meal_registered);
     navigation.goBack();
   };
 

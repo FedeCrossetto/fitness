@@ -42,6 +42,7 @@ import {
 } from '@reset-fitness/shared';
 import { hapticSuccess, hapticWarning } from '../../lib/haptics';
 import { storedMacrosFromPer100, validateFoodForm } from '../../lib/foodFormValidation';
+import { isTodayDate } from '../../lib/dates';
 import { fetchProductByBarcode, type OffProduct } from '../../services/openFoodFacts';
 import { useAuthStore } from '../../stores/authStore';
 import { useNutritionStore } from '../../stores/nutritionStore';
@@ -139,6 +140,16 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
   const isCatalogEdit = !isEdit && entryMode === 'edit' && foodId !== undefined;
   /** Registrar porción en el día (desayuno, almuerzo, etc.). */
   const isAddToMeal = !isCatalogCreate && !isCatalogEdit;
+
+  const activeDate = useUiStore((s) => s.activeDate);
+  const readOnlyMeal = (isEdit || isAddToMeal) && !isTodayDate(activeDate);
+
+  useEffect(() => {
+    if (isAddToMeal && !isEdit && !isTodayDate(activeDate)) {
+      useUiStore.getState().showToast('info', t.nutrition.readonly_day_hint);
+      navigation.goBack();
+    }
+  }, [isAddToMeal, isEdit, activeDate, navigation, t.nutrition.readonly_day_hint]);
 
   // Modo edición: semilla inicial desde el registro existente (sin efecto, sin flash).
   const editMeal = mealLogId ? dayMeals.find((m) => m.id === mealLogId) ?? null : null;
@@ -456,6 +467,7 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
   };
 
   const onSave = async () => {
+    if (readOnlyMeal) return;
     if (isCatalogCreate) {
       await onSaveCatalog();
       return;
@@ -505,7 +517,7 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
     setSaving(false);
     if (ok) {
       hapticSuccess();
-      useUiStore.getState().showToast('success', isEdit ? 'Cambios guardados' : 'Comida agregada');
+      useUiStore.getState().showToast('success', isEdit ? t.nutrition.meal_updated : t.nutrition.meal_added);
       navigation.goBack();
     } else {
       Alert.alert(t.nutrition.validation_title, t.nutrition.save_meal_error, [{ text: t.ui.confirm }]);
@@ -513,21 +525,21 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
   };
 
   const onDeleteMeal = () => {
-    if (!mealLogId) return;
-    Alert.alert('Eliminar registro', '¿Seguro que querés eliminar esta comida?', [
-      { text: 'Cancelar', style: 'cancel' },
+    if (readOnlyMeal || !mealLogId) return;
+    Alert.alert(t.nutrition.meal_delete_title, t.nutrition.meal_delete_confirm, [
+      { text: t.ui.cancel, style: 'cancel' },
       {
-        text: 'Eliminar',
+        text: t.ui.delete,
         style: 'destructive',
         onPress: () => {
           void (async () => {
             const ok = await deleteMeal(mealLogId);
             if (ok) {
               hapticSuccess();
-              useUiStore.getState().showToast('success', 'Comida eliminada');
+              useUiStore.getState().showToast('success', t.nutrition.meal_deleted);
               navigation.goBack();
             } else {
-              useUiStore.getState().showToast('error', 'No pudimos eliminar la comida.');
+              useUiStore.getState().showToast('error', t.nutrition.meal_delete_error);
             }
           })();
         },
@@ -550,7 +562,7 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
               useUiStore.getState().showToast('success', t.nutrition.food_deleted);
               navigation.goBack();
             } else {
-              useUiStore.getState().showToast('error', 'No pudimos eliminar el alimento.');
+              useUiStore.getState().showToast('error', t.nutrition.food_delete_error);
             }
           })();
         },
@@ -573,16 +585,24 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
       >
         <View style={styles.header}>
           <AppText variant="h2" color={colors.text.primary}>
-            {isEdit
-              ? 'Editar comida'
-              : isCatalogEdit
-                ? t.nutrition.edit_food_title
-                : isCatalogCreate
-                  ? t.nutrition.create_food_title
-                  : 'Agregar comida'}
+            {readOnlyMeal && isEdit
+              ? t.nutrition.view_meal_title
+              : isEdit
+                ? 'Editar comida'
+                : isCatalogEdit
+                  ? t.nutrition.edit_food_title
+                  : isCatalogCreate
+                    ? t.nutrition.create_food_title
+                    : 'Agregar comida'}
           </AppText>
           <IconButton icon="close" onPress={() => navigation.goBack()} accessibilityLabel="Cerrar" />
         </View>
+
+        {readOnlyMeal ? (
+          <AppText variant="body13" color={colors.text.tertiary} style={styles.readonlyHint}>
+            {t.nutrition.readonly_day_hint}
+          </AppText>
+        ) : null}
 
         {isCatalogCreate || isCatalogEdit ? (
           <AppText variant="body13" color={colors.text.tertiary} style={styles.catalogHint}>
@@ -656,17 +676,18 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
               </View>
             ) : null}
 
-            {isCatalogCreate || isCatalogEdit || isEdit || !name.trim() ? (
+            {isCatalogCreate || isCatalogEdit || (isEdit && !readOnlyMeal) || (!readOnlyMeal && !name.trim()) ? (
               <Input
                 label="Nombre"
                 value={name}
                 onChangeText={setName}
                 placeholder="Ej: Milanesa con puré"
                 containerStyle={styles.field}
+                editable={!readOnlyMeal}
               />
             ) : null}
 
-            {showIconPicker ? (
+            {showIconPicker && !readOnlyMeal ? (
               <Card style={styles.sectionCard}>
                 <AppText variant="caps12" color={colors.text.tertiary} style={styles.sectionTitle}>
                   {t.nutrition.food_icon_label}
@@ -675,7 +696,7 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
               </Card>
             ) : null}
 
-            {isAddToMeal ? (
+            {isAddToMeal && !readOnlyMeal ? (
               <Card style={styles.sectionCard}>
                 <AppText variant="caps12" color={colors.text.tertiary} style={styles.sectionTitle}>
                   Comida
@@ -684,6 +705,7 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
               </Card>
             ) : null}
 
+            {!readOnlyMeal ? (
             <Card style={styles.sectionCard}>
               <AppText variant="caps12" color={colors.text.tertiary} style={styles.sectionTitle}>
                 {isCatalogCreate || isCatalogEdit ? t.nutrition.default_serving_label : t.nutrition.portion_label}
@@ -721,6 +743,7 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
                 ))}
               </View>
             </Card>
+            ) : null}
 
             {(per100 || isEdit || Number(kcalText) > 0) ? (
               <View style={styles.macroCardsRow}>
@@ -744,7 +767,7 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
               </View>
             ) : null}
 
-            {!per100 ? (
+            {!per100 && !readOnlyMeal ? (
               <>
                 <View style={styles.manualRow}>
                   <Input
@@ -785,6 +808,7 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
               </>
             ) : null}
 
+            {!readOnlyMeal ? (
             <Button
               label={
                 isCatalogCreate || isCatalogEdit
@@ -798,8 +822,9 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
               fullWidth
               style={styles.cta}
             />
+            ) : null}
 
-            {isEdit ? (
+            {isEdit && !readOnlyMeal ? (
               <Pressable onPress={onDeleteMeal} accessibilityRole="button" style={styles.deleteButton}>
                 <Ionicons name="trash-outline" size={18} color={colors.states.error} />
                 <AppText variant="body16SemiBold" color={colors.states.error}>
@@ -830,6 +855,9 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: spacing.lg,
+  },
+  readonlyHint: {
+    marginBottom: spacing.md,
   },
   offSkeleton: { marginBottom: spacing.md },
   offErrorBanner: {

@@ -31,7 +31,6 @@ const AutoMessagesPage     = lazy(() => import('@/pages/AutoMessages').then((m) 
 const ConsultationFormPage = lazy(() => import('@/pages/ConsultationForm').then((m) => ({ default: m.ConsultationFormPage })));
 const WaiverSettingsPage   = lazy(() => import('@/pages/WaiverSettings').then((m) => ({ default: m.WaiverSettingsPage })));
 const AnnouncementsPage    = lazy(() => import('@/pages/Announcements').then((m) => ({ default: m.AnnouncementsPage })));
-const AddOnsPage           = lazy(() => import('@/pages/AddOns').then((m) => ({ default: m.AddOnsPage })));
 
 function Protected(): React.JSX.Element {
   const { session, canManage, loading, signOut, role } = useAuth();
@@ -88,7 +87,6 @@ function App(): React.JSX.Element {
             <Route path="/branding" element={<BrandingPage />} />
             <Route path="/scheduling" element={<SchedulingPage />} />
             <Route path="/announcements" element={<AnnouncementsPage />} />
-            <Route path="/add-ons" element={<AddOnsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/settings/auto-messages" element={<AutoMessagesPage />} />
             <Route path="/settings/consultation-form" element={<ConsultationFormPage />} />

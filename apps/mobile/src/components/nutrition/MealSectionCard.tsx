@@ -14,6 +14,7 @@ interface MealSectionCardProps {
   mealType: MealType;
   meals: MealLogRow[];
   myFoods: FoodRow[];
+  readOnly?: boolean;
   onAdd: () => void;
   onMenuPress: () => void;
   onEditMeal: (meal: MealLogRow) => void;
@@ -23,6 +24,7 @@ interface MealSectionCardProps {
 
 export function MealSectionCard({
   title,
+  readOnly = false,
   onAdd,
   onMenuPress,
   onEditMeal,
@@ -45,15 +47,17 @@ export function MealSectionCard({
         <AppText variant="body16SemiBold" color={colors.text.primary}>
           {title}
         </AppText>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t.nutrition.meal_actions_subtitle}
-          onPress={onMenuPress}
-          hitSlop={8}
-          style={({ pressed }) => [styles.menuBtn, pressed && styles.menuBtnPressed]}
-        >
-          <Ionicons name="ellipsis-horizontal" size={18} color={colors.text.secondary} />
-        </Pressable>
+        {!readOnly ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t.nutrition.meal_actions_subtitle}
+            onPress={onMenuPress}
+            hitSlop={8}
+            style={({ pressed }) => [styles.menuBtn, pressed && styles.menuBtnPressed]}
+          >
+            <Ionicons name="ellipsis-horizontal" size={18} color={colors.text.secondary} />
+          </Pressable>
+        ) : null}
       </View>
 
       <View style={styles.summaryRow}>
@@ -72,6 +76,7 @@ export function MealSectionCard({
                 meal={meal}
                 brand={meal.food_id ? brandByFoodId.get(meal.food_id) : null}
                 iconKey={meal.icon_key ?? (meal.food_id ? iconKeyByFoodId.get(meal.food_id) : null)}
+                readOnly={readOnly}
                 onPress={() => onEditMeal(meal)}
                 onToggleIncluded={() => onToggleIncluded(meal.id)}
                 onDelete={() => onDeleteMeal(meal.id)}
@@ -81,14 +86,16 @@ export function MealSectionCard({
         </View>
       ) : null}
 
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Agregar a ${title}`}
-        onPress={onAdd}
-        style={({ pressed }) => [styles.addBtn, pressed && styles.addBtnPressed]}
-      >
-        <Ionicons name="add" size={22} color={colors.text.secondary} />
-      </Pressable>
+      {!readOnly ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Agregar a ${title}`}
+          onPress={onAdd}
+          style={({ pressed }) => [styles.addBtn, pressed && styles.addBtnPressed]}
+        >
+          <Ionicons name="add" size={22} color={colors.text.secondary} />
+        </Pressable>
+      ) : null}
     </View>
   );
 }

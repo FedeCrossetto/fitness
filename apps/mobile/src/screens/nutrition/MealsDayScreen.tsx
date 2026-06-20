@@ -1,16 +1,16 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { layout, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
-import { formatLongDate } from '../../lib/dates';
-import { AppText, CardSkeleton, ErrorState } from '../../components/common';
+import { AppText, CardSkeleton, ErrorState, WeekStrip } from '../../components/common';
 import { FoodSearchBar } from '../../components/nutrition/FoodSearchBar';
 import { FoodSearchSheet } from '../../components/nutrition/FoodSearchSheet';
 import { MacroDaySummary } from '../../components/nutrition/MacroDaySummary';
 import { MealSectionActionsSheet } from '../../components/nutrition/MealSectionActionsSheet';
 import { MealSectionCard } from '../../components/nutrition/MealSectionCard';
+import { isTodayDate } from '../../lib/dates';
 import { defaultMealTypeForNow, mealLabelKey } from '../../lib/meals';
 import { hapticSuccess } from '../../lib/haptics';
 import { useAuthStore } from '../../stores/authStore';
@@ -54,6 +54,7 @@ export function MealsDayScreen({ navigation }: Props): React.JSX.Element {
   const duplicateMeals = useNutritionStore((s) => s.duplicateMeals);
 
   const activeDate = useUiStore((s) => s.activeDate);
+  const canEditDay = isTodayDate(activeDate);
   const dayMeals = useMemo(
     () => meals.filter((m) => m.date === activeDate),
     [meals, activeDate],
@@ -76,6 +77,17 @@ export function MealsDayScreen({ navigation }: Props): React.JSX.Element {
       load();
     }, [load]),
   );
+
+  useEffect(() => {
+    if (!userId) return;
+    void loadDay(userId, activeDate);
+  }, [userId, activeDate, loadDay]);
+
+  useEffect(() => {
+    if (canEditDay) return;
+    setSearchSheetVisible(false);
+    setActionsMealType(null);
+  }, [canEditDay]);
 
   const onRefresh = useCallback(async () => {
     if (!userId) return;
@@ -101,9 +113,9 @@ export function MealsDayScreen({ navigation }: Props): React.JSX.Element {
     void (async () => {
       const ok = await deleteMeal(mealId);
       if (ok) {
-        useUiStore.getState().showToast('success', 'Comida eliminada');
+        useUiStore.getState().showToast('success', t.nutrition.meal_deleted);
       } else {
-        useUiStore.getState().showToast('error', 'No pudimos eliminar la comida.');
+        useUiStore.getState().showToast('error', t.nutrition.meal_delete_error);
       }
     })();
   };
@@ -142,13 +154,18 @@ export function MealsDayScreen({ navigation }: Props): React.JSX.Element {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <AppText variant="body14" color={colors.text.tertiary}>
-            {formatLongDate(activeDate)}
-          </AppText>
           <AppText variant="h1" color={colors.text.primary}>
             {t.nutrition.title}
           </AppText>
         </View>
+
+        <WeekStrip />
+
+        {!canEditDay ? (
+          <AppText variant="body13" color={colors.text.tertiary} style={styles.readonlyHint}>
+            {t.nutrition.readonly_day_hint}
+          </AppText>
+        ) : null}
 
         {showSkeletons ? (
           <>
@@ -157,7 +174,7 @@ export function MealsDayScreen({ navigation }: Props): React.JSX.Element {
             <CardSkeleton />
           </>
         ) : showError ? (
-          <ErrorState message={error ?? 'No pudimos cargar tus comidas.'} onRetry={load} />
+          <ErrorState message={error ?? t.nutrition.load_meals_error} onRetry={load} />
         ) : (
           <>
             <View style={styles.summaryBlock}>
@@ -174,6 +191,7 @@ export function MealsDayScreen({ navigation }: Props): React.JSX.Element {
                     mealType={section.type}
                     meals={sectionMeals}
                     myFoods={myFoods}
+                    readOnly={!canEditDay}
                     onAdd={() => openSearch(section.type)}
                     onMenuPress={() => setActionsMealType(section.type)}
                     onEditMeal={editMeal}
@@ -184,12 +202,14 @@ export function MealsDayScreen({ navigation }: Props): React.JSX.Element {
               })}
             </View>
 
-            <View style={styles.searchBlock}>
-              <FoodSearchBar
-                placeholder={t.nutrition.search_foods}
-                onPress={() => openSearch(defaultMealTypeForNow())}
-              />
-            </View>
+            {canEditDay ? (
+              <View style={styles.searchBlock}>
+                <FoodSearchBar
+                  placeholder={t.nutrition.search_foods}
+                  onPress={() => openSearch(defaultMealTypeForNow())}
+                />
+              </View>
+            ) : null}
 
             {hasOffData ? (
               <AppText variant="body12" color={colors.text.tertiary} align="center" style={styles.attribution}>
@@ -200,14 +220,16 @@ export function MealsDayScreen({ navigation }: Props): React.JSX.Element {
         )}
       </ScrollView>
 
-      <FoodSearchSheet
-        visible={searchSheetVisible}
-        mealType={searchMealType}
-        onClose={() => setSearchSheetVisible(false)}
-        navigation={navigation}
-      />
+      {canEditDay ? (
+        <FoodSearchSheet
+          visible={searchSheetVisible}
+          mealType={searchMealType}
+          onClose={() => setSearchSheetVisible(false)}
+          navigation={navigation}
+        />
+      ) : null}
 
-      {actionsSection ? (
+      {canEditDay && actionsSection ? (
         <MealSectionActionsSheet
           visible={actionsMealType !== null}
           sourceMealType={actionsSection.type}
@@ -226,6 +248,9 @@ const createStyles = (colors: Colors) =>
     flex: { flex: 1, backgroundColor: colors.background },
     header: {
       marginBottom: spacing.lg,
+    },
+    readonlyHint: {
+      marginBottom: spacing.md,
     },
     summaryBlock: {
       marginBottom: spacing.md,

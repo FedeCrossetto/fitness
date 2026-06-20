@@ -188,7 +188,7 @@ export function FoodSearchSheet({
               hapticSuccess();
               useUiStore.getState().showToast('success', t.nutrition.food_deleted);
             } else {
-              useUiStore.getState().showToast('error', 'No pudimos eliminar el alimento.');
+              useUiStore.getState().showToast('error', t.nutrition.food_delete_error);
             }
           })();
         },

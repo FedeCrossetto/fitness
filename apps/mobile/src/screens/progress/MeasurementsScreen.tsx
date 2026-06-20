@@ -1,10 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { layout, radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
-import { bodyModels } from '../../theme/illustrations';
-import { formatLongDate } from '../../lib/dates';
 import { hapticSuccess } from '../../lib/haptics';
 import {
   AppText,
@@ -15,9 +13,11 @@ import {
   IconButton,
   Input,
 } from '../../components/common';
+import { BodyAvatar, MeasurementHistoryList, type BodyGender } from '../../components/progress';
 import { useAuthStore } from '../../stores/authStore';
 import { useProgressStore } from '../../stores/progressStore';
 import { useUiStore } from '../../stores/uiStore';
+import { useTranslation } from '../../stores/i18nStore';
 import type { BodyMeasurementRow } from '../../types/database';
 import { useTabBarScrollPadding } from '../../hooks/useTabBarScrollPadding';
 import type { ProgressStackParamList } from '../../types/navigation';
@@ -26,111 +26,29 @@ type Props = NativeStackScreenProps<ProgressStackParamList, 'Measurements'>;
 
 type FormField = 'weight' | 'fat' | 'chest' | 'waist' | 'hips' | 'arms' | 'legs';
 type FormState = Record<FormField, string>;
-type Gender = 'male' | 'female';
 
 const EMPTY_FORM: FormState = { weight: '', fat: '', chest: '', waist: '', hips: '', arms: '', legs: '' };
-
-const FORM_FIELDS: { key: FormField; label: string; placeholder: string }[] = [
-  { key: 'weight', label: 'Peso (kg)', placeholder: '78.5' },
-  { key: 'fat', label: '% Grasa', placeholder: '18.0' },
-  { key: 'chest', label: 'Pecho (cm)', placeholder: '100' },
-  { key: 'waist', label: 'Cintura (cm)', placeholder: '82' },
-  { key: 'hips', label: 'Cadera (cm)', placeholder: '95' },
-  { key: 'arms', label: 'Brazos (cm)', placeholder: '36' },
-  { key: 'legs', label: 'Piernas (cm)', placeholder: '58' },
-];
 
 function parseDecimal(value: string): number | null {
   const n = Number.parseFloat(value.replace(',', '.'));
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-function cm(value: number | null | undefined): string {
-  return value !== null && value !== undefined ? `${value} cm` : '—';
-}
-
-/** Silueta corporal lineal con etiquetas de las últimas medidas por zona. */
-function BodyAvatar({
-  latest,
-  gender,
-}: {
-  latest: BodyMeasurementRow | undefined;
-  gender: Gender;
-}): React.JSX.Element {
-  const { colors } = useTheme();
-
-  return (
-    <View style={avatarStyles.row}>
-      <View style={avatarStyles.sideColumn}>
-        <View style={avatarStyles.labelBlock}>
-          <AppText variant="caps11" color={colors.text.tertiary}>
-            Brazos
-          </AppText>
-          <AppText variant="body14SemiBold" color={colors.text.primary}>
-            {cm(latest?.arms_cm)}
-          </AppText>
-        </View>
-        <View style={avatarStyles.labelBlock}>
-          <AppText variant="caps11" color={colors.text.tertiary}>
-            Cintura
-          </AppText>
-          <AppText variant="body14SemiBold" color={colors.text.primary}>
-            {cm(latest?.waist_cm)}
-          </AppText>
-        </View>
-      </View>
-
-      <Image
-        source={bodyModels[gender]}
-        style={avatarStyles.bodyImage}
-        resizeMode="contain"
-        accessibilityLabel={gender === 'female' ? 'Figura corporal femenina' : 'Figura corporal masculina'}
-      />
-
-      <View style={avatarStyles.sideColumn}>
-        <View style={avatarStyles.labelBlock}>
-          <AppText variant="caps11" color={colors.text.tertiary}>
-            Pecho
-          </AppText>
-          <AppText variant="body14SemiBold" color={colors.text.primary}>
-            {cm(latest?.chest_cm)}
-          </AppText>
-        </View>
-        <View style={avatarStyles.labelBlock}>
-          <AppText variant="caps11" color={colors.text.tertiary}>
-            Cadera
-          </AppText>
-          <AppText variant="body14SemiBold" color={colors.text.primary}>
-            {cm(latest?.hips_cm)}
-          </AppText>
-        </View>
-        <View style={avatarStyles.labelBlock}>
-          <AppText variant="caps11" color={colors.text.tertiary}>
-            Piernas
-          </AppText>
-          <AppText variant="body14SemiBold" color={colors.text.primary}>
-            {cm(latest?.legs_cm)}
-          </AppText>
-        </View>
-      </View>
-    </View>
-  );
-}
-
 function GenderToggle({
   value,
   onChange,
 }: {
-  value: Gender;
-  onChange: (g: Gender) => void;
+  value: BodyGender;
+  onChange: (g: BodyGender) => void;
 }): React.JSX.Element {
   const { colors } = useTheme();
-  const options: { key: Gender; label: string }[] = [
-    { key: 'male', label: 'Hombre' },
-    { key: 'female', label: 'Mujer' },
+  const { t } = useTranslation();
+  const options: { key: BodyGender; label: string }[] = [
+    { key: 'male', label: t.progress.male },
+    { key: 'female', label: t.progress.female },
   ];
   return (
-    <View style={avatarStyles.genderRow}>
+    <View style={genderStyles.row}>
       {options.map((opt) => {
         const active = value === opt.key;
         return (
@@ -140,7 +58,7 @@ function GenderToggle({
             accessibilityState={{ selected: active }}
             onPress={() => onChange(opt.key)}
             style={[
-              avatarStyles.genderOption,
+              genderStyles.option,
               {
                 backgroundColor: active ? colors.primary.default : 'transparent',
                 borderColor: active ? colors.primary.default : colors.border.subtle,
@@ -163,6 +81,7 @@ function GenderToggle({
 export function MeasurementsScreen({ navigation }: Props): React.JSX.Element {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
+  const { t } = useTranslation();
 
   const insets = useSafeAreaInsets();
   const scrollBottom = useTabBarScrollPadding();
@@ -177,13 +96,24 @@ export function MeasurementsScreen({ navigation }: Props): React.JSX.Element {
   const saveMeasurement = useProgressStore((s) => s.saveMeasurement);
 
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
-  const [gender, setGender] = useState<Gender>('male');
+  const [gender, setGender] = useState<BodyGender>('male');
   const [saving, setSaving] = useState(false);
 
   const latest = measurements[0];
 
-  // Carga las medidas y precarga el form con los últimos valores (una sola vez).
-  // El setForm ocurre después del await: no es setState síncrono dentro del efecto.
+  const formFields = useMemo(
+    (): { key: FormField; label: string; placeholder: string }[] => [
+      { key: 'weight', label: `${t.progress.weight} (kg)`, placeholder: '78.5' },
+      { key: 'fat', label: t.progress.fat_pct, placeholder: '18.0' },
+      { key: 'chest', label: `${t.progress.chest} (cm)`, placeholder: '100' },
+      { key: 'waist', label: `${t.progress.waist} (cm)`, placeholder: '82' },
+      { key: 'hips', label: `${t.progress.hips} (cm)`, placeholder: '95' },
+      { key: 'arms', label: `${t.progress.arms} (cm)`, placeholder: '36' },
+      { key: 'legs', label: `${t.progress.legs} (cm)`, placeholder: '58' },
+    ],
+    [t]
+  );
+
   useEffect(() => {
     if (!userId) return;
     let cancelled = false;
@@ -214,8 +144,6 @@ export function MeasurementsScreen({ navigation }: Props): React.JSX.Element {
     setForm((prev) => ({ ...prev, [key]: value }));
   }, []);
 
-  const history = useMemo(() => measurements.slice(0, 5), [measurements]);
-
   const onSave = useCallback(async () => {
     if (!userId) return;
     const data: Partial<BodyMeasurementRow> = {
@@ -231,7 +159,7 @@ export function MeasurementsScreen({ navigation }: Props): React.JSX.Element {
     const { gender: _gender, ...measures } = data;
     const hasValue = Object.values(measures).some((v) => v !== null);
     if (!hasValue) {
-      useUiStore.getState().showToast('error', 'Ingresá al menos una medida para guardar.');
+      useUiStore.getState().showToast('error', t.progress.measurements_required);
       return;
     }
     setSaving(true);
@@ -239,11 +167,11 @@ export function MeasurementsScreen({ navigation }: Props): React.JSX.Element {
     setSaving(false);
     if (ok) {
       hapticSuccess();
-      useUiStore.getState().showToast('success', 'Medidas guardadas');
+      useUiStore.getState().showToast('success', t.progress.measurements_saved);
     } else {
-      useUiStore.getState().showToast('error', 'No pudimos guardar las medidas.');
+      useUiStore.getState().showToast('error', t.progress.measurements_save_error);
     }
-  }, [userId, form, saveMeasurement]);
+  }, [userId, form, gender, saveMeasurement, t]);
 
   const isLoading = measurementsLoading && measurements.length === 0;
   const hasError = measurementsError !== null && measurements.length === 0;
@@ -253,7 +181,7 @@ export function MeasurementsScreen({ navigation }: Props): React.JSX.Element {
       <View style={styles.header}>
         <IconButton icon="chevron-back" onPress={() => navigation.goBack()} accessibilityLabel="Volver" />
         <AppText variant="h3" color={colors.text.primary}>
-          Medidas
+          {t.progress.measurements}
         </AppText>
         <View style={styles.headerSpacer} />
       </View>
@@ -271,22 +199,20 @@ export function MeasurementsScreen({ navigation }: Props): React.JSX.Element {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Avatar corporal */}
           <Card style={styles.avatarCard}>
             <AppText variant="caps12" color={colors.text.tertiary} style={styles.cardTitle}>
-              Tus medidas actuales
+              {t.progress.current_measurements}
             </AppText>
             <BodyAvatar latest={latest} gender={gender} />
             <GenderToggle value={gender} onChange={setGender} />
           </Card>
 
-          {/* Formulario */}
           <Card style={styles.formCard}>
             <AppText variant="caps12" color={colors.text.tertiary} style={styles.cardTitle}>
-              Registrar medidas de hoy
+              {t.progress.log_today}
             </AppText>
             <View style={styles.formGrid}>
-              {FORM_FIELDS.map((field) => (
+              {formFields.map((field) => (
                 <Input
                   key={field.key}
                   label={field.label}
@@ -298,43 +224,21 @@ export function MeasurementsScreen({ navigation }: Props): React.JSX.Element {
                 />
               ))}
             </View>
-            <Button label="Guardar medidas" onPress={() => void onSave()} loading={saving} fullWidth style={styles.saveButton} />
+            <Button
+              label={t.progress.save_measurements}
+              onPress={() => void onSave()}
+              loading={saving}
+              fullWidth
+              style={styles.saveButton}
+            />
           </Card>
 
-          {/* Historial corto */}
-          {history.length > 0 ? (
+          {measurements.length > 0 ? (
             <Card style={styles.historyCard}>
               <AppText variant="caps12" color={colors.text.tertiary} style={styles.cardTitle}>
-                Últimas mediciones
+                {t.progress.recent_history}
               </AppText>
-              {history.map((m, index) => {
-                const prev = history[index + 1];
-                const delta =
-                  m.weight_kg !== null && prev?.weight_kg !== null && prev?.weight_kg !== undefined
-                    ? m.weight_kg - prev.weight_kg
-                    : null;
-                return (
-                  <View key={m.id} style={styles.historyRow}>
-                    <View style={styles.historyInfo}>
-                      <AppText variant="body14Medium" color={colors.text.primary}>
-                        {formatLongDate(m.date)}
-                      </AppText>
-                      {delta !== null ? (
-                        <AppText
-                          variant="body12Medium"
-                          color={delta <= 0 ? colors.primary.default : colors.text.tertiary}
-                        >
-                          {delta > 0 ? '+' : ''}
-                          {delta.toFixed(1)} kg
-                        </AppText>
-                      ) : null}
-                    </View>
-                    <AppText variant="body14SemiBold" color={colors.text.primary}>
-                      {m.weight_kg !== null ? `${m.weight_kg.toFixed(1)} kg` : '—'}
-                    </AppText>
-                  </View>
-                );
-              })}
+              <MeasurementHistoryList measurements={measurements} />
             </Card>
           ) : null}
         </ScrollView>
@@ -368,39 +272,16 @@ const createStyles = (colors: Colors) => StyleSheet.create({
   formField: { width: '48%', marginBottom: spacing.md },
   saveButton: { marginTop: spacing.xs },
   historyCard: { marginBottom: spacing.md },
-  historyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: spacing.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border.subtle,
-  },
-  historyInfo: { flex: 1 },
 });
 
-const avatarStyles = StyleSheet.create({
+const genderStyles = StyleSheet.create({
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  sideColumn: {
-    flex: 1,
-    justifyContent: 'space-around',
-    alignSelf: 'stretch',
-    paddingVertical: spacing.lg,
-    gap: spacing.md,
-  },
-  labelBlock: { gap: 2 },
-  bodyImage: { width: 132, height: 248 },
-  genderRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     gap: spacing.sm,
     marginTop: spacing.md,
   },
-  genderOption: {
+  option: {
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.xs,
     borderRadius: radius.pill,

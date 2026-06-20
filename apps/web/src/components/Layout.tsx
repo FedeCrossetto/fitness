@@ -3,11 +3,13 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useUnreadMessages } from '@/hooks/useUnreadMessages';
+import { usePendingFoodCount } from '@/hooks/usePendingFoodCount';
+import { useAppBrandName } from '@/hooks/useAppBrandName';
 import { LANGUAGES } from '@reset-fitness/shared';
 import {
   GridIcon, BrushIcon, UsersIcon, LogOutIcon,
   MessageIcon, CalendarIcon, GroupsIcon, TrophyIcon, CreditCardIcon,
-  BookOpenIcon, NutritionIcon, SettingsIcon, ChevronDownIcon, ChevronRightIcon,
+  DumbbellIcon, NutritionIcon, SettingsIcon, ChevronDownIcon, ChevronRightIcon,
   MegaphoneIcon,
 } from '@/components/icons';
 
@@ -53,6 +55,8 @@ export function Layout(): React.JSX.Element {
   const { profile, signOut, isAdmin, isTrainer } = useAuth();
   const { t, language, setLanguage } = useTranslation();
   const unreadMessages = useUnreadMessages();
+  const pendingFoodCount = usePendingFoodCount();
+  const appBrandName = useAppBrandName();
   const navigate = useNavigate();
   const location = useLocation();
   const isOverview = location.pathname === '/';
@@ -90,8 +94,8 @@ export function Layout(): React.JSX.Element {
     {
       section: t.web.nav_content,
       items: [
-        { to: '/routines',      label: t.web.libraries,      icon: () => <BookOpenIcon /> },
-        { to: '/foods',         label: t.web.foods,          icon: () => <NutritionIcon /> },
+        { to: '/routines',      label: t.web.program,        icon: () => <DumbbellIcon /> },
+        { to: '/foods',         label: t.web.foods,          icon: () => <NutritionIcon />, badge: pendingFoodCount || undefined },
         { to: '/branding',      label: t.web.branding,       icon: () => <BrushIcon />   },
         { to: '/scheduling',    label: t.web.scheduling,     icon: () => <CalendarIcon />, mock: true },
         { to: '/announcements', label: t.web.announcements,  icon: () => <MegaphoneIcon />},
@@ -117,7 +121,7 @@ export function Layout(): React.JSX.Element {
             <img src="/logo_app_sin_fondo_cuadrado_1024.png" alt="" className="brand-logo" />
             {!sc && (
               <div className="brand-text">
-                <span className="brand-name">CustomFit</span>
+                <span className="brand-name">{appBrandName}</span>
               </div>
             )}
           </NavLink>

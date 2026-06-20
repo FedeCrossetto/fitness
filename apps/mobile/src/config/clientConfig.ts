@@ -3,6 +3,14 @@
  * Todo branding, copy y módulos activos se resuelven acá: el core no se toca por cliente.
  */
 
+import {
+  DEFAULT_APP_NAME,
+  DEFAULT_HYDRATION_GOAL_ML,
+  DEFAULT_KCAL_GOAL,
+  DEFAULT_MACRO_GOALS,
+  DEFAULT_STEPS_GOAL,
+} from '@reset-fitness/shared';
+
 export interface ClientModules {
   training: boolean;
   nutrition: boolean;
@@ -41,13 +49,13 @@ export interface ClientConfig {
 }
 
 export const defaultClientConfig: ClientConfig = {
-  appName: 'Reset Fit',
+  appName: DEFAULT_APP_NAME,
   programKey: 'default',
   defaultLocale: 'es',
-  defaultHydrationGoalMl: 3000,
-  defaultKcalGoal: 2200,
-  defaultMacroGoals: { protein: 160, carbs: 220, fat: 70 },
-  defaultStepsGoal: 10000,
+  defaultHydrationGoalMl: DEFAULT_HYDRATION_GOAL_ML,
+  defaultKcalGoal: DEFAULT_KCAL_GOAL,
+  defaultMacroGoals: { ...DEFAULT_MACRO_GOALS },
+  defaultStepsGoal: DEFAULT_STEPS_GOAL,
   modules: {
     training: true,
     nutrition: true,

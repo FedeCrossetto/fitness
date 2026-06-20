@@ -16,14 +16,14 @@ import {
   EmptyState,
   ErrorState,
   HeaderAvatar,
-  MetricCard,
-  SectionHeader,
 } from '../../components/common';
 import { BarChart, LineChart } from '../../components/charts';
+import { MeasurementHistoryList, ProgressToolsMenu } from '../../components/progress';
 import { useAuthStore } from '../../stores/authStore';
 import { useProgressStore } from '../../stores/progressStore';
 import { useTrainingStore } from '../../stores/trainingStore';
 import { useUiStore } from '../../stores/uiStore';
+import { useTranslation } from '../../stores/i18nStore';
 import { readHealthSnapshot } from '../../services/health';
 import { connectTodaySteps } from '../../services/steps';
 import { showPlatformHealthError } from '../../services/healthPlatform';
@@ -34,9 +34,39 @@ type Props = NativeStackScreenProps<ProgressStackParamList, 'Dashboard'>;
 
 const CHART_WIDTH = Dimensions.get('window').width - layout.screenPadding * 2 - spacing.md * 2;
 
+interface StatCellProps {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  value: string;
+  unit?: string;
+}
+
+function StatCell({ icon, label, value, unit }: StatCellProps): React.JSX.Element {
+  const { colors } = useTheme();
+  return (
+    <View style={statStyles.cell}>
+      <Ionicons name={icon} size={15} color={colors.text.tertiary} />
+      <AppText variant="caps11" color={colors.text.tertiary} numberOfLines={1}>
+        {label}
+      </AppText>
+      <View style={statStyles.valueRow}>
+        <AppText variant="body16SemiBold" color={colors.text.primary}>
+          {value}
+        </AppText>
+        {unit ? (
+          <AppText variant="body12Medium" color={colors.text.tertiary}>
+            {unit}
+          </AppText>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
 export function ProgressDashboardScreen({ navigation }: Props): React.JSX.Element {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
+  const { t, language } = useTranslation();
 
   const insets = useSafeAreaInsets();
   const scrollBottom = useTabBarScrollPadding();
@@ -58,6 +88,8 @@ export function ProgressDashboardScreen({ navigation }: Props): React.JSX.Elemen
   const [snapshot, setSnapshot] = useState<HealthSnapshot | null>(null);
   const [connecting, setConnecting] = useState(false);
 
+  const goMeasurements = useCallback(() => navigation.navigate('Measurements'), [navigation]);
+
   const loadAll = useCallback(async () => {
     if (!userId) return;
     await Promise.all([loadMeasurements(userId), loadRecentLogs(userId)]);
@@ -70,7 +102,6 @@ export function ProgressDashboardScreen({ navigation }: Props): React.JSX.Elemen
     }
   }, [userId, loadMeasurements, loadRecentLogs, setSteps]);
 
-  // Evita re-cargar todo en cada cambio de tab: el estado en memoria ya está al día.
   const lastLoadRef = useRef(0);
   useFocusEffect(
     useCallback(() => {
@@ -87,7 +118,6 @@ export function ProgressDashboardScreen({ navigation }: Props): React.JSX.Elemen
     setRefreshing(false);
   }, [loadAll]);
 
-  // Mediciones con peso, ordenadas ascendente por fecha para el gráfico
   const weightHistory = useMemo(
     () =>
       measurements
@@ -109,7 +139,6 @@ export function ProgressDashboardScreen({ navigation }: Props): React.JSX.Elemen
   const previousWeight = weightHistory.length > 1 ? (weightHistory[weightHistory.length - 2]!.weight_kg as number) : null;
   const weightDelta = currentWeight !== null && previousWeight !== null ? currentWeight - previousWeight : null;
 
-  // Minutos activos por día de los últimos 7 días (estilo "Calories Burned" de la plantilla)
   const weeklyActivity = useMemo(() => {
     const days: { label: string; value: number }[] = [];
     const dayLetters = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
@@ -129,6 +158,8 @@ export function ProgressDashboardScreen({ navigation }: Props): React.JSX.Elemen
   const latestFat = measurements.find((m) => m.body_fat_pct !== null)?.body_fat_pct ?? null;
   const leanMass = currentWeight !== null && latestFat !== null ? currentWeight * (1 - latestFat / 100) : null;
 
+  const locale = language === 'en' ? 'en-US' : 'es-AR';
+
   const connectHealth = useCallback(async () => {
     setConnecting(true);
     const result = await connectTodaySteps();
@@ -137,42 +168,41 @@ export function ProgressDashboardScreen({ navigation }: Props): React.JSX.Elemen
       setHealthConnected(true);
       const healthSnapshot = await readHealthSnapshot();
       setSnapshot(healthSnapshot);
-      useUiStore.getState().showToast('success', 'Conectado');
+      useUiStore.getState().showToast('success', t.progress.connect);
     } else {
       void showPlatformHealthError(result, {
-        no_access: 'Sin acceso',
-        health_no_perm_ios: 'Reset Fit necesita permiso para leer tus pasos en Apple Salud.',
-        health_no_perm_and: 'Reset Fit necesita permiso para leer pasos en Health Connect.',
-        health_needs_hc_update: 'Instalá o actualizá Health Connect desde Google Play.',
-        health_open: 'Abrir Salud',
-        health_open_hc: 'Abrir Health Connect',
-        install_hc: 'Instalar Health Connect',
-        cancel: 'Cancelar',
+        no_access: t.progress.hk_no_access,
+        health_no_perm_ios: t.progress.hk_perm_msg,
+        health_no_perm_and: t.progress.hk_perm_msg,
+        health_needs_hc_update: t.progress.hk_sub,
+        health_open: t.progress.connect,
+        health_open_hc: t.progress.connect,
+        install_hc: t.progress.connect,
+        cancel: t.ui.cancel,
       });
     }
     setConnecting(false);
-  }, [setHealthConnected, setSteps]);
+  }, [setHealthConnected, setSteps, t]);
 
   const disconnectHealth = useCallback(() => {
-    Alert.alert(
-      'Desconectar Apple Health',
-      'Se borrarán los datos locales. Para revocar el acceso completo, andá a Ajustes > Privacidad > Salud > Reset Fit.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Desconectar', style: 'destructive', onPress: () => {
-            setSnapshot(null);
-            setSteps(0);
-            setHealthConnected(false);
-            useUiStore.getState().showToast('success', 'Desconectado de Apple Health');
-          }
+    Alert.alert(t.progress.disc_title, t.progress.disc_msg, [
+      { text: t.ui.cancel, style: 'cancel' },
+      {
+        text: t.progress.disc_action,
+        style: 'destructive',
+        onPress: () => {
+          setSnapshot(null);
+          setSteps(0);
+          setHealthConnected(false);
+          useUiStore.getState().showToast('success', t.progress.hk_disconnected);
         },
-      ]
-    );
-  }, [setSteps, setHealthConnected]);
+      },
+    ]);
+  }, [setSteps, setHealthConnected, t]);
 
   const isLoading = measurementsLoading && measurements.length === 0;
   const hasError = measurementsError !== null && measurements.length === 0;
+  const hasWeight = weightHistory.length > 0;
 
   return (
     <ScrollView
@@ -187,14 +217,13 @@ export function ProgressDashboardScreen({ navigation }: Props): React.JSX.Elemen
       }
       showsVerticalScrollIndicator={false}
     >
-      {/* Cabecera del pilar */}
       <View style={styles.header}>
         <View style={styles.headerText}>
           <AppText variant="caps12" color={colors.text.tertiary}>
-            Tu evolución
+            {t.progress.evolution}
           </AppText>
           <AppText variant="h1" color={colors.text.primary} style={styles.title}>
-            Progreso
+            {t.progress.title}
           </AppText>
         </View>
         <HeaderAvatar />
@@ -204,26 +233,26 @@ export function ProgressDashboardScreen({ navigation }: Props): React.JSX.Elemen
         <>
           <CardSkeleton />
           <CardSkeleton />
-          <CardSkeleton />
         </>
       ) : hasError ? (
         <ErrorState message={measurementsError} onRetry={() => void loadAll()} />
       ) : (
         <>
-          {/* Tarjeta principal de peso */}
-          {weightHistory.length === 0 ? (
-            <EmptyState
-              pillar="progress"
-              title="Sin registros todavía"
-              message="Registrá tu primer peso para ver tu evolución"
-              actionLabel="Registrar peso"
-              onAction={() => navigation.navigate('Measurements')}
-            />
+          {!hasWeight ? (
+            <View style={styles.emptyState}>
+              <EmptyState
+                pillar="progress"
+                title={t.progress.no_records}
+                message={t.progress.record_weight}
+                actionLabel={t.progress.add_weight}
+                onAction={goMeasurements}
+              />
+            </View>
           ) : (
-            <Card elevated style={styles.weightCard} onPress={() => navigation.navigate('WeightDetail')}>
+            <Card elevated style={styles.heroCard} onPress={() => navigation.navigate('WeightDetail')}>
               <View style={styles.weightHeader}>
                 <AppText variant="caps12" color={colors.text.tertiary}>
-                  Peso corporal
+                  {t.progress.weight}
                 </AppText>
                 <Ionicons name="chevron-forward" size={16} color={colors.text.tertiary} />
               </View>
@@ -239,178 +268,167 @@ export function ProgressDashboardScreen({ navigation }: Props): React.JSX.Elemen
                 <AppText
                   variant="body13SemiBold"
                   color={weightDelta <= 0 ? colors.primary.default : colors.text.tertiary}
-                  style={styles.weightDelta}
                 >
-                  {weightDelta > 0 ? '+' : ''}
-                  {weightDelta.toFixed(1)} kg vs medición anterior
+                  {t.progress.vs_prev.replace('{{delta}}', `${weightDelta > 0 ? '+' : ''}${weightDelta.toFixed(1)}`)}
                 </AppText>
               ) : null}
+
               <View style={styles.chartWrap}>
                 <LineChart
                   data={chartData}
                   width={CHART_WIDTH}
-                  height={150}
-                  showDots
-                  formatValue={(v) => `${v.toFixed(1)} kg`}
+                  height={140}
+                  soft
+                  curved
                 />
               </View>
+
+              {measurements.length > 0 ? (
+                <>
+                  <View style={styles.divider} />
+                  <AppText variant="caps12" color={colors.text.tertiary} style={styles.historyLabel}>
+                    {t.progress.recent_history}
+                  </AppText>
+                  <MeasurementHistoryList
+                    measurements={measurements}
+                    limit={3}
+                    footerLabel={t.progress.see_full_history}
+                    onFooterPress={goMeasurements}
+                  />
+                </>
+              ) : null}
             </Card>
           )}
 
-          {/* Actividad semanal */}
-          {hasWeeklyActivity ? (
-            <Card style={styles.activityCard}>
-              <View style={styles.weightHeader}>
-                <AppText variant="caps12" color={colors.text.tertiary}>
-                  Minutos activos · últimos 7 días
-                </AppText>
-                <Ionicons name="barbell-outline" size={16} color={colors.primary.default} />
-              </View>
-              <BarChart
-                data={weeklyActivity}
-                width={CHART_WIDTH}
-                height={130}
-                formatValue={(v) => `${Math.round(v)} min`}
-              />
-            </Card>
-          ) : null}
-
-          {/* Grid de métricas */}
-          <View style={styles.metricsRow}>
-            <MetricCard
-              label="% Grasa"
-              value={latestFat !== null ? latestFat.toFixed(1) : '—'}
-              unit={latestFat !== null ? '%' : undefined}
-              icon="analytics-outline"
-              style={styles.metricHalf}
+          <Card style={styles.sectionCard}>
+            <AppText variant="h3" color={colors.text.primary} style={styles.inlineSectionTitle}>
+              {t.progress.tools}
+            </AppText>
+            <ProgressToolsMenu
+              onMeasurements={goMeasurements}
+              onPhotos={() => navigation.navigate('ProgressPhotos')}
+              onHydration={() => navigation.navigate('HydrationDetail')}
+              onWeightDetail={() => navigation.navigate('WeightDetail')}
+              showWeightDetail={hasWeight}
             />
-            <MetricCard
-              label="Masa magra"
-              value={leanMass !== null ? leanMass.toFixed(1) : '—'}
-              unit={leanMass !== null ? 'kg' : undefined}
-              icon="body-outline"
-              style={styles.metricHalf}
-            />
-          </View>
-          <View style={styles.metricsRow}>
-            <MetricCard
-              label="Pasos hoy"
-              value={steps > 0 ? steps.toLocaleString('es-AR') : '—'}
-              icon="walk-outline"
-              style={styles.metricHalf}
-            />
-            <MetricCard
-              label="Sueño"
-              value={snapshot?.sleepHours !== null && snapshot?.sleepHours !== undefined ? snapshot.sleepHours.toFixed(1) : '—'}
-              unit={snapshot?.sleepHours !== null && snapshot?.sleepHours !== undefined ? 'h' : undefined}
-              icon="moon-outline"
-              style={styles.metricHalf}
-            />
-          </View>
-          <View style={styles.metricsRow}>
-            <MetricCard
-              label="Frecuencia cardíaca"
-              value={snapshot?.heartRate !== null && snapshot?.heartRate !== undefined ? String(Math.round(snapshot.heartRate)) : '—'}
-              unit={snapshot?.heartRate !== null && snapshot?.heartRate !== undefined ? 'bpm' : undefined}
-              icon="heart-outline"
-              style={styles.metricHalf}
-            />
-            <View style={styles.metricHalf} />
-          </View>
-
-          {/* Apple Health */}
-          <Card style={styles.healthCard}>
-            <View style={styles.healthRow}>
-              <View style={styles.healthIcon}>
-                <Ionicons name="heart-circle-outline" size={24} color={colors.primary.default} />
-              </View>
-              <View style={styles.healthInfo}>
-                <AppText variant="body16SemiBold" color={colors.text.primary}>
-                  Apple Health
-                </AppText>
-                <AppText variant="body13" color={colors.text.secondary} style={styles.healthSub}>
-                  {snapshot
-                    ? 'Conectado: tus datos se sincronizan automáticamente.'
-                    : !Device.isDevice
-                      ? 'Solo disponible en iPhone físico, no en el simulador.'
-                      : 'Leemos peso, pasos, FC y sueño para completar tu progreso'}
-                </AppText>
-              </View>
-              {snapshot ? <Ionicons name="checkmark-circle" size={22} color={colors.primary.default} /> : null}
-            </View>
-            {Device.isDevice && (
-              snapshot ? (
-                <Button
-                  label="Desconectar"
-                  variant="ghost"
-                  size="md"
-                  icon="unlink-outline"
-                  onPress={disconnectHealth}
-                  style={styles.healthButton}
-                />
-              ) : (
-                <Button
-                  label="Conectar Apple Health"
-                  variant="secondary"
-                  size="md"
-                  icon="link-outline"
-                  loading={connecting}
-                  onPress={() => void connectHealth()}
-                  style={styles.healthButton}
-                />
-              )
-            )}
           </Card>
 
-          {/* Accesos */}
-          <SectionHeader title="Herramientas" />
-          {(
-            [
-              {
-                key: 'photos',
-                icon: 'camera-outline',
-                title: 'Fotos de progreso',
-                sub: 'Comparate semana a semana',
-                onPress: () => navigation.navigate('ProgressPhotos'),
-              },
-              {
-                key: 'measurements',
-                icon: 'resize-outline',
-                title: 'Medidas',
-                sub: 'Peso, % grasa y medidas corporales',
-                onPress: () => navigation.navigate('Measurements'),
-              },
-              {
-                key: 'hydration',
-                icon: 'water-outline',
-                title: 'Hidratación',
-                sub: 'Registrá tu consumo de agua diario',
-                onPress: () => navigation.navigate('HydrationDetail'),
-              },
-            ] as const
-          ).map((item) => (
-            <Card key={item.key} style={styles.accessCard} onPress={item.onPress}>
-              <View style={styles.accessRow}>
-                <View style={styles.accessIcon}>
-                  <Ionicons name={item.icon} size={20} color={colors.primary.default} />
-                </View>
-                <View style={styles.accessInfo}>
-                  <AppText variant="body16SemiBold" color={colors.text.primary}>
-                    {item.title}
-                  </AppText>
-                  <AppText variant="body13" color={colors.text.tertiary}>
-                    {item.sub}
-                  </AppText>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={colors.text.tertiary} />
+          <Card style={styles.sectionCard}>
+            <AppText variant="h3" color={colors.text.primary} style={styles.inlineSectionTitle}>
+              {t.progress.overview}
+            </AppText>
+            <View style={styles.statsGrid}>
+              <StatCell
+                icon="analytics-outline"
+                label={t.progress.fat_pct}
+                value={latestFat !== null ? latestFat.toFixed(1) : '—'}
+                unit={latestFat !== null ? '%' : undefined}
+              />
+              <StatCell
+                icon="body-outline"
+                label={t.progress.lean_mass}
+                value={leanMass !== null ? leanMass.toFixed(1) : '—'}
+                unit={leanMass !== null ? 'kg' : undefined}
+              />
+              <StatCell
+                icon="walk-outline"
+                label={t.progress.steps}
+                value={steps > 0 ? steps.toLocaleString(locale) : '—'}
+              />
+              <StatCell
+                icon="moon-outline"
+                label={t.progress.sleep}
+                value={
+                  snapshot?.sleepHours !== null && snapshot?.sleepHours !== undefined
+                    ? snapshot.sleepHours.toFixed(1)
+                    : '—'
+                }
+                unit={snapshot?.sleepHours !== null && snapshot?.sleepHours !== undefined ? 'h' : undefined}
+              />
+              <StatCell
+                icon="heart-outline"
+                label={t.progress.heart_rate}
+                value={
+                  snapshot?.heartRate !== null && snapshot?.heartRate !== undefined
+                    ? String(Math.round(snapshot.heartRate))
+                    : '—'
+                }
+                unit={snapshot?.heartRate !== null && snapshot?.heartRate !== undefined ? 'bpm' : undefined}
+              />
+              {hasWeeklyActivity ? (
+                <StatCell
+                  icon="barbell-outline"
+                  label={t.progress.weekly_min}
+                  value={`${weeklyActivity.reduce((a, d) => a + d.value, 0)}`}
+                  unit="min"
+                />
+              ) : (
+                <View style={statStyles.cell} />
+              )}
+            </View>
+
+            {hasWeeklyActivity ? (
+              <View style={styles.activityWrap}>
+                <BarChart
+                  data={weeklyActivity}
+                  width={CHART_WIDTH}
+                  height={100}
+                  formatValue={(v) => `${Math.round(v)} min`}
+                />
               </View>
-            </Card>
-          ))}
+            ) : null}
+
+            <View style={styles.divider} />
+
+            <View style={styles.healthRow}>
+              <View style={styles.healthIcon}>
+                <Ionicons name="heart-circle-outline" size={22} color={colors.primary.default} />
+              </View>
+              <View style={styles.healthInfo}>
+                <AppText variant="body14SemiBold" color={colors.text.primary}>
+                  {t.progress.apple_health}
+                </AppText>
+                <AppText variant="body12" color={colors.text.tertiary} numberOfLines={2}>
+                  {snapshot
+                    ? t.progress.hk_connected
+                    : !Device.isDevice
+                      ? t.progress.hk_simulator
+                      : t.progress.hk_sub}
+                </AppText>
+              </View>
+              {snapshot ? (
+                <Ionicons name="checkmark-circle" size={20} color={colors.primary.default} />
+              ) : Device.isDevice ? (
+                <Button
+                  label={t.progress.connect}
+                  variant="secondary"
+                  size="md"
+                  loading={connecting}
+                  onPress={() => void connectHealth()}
+                />
+              ) : null}
+            </View>
+            {Device.isDevice && snapshot ? (
+              <Button
+                label={t.progress.disconnect}
+                variant="ghost"
+                size="md"
+                icon="unlink-outline"
+                onPress={disconnectHealth}
+                style={styles.healthButton}
+              />
+            ) : null}
+          </Card>
         </>
       )}
     </ScrollView>
   );
 }
+
+const statStyles = StyleSheet.create({
+  cell: { flex: 1, minWidth: '30%', gap: 2, paddingVertical: spacing.xs },
+  valueRow: { flexDirection: 'row', alignItems: 'baseline', gap: 2 },
+});
 
 const createStyles = (colors: Colors) => StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
@@ -422,36 +440,33 @@ const createStyles = (colors: Colors) => StyleSheet.create({
   },
   headerText: { flex: 1 },
   title: { marginTop: 2 },
-  weightCard: { marginBottom: spacing.md },
-  activityCard: { marginBottom: spacing.md },
+  emptyState: { marginBottom: spacing.md },
+  heroCard: { marginBottom: spacing.md },
+  sectionCard: { marginBottom: spacing.md },
+  inlineSectionTitle: { marginBottom: spacing.sm },
   weightHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.xs,
+    marginBottom: spacing.xxs,
   },
   weightRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.xxs },
   weightUnit: { marginBottom: spacing.xs },
-  weightDelta: { marginTop: spacing.xxs },
-  chartWrap: { marginTop: spacing.md },
-  metricsRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm },
-  metricHalf: { flex: 1 },
-  healthCard: { marginTop: spacing.xs, marginBottom: spacing.md },
+  chartWrap: { marginTop: spacing.sm, marginHorizontal: -spacing.xxs },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border.subtle,
+    marginVertical: spacing.md,
+  },
+  historyLabel: { marginBottom: spacing.xxs },
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  activityWrap: { marginTop: spacing.sm },
   healthRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   healthIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primary.muted,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  healthInfo: { flex: 1 },
-  healthSub: { marginTop: 2 },
-  healthButton: { marginTop: spacing.md },
-  accessCard: { marginBottom: spacing.sm },
-  accessRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  accessIcon: {
     width: 40,
     height: 40,
     borderRadius: radius.pill,
@@ -459,5 +474,6 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  accessInfo: { flex: 1 },
+  healthInfo: { flex: 1 },
+  healthButton: { marginTop: spacing.sm },
 });

@@ -5,3 +5,4 @@ export * from './invite';
 export * from './nutrition/foodIcons';
 export * from './nutrition/servingUnits';
 export * from './nutrition/macroServing';
+export * from './nutrition/defaults';

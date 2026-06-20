@@ -11,6 +11,10 @@ export function todayISO(): string {
   return toISODate(new Date());
 }
 
+export function isTodayDate(iso: string): boolean {
+  return iso === todayISO();
+}
+
 export function addDays(iso: string, days: number): string {
   const d = new Date(`${iso}T12:00:00`);
   d.setDate(d.getDate() + days);

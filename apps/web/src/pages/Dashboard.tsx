@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { ProfileRow, WorkoutLogRow, MealLogRow, ProgressPhotoRow, BodyMeasurementRow } from '@reset-fitness/shared/types/database';
+import { formatMacroDisplay, DEFAULT_KCAL_GOAL } from '@reset-fitness/shared';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -13,6 +14,22 @@ import { ErrorState, Lightbox } from '@/components/ui';
 type StudentMin = Pick<ProfileRow, 'id' | 'full_name' | 'avatar_url' | 'goal' | 'created_at'>;
 
 type ActivityType = 'workout' | 'meal' | 'photo' | 'measurement' | 'joined';
+
+interface ActivityCopy {
+  studentDefault: string;
+  workoutCompleted: string;
+  workoutIncomplete: string;
+  workoutDefault: string;
+  mealCaloriesCompleted: string;
+  formatMealDetail: (kcal: number, protein: string, carbs: string, fat: string) => string;
+  photoUploaded: string;
+  measurementLogged: string;
+  measurementDefault: string;
+  formatWeight: (kg: number) => string;
+  formatFat: (pct: number) => string;
+  joinedVerb: string;
+  joinedDetail: string;
+}
 
 interface Activity {
   id: string;
@@ -28,38 +45,32 @@ interface Activity {
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const TYPE_META: Record<ActivityType, { color: string; label: string; dot: string }> = {
-  workout:     { color: '#16a34a', label: 'Entreno',    dot: '#16a34a' },
-  meal:        { color: '#f59e0b', label: 'Nutrición',  dot: '#f59e0b' },
-  photo:       { color: '#6366f1', label: 'Fotos',      dot: '#6366f1' },
-  measurement: { color: '#0ea5e9', label: 'Medición',   dot: '#0ea5e9' },
-  joined:      { color: '#ec4899', label: 'Nuevo',      dot: '#ec4899' },
+const TYPE_COLORS: Record<ActivityType, { color: string; dot: string }> = {
+  workout:     { color: '#16a34a', dot: '#16a34a' },
+  meal:        { color: '#f59e0b', dot: '#f59e0b' },
+  photo:       { color: '#6366f1', dot: '#6366f1' },
+  measurement: { color: '#0ea5e9', dot: '#0ea5e9' },
+  joined:      { color: '#ec4899', dot: '#ec4899' },
 };
-
-const MEAL_LABEL: Record<string, string> = {
-  DES: 'desayuno', ALM: 'almuerzo', MER: 'merienda', CEN: 'cena',
-};
-
-const FILTER_TABS: { key: ActivityType | 'all'; label: string }[] = [
-  { key: 'all',         label: 'Todo' },
-  { key: 'workout',     label: 'Entrenos' },
-  { key: 'meal',        label: 'Nutrición' },
-  { key: 'photo',       label: 'Fotos' },
-  { key: 'measurement', label: 'Medidas' },
-];
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-function relativeTime(iso: string): string {
+function relativeTime(iso: string, copy: {
+  now: string;
+  min: (n: number) => string;
+  hour: (n: number) => string;
+  yesterday: string;
+  days: (n: number) => string;
+}): string {
   const diff = Date.now() - new Date(iso).getTime();
   const m = Math.floor(diff / 60000);
-  if (m < 1)  return 'Ahora mismo';
-  if (m < 60) return `Hace ${m}m`;
+  if (m < 1) return copy.now;
+  if (m < 60) return copy.min(m);
   const h = Math.floor(m / 60);
-  if (h < 24) return `Hace ${h}h`;
+  if (h < 24) return copy.hour(h);
   const d = Math.floor(h / 24);
-  if (d === 1) return 'Ayer';
-  return `Hace ${d} días`;
+  if (d === 1) return copy.yesterday;
+  return copy.days(d);
 }
 
 function initials(name: string | null): string {
@@ -70,12 +81,79 @@ function initials(name: string | null): string {
 
 // ── Activity builder ───────────────────────────────────────────────────────
 
+type MealLogForFeed = Pick<
+  MealLogRow,
+  'id' | 'user_id' | 'date' | 'energy_kcal' | 'protein_g' | 'carbs_g' | 'fat_g' | 'is_included' | 'created_at'
+>;
+
+function buildMealDayActivities(
+  students: StudentMin[],
+  mLogs: MealLogForFeed[],
+  kcalGoal: number,
+  copy: ActivityCopy,
+): Activity[] {
+  const byId = new Map(students.map((s) => [s.id, s]));
+  const byDay = new Map<string, MealLogForFeed[]>();
+
+  for (const m of mLogs) {
+    const key = `${m.user_id}:${m.date}`;
+    const list = byDay.get(key);
+    if (list) list.push(m);
+    else byDay.set(key, [m]);
+  }
+
+  const items: Activity[] = [];
+
+  for (const dayMeals of byDay.values()) {
+    const sorted = [...dayMeals].sort((a, b) => a.created_at.localeCompare(b.created_at));
+    let kcal = 0;
+    let protein = 0;
+    let carbs = 0;
+    let fat = 0;
+    let completedAt: string | null = null;
+
+    for (const m of sorted) {
+      if (!m.is_included) continue;
+      kcal += m.energy_kcal ?? 0;
+      protein += m.protein_g ?? 0;
+      carbs += m.carbs_g ?? 0;
+      fat += m.fat_g ?? 0;
+      if (completedAt === null && kcal >= kcalGoal) {
+        completedAt = m.created_at;
+      }
+    }
+
+    if (completedAt === null) continue;
+    if (new Date(completedAt).getTime() < Date.now() - 7 * 86400000) continue;
+
+    const userId = dayMeals[0].user_id;
+    const date = dayMeals[0].date;
+    const s = byId.get(userId);
+    if (!s) continue;
+
+    items.push({
+      id: `md-${userId}-${date}`,
+      studentId: userId,
+      studentName: s.full_name ?? copy.studentDefault,
+      studentAvatar: s.avatar_url,
+      type: 'meal',
+      verb: copy.mealCaloriesCompleted,
+      detail: copy.formatMealDetail(kcal, formatMacroDisplay(protein), formatMacroDisplay(carbs), formatMacroDisplay(fat)),
+      createdAt: completedAt,
+    });
+  }
+
+  return items;
+}
+
 function buildActivities(
   students: StudentMin[],
   wLogs: Pick<WorkoutLogRow, 'id' | 'user_id' | 'workout_name' | 'workout_type' | 'completed' | 'created_at'>[],
-  mLogs: Pick<MealLogRow, 'id' | 'user_id' | 'meal_type' | 'title' | 'photo_url' | 'energy_kcal' | 'created_at'>[],
+  mLogs: MealLogForFeed[],
   pPhotos: Pick<ProgressPhotoRow, 'id' | 'user_id' | 'photo_url' | 'position' | 'created_at'>[],
   bMeasurements: Pick<BodyMeasurementRow, 'id' | 'user_id' | 'weight_kg' | 'body_fat_pct' | 'created_at'>[],
+  copy: ActivityCopy,
+  kcalGoal = DEFAULT_KCAL_GOAL,
 ): Activity[] {
   const byId = new Map(students.map((s) => [s.id, s]));
 
@@ -87,32 +165,16 @@ function buildActivities(
     items.push({
       id: `w-${w.id}`,
       studentId: w.user_id,
-      studentName: s.full_name ?? 'Alumno',
+      studentName: s.full_name ?? copy.studentDefault,
       studentAvatar: s.avatar_url,
       type: 'workout',
-      verb: w.completed ? 'completó un entrenamiento' : 'no completó su entrenamiento',
-      detail: w.workout_name ?? (w.workout_type ?? 'Entrenamiento'),
+      verb: w.completed ? copy.workoutCompleted : copy.workoutIncomplete,
+      detail: w.workout_name ?? (w.workout_type ?? copy.workoutDefault),
       createdAt: w.created_at,
     });
   }
 
-  for (const m of mLogs) {
-    const s = byId.get(m.user_id);
-    if (!s) continue;
-    const label = MEAL_LABEL[m.meal_type] ?? m.meal_type.toLowerCase();
-    const kcal  = m.energy_kcal != null ? ` · ${Math.round(m.energy_kcal)} kcal` : '';
-    items.push({
-      id: `m-${m.id}`,
-      studentId: m.user_id,
-      studentName: s.full_name ?? 'Alumno',
-      studentAvatar: s.avatar_url,
-      type: 'meal',
-      verb: `registró ${label}`,
-      detail: (m.title ?? m.meal_type) + kcal,
-      thumb: m.photo_url,
-      createdAt: m.created_at,
-    });
-  }
+  items.push(...buildMealDayActivities(students, mLogs, kcalGoal, copy));
 
   for (const p of pPhotos) {
     const s = byId.get(p.user_id);
@@ -120,10 +182,10 @@ function buildActivities(
     items.push({
       id: `p-${p.id}`,
       studentId: p.user_id,
-      studentName: s.full_name ?? 'Alumno',
+      studentName: s.full_name ?? copy.studentDefault,
       studentAvatar: s.avatar_url,
       type: 'photo',
-      verb: 'subió fotos de progreso',
+      verb: copy.photoUploaded,
       detail: p.position,
       thumb: p.photo_url,
       createdAt: p.created_at,
@@ -134,16 +196,16 @@ function buildActivities(
     const s = byId.get(b.user_id);
     if (!s) continue;
     const parts: string[] = [];
-    if (b.weight_kg   != null) parts.push(`${b.weight_kg} kg`);
-    if (b.body_fat_pct != null) parts.push(`${b.body_fat_pct}% grasa`);
+    if (b.weight_kg != null) parts.push(copy.formatWeight(b.weight_kg));
+    if (b.body_fat_pct != null) parts.push(copy.formatFat(b.body_fat_pct));
     items.push({
       id: `b-${b.id}`,
       studentId: b.user_id,
-      studentName: s.full_name ?? 'Alumno',
+      studentName: s.full_name ?? copy.studentDefault,
       studentAvatar: s.avatar_url,
       type: 'measurement',
-      verb: 'registró una medición',
-      detail: parts.join(' · ') || 'Medida corporal',
+      verb: copy.measurementLogged,
+      detail: parts.join(' · ') || copy.measurementDefault,
       createdAt: b.created_at,
     });
   }
@@ -155,11 +217,11 @@ function buildActivities(
       items.push({
         id: `j-${s.id}`,
         studentId: s.id,
-        studentName: s.full_name ?? 'Alumno',
+        studentName: s.full_name ?? copy.studentDefault,
         studentAvatar: s.avatar_url,
         type: 'joined',
-        verb: 'se unió a la app',
-        detail: 'Nuevo alumno',
+        verb: copy.joinedVerb,
+        detail: copy.joinedDetail,
         createdAt: s.created_at,
       });
     }
@@ -175,6 +237,59 @@ export function DashboardPage(): React.JSX.Element {
   const { t, i18n, language } = useTranslation();
   const navigate = useNavigate();
   const userId = session?.user.id;
+
+  const activityCopy = useMemo<ActivityCopy>(() => ({
+    studentDefault: t.dashboard.activity_student_default,
+    workoutCompleted: t.dashboard.activity_workout_completed,
+    workoutIncomplete: t.dashboard.activity_workout_incomplete,
+    workoutDefault: t.dashboard.activity_workout_default,
+    mealCaloriesCompleted: t.dashboard.activity_meal_calories,
+    formatMealDetail: (kcal, protein, carbs, fat) =>
+      i18n(t.dashboard.activity_meal_detail, {
+        kcal: Math.round(kcal),
+        protein,
+        carbs,
+        fat,
+      }),
+    photoUploaded: t.dashboard.activity_photo,
+    measurementLogged: t.dashboard.activity_measurement,
+    measurementDefault: t.dashboard.activity_measurement_default,
+    formatWeight: (n) => i18n(t.dashboard.activity_measurement_weight, { n }),
+    formatFat: (n) => i18n(t.dashboard.activity_measurement_fat, { n }),
+    joinedVerb: t.dashboard.activity_joined,
+    joinedDetail: t.dashboard.activity_joined_detail,
+  }), [t, i18n, language]);
+
+  const relativeCopy = useMemo(() => ({
+    now: t.dashboard.relative_now,
+    min: (n: number) => i18n(t.dashboard.relative_min, { n }),
+    hour: (n: number) => i18n(t.dashboard.relative_hour, { n }),
+    yesterday: t.dashboard.relative_yesterday,
+    days: (n: number) => i18n(t.dashboard.relative_days, { n }),
+  }), [t, i18n, language]);
+
+  const filterTabs = useMemo(
+    () =>
+      [
+        { key: 'all' as const, label: t.dashboard.activity_filter_all },
+        { key: 'workout' as const, label: t.dashboard.activity_filter_workout },
+        { key: 'meal' as const, label: t.dashboard.activity_filter_meal },
+        { key: 'photo' as const, label: t.dashboard.activity_filter_photo },
+        { key: 'measurement' as const, label: t.dashboard.activity_filter_measurement },
+      ],
+    [t, language],
+  );
+
+  const typeLabels = useMemo<Record<ActivityType, string>>(
+    () => ({
+      workout: t.dashboard.activity_type_workout,
+      meal: t.dashboard.activity_type_meal,
+      photo: t.dashboard.activity_type_photo,
+      measurement: t.dashboard.activity_type_measurement,
+      joined: t.dashboard.activity_type_joined,
+    }),
+    [t, language],
+  );
 
   // Left panel state
   const [students, setStudents]         = useState<StudentMin[]>([]);
@@ -241,6 +356,7 @@ export function DashboardPage(): React.JSX.Element {
       const since7 = new Date();
       since7.setDate(since7.getDate() - 7);
       const since7Iso = since7.toISOString();
+      const since7Date = since7.toISOString().slice(0, 10);
 
       const [
         { data: wLogs },
@@ -257,11 +373,11 @@ export function DashboardPage(): React.JSX.Element {
           .limit(40),
         supabase
           .from('meal_logs')
-          .select('id, user_id, meal_type, title, photo_url, energy_kcal, created_at')
+          .select('id, user_id, date, energy_kcal, protein_g, carbs_g, fat_g, is_included, created_at')
           .in('user_id', ids)
-          .gte('created_at', since7Iso)
+          .gte('date', since7Date)
           .order('created_at', { ascending: false })
-          .limit(40),
+          .limit(500),
         supabase
           .from('progress_photos')
           .select('id, user_id, photo_url, position, created_at')
@@ -286,6 +402,7 @@ export function DashboardPage(): React.JSX.Element {
         (mLogs ?? []) as Parameters<typeof buildActivities>[2],
         (pPhotos ?? []) as Parameters<typeof buildActivities>[3],
         (bMeas ?? []) as Parameters<typeof buildActivities>[4],
+        activityCopy,
       ));
       setLoadingFeed(false);
      } catch (err) {
@@ -297,7 +414,7 @@ export function DashboardPage(): React.JSX.Element {
     })();
 
     return () => { active = false; };
-  }, [userId, reloadTick]);
+  }, [userId, reloadTick, activityCopy]);
 
   // Firma los paths de los thumbnails (fotos de progreso y comidas) de buckets privados.
   useEffect(() => {
@@ -383,27 +500,15 @@ export function DashboardPage(): React.JSX.Element {
 
         {/* Stats strip */}
         <div className="stats-strip">
-          <StatBlock
-            value={studentCount ?? '—'}
-            label={t.dashboard.students}
-            delta={12}
-            since={t.dashboard.vs_month}
-          />
+          <StatBlock value={studentCount ?? '—'} label={t.dashboard.students} />
           <StatBlock
             value={completionPct ? `${completionPct}%` : '—'}
             label={i18n(t.dashboard.workouts_pct, { range })}
-            delta={completionPct >= 50 ? 8 : -4}
-            since={t.dashboard.vs_month}
           />
-          <StatBlock
-            value={phaseCount ?? '—'}
-            label={t.dashboard.phases}
-          />
+          <StatBlock value={phaseCount ?? '—'} label={t.dashboard.phases} />
           <StatBlock
             value={windowed.length}
             label={i18n(t.dashboard.workouts_n, { range })}
-            delta={5}
-            since={t.dashboard.vs_month}
           />
         </div>
 
@@ -447,7 +552,7 @@ export function DashboardPage(): React.JSX.Element {
                       }
                     </div>
                     <div className="student-info">
-                      <span className="student-name">{s.full_name ?? 'Alumno'}</span>
+                      <span className="student-name">{s.full_name ?? t.dashboard.activity_student_default}</span>
                       <span className="student-goal">{s.goal ?? t.profile.no_goal}</span>
                     </div>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -474,7 +579,7 @@ export function DashboardPage(): React.JSX.Element {
 
         {/* Filter chips */}
         <div className="act-panel-filters">
-          {FILTER_TABS.map((tab) => (
+          {filterTabs.map((tab) => (
             <button
               key={tab.key}
               className={`act-chip${filter === tab.key ? ' active' : ''}`}
@@ -522,8 +627,8 @@ export function DashboardPage(): React.JSX.Element {
                   </div>
                   <span
                     className="act-panel-type-dot"
-                    style={{ background: TYPE_META[a.type].dot }}
-                    title={TYPE_META[a.type].label}
+                    style={{ background: TYPE_COLORS[a.type].dot }}
+                    title={typeLabels[a.type]}
                   />
                 </div>
 
@@ -537,13 +642,13 @@ export function DashboardPage(): React.JSX.Element {
                     <span
                       className="act-panel-badge"
                       style={{
-                        background: TYPE_META[a.type].color + '18',
-                        color: TYPE_META[a.type].color,
+                        background: TYPE_COLORS[a.type].color + '18',
+                        color: TYPE_COLORS[a.type].color,
                       }}
                     >
-                      {TYPE_META[a.type].label}
+                      {typeLabels[a.type]}
                     </span>
-                    <span className="act-panel-time">{relativeTime(a.createdAt)}</span>
+                    <span className="act-panel-time">{relativeTime(a.createdAt, relativeCopy)}</span>
                   </div>
                 </div>
 

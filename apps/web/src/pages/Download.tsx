@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { normalizeInviteCode } from '@reset-fitness/shared';
+import { normalizeInviteCode, DEFAULT_APP_NAME } from '@reset-fitness/shared';
 
 type Platform = 'ios' | 'android' | 'other';
 
@@ -33,7 +33,7 @@ export function DownloadPage(): React.JSX.Element {
   return (
     <div className="dl-screen">
       <div className="dl-card">
-        <div className="dl-brand">CustomFit</div>
+        <div className="dl-brand">{DEFAULT_APP_NAME}</div>
         <h1 className="dl-title">Descargá la app</h1>
         <p className="dl-sub">
           {code
