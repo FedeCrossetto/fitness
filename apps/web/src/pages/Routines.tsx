@@ -9,7 +9,8 @@ import type {
 } from '@reset-fitness/shared/types/database';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
-import { ErrorState, LoadingRows } from '@/components/ui';
+import { ErrorState, LoadingRows, EmptyState } from '@/components/ui';
+import { DumbbellIcon } from '@/components/icons';
 
 type CatalogExercise = Pick<ExerciseRow, 'id' | 'name' | 'image_url' | 'target_muscles'>;
 type WorkoutExerciseWithExercise = WorkoutExerciseRow & { exercise: CatalogExercise | null };
@@ -187,7 +188,14 @@ export function RoutinesPage(): React.JSX.Element {
       ) : error ? (
         <ErrorState message={error} onRetry={() => void load()} />
       ) : phases.length === 0 ? (
-        <div className="card muted">Todavía no hay etapas. Creá la primera con “Nueva etapa”.</div>
+        <div className="card">
+          <EmptyState
+            icon={<DumbbellIcon size={22} />}
+            title="Todavía no hay etapas"
+            sub="Creá la primera etapa para empezar a armar el plan de entrenamiento."
+            action={trainerId ? { label: '+ Nueva etapa', onClick: () => void addPhase() } : undefined}
+          />
+        </div>
       ) : (
         phases.map((phase) => (
           <PhaseEditor

@@ -27,7 +27,8 @@ import { getFoodIconUrl } from '@reset-fitness/shared/nutrition/foodIconAssets';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/useToast';
-import { PlusIcon } from '@/components/icons';
+import { PlusIcon, NutritionIcon, CheckIcon } from '@/components/icons';
+import { LoadingRows, EmptyState } from '@/components/ui';
 
 type Tab = 'catalog' | 'pending';
 
@@ -325,15 +326,16 @@ export function FoodsPage(): React.JSX.Element {
       </div>
 
       {loading ? (
-        <div className="card" style={{ padding: 32, textAlign: 'center', color: 'var(--text-tertiary)' }}>
-          Cargando…
-        </div>
+        <div className="card" style={{ padding: 16 }}><LoadingRows rows={5} /></div>
       ) : tab === 'catalog' ? (
         filteredCatalog.length === 0 ? (
-          <div className="card page-empty">
-            <h2>Sin alimentos en el catálogo</h2>
-            <p>Cargá alimentos base para que tus alumnos los usen al registrar comidas.</p>
-            <button className="btn" onClick={openCreate}>Cargar el primero</button>
+          <div className="card">
+            <EmptyState
+              icon={<NutritionIcon size={22} />}
+              title="Sin alimentos en el catálogo"
+              sub="Cargá alimentos base para que tus alumnos los usen al registrar comidas."
+              action={{ label: 'Cargar el primero', onClick: openCreate }}
+            />
           </div>
         ) : (
           <div className="card foods-catalog-card">
@@ -373,9 +375,12 @@ export function FoodsPage(): React.JSX.Element {
           </div>
         )
       ) : pending.length === 0 ? (
-        <div className="card page-empty">
-          <h2>Sin solicitudes pendientes</h2>
-          <p>Cuando un alumno cree un alimento nuevo, aparecerá acá para que lo revises.</p>
+        <div className="card">
+          <EmptyState
+            icon={<CheckIcon size={22} />}
+            title="Sin solicitudes pendientes"
+            sub="Cuando un alumno cree un alimento nuevo, aparecerá acá para que lo revises."
+          />
         </div>
       ) : (
         <div className="card foods-catalog-card">

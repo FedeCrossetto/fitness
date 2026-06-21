@@ -1,6 +1,6 @@
 // Componentes de UI compartidos para estados de carga, error y vacío.
 
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 /** Visor de imagen a pantalla completa (lightbox). Cierra con click en el fondo o Escape. */
 export function Lightbox({ src, caption, onClose }: {
@@ -36,7 +36,9 @@ export function Spinner({ size = 22 }: { size?: number }): React.JSX.Element {
 export function FullScreenLoader(): React.JSX.Element {
   return (
     <div className="center-screen" role="status" aria-live="polite" aria-busy="true">
-      <Spinner size={26} />
+      <div className="logo-loader" aria-label="Cargando">
+        <span className="logo-loader-fill" />
+      </div>
     </div>
   );
 }
@@ -90,4 +92,56 @@ export function ErrorState({ message, onRetry }: {
       ) : null}
     </div>
   );
+}
+
+/** Estado vacío consistente: ícono + título + subtítulo + acción opcional. */
+export function EmptyState({ icon, title, sub, action }: {
+  icon?: React.ReactNode;
+  title: string;
+  sub?: string;
+  action?: { label: string; onClick: () => void };
+}): React.JSX.Element {
+  return (
+    <div className="empty-state">
+      {icon ? <div className="empty-ico" aria-hidden>{icon}</div> : null}
+      <div className="t">{title}</div>
+      {sub ? <p className="empty-sub">{sub}</p> : null}
+      {action ? (
+        <button className="btn" style={{ marginTop: 16 }} onClick={action.onClick}>
+          {action.label}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Cuenta animada de 0 → value al montar (efecto count-up de dashboards pro).
+ * Respeta prefers-reduced-motion. Devuelve el número actual a renderizar.
+ */
+export function useCountUp(value: number, durationMs = 900): number {
+  const [n, setN] = useState(0);
+  const ref = useRef(value);
+  ref.current = value;
+  useEffect(() => {
+    if (typeof window !== 'undefined' &&
+        window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      setN(value);
+      return;
+    }
+    let raf = 0;
+    const start = performance.now();
+    const from = 0;
+    const tick = (t: number): void => {
+      const p = Math.min(1, (t - start) / durationMs);
+      // easeOutCubic
+      const eased = 1 - Math.pow(1 - p, 3);
+      setN(from + (ref.current - from) * eased);
+      if (p < 1) raf = requestAnimationFrame(tick);
+      else setN(ref.current);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [value, durationMs]);
+  return n;
 }

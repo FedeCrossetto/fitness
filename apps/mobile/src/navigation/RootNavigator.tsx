@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
+import { View } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { useTheme } from '../theme';
+import { useTheme, useThemeHydrated } from '../theme';
 import { useAuthStore } from '../stores/authStore';
 import { useBrandingStore } from '../stores/brandingStore';
 import { useTrainingStore } from '../stores/trainingStore';
@@ -52,6 +53,7 @@ function MainTabs(): React.JSX.Element {
 export function RootNavigator(): React.JSX.Element {
   useInviteDeepLink();
 
+  const themeHydrated        = useThemeHydrated();
   const initializing         = useAuthStore((s) => s.initializing);
   const loading              = useAuthStore((s) => s.loading);
   const session              = useAuthStore((s) => s.session);
@@ -206,6 +208,10 @@ export function RootNavigator(): React.JSX.Element {
 
   const showLoading = initializing || loading || gatesPending;
 
+  // Hasta que el tema se lea de AsyncStorage, mostramos el color del splash
+  // nativo (#0C0C0C). Así el loader del logo aparece ya en el color correcto
+  // y no salta de oscuro a claro (fix del flash).
+  if (!themeHydrated) return <View style={{ flex: 1, backgroundColor: '#0C0C0C' }} />;
   if (showLoading) return <AuthLoadingOverlay />;
   if (!session) return <AuthStack />;
   if (needsTrainerLink(profile)) return <LinkTrainerScreen />;

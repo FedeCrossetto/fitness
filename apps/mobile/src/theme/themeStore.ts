@@ -11,6 +11,7 @@ export type ThemeMode = 'dark' | 'light' | 'system';
 
 interface ThemeState {
   mode: ThemeMode;
+  hydrated: boolean;
   setMode: (mode: ThemeMode) => void;
 }
 
@@ -18,14 +19,27 @@ export const useThemeStore = create<ThemeState>()(
   persist(
     (set) => ({
       mode: 'dark',
+      hydrated: false,
       setMode: (mode) => set({ mode }),
     }),
     {
       name: 'reset-fitness-theme',
       storage: createJSONStorage(() => AsyncStorage),
+      // No persistimos `hydrated`: es estado en memoria.
+      partialize: (s) => ({ mode: s.mode }),
+      // Se dispara cuando termina de leer AsyncStorage → recién ahí sabemos
+      // el tema real del usuario y evitamos el flash de color del loader.
+      onRehydrateStorage: () => () => {
+        useThemeStore.setState({ hydrated: true });
+      },
     },
   ),
 );
+
+/** True cuando el tema persistido ya se leyó de AsyncStorage. */
+export function useThemeHydrated(): boolean {
+  return useThemeStore((s) => s.hydrated);
+}
 
 export interface Theme {
   colors: Colors;

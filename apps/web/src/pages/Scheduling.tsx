@@ -4,10 +4,10 @@ const DAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 const HOURS = Array.from({ length: 10 }, (_, i) => `${8 + i}:00`);
 
 const EVENTS = [
-  { day: 0, hour: 9, label: 'Check-in Ezequiel', color: '#6366f1' },
+  { day: 0, hour: 9, label: 'Check-in Ezequiel', color: '#16181a' },
   { day: 1, hour: 10, label: 'Entreno grupal', color: '#16a34a' },
   { day: 2, hour: 8, label: 'Laura M.', color: '#f59e0b' },
-  { day: 3, hour: 11, label: 'Clase online', color: '#6366f1' },
+  { day: 3, hour: 11, label: 'Clase online', color: '#16181a' },
   { day: 4, hour: 9, label: 'Marcos P.', color: '#16a34a' },
 ];
 

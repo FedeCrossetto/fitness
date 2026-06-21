@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { ChatPanel } from '@/components/ChatPanel';
 import { MessageIcon, SearchIcon } from '@/components/icons';
+import { LoadingRows, EmptyState } from '@/components/ui';
 
 type ClientMin = Pick<ProfileRow, 'id' | 'full_name' | 'avatar_url'>;
 
@@ -109,9 +110,13 @@ export function MessagesPage(): React.JSX.Element {
           </div>
           <div className="thread-list">
             {loading ? (
-              <p className="muted" style={{ padding: 16, fontSize: 13 }}>Cargando…</p>
+              <LoadingRows rows={5} />
             ) : filtered.length === 0 ? (
-              <p className="muted" style={{ padding: 16, fontSize: 13 }}>Sin conversaciones.</p>
+              <EmptyState
+                icon={<MessageIcon size={22} />}
+                title={search ? 'Sin resultados' : 'Sin conversaciones'}
+                sub={search ? 'Probá con otro nombre.' : 'Cuando tus alumnos te escriban, las charlas aparecen acá.'}
+              />
             ) : (
               filtered.map((t) => (
                 <div
@@ -174,21 +179,22 @@ export function MessagesPage(): React.JSX.Element {
 
       <style>{`
         .messages-layout { display: flex; height: 600px; overflow: hidden; }
-        .messages-sidebar { width: 280px; flex-shrink: 0; border-right: 1px solid var(--border); display: flex; flex-direction: column; }
-        .thread-list { flex: 1; overflow-y: auto; }
-        .thread-row { display: flex; align-items: center; gap: 10px; padding: 12px 14px; cursor: pointer; transition: background 120ms; border-bottom: 1px solid var(--border); }
+        .messages-sidebar { width: 290px; flex-shrink: 0; border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+        .thread-list { flex: 1; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 2px; }
+        .thread-row { display: flex; align-items: center; gap: 11px; padding: 10px 12px; cursor: pointer; border-radius: 12px; transition: background 120ms ease; }
         .thread-row:hover { background: var(--surface-elevated); }
-        .thread-row.active { background: var(--surface-hover); }
+        .thread-row.active { background: var(--chat-soft); }
+        .thread-row.active .thread-name { color: var(--chat); }
         .thread-avatar { position: relative; flex-shrink: 0; }
         .thread-body { flex: 1; min-width: 0; }
         .thread-name { font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .thread-last { font-size: 12px; color: var(--text-tertiary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
-        .thread-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+        .thread-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex-shrink: 0; }
         .thread-time { font-size: 11px; color: var(--text-tertiary); }
-        .thread-badge { min-width: 18px; height: 18px; padding: 0 5px; background: var(--accent); color: var(--accent-contrast); border-radius: 999px; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+        .thread-badge { min-width: 18px; height: 18px; padding: 0 5px; background: var(--chat); color: #fff; border-radius: 999px; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
         .messages-chat { flex: 1; display: flex; min-width: 0; }
         .chat-card-inner { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-        .chat-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+        .chat-head { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--border); }
         .chat-head-name { font-weight: 600; font-size: 14px; }
         .chat-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--text-tertiary); text-align: center; }
         .chat-empty p { margin: 0; font-size: 14px; }

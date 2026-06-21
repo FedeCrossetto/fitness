@@ -5,9 +5,9 @@ import { formatMacroDisplay, DEFAULT_KCAL_GOAL } from '@reset-fitness/shared';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useTranslation } from '@/hooks/useTranslation';
-import { TrophyIcon } from '@/components/icons';
+import { TrophyIcon, UsersIcon, CheckIcon, DumbbellIcon } from '@/components/icons';
 import { AreaChart } from '@/components/charts';
-import { ErrorState, Lightbox } from '@/components/ui';
+import { ErrorState, Lightbox, useCountUp } from '@/components/ui';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -500,15 +500,17 @@ export function DashboardPage(): React.JSX.Element {
 
         {/* Stats strip */}
         <div className="stats-strip">
-          <StatBlock value={studentCount ?? '—'} label={t.dashboard.students} />
+          <StatBlock value={studentCount ?? '—'} label={t.dashboard.students} icon={<UsersIcon size={18} />} />
           <StatBlock
             value={completionPct ? `${completionPct}%` : '—'}
             label={i18n(t.dashboard.workouts_pct, { range })}
+            icon={<CheckIcon size={18} />}
           />
-          <StatBlock value={phaseCount ?? '—'} label={t.dashboard.phases} />
+          <StatBlock value={phaseCount ?? '—'} label={t.dashboard.phases} icon={<TrophyIcon size={18} />} />
           <StatBlock
             value={windowed.length}
             label={i18n(t.dashboard.workouts_n, { range })}
+            icon={<DumbbellIcon size={18} />}
           />
         </div>
 
@@ -527,7 +529,7 @@ export function DashboardPage(): React.JSX.Element {
               </div>
             </div>
             <div className="dash-chart-body">
-              <AreaChart values={series} height={148} color="#6366f1" />
+              <AreaChart values={series} height={148} color="#16181a" />
             </div>
           </div>
 
@@ -684,7 +686,7 @@ export function DashboardPage(): React.JSX.Element {
 // ── StatBlock ──────────────────────────────────────────────────────────────
 
 function StatBlock({
-  value, label, delta, since,
+  value, label, delta, since, icon,
 }: {
   value: number | string | null;
   label: string;
@@ -694,9 +696,13 @@ function StatBlock({
   since?: string;
 }): React.JSX.Element {
   const up = (delta ?? 0) >= 0;
+  const numeric = typeof value === 'number' ? value : null;
+  const animated = useCountUp(numeric ?? 0);
+  const display = numeric !== null ? Math.round(animated).toLocaleString('es-AR') : (value ?? '—');
   return (
     <div className="stat-block">
-      <div className="stat-block-value">{value ?? '—'}</div>
+      {icon && <div className="stat-block-icon">{icon}</div>}
+      <div className="stat-block-value">{display}</div>
       <div className="stat-block-label">{label}</div>
       {delta != null && (
         <div className={`stat-block-delta ${up ? 'up' : 'down'}`}>

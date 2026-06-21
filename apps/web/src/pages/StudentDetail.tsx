@@ -15,7 +15,7 @@ import type {
 } from '@reset-fitness/shared/types/database';
 import { supabase } from '@/lib/supabase';
 import { RoutineManager } from '@/components/RoutineManager';
-import { Lightbox } from '@/components/ui';
+import { Lightbox, Spinner } from '@/components/ui';
 
 const anyClient = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> };
 
@@ -245,7 +245,11 @@ export function StudentDetailPage(): React.JSX.Element {
     setActivating(false);
   };
 
-  if (loading) return <div className="muted" style={{ padding: 32 }}>Cargando…</div>;
+  if (loading) return (
+    <div style={{ display: 'flex', justifyContent: 'center', padding: 64 }}>
+      <Spinner size={28} />
+    </div>
+  );
   if (!profile) {
     return (
       <div>

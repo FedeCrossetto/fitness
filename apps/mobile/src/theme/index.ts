@@ -1,6 +1,6 @@
 export { darkColors, lightColors, palette, paletteLight } from './colors';
 export type { Colors } from './colors';
-export { useTheme, useThemedStyles, useThemeStore } from './themeStore';
+export { useTheme, useThemedStyles, useThemeStore, useThemeHydrated } from './themeStore';
 export type { Theme, ThemeMode } from './themeStore';
 export { typography, fontFamily } from './typography';
 export type { TypographyVariant } from './typography';
