@@ -43,6 +43,55 @@ export function FullScreenLoader(): React.JSX.Element {
   );
 }
 
+/** Diálogo de confirmación (reemplaza window.confirm). */
+export function ConfirmDialog({
+  open,
+  title,
+  message,
+  confirmLabel,
+  cancelLabel,
+  onConfirm,
+  onCancel,
+  danger = false,
+}: {
+  open: boolean;
+  title: string;
+  message: string;
+  confirmLabel: string;
+  cancelLabel: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  danger?: boolean;
+}): React.JSX.Element | null {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onCancel]);
+
+  if (!open) return null;
+
+  return (
+    <div className="modal-backdrop confirm-backdrop" onClick={onCancel} role="presentation">
+      <div
+        className="modal confirm-modal"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirm-dialog-title"
+      >
+        <h2 id="confirm-dialog-title" className="confirm-modal-title">{title}</h2>
+        <p className="confirm-modal-msg">{message}</p>
+        <div className="confirm-modal-actions">
+          <button type="button" className="btn secondary" onClick={onCancel}>{cancelLabel}</button>
+          <button type="button" className={`btn${danger ? ' danger' : ''}`} onClick={onConfirm}>{confirmLabel}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function Skeleton({ width, height = 16, radius = 6, style }: {
   width?: number | string;
   height?: number | string;

@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { View } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useTheme, useThemeHydrated } from '../theme';
 import { useAuthStore } from '../stores/authStore';
@@ -19,6 +18,7 @@ import { useInviteDeepLink } from '../hooks/useInviteDeepLink';
 import { needsTrainerLink, isPendingActivation } from '../services/clientAccess';
 import { syncPushRegistration } from '../services/notifications';
 import { supabase } from '../lib/supabase';
+import { useInboxStore } from '../stores/inboxStore';
 
 const anyClient = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> };
 
@@ -88,6 +88,18 @@ export function RootNavigator(): React.JSX.Element {
     if (needsOnboarding || needsTrainerLink(profile) || isPendingActivation(profile)) return;
     void syncPushRegistration(userId);
   }, [session?.user.id, profile?.id, profile?.trainer_id, profile?.client_status, needsOnboarding]);
+
+  // Badge de mensajes (coach + grupos) en tiempo real.
+  useEffect(() => {
+    const userId = session?.user.id;
+    if (!userId || !profile?.id) return;
+    if (needsOnboarding || needsTrainerLink(profile) || isPendingActivation(profile)) return;
+    if (profile.role === 'trainer' || profile.role === 'admin') return;
+
+    void useInboxStore.getState().loadInbox(userId, profile.trainer_id);
+    const unsubscribe = useInboxStore.getState().subscribeInbox(userId, profile.trainer_id);
+    return unsubscribe;
+  }, [session?.user.id, profile?.id, profile?.trainer_id, profile?.role, profile?.client_status, needsOnboarding]);
 
   // After session + profile loaded, check if waiver signature is needed
   useEffect(() => {
@@ -211,7 +223,7 @@ export function RootNavigator(): React.JSX.Element {
   // Hasta que el tema se lea de AsyncStorage, mostramos el color del splash
   // nativo (#0C0C0C). Así el loader del logo aparece ya en el color correcto
   // y no salta de oscuro a claro (fix del flash).
-  if (!themeHydrated) return <View style={{ flex: 1, backgroundColor: '#0C0C0C' }} />;
+  if (!themeHydrated) return <AuthLoadingOverlay />;
   if (showLoading) return <AuthLoadingOverlay />;
   if (!session) return <AuthStack />;
   if (needsTrainerLink(profile)) return <LinkTrainerScreen />;

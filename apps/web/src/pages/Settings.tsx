@@ -1,8 +1,10 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { SettingsIcon, BellIcon, BrushIcon, CreditCardIcon, UsersIcon, MessageIcon, BookOpenIcon, CheckIcon } from '@/components/icons';
 import { useAuth } from '@/hooks/useAuth';
+import { useTranslation } from '@/hooks/useTranslation';
 import { useToast } from '@/hooks/useToast';
 import { Link } from 'react-router-dom';
+import { LANGUAGES } from '@reset-fitness/shared';
 import { supabase } from '@/lib/supabase';
 
 type SettingsSection = {
@@ -13,17 +15,6 @@ type SettingsSection = {
   to?: string;
   highlight?: boolean;
 };
-
-const SECTIONS: SettingsSection[] = [
-  { icon: <UsersIcon size={20} />,     title: 'Perfil',                 desc: 'Nombre, foto y datos del entrenador.',                                          action: 'Editar perfil' },
-  { icon: <BrushIcon size={20} />,     title: 'Marca de la app',        desc: 'Nombre, colores y logo de tu app mobile.',                                      action: 'Configurar',   to: '/branding' },
-  { icon: <MessageIcon size={20} />,   title: 'Mensajes automáticos',   desc: 'Configurá mensajes que se envían solos según la actividad de tus alumnos.',     action: 'Configurar',   to: '/settings/auto-messages', highlight: true },
-  { icon: <BookOpenIcon size={20} />, title: 'Formulario de consulta', desc: 'Personalizá el formulario que completan tus alumnos al unirse.',                   action: 'Configurar',   to: '/settings/consultation-form' },
-  { icon: <CheckIcon size={20} />,    title: 'Deslinde de responsabilidad', desc: 'Documento que firman tus alumnos digitalmente antes de iniciar el plan.',  action: 'Configurar',   to: '/settings/waiver' },
-  { icon: <CreditCardIcon size={20} />,title: 'Suscripción',            desc: 'Plan actual, facturación y métodos de pago.',                                   action: 'Ver plan' },
-  { icon: <BellIcon size={20} />,      title: 'Notificaciones',         desc: 'Configurá qué alertas recibís por email y push.',                               action: 'Configurar' },
-  { icon: <SettingsIcon size={20} />,  title: 'Privacidad y seguridad', desc: 'Contraseña, sesiones activas y permisos.',                                      action: 'Gestionar' },
-];
 
 function SectionRow({ s, isLast }: { s: SettingsSection; isLast: boolean }): React.JSX.Element {
   const inner = (
@@ -61,9 +52,22 @@ function initials(name: string | null | undefined): string {
 
 export function SettingsPage(): React.JSX.Element {
   const { profile, session, refreshProfile } = useAuth();
+  const { t, language, setLanguage } = useTranslation();
+  const cs = t.web.coach_settings;
   const { showToast } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+
+  const SECTIONS = useMemo<SettingsSection[]>(() => [
+    { icon: <UsersIcon size={20} />, title: cs.sec_profile.title, desc: cs.sec_profile.desc, action: cs.sec_profile.action },
+    { icon: <BrushIcon size={20} />, title: cs.sec_branding.title, desc: cs.sec_branding.desc, action: cs.sec_branding.action, to: '/branding' },
+    { icon: <MessageIcon size={20} />, title: cs.sec_auto_messages.title, desc: cs.sec_auto_messages.desc, action: cs.sec_auto_messages.action, to: '/settings/auto-messages', highlight: true },
+    { icon: <BookOpenIcon size={20} />, title: cs.sec_consultation.title, desc: cs.sec_consultation.desc, action: cs.sec_consultation.action, to: '/settings/consultation-form' },
+    { icon: <CheckIcon size={20} />, title: cs.sec_waiver.title, desc: cs.sec_waiver.desc, action: cs.sec_waiver.action, to: '/settings/waiver' },
+    { icon: <CreditCardIcon size={20} />, title: cs.sec_subscription.title, desc: cs.sec_subscription.desc, action: cs.sec_subscription.action },
+    { icon: <BellIcon size={20} />, title: cs.sec_notifications.title, desc: cs.sec_notifications.desc, action: cs.sec_notifications.action },
+    { icon: <SettingsIcon size={20} />, title: cs.sec_privacy.title, desc: cs.sec_privacy.desc, action: cs.sec_privacy.action },
+  ], [cs]);
 
   const onPickPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -72,11 +76,11 @@ export function SettingsPage(): React.JSX.Element {
     if (!file || !userId) return;
 
     if (!file.type.startsWith('image/')) {
-      showToast('error', 'La foto debe ser una imagen.');
+      showToast('error', cs.photo_type_error);
       return;
     }
     if (file.size > 2 * 1024 * 1024) {
-      showToast('error', 'La foto no puede superar los 2 MB.');
+      showToast('error', cs.photo_size_error);
       return;
     }
 
@@ -92,7 +96,7 @@ export function SettingsPage(): React.JSX.Element {
 
     if (uploadError) {
       setUploading(false);
-      showToast('error', 'No pudimos subir la foto. Intentá de nuevo.');
+      showToast('error', cs.photo_upload_error);
       return;
     }
 
@@ -107,21 +111,21 @@ export function SettingsPage(): React.JSX.Element {
     setUploading(false);
 
     if (updateError) {
-      showToast('error', 'No pudimos guardar la foto en tu perfil.');
+      showToast('error', cs.photo_save_error);
       return;
     }
 
     await refreshProfile();
-    showToast('success', 'Foto actualizada.');
+    showToast('success', cs.photo_updated);
   };
 
   return (
     <div>
-      <h1 className="page-title">Settings</h1>
-      <p className="page-sub">Configurá tu cuenta y preferencias del panel.</p>
+      <h1 className="page-title">{cs.title}</h1>
+      <p className="page-sub">{cs.subtitle}</p>
 
       {/* Profile card */}
-      <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
+      <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
         <div
           className="avatar"
           style={{
@@ -138,8 +142,10 @@ export function SettingsPage(): React.JSX.Element {
           }
         </div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 650, fontSize: 16 }}>{profile?.full_name ?? 'Entrenador'}</div>
-          <div style={{ color: 'var(--text-tertiary)', fontSize: 13 }}>Entrenador · {profile?.role ?? 'trainer'}</div>
+          <div style={{ fontWeight: 650, fontSize: 16 }}>{profile?.full_name ?? cs.trainer_fallback}</div>
+          <div style={{ color: 'var(--text-tertiary)', fontSize: 13 }}>
+            {t.web.role_trainer} · {profile?.role ?? 'trainer'}
+          </div>
         </div>
         <input
           ref={fileRef}
@@ -153,18 +159,45 @@ export function SettingsPage(): React.JSX.Element {
           disabled={uploading}
           onClick={() => fileRef.current?.click()}
         >
-          {uploading ? 'Subiendo…' : 'Editar foto'}
+          {uploading ? cs.uploading : cs.edit_photo}
         </button>
       </div>
 
+      {/* Language */}
+      <div className="card settings-lang-card">
+        <div className="settings-lang-label">{cs.language}</div>
+        <div className="lang-toggle" role="group" aria-label={cs.language}>
+          {LANGUAGES.map((lang) => (
+            <button
+              key={lang.code}
+              type="button"
+              className={`lang-btn${language === lang.code ? ' active' : ''}`}
+              onClick={() => setLanguage(lang.code)}
+              title={lang.label}
+            >
+              {lang.flag} {lang.code.toUpperCase()}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Settings list */}
-      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+      <div className="card" style={{ padding: 0, overflow: 'hidden', marginTop: 16 }}>
         {SECTIONS.map((s, i) => (
           <SectionRow key={s.title} s={s} isLast={i === SECTIONS.length - 1} />
         ))}
       </div>
 
       <style>{`
+        .settings-lang-card {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+          padding: 16px 20px;
+          margin-bottom: 0;
+        }
+        .settings-lang-label { font-weight: 600; font-size: 14px; color: var(--text-primary); }
         .settings-row {
           display: flex; align-items: center; gap: 14px;
           padding: 16px 20px; transition: background 120ms;

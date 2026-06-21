@@ -68,6 +68,9 @@ export const illustrations = {
   /** Logros / rachas — pose de progreso con stats flotantes */
   victory: charProgress,
 
+  /** Trofeo 3D — día con todas las metas cumplidas */
+  trophy: require('../../assets/trophy.png') as ImageSourcePropType,
+
   /** Tarjeta de perfil / loaders */
   profile: charHead,
 } as const;

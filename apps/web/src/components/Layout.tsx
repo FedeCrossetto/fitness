@@ -4,14 +4,16 @@ import { useAuth } from '@/hooks/useAuth';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useUnreadMessages } from '@/hooks/useUnreadMessages';
 import { usePendingFoodCount } from '@/hooks/usePendingFoodCount';
-import { useAppBrandName } from '@/hooks/useAppBrandName';
+import { useBrandingHead, useTrainerBranding } from '@/hooks/useTrainerBranding';
+import { ConfirmDialog } from '@/components/ui';
 import { LANGUAGES } from '@reset-fitness/shared';
 import {
   GridIcon, BrushIcon, UsersIcon, LogOutIcon,
-  MessageIcon, CalendarIcon, GroupsIcon, TrophyIcon, CreditCardIcon,
+  MessageIcon, CalendarIcon, GroupsIcon, CreditCardIcon,
   DumbbellIcon, NutritionIcon, SettingsIcon, ChevronDownIcon, ChevronRightIcon,
   MegaphoneIcon,
 } from '@/components/icons';
+import { resolveAvatarUrl, initials } from '@/lib/avatarUrl';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -31,18 +33,13 @@ function CollapseIcon({ collapsed }: { collapsed: boolean }): React.JSX.Element 
   );
 }
 
-function initials(name: string | null | undefined): string {
-  if (!name) return 'E';
-  const parts = name.trim().split(/\s+/);
-  return (parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '');
-}
-
 function Avatar({ name, url, size = 'md', title }: { name?: string | null; url?: string | null; size?: 'md' | 'sm'; title?: string }): React.JSX.Element {
   const cls = `avatar${size === 'sm' ? ' avatar--sm' : ''}`;
-  if (url) {
+  const resolved = resolveAvatarUrl(url);
+  if (resolved) {
     return (
       <div className={cls} title={title} style={{ padding: 0, overflow: 'hidden' }}>
-        <img src={url} alt={name ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
+        <img src={resolved} alt={name ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
       </div>
     );
   }
@@ -56,7 +53,8 @@ export function Layout(): React.JSX.Element {
   const { t, language, setLanguage } = useTranslation();
   const unreadMessages = useUnreadMessages();
   const pendingFoodCount = usePendingFoodCount();
-  const appBrandName = useAppBrandName();
+  const { appName: appBrandName, logoUrl } = useTrainerBranding();
+  useBrandingHead(appBrandName, logoUrl);
   const navigate = useNavigate();
   const location = useLocation();
   const isOverview = location.pathname === '/';
@@ -65,6 +63,7 @@ export function Layout(): React.JSX.Element {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() =>
     localStorage.getItem('sb-collapsed') === '1'
   );
+  const [signOutOpen, setSignOutOpen] = useState(false);
 
   const toggleSidebar = () => {
     setSidebarCollapsed((v) => {
@@ -86,7 +85,6 @@ export function Layout(): React.JSX.Element {
         { to: '/',          label: t.web.overview,      end: true, icon: () => <GridIcon />      },
         { to: '/messages',  label: t.web.messages,                 icon: () => <MessageIcon />,  badge: unreadMessages || undefined },
         { to: '/groups',    label: t.web.groups,                   icon: () => <GroupsIcon />    },
-        { to: '/challenges',label: t.web.challenges,               icon: () => <TrophyIcon />,   mock: true },
         { to: '/students',  label: t.web.clients,                  icon: () => <UsersIcon />     },
         { to: '/payments',  label: t.web.payments,                 icon: () => <CreditCardIcon /> },
       ],
@@ -111,14 +109,40 @@ export function Layout(): React.JSX.Element {
 
   const sc = sidebarCollapsed;
 
+  const handleSignOut = () => {
+    if (sc) {
+      setSignOutOpen(true);
+      return;
+    }
+    void signOut();
+  };
+
   return (
     <div className="app-shell">
+      <ConfirmDialog
+        open={signOutOpen}
+        title={t.auth.sign_out_title}
+        message={t.auth.sign_out_msg}
+        confirmLabel={t.auth.sign_out_yes}
+        cancelLabel={t.ui.cancel}
+        onConfirm={() => {
+          setSignOutOpen(false);
+          void signOut();
+        }}
+        onCancel={() => setSignOutOpen(false)}
+      />
       <aside className={`sidebar${sc ? ' sidebar--collapsed' : ''}`}>
 
         {/* Brand + collapse toggle row */}
         <div className="sidebar-top">
           <NavLink to="/" end className="brand" aria-label="Inicio">
-            <img src="/logo_app_sin_fondo_cuadrado_1024.png" alt="" className="brand-logo" />
+            {logoUrl ? (
+              <img src={logoUrl} alt="" className="brand-logo" />
+            ) : (
+              <span className="brand-logo brand-logo--initial" aria-hidden>
+                {appBrandName.charAt(0).toUpperCase()}
+              </span>
+            )}
             {!sc && (
               <div className="brand-text">
                 <span className="brand-name">{appBrandName}</span>
@@ -163,7 +187,7 @@ export function Layout(): React.JSX.Element {
                     <span className="nav-icon">{item.icon()}</span>
                     {!sc && <span className="nav-label">{item.label}</span>}
                     {sc && <span className="nav-tooltip">{item.label}</span>}
-                    {!sc && item.badge ? (
+                    {item.badge ? (
                       <span className="nav-badge">{item.badge}</span>
                     ) : null}
                     {!sc && item.mock ? (
@@ -190,7 +214,7 @@ export function Layout(): React.JSX.Element {
                 </span>
               </div>
             )}
-            <button className="signout" onClick={() => void signOut()} aria-label={t.auth.sign_out} title={t.auth.sign_out}>
+            <button className="signout" onClick={handleSignOut} aria-label={t.auth.sign_out} title={t.auth.sign_out}>
               <LogOutIcon size={16} />
             </button>
           </div>

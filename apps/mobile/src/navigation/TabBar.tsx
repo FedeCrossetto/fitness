@@ -18,7 +18,7 @@ const TAB_META: Record<string, { label: string; icon: keyof typeof Ionicons.glyp
 };
 
 // Pantallas full-screen donde el tab bar estorba (chats, etc.).
-const HIDE_ON_ROUTES = ['CoachChat'];
+const HIDE_ON_ROUTES = ['CoachChat', 'Messages', 'CommunityChat'];
 
 /** Tab bar custom con glassmorphism y FAB central que abre el menú de "agregar". */
 export function TabBar({ state, navigation }: BottomTabBarProps): React.JSX.Element | null {

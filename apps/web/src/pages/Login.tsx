@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { DEFAULT_APP_NAME } from '@reset-fitness/shared';
+import { PLATFORM_APP_NAME, PLATFORM_LOGO } from '@/lib/platformBrand';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -30,8 +30,8 @@ export function LoginPage(): React.JSX.Element {
   return (
     <div className="center-screen">
       <form className="login-box card" onSubmit={(e) => void onSubmit(e)}>
-        <img src="/logo_app_sin_fondo_cuadrado_1024.png" alt={DEFAULT_APP_NAME} className="login-logo" />
-        <h1 className="page-title">{DEFAULT_APP_NAME}</h1>
+        <img src={PLATFORM_LOGO} alt={PLATFORM_APP_NAME} className="login-logo" />
+        <h1 className="page-title">{PLATFORM_APP_NAME}</h1>
         <p className="page-sub">{t.dashboard.trainer_panel}</p>
         {error ? <div className="toast error">{error}</div> : null}
         <div className="field">

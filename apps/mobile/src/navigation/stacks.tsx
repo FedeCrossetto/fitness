@@ -18,6 +18,8 @@ import { HomeScreen } from '../screens/home/HomeScreen';
 import { GoalsScreen } from '../screens/goals/GoalsScreen';
 import { ProfileScreen } from '../screens/profile/ProfileScreen';
 import { CommunityScreen } from '../screens/community/CommunityScreen';
+import { CommunityChatScreen } from '../screens/community/CommunityChatScreen';
+import { MessagesScreen } from '../screens/messages/MessagesScreen';
 import { SubscriptionScreen } from '../screens/subscription/SubscriptionScreen';
 import { CoachChatScreen } from '../screens/coach/CoachChatScreen';
 import { AchievementsScreen } from '../screens/achievements/AchievementsScreen';
@@ -72,6 +74,8 @@ export function HomeStack(): React.JSX.Element {
       <Home.Screen name="Goals" component={GoalsScreen} />
       <Home.Screen name="Profile" component={ProfileScreen} />
       <Home.Screen name="Community" component={CommunityScreen} />
+      <Home.Screen name="Messages" component={MessagesScreen} />
+      <Home.Screen name="CommunityChat" component={CommunityChatScreen} />
       <Home.Screen name="Subscription" component={SubscriptionScreen} />
       <Home.Screen name="CoachChat" component={CoachChatScreen} />
       <Home.Screen name="Achievements" component={AchievementsScreen} />

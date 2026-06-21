@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useTranslation } from '@/hooks/useTranslation';
 import { useToast } from '@/hooks/useToast';
 import { MessageIcon, PlusIcon, DumbbellIcon, ChevronRightIcon } from '@/components/icons';
+import { UserAvatar } from '@/components/UserAvatar';
 import type {
   BodyMeasurementRow,
   MealLogRow,
@@ -77,12 +79,6 @@ const TABS: { key: Tab; label: string }[] = [
 
 const POSITION_LABEL: Record<string, string> = { frente: 'Frente', perfil: 'Perfil', espalda: 'Espalda' };
 
-function initials(name: string | null): string {
-  if (!name) return 'A';
-  const parts = name.trim().split(/\s+/);
-  return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase();
-}
-
 function formatWorkoutDuration(w: WorkoutLogRow): string {
   const min = w.duration_min ?? (w.duration_seconds != null ? Math.max(1, Math.round(w.duration_seconds / 60)) : null);
   if (min == null) return '—';
@@ -109,6 +105,7 @@ function relativeDate(iso: string): string {
 export function StudentDetailPage(): React.JSX.Element {
   const { id: studentId } = useParams<{ id: string }>();
   const { profile: trainerProfile } = useAuth();
+  const { t } = useTranslation();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>('resumen');
@@ -253,7 +250,7 @@ export function StudentDetailPage(): React.JSX.Element {
   if (!profile) {
     return (
       <div>
-        <Link to="/students" className="back-link">← Volver a clientes</Link>
+        <Link to="/students" className="back-link">← {t.web.back_to_clients}</Link>
         <div className="empty-state"><div className="t">Cliente no encontrado</div></div>
       </div>
     );
@@ -278,18 +275,13 @@ export function StudentDetailPage(): React.JSX.Element {
   return (
     <div className="sd-page">
       {/* ── Back ── */}
-      <Link to="/students" className="back-link">← Volver a clientes</Link>
+      <Link to="/students" className="back-link">← {t.web.back_to_clients}</Link>
 
       {/* ── Header ── */}
       <div className="sd-hero card">
         <div className="sd-hero-top">
           <div className="sd-hero-identity">
-            <div className="sd-avatar" style={profile.avatar_url ? { padding: 0, overflow: 'hidden' } : undefined}>
-              {profile.avatar_url
-                ? <img src={profile.avatar_url} alt={profile.full_name ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
-                : initials(profile.full_name)
-              }
-            </div>
+            <UserAvatar name={profile.full_name} url={profile.avatar_url} size="lg" className="sd-avatar" />
             <div className="sd-header-info">
               <div className="sd-name-row">
                 <span className="sd-name">{profile.full_name ?? 'Alumno'}</span>

@@ -441,6 +441,45 @@ export interface AutoMessageConfigRow {
   updated_at: string;
 }
 
+export interface CommunityRow {
+  id: string;
+  trainer_id: string;
+  name: string;
+  description: string | null;
+  avatar_url: string | null;
+  is_active: boolean;
+  trainer_last_read_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CommunityMemberRow {
+  id: string;
+  community_id: string;
+  user_id: string;
+  role: 'member';
+  last_read_at: string | null;
+  joined_at: string;
+}
+
+export type CommunityMessageKind = 'user' | 'system' | 'auto';
+
+export interface CommunityMessageRow {
+  id: string;
+  community_id: string;
+  sender_id: string | null;
+  content: string;
+  kind: CommunityMessageKind;
+  created_at: string;
+}
+
+export interface UserTrophyDayRow {
+  id: string;
+  user_id: string;
+  date: string;
+  created_at: string;
+}
+
 export interface ConsultationFormConfigRow {
   id: string;
   trainer_id: string;
@@ -495,6 +534,10 @@ export interface Database {
       trainer_branding: TableDef<TrainerBrandingRow, 'trainer_id' | 'invite_code'>;
       auto_message_configs: TableDef<AutoMessageConfigRow, 'trainer_id' | 'trigger_key'>;
       consultation_form_configs: TableDef<ConsultationFormConfigRow, 'trainer_id'>;
+      communities: TableDef<CommunityRow, 'trainer_id' | 'name'>;
+      community_members: TableDef<CommunityMemberRow, 'community_id' | 'user_id'>;
+      community_messages: TableDef<CommunityMessageRow, 'community_id' | 'content' | 'kind'>;
+      user_trophy_days: TableDef<UserTrophyDayRow, 'user_id' | 'date'>;
     };
     Views: Record<string, never>;
     Functions: {
@@ -517,6 +560,10 @@ export interface Database {
       delete_client_account: {
         Args: { p_client_id: string };
         Returns: undefined;
+      };
+      try_send_auto_message: {
+        Args: { p_client_id: string; p_trigger_key: string };
+        Returns: boolean;
       };
       register_manual_payment: {
         Args: { p_client_id: string; p_plan_id: string };

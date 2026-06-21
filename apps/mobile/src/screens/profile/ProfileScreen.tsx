@@ -468,10 +468,10 @@ export function ProfileScreen({ navigation, route }: Props): React.JSX.Element {
           />
           <SettingsRow
             icon="chatbubbles-outline"
-            label={t.profile.coach_chat}
-            onPress={() => navigation.navigate('CoachChat')}
+            label={t.home.messages}
+            onPress={() => navigation.navigate('Messages')}
+            last
           />
-          <SettingsRow icon="people-outline" label={t.profile.community} onPress={() => navigation.navigate('Community')} last />
         </Card>
 
         {/* Apariencia */}

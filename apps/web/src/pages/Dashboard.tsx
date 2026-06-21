@@ -8,6 +8,7 @@ import { useTranslation } from '@/hooks/useTranslation';
 import { TrophyIcon, UsersIcon, CheckIcon, DumbbellIcon } from '@/components/icons';
 import { AreaChart } from '@/components/charts';
 import { ErrorState, Lightbox, useCountUp } from '@/components/ui';
+import { UserAvatar } from '@/components/UserAvatar';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -71,12 +72,6 @@ function relativeTime(iso: string, copy: {
   const d = Math.floor(h / 24);
   if (d === 1) return copy.yesterday;
   return copy.days(d);
-}
-
-function initials(name: string | null): string {
-  if (!name) return 'A';
-  const parts = name.trim().split(/\s+/);
-  return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase();
 }
 
 // ── Activity builder ───────────────────────────────────────────────────────
@@ -529,7 +524,7 @@ export function DashboardPage(): React.JSX.Element {
               </div>
             </div>
             <div className="dash-chart-body">
-              <AreaChart values={series} height={148} color="#16181a" />
+              <AreaChart values={series} height={148} color="#31F37B" />
             </div>
           </div>
 
@@ -547,12 +542,7 @@ export function DashboardPage(): React.JSX.Element {
               <div className="students-list">
                 {students.slice(0, 6).map((s) => (
                   <div key={s.id} className="student-row" onClick={() => navigate(`/students/${s.id}`)}>
-                    <div className="avatar sm" style={s.avatar_url ? { padding: 0, overflow: 'hidden' } : undefined}>
-                      {s.avatar_url
-                        ? <img src={s.avatar_url} alt={s.full_name ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
-                        : initials(s.full_name)
-                      }
-                    </div>
+                    <UserAvatar name={s.full_name} url={s.avatar_url} size="sm" />
                     <div className="student-info">
                       <span className="student-name">{s.full_name ?? t.dashboard.activity_student_default}</span>
                       <span className="student-goal">{s.goal ?? t.profile.no_goal}</span>
@@ -621,12 +611,7 @@ export function DashboardPage(): React.JSX.Element {
               >
                 {/* Avatar + type dot */}
                 <div className="act-panel-avatar-wrap">
-                  <div className="avatar sm" style={a.studentAvatar ? { padding: 0, overflow: 'hidden' } : undefined}>
-                    {a.studentAvatar
-                      ? <img src={a.studentAvatar} alt={a.studentName} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
-                      : initials(a.studentName)
-                    }
-                  </div>
+                  <UserAvatar name={a.studentName} url={a.studentAvatar} size="sm" />
                   <span
                     className="act-panel-type-dot"
                     style={{ background: TYPE_COLORS[a.type].dot }}

@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -10,6 +9,7 @@ import { formatTime } from '../../lib/dates';
 import { supabase } from '../../lib/supabase';
 import {
   AppText,
+  Avatar,
   BottomSheet,
   Card,
   CardSkeleton,
@@ -19,6 +19,7 @@ import {
   Input,
 } from '../../components/common';
 import { useAuthStore } from '../../stores/authStore';
+import { useInboxStore } from '../../stores/inboxStore';
 import { useUiStore } from '../../stores/uiStore';
 import type { MessageRow, RoutineExerciseRow, RoutineRow } from '../../types/database';
 import type { HomeStackParamList } from '../../types/navigation';
@@ -55,6 +56,12 @@ export function CoachChatScreen({ navigation }: Props): React.JSX.Element {
   const [routines, setRoutines] = useState<RoutineWithExercises[]>([]);
   const [routinesVisible, setRoutinesVisible] = useState(false);
   const [coachAvatar, setCoachAvatar] = useState<string | null>(null);
+  const [coachName, setCoachName] = useState('Mi coach');
+
+  const refreshInbox = useCallback(() => {
+    if (!userId) return;
+    void useInboxStore.getState().loadInbox(userId, profile?.trainer_id);
+  }, [userId, profile?.trainer_id]);
 
   const loadMessages = useCallback(async () => {
     if (!userId) return;
@@ -73,12 +80,13 @@ export function CoachChatScreen({ navigation }: Props): React.JSX.Element {
         .eq('client_id', userId)
         .eq('sender_role', 'trainer')
         .eq('read', false);
+      refreshInbox();
     } catch {
       setError('No pudimos cargar tus mensajes.');
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [userId, refreshInbox]);
 
   // Carga inicial inline: los setState ocurren después del await, no de forma
   // síncrona dentro del efecto.
@@ -102,6 +110,7 @@ export function CoachChatScreen({ navigation }: Props): React.JSX.Element {
           .eq('client_id', userId)
           .eq('sender_role', 'trainer')
           .eq('read', false);
+        refreshInbox();
       } catch {
         if (!cancelled) setError('No pudimos cargar tus mensajes.');
       } finally {
@@ -137,18 +146,25 @@ export function CoachChatScreen({ navigation }: Props): React.JSX.Element {
       );
     })();
 
-    // Avatar del coach (para mostrarlo en el chat).
+    // Avatar y nombre del coach (para mostrarlo en el chat).
     void (async () => {
       const trainerId = profile?.trainer_id;
       if (!trainerId) return;
-      const { data } = await supabase.from('profiles').select('avatar_url').eq('id', trainerId).maybeSingle();
-      if (!cancelled && data) setCoachAvatar((data as { avatar_url: string | null }).avatar_url);
+      const { data } = await supabase
+        .from('profiles')
+        .select('full_name, avatar_url')
+        .eq('id', trainerId)
+        .maybeSingle();
+      if (cancelled || !data) return;
+      const row = data as { full_name: string | null; avatar_url: string | null };
+      if (row.full_name) setCoachName(row.full_name);
+      setCoachAvatar(row.avatar_url);
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [userId, profile?.trainer_id]);
+  }, [userId, profile?.trainer_id, refreshInbox]);
 
   // Realtime: nuevos mensajes del coach + recibos de lectura (UPDATE).
   useEffect(() => {
@@ -167,7 +183,8 @@ export function CoachChatScreen({ navigation }: Props): React.JSX.Element {
           const incoming = payload.new as MessageRow;
           setMessages((prev) => (prev.some((m) => m.id === incoming.id) ? prev : [...prev, incoming]));
           if (incoming.sender_role === 'trainer') {
-            void supabase.from('messages').update(asWrite<MessageRow>({ read: true })).eq('id', incoming.id);
+            void supabase.from('messages').update(asWrite<MessageRow>({ read: true })).eq('id', incoming.id)
+              .then(() => refreshInbox());
           }
         }
       )
@@ -175,7 +192,7 @@ export function CoachChatScreen({ navigation }: Props): React.JSX.Element {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [userId]);
+  }, [userId, refreshInbox]);
 
   const onSend = useCallback(async () => {
     const content = draft.trim();
@@ -211,15 +228,10 @@ export function CoachChatScreen({ navigation }: Props): React.JSX.Element {
 
   const renderMessage = useCallback(({ item }: { item: MessageRow }) => {
     const own = item.sender_role === 'client';
+    const avatarName = own ? profile?.full_name : coachName;
     const avatarUrl = own ? profile?.avatar_url ?? null : coachAvatar;
     const avatar = (
-      <View style={styles.chatAvatar}>
-        {avatarUrl ? (
-          <Image source={{ uri: avatarUrl }} style={styles.chatAvatarImg} contentFit="cover" />
-        ) : (
-          <Ionicons name="person" size={14} color={colors.text.tertiary} />
-        )}
-      </View>
+      <Avatar name={avatarName} imageUrl={avatarUrl} size={28} />
     );
 
     const bubbleContent = (
@@ -261,7 +273,7 @@ export function CoachChatScreen({ navigation }: Props): React.JSX.Element {
         {own && avatar}
       </View>
     );
-  }, [colors, styles, profile?.avatar_url, coachAvatar]);
+  }, [colors, styles, profile?.avatar_url, profile?.full_name, coachAvatar, coachName]);
 
   let body: React.JSX.Element;
   if (loading && messages.length === 0) {
@@ -308,9 +320,15 @@ export function CoachChatScreen({ navigation }: Props): React.JSX.Element {
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
         <IconButton icon="chevron-back" onPress={() => navigation.goBack()} accessibilityLabel="Volver" />
-        <AppText variant="h3" color={colors.text.primary} style={styles.headerTitle}>
-          Mi coach
-        </AppText>
+        <Avatar name={coachName} imageUrl={coachAvatar} size={36} />
+        <View style={styles.headerText}>
+          <AppText variant="h3" color={colors.text.primary} numberOfLines={1}>
+            {coachName}
+          </AppText>
+          <AppText variant="body12" color={colors.text.tertiary}>
+            Tu entrenador
+          </AppText>
+        </View>
         <View style={styles.headerSpacer} />
       </View>
 
@@ -406,7 +424,7 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     paddingBottom: spacing.md,
     gap: spacing.sm,
   },
-  headerTitle: { flex: 1, textAlign: 'center' },
+  headerText: { flex: 1, minWidth: 0 },
   headerSpacer: { width: layout.minHitTarget },
   routinesCard: {
     marginHorizontal: layout.screenPadding,
@@ -438,18 +456,6 @@ const createStyles = (colors: Colors) => StyleSheet.create({
   },
   messageLineOwn: { alignSelf: 'flex-end' },
   messageLineCoach: { alignSelf: 'flex-start' },
-  chatAvatar: {
-    width: 28,
-    height: 28,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surface.elevated,
-    borderWidth: 1,
-    borderColor: colors.border.subtle,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  chatAvatarImg: { width: '100%', height: '100%' },
   messageRow: { flexShrink: 1 },
   messageRowOwn: { alignItems: 'flex-end' },
   messageRowCoach: { alignItems: 'flex-start' },

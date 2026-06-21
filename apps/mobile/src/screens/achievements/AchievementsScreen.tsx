@@ -7,7 +7,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { HomeStackParamList } from '../../types/navigation';
 import { illustrations, layout, radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
-import { computeAchievements, computeStreak, type Achievement, type StreakInfo } from '../../services/streaks';
+import { computeAchievements, type Achievement } from '../../services/streaks';
+import { getTrophyStats, type TrophyStats } from '../../services/trophies';
 import { AppText, CardSkeleton, ErrorState, IconButton } from '../../components/common';
 import { useAuthStore } from '../../stores/authStore';
 import { useTabBarScrollPadding } from '../../hooks/useTabBarScrollPadding';
@@ -25,7 +26,7 @@ export function AchievementsScreen({ navigation }: Props): React.JSX.Element {
   const session = useAuthStore((s) => s.session);
   const userId = session?.user.id;
 
-  const [streak, setStreak] = useState<StreakInfo | null>(null);
+  const [trophies, setTrophies] = useState<TrophyStats | null>(null);
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -35,11 +36,11 @@ export function AchievementsScreen({ navigation }: Props): React.JSX.Element {
     setLoading(true);
     setError(null);
     try {
-      const [streakInfo, achievementList] = await Promise.all([
-        computeStreak(userId),
+      const [trophyStats, achievementList] = await Promise.all([
+        getTrophyStats(userId),
         computeAchievements(userId),
       ]);
-      setStreak(streakInfo);
+      setTrophies(trophyStats);
       setAchievements(achievementList);
     } catch {
       setError('No pudimos cargar tus logros.');
@@ -103,17 +104,33 @@ export function AchievementsScreen({ navigation }: Props): React.JSX.Element {
         contentContainerStyle={[styles.listContent, { paddingBottom: scrollBottom }]}
         ListHeaderComponent={
           <View style={styles.hero}>
-            <Image source={illustrations.victory} style={styles.mascot} contentFit="contain" />
-            <AppText variant="metricLarge" color={colors.text.primary}>
-              {streak?.current ?? 0} {streak?.current === 1 ? 'día' : 'días'}
-            </AppText>
-            <AppText variant="caps12" color={colors.text.tertiary} style={styles.heroLabel}>
-              Racha actual
-            </AppText>
+            <View style={styles.heroRow}>
+              <Image source={illustrations.trophy} style={styles.trophyHero} contentFit="contain" />
+              <View style={styles.heroStats}>
+                <AppText variant="metricLarge" color={colors.text.primary}>
+                  {trophies?.total ?? 0}
+                </AppText>
+                <AppText variant="caps12" color={colors.text.tertiary}>
+                  {trophies?.total === 1 ? 'trofeo' : 'trofeos'}
+                </AppText>
+                {(trophies?.currentStreak ?? 0) > 1 ? (
+                  <View style={styles.streakPill}>
+                    <Ionicons name="flame" size={13} color={colors.primary.default} />
+                    <AppText variant="caps11" color={colors.primary.default}>
+                      {trophies?.currentStreak} días seguidos
+                    </AppText>
+                  </View>
+                ) : null}
+              </View>
+            </View>
             <View style={styles.weekRow}>
-              {(streak?.lastWeek ?? Array.from({ length: 7 }, () => false)).map((active, i) => (
+              {(trophies?.lastWeek ?? Array.from({ length: 7 }, () => false)).map((earned, i) => (
                 <View key={`${WEEK_LABELS[i]}-${i}`} style={styles.weekDayWrap}>
-                  <View style={[styles.weekDot, active && styles.weekDotActive]} />
+                  {earned ? (
+                    <Image source={illustrations.trophy} style={styles.weekTrophy} contentFit="contain" />
+                  ) : (
+                    <View style={styles.weekEmpty} />
+                  )}
                   <AppText variant="body12" color={colors.text.disabled}>
                     {WEEK_LABELS[i]}
                   </AppText>
@@ -134,7 +151,7 @@ export function AchievementsScreen({ navigation }: Props): React.JSX.Element {
       <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
         <IconButton icon="chevron-back" onPress={() => navigation.goBack()} accessibilityLabel="Volver" />
         <AppText variant="h3" color={colors.text.primary} style={styles.headerTitle}>
-          Logros y rachas
+          Trofeos y logros
         </AppText>
         <View style={styles.headerSpacer} />
       </View>
@@ -159,26 +176,41 @@ const createStyles = (colors: Colors) => StyleSheet.create({
   listContent: {
     paddingHorizontal: layout.screenPadding,
   },
-  hero: { alignItems: 'center', paddingTop: spacing.sm },
-  mascot: { width: 140, height: 160, marginBottom: spacing.sm },
-  heroLabel: { marginTop: spacing.xxs },
+  hero: { paddingTop: spacing.sm },
+  heroRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.lg,
+    marginBottom: spacing.lg,
+  },
+  trophyHero: { width: 112, height: 112 },
+  heroStats: { flex: 1, gap: spacing.xxs },
+  streakPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: spacing.xxs,
+    marginTop: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xxs,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primary.muted,
+  },
   weekRow: {
     flexDirection: 'row',
-    gap: spacing.md,
-    marginTop: spacing.lg,
+    justifyContent: 'space-between',
+    gap: spacing.xs,
+    marginTop: spacing.sm,
   },
-  weekDayWrap: { alignItems: 'center', gap: spacing.xxs },
-  weekDot: {
-    width: 12,
-    height: 12,
+  weekDayWrap: { alignItems: 'center', gap: spacing.xxs, flex: 1 },
+  weekTrophy: { width: 32, height: 32 },
+  weekEmpty: {
+    width: 32,
+    height: 32,
     borderRadius: radius.pill,
     backgroundColor: colors.surface.elevated,
     borderWidth: 1,
     borderColor: colors.border.default,
-  },
-  weekDotActive: {
-    backgroundColor: colors.primary.default,
-    borderColor: colors.primary.default,
   },
   sectionTitle: { alignSelf: 'flex-start', marginTop: spacing.xl, marginBottom: spacing.sm },
   gridRow: { gap: spacing.sm },

@@ -12,6 +12,8 @@ export type HomeStackParamList = {
   Goals: undefined;
   Profile: { section?: 'health' } | undefined;
   Community: undefined;
+  Messages: undefined;
+  CommunityChat: { communityId: string; communityName?: string; communityAvatarUrl?: string | null };
   Subscription: undefined;
   CoachChat: undefined;
   Achievements: undefined;

@@ -6,11 +6,7 @@ import { useToast } from '@/hooks/useToast';
 import { notifyPushNewMessage } from '@/lib/pushClient';
 import { refreshUnreadMessages } from '@/hooks/useUnreadMessages';
 
-function initials(name: string | null | undefined): string {
-  if (!name) return 'A';
-  const parts = name.trim().split(/\s+/);
-  return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase();
-}
+import { resolveAvatarUrl, initials } from '@/lib/avatarUrl';
 
 /** Tilde de "enviado" / "leído" (doble) compacto, estilo mensajería. */
 function CheckMark({ read }: { read: boolean }): React.JSX.Element {
@@ -27,10 +23,11 @@ function CheckMark({ read }: { read: boolean }): React.JSX.Element {
 }
 
 function ChatAvatar({ name, url }: { name?: string | null; url?: string | null }): React.JSX.Element {
+  const resolved = resolveAvatarUrl(url);
   return (
     <div className="chat-avatar" title={name ?? ''}>
-      {url
-        ? <img src={url} alt={name ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
+      {resolved
+        ? <img src={resolved} alt={name ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
         : initials(name)}
     </div>
   );
@@ -67,7 +64,7 @@ export function ChatPanel({ clientId, clientName, clientAvatar, placeholder = 'E
     setMessages((prev) => prev.map((m) =>
       m.sender_role === 'client' && !m.read ? { ...m, read: true } : m
     ));
-    refreshUnreadMessages();
+    await refreshUnreadMessages();
     onReadRef.current?.();
   }, [clientId]);
 
@@ -100,8 +97,8 @@ export function ChatPanel({ clientId, clientName, clientAvatar, placeholder = 'E
           const msg = payload.new as MessageRow;
           setMessages((prev) => prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]);
           if (msg.sender_role === 'client') {
-            void supabase.from('messages').update({ read: true }).eq('id', msg.id).then(({ error }) => {
-              if (!error) refreshUnreadMessages();
+            void supabase.from('messages').update({ read: true }).eq('id', msg.id).then(async ({ error }) => {
+              if (!error) await refreshUnreadMessages();
             });
             onReadRef.current?.();
           }

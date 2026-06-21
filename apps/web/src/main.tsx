@@ -24,6 +24,7 @@ const StudentDetailPage    = lazy(() => import('@/pages/StudentDetail').then((m)
 const RoutinesPage         = lazy(() => import('@/pages/Routines').then((m) => ({ default: m.RoutinesPage })));
 const MessagesPage         = lazy(() => import('@/pages/Messages').then((m) => ({ default: m.MessagesPage })));
 const GroupsPage           = lazy(() => import('@/pages/Groups').then((m) => ({ default: m.GroupsPage })));
+const GroupDetailPage      = lazy(() => import('@/pages/GroupDetail').then((m) => ({ default: m.GroupDetailPage })));
 const ChallengesPage       = lazy(() => import('@/pages/Challenges').then((m) => ({ default: m.ChallengesPage })));
 const PaymentsPage         = lazy(() => import('@/pages/Payments').then((m) => ({ default: m.PaymentsPage })));
 const SchedulingPage       = lazy(() => import('@/pages/Scheduling').then((m) => ({ default: m.SchedulingPage })));
@@ -80,6 +81,7 @@ function App(): React.JSX.Element {
             <Route path="/" element={<DashboardPage />} />
             <Route path="/messages" element={<MessagesPage />} />
             <Route path="/groups" element={<GroupsPage />} />
+            <Route path="/groups/:id" element={<GroupDetailPage />} />
             <Route path="/challenges" element={<ChallengesPage />} />
             <Route path="/students" element={<StudentsPage />} />
             <Route path="/students/:id" element={<StudentDetailPage />} />

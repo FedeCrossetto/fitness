@@ -4,10 +4,12 @@ import { QRCodeSVG } from 'qrcode.react';
 import type { ProfileRow } from '@reset-fitness/shared/types/database';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { useTranslation } from '@/hooks/useTranslation';
 import { useToast } from '@/hooks/useToast';
 import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
 import { buildInviteLink, getJoinBaseUrl } from '@/lib/inviteClient';
 import { deleteClientAccount } from '@/lib/clientAccounts';
+import { resolveAvatarUrl, initials } from '@/lib/avatarUrl';
 import { ErrorState, LoadingRows } from '@/components/ui';
 import { ChevronRightIcon, SearchIcon, TrashIcon, UsersIcon } from '@/components/icons';
 
@@ -15,17 +17,12 @@ type Student = Pick<ProfileRow, 'id' | 'full_name' | 'goal' | 'created_at' | 'av
   client_status: 'pending' | 'active';
 };
 
-function initials(name: string | null): string {
-  if (!name) return 'A';
-  const parts = name.trim().split(/\s+/);
-  return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase();
-}
-
 function StudentAvatar({ name, url, style }: { name: string | null; url?: string | null; style?: React.CSSProperties }): React.JSX.Element {
-  if (url) {
+  const resolved = resolveAvatarUrl(url);
+  if (resolved) {
     return (
       <span className="avatar sm" style={{ padding: 0, overflow: 'hidden', ...style }}>
-        <img src={url} alt={name ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
+        <img src={resolved} alt={name ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
       </span>
     );
   }
@@ -63,6 +60,7 @@ function ClientRowActions({
 
 export function StudentsPage(): React.JSX.Element {
   const { session } = useAuth();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { showToast } = useToast();
   const [searchParams] = useSearchParams();
@@ -173,8 +171,8 @@ export function StudentsPage(): React.JSX.Element {
     <div>
       <div className="students-page-header">
         <div>
-          <h1 className="page-title">Clientes</h1>
-          <p className="page-sub">Personas vinculadas a tu marca.</p>
+          <h1 className="page-title">{t.web.clients}</h1>
+          <p className="page-sub">{t.web.clients_sub}</p>
         </div>
       </div>
 
@@ -450,7 +448,10 @@ export function StudentsPage(): React.JSX.Element {
           border-radius: 9px; font-size: 11px; font-weight: 700;
           display: flex; align-items: center; justify-content: center;
         }
-        .students-tab-count.pending { background: #fef3c7; color: #92400e; }
+        .students-tab-count.pending {
+          background: var(--brand-lime-soft);
+          color: color-mix(in srgb, var(--brand-lime) 72%, #0C0C0C);
+        }
         .cell-sub { font-size: 11.5px; color: var(--text-tertiary); margin-top: 1px; }
         .btn.sm { font-size: 12px; padding: 5px 12px; }
         .client-row-actions {

@@ -11,12 +11,12 @@ import {
   Inter_600SemiBold,
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { useTheme } from './src/theme';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { navigationRef, navigateToCoachChat } from './src/navigation/navigationRef';
 import { listenToMessageTaps } from './src/services/notifications';
-import { ToastHost } from './src/components/common';
+import { AuthLoadingOverlay, ToastHost } from './src/components/common';
 import { useAuthStore } from './src/stores/authStore';
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
@@ -61,11 +61,7 @@ export default function App(): React.JSX.Element {
   }, [fontsLoaded, authReady]);
 
   if (!fontsLoaded || !authReady) {
-    return (
-      <View style={[styles.loading, { backgroundColor: colors.background }]}>
-        <ActivityIndicator color={colors.primary.default} />
-      </View>
-    );
+    return <AuthLoadingOverlay />;
   }
 
   return (
@@ -83,9 +79,4 @@ export default function App(): React.JSX.Element {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  loading: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
 });

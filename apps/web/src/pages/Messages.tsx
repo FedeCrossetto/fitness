@@ -1,16 +1,23 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import type { MessageRow, ProfileRow } from '@reset-fitness/shared/types/database';
+import { Link, useSearchParams } from 'react-router-dom';
+import type { CommunityMessageRow, CommunityRow, MessageRow, ProfileRow } from '@reset-fitness/shared/types/database';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { ChatPanel } from '@/components/ChatPanel';
+import { CommunityGroupChatPanel } from '@/components/CommunityGroupChatPanel';
+import { refreshUnreadMessages } from '@/hooks/useUnreadMessages';
 import { MessageIcon, SearchIcon } from '@/components/icons';
 import { LoadingRows, EmptyState } from '@/components/ui';
+import { GroupAvatar, UserAvatar } from '@/components/UserAvatar';
+import { resolveAvatarUrl } from '@/lib/avatarUrl';
 
 type ClientMin = Pick<ProfileRow, 'id' | 'full_name' | 'avatar_url'>;
 
-interface Thread {
-  clientId: string;
+type InboxFilter = 'all' | 'direct' | 'group';
+
+interface DirectThread {
+  kind: 'direct';
+  id: string;
   name: string;
   avatarUrl: string | null;
   lastMsg: string;
@@ -18,10 +25,17 @@ interface Thread {
   unread: number;
 }
 
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase();
+interface GroupThread {
+  kind: 'group';
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+  lastMsg: string;
+  lastAt: string;
+  unread: number;
 }
+
+type InboxThread = DirectThread | GroupThread;
 
 function relativeTime(iso: string): string {
   if (!iso) return '';
@@ -37,68 +51,143 @@ function relativeTime(iso: string): string {
   return new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
 }
 
+function threadKey(t: InboxThread): string {
+  return `${t.kind}:${t.id}`;
+}
+
 export function MessagesPage(): React.JSX.Element {
   const { session } = useAuth();
   const userId = session?.user.id;
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState('');
-  const [selected, setSelected] = useState<string | null>(searchParams.get('client'));
-  const [threads, setThreads] = useState<Thread[]>([]);
+  const [filter, setFilter] = useState<InboxFilter>('all');
+  const [threads, setThreads] = useState<InboxThread[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const selectedKey = useMemo(() => {
+    const client = searchParams.get('client');
+    const group = searchParams.get('group');
+    if (client) return `direct:${client}`;
+    if (group) return `group:${group}`;
+    return null;
+  }, [searchParams]);
+
+  const selectThread = useCallback((thread: InboxThread | null) => {
+    if (!thread) {
+      setSearchParams({});
+      return;
+    }
+    if (thread.kind === 'direct') {
+      setSearchParams({ client: thread.id });
+    } else {
+      setSearchParams({ group: thread.id });
+    }
+  }, [setSearchParams]);
 
   const loadThreads = useCallback(async () => {
     if (!userId) return;
-    const [{ data: clients }, { data: msgs }] = await Promise.all([
+    const [{ data: clients }, { data: msgs }, { data: communities }] = await Promise.all([
       supabase.from('profiles').select('id, full_name, avatar_url').eq('trainer_id', userId),
       supabase.from('messages').select('*').order('created_at', { ascending: false }),
+      supabase.from('communities').select('*').eq('trainer_id', userId).eq('is_active', true),
     ]);
+
     const allMsgs = (msgs as MessageRow[] | null) ?? [];
-    const built: Thread[] = ((clients as ClientMin[] | null) ?? []).map((c) => {
+    const directThreads: DirectThread[] = ((clients as ClientMin[] | null) ?? []).map((c) => {
       const mine = allMsgs.filter((m) => m.client_id === c.id);
       const last = mine[0];
       return {
-        clientId: c.id,
+        kind: 'direct',
+        id: c.id,
         name: c.full_name ?? 'Alumno',
-        avatarUrl: c.avatar_url,
+        avatarUrl: resolveAvatarUrl(c.avatar_url),
         lastMsg: last?.content ?? '',
         lastAt: last?.created_at ?? '',
         unread: mine.filter((m) => m.sender_role === 'client' && !m.read).length,
       };
     });
-    // Conversaciones con actividad primero, por fecha del último mensaje.
-    built.sort((a, b) => (a.lastAt < b.lastAt ? 1 : a.lastAt > b.lastAt ? -1 : 0));
-    setThreads(built);
+
+    const commRows = (communities as CommunityRow[] | null) ?? [];
+    const groupThreads: GroupThread[] = [];
+
+    if (commRows.length > 0) {
+      const ids = commRows.map((c) => c.id);
+      const { data: recentMsgs } = await supabase
+        .from('community_messages')
+        .select('community_id, content, created_at, sender_id, kind')
+        .in('community_id', ids)
+        .order('created_at', { ascending: false });
+
+      const lastByCommunity = new Map<string, CommunityMessageRow>();
+      for (const row of (recentMsgs as CommunityMessageRow[] | null) ?? []) {
+        if (!lastByCommunity.has(row.community_id)) {
+          lastByCommunity.set(row.community_id, row);
+        }
+      }
+
+      for (const comm of commRows) {
+        const last = lastByCommunity.get(comm.id);
+        const since = comm.trainer_last_read_at ?? '1970-01-01T00:00:00Z';
+        const { count } = await supabase
+          .from('community_messages')
+          .select('id', { count: 'exact', head: true })
+          .eq('community_id', comm.id)
+          .eq('kind', 'user')
+          .neq('sender_id', userId)
+          .gt('created_at', since);
+
+        groupThreads.push({
+          kind: 'group',
+          id: comm.id,
+          name: comm.name,
+          avatarUrl: resolveAvatarUrl(comm.avatar_url),
+          lastMsg: last?.content ?? '',
+          lastAt: last?.created_at ?? comm.created_at,
+          unread: count ?? 0,
+        });
+      }
+    }
+
+    const merged: InboxThread[] = [...directThreads, ...groupThreads];
+    merged.sort((a, b) => (a.lastAt < b.lastAt ? 1 : a.lastAt > b.lastAt ? -1 : 0));
+    setThreads(merged);
     setLoading(false);
+    refreshUnreadMessages();
   }, [userId]);
 
   useEffect(() => { void loadThreads(); }, [loadThreads]);
 
-  // Realtime: refresca la lista ante cualquier mensaje nuevo/leído.
   useEffect(() => {
     if (!userId) return;
     const channel = supabase
-      .channel('messages-inbox')
+      .channel('messages-inbox-unified')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => void loadThreads())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'community_messages' }, () => void loadThreads())
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'communities' }, () => void loadThreads())
       .subscribe();
     return () => { void supabase.removeChannel(channel); };
   }, [userId, loadThreads]);
 
-  const filtered = useMemo(
-    () => threads.filter((t) => t.name.toLowerCase().includes(search.trim().toLowerCase())),
-    [threads, search],
-  );
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return threads.filter((t) => {
+      if (filter === 'direct' && t.kind !== 'direct') return false;
+      if (filter === 'group' && t.kind !== 'group') return false;
+      if (q && !t.name.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [threads, search, filter]);
 
-  const selectedThread = threads.find((t) => t.clientId === selected) ?? null;
+  const selectedThread = threads.find((t) => threadKey(t) === selectedKey) ?? null;
 
   return (
     <div>
       <h1 className="page-title">Mensajes</h1>
-      <p className="page-sub">Comunicación directa con tus alumnos.</p>
+      <p className="page-sub">Chats con alumnos y grupos en un solo lugar.</p>
 
       <div className="messages-layout card" style={{ padding: 0 }}>
-        {/* Thread list */}
         <div className="messages-sidebar">
-          <div className="table-toolbar" style={{ padding: '12px 14px' }}>
+          <div className="table-toolbar" style={{ padding: '12px 14px', gap: 10, flexDirection: 'column', alignItems: 'stretch' }}>
             <div className="search-field" style={{ width: '100%' }}>
               <SearchIcon size={14} />
               <input
@@ -106,6 +195,18 @@ export function MessagesPage(): React.JSX.Element {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
+            </div>
+            <div className="inbox-filters">
+              {(['all', 'direct', 'group'] as const).map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  className={`inbox-filter${filter === key ? ' active' : ''}`}
+                  onClick={() => setFilter(key)}
+                >
+                  {key === 'all' ? 'Todos' : key === 'direct' ? 'Alumnos' : 'Grupos'}
+                </button>
+              ))}
             </div>
           </div>
           <div className="thread-list">
@@ -115,56 +216,70 @@ export function MessagesPage(): React.JSX.Element {
               <EmptyState
                 icon={<MessageIcon size={22} />}
                 title={search ? 'Sin resultados' : 'Sin conversaciones'}
-                sub={search ? 'Probá con otro nombre.' : 'Cuando tus alumnos te escriban, las charlas aparecen acá.'}
+                sub={search ? 'Probá con otro nombre.' : 'Cuando te escriban o crees un grupo, aparece acá.'}
               />
             ) : (
-              filtered.map((t) => (
-                <div
-                  key={t.clientId}
-                  className={`thread-row${selected === t.clientId ? ' active' : ''}`}
-                  onClick={() => setSelected(t.clientId)}
-                  role="button"
-                  tabIndex={0}
-                >
-                  <div className="thread-avatar">
-                    <div className="avatar" style={t.avatarUrl ? { padding: 0, overflow: 'hidden' } : undefined}>
-                      {t.avatarUrl
-                        ? <img src={t.avatarUrl} alt={t.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
-                        : initials(t.name)}
+              filtered.map((t) => {
+                const key = threadKey(t);
+                const active = selectedKey === key;
+                return (
+                  <div
+                    key={key}
+                    className={`thread-row${active ? ' active' : ''}`}
+                    onClick={() => selectThread(t)}
+                    role="button"
+                    tabIndex={0}
+                  >
+                    <div className="thread-avatar">
+                      {t.kind === 'group' ? (
+                        <GroupAvatar name={t.name} url={t.avatarUrl} size="sm" />
+                      ) : (
+                        <UserAvatar name={t.name} url={t.avatarUrl} size="sm" />
+                      )}
+                    </div>
+                    <div className="thread-body">
+                      <div className="thread-name">
+                        {t.kind === 'group' ? `👥 ${t.name}` : t.name}
+                      </div>
+                      <div className="thread-last">{t.lastMsg || 'Sin mensajes todavía'}</div>
+                    </div>
+                    <div className="thread-meta">
+                      <span className="thread-time">{relativeTime(t.lastAt)}</span>
+                      {t.unread > 0 && <span className="thread-badge">{t.unread}</span>}
                     </div>
                   </div>
-                  <div className="thread-body">
-                    <div className="thread-name">{t.name}</div>
-                    <div className="thread-last">{t.lastMsg || 'Sin mensajes todavía'}</div>
-                  </div>
-                  <div className="thread-meta">
-                    <span className="thread-time">{relativeTime(t.lastAt)}</span>
-                    {t.unread > 0 && <span className="thread-badge">{t.unread}</span>}
-                  </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
 
-        {/* Chat area */}
         <div className="messages-chat">
-          {selectedThread ? (
+          {selectedThread?.kind === 'direct' ? (
             <div className="chat-card-inner">
               <div className="chat-head">
-                <div className="avatar sm" style={selectedThread.avatarUrl ? { padding: 0, overflow: 'hidden' } : undefined}>
-                  {selectedThread.avatarUrl
-                    ? <img src={selectedThread.avatarUrl} alt={selectedThread.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
-                    : initials(selectedThread.name)}
-                </div>
+                <UserAvatar name={selectedThread.name} url={selectedThread.avatarUrl} size="sm" />
                 <span className="chat-head-name">{selectedThread.name}</span>
               </div>
               <ChatPanel
-                key={selectedThread.clientId}
-                clientId={selectedThread.clientId}
+                key={selectedThread.id}
+                clientId={selectedThread.id}
                 clientName={selectedThread.name}
                 clientAvatar={selectedThread.avatarUrl}
                 placeholder={`Escribile a ${selectedThread.name.split(' ')[0]}…`}
+                onRead={loadThreads}
+              />
+            </div>
+          ) : selectedThread?.kind === 'group' ? (
+            <div className="chat-card-inner">
+              <div className="chat-head">
+                <GroupAvatar name={selectedThread.name} url={selectedThread.avatarUrl} size="sm" />
+                <span className="chat-head-name">{selectedThread.name}</span>
+                <Link to={`/groups/${selectedThread.id}`} className="chat-head-link">Gestionar grupo</Link>
+              </div>
+              <CommunityGroupChatPanel
+                key={selectedThread.id}
+                communityId={selectedThread.id}
                 onRead={loadThreads}
               />
             </div>
@@ -179,23 +294,29 @@ export function MessagesPage(): React.JSX.Element {
 
       <style>{`
         .messages-layout { display: flex; height: 600px; overflow: hidden; }
-        .messages-sidebar { width: 290px; flex-shrink: 0; border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+        .messages-sidebar { width: 300px; flex-shrink: 0; border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+        .inbox-filters { display: flex; gap: 6px; }
+        .inbox-filter { flex: 1; border: 1px solid var(--border); background: var(--surface); border-radius: 999px; padding: 6px 10px; font-size: 12px; cursor: pointer; color: var(--text-secondary); }
+        .inbox-filter.active { background: var(--chat-soft); border-color: var(--chat); color: var(--chat); font-weight: 600; }
         .thread-list { flex: 1; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 2px; }
         .thread-row { display: flex; align-items: center; gap: 11px; padding: 10px 12px; cursor: pointer; border-radius: 12px; transition: background 120ms ease; }
         .thread-row:hover { background: var(--surface-elevated); }
         .thread-row.active { background: var(--chat-soft); }
         .thread-row.active .thread-name { color: var(--chat); }
         .thread-avatar { position: relative; flex-shrink: 0; }
+        .group-avatar { display: flex; align-items: center; justify-content: center; background: var(--surface-elevated); color: var(--chat); }
         .thread-body { flex: 1; min-width: 0; }
         .thread-name { font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .thread-last { font-size: 12px; color: var(--text-tertiary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
         .thread-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex-shrink: 0; }
         .thread-time { font-size: 11px; color: var(--text-tertiary); }
-        .thread-badge { min-width: 18px; height: 18px; padding: 0 5px; background: var(--chat); color: #fff; border-radius: 999px; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+        .thread-badge { min-width: 18px; height: 18px; padding: 0 5px; background: var(--brand-lime); color: var(--brand-lime-on); border-radius: 999px; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
         .messages-chat { flex: 1; display: flex; min-width: 0; }
         .chat-card-inner { flex: 1; display: flex; flex-direction: column; min-width: 0; }
         .chat-head { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--border); }
-        .chat-head-name { font-weight: 600; font-size: 14px; }
+        .chat-head-name { font-weight: 600; font-size: 14px; flex: 1; }
+        .chat-head-link { font-size: 12.5px; color: var(--chat); text-decoration: none; font-weight: 600; }
+        .chat-head-link:hover { text-decoration: underline; }
         .chat-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--text-tertiary); text-align: center; }
         .chat-empty p { margin: 0; font-size: 14px; }
       `}</style>

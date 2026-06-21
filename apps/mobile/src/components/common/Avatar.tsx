@@ -1,13 +1,15 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Colors, radius, useTheme, useThemedStyles } from '../../theme';
+import { resolveAvatarUrl } from '../../lib/avatarUrl';
 import { AppText } from './AppText';
 
 interface AvatarProps {
   name?: string | null;
   imageUrl?: string | null;
   size?: number;
+  shape?: 'circle' | 'rounded';
 }
 
 function initialsOf(name: string | null | undefined): string {
@@ -18,13 +20,34 @@ function initialsOf(name: string | null | undefined): string {
   return (first + last).toUpperCase() || '?';
 }
 
-export function Avatar({ name, imageUrl, size = 44 }: AvatarProps): React.JSX.Element {
+export function Avatar({
+  name,
+  imageUrl,
+  size = 44,
+  shape = 'circle',
+}: AvatarProps): React.JSX.Element {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
-  const dimension = { width: size, height: size, borderRadius: radius.pill };
+  const resolved = resolveAvatarUrl(imageUrl);
+  const [failed, setFailed] = useState(false);
 
-  if (imageUrl) {
-    return <Image source={{ uri: imageUrl }} style={[styles.image, dimension]} contentFit="cover" transition={150} />;
+  useEffect(() => {
+    setFailed(false);
+  }, [imageUrl]);
+
+  const borderRadius = shape === 'rounded' ? radius.lg : radius.pill;
+  const dimension = { width: size, height: size, borderRadius };
+
+  if (resolved && !failed) {
+    return (
+      <Image
+        source={{ uri: resolved }}
+        style={[styles.image, dimension]}
+        contentFit="cover"
+        transition={150}
+        onError={() => setFailed(true)}
+      />
+    );
   }
 
   return (

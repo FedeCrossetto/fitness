@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { Image } from 'expo-image';
+import { resolveAvatarUrl } from '../../lib/avatarUrl';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -164,9 +165,9 @@ export function SignUpScreen({ navigation, route }: Props): React.JSX.Element {
         {preview && codeValidated ? (
           <View style={styles.trainerCard}>
             <View style={styles.trainerAvatarWrap}>
-              {preview.trainer_avatar_url ? (
+              {resolveAvatarUrl(preview.trainer_avatar_url) ? (
                 <Image
-                  source={{ uri: preview.trainer_avatar_url }}
+                  source={{ uri: resolveAvatarUrl(preview.trainer_avatar_url)! }}
                   style={styles.trainerAvatar}
                   contentFit="cover"
                 />

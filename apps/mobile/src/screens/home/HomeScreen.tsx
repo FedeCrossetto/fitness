@@ -8,9 +8,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { layout, radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
+import { layout, radius, spacing, Colors, useThemedStyles, useTheme, illustrations } from '../../theme';
 import { todayISO, formatShortDate, formatDayMonth } from '../../lib/dates';
-import { supabase } from '../../lib/supabase';
 import { useTranslation } from '../../stores/i18nStore';
 import { useClientConfig } from '../../config/useClientConfig';
 import {
@@ -31,7 +30,8 @@ import { useGoalsStore } from '../../stores/goalsStore';
 import { computeMacroTotals, useNutritionStore } from '../../stores/nutritionStore';
 import { useProgressStore } from '../../stores/progressStore';
 import { useTrainingStore } from '../../stores/trainingStore';
-import { computeStreak } from '../../services/streaks';
+import { useInboxStore } from '../../stores/inboxStore';
+import { getTrophyStats } from '../../services/trophies';
 import { signedUrl } from '../../services/storage';
 import { fetchTodaySteps } from '../../services/steps';
 import { useStepsAutoSync } from '../../hooks/useStepsAutoSync';
@@ -41,8 +41,6 @@ import { hapticSelect } from '../../lib/haptics';
 import { useUiStore } from '../../stores/uiStore';
 import { Platform } from 'react-native';
 import type { HomeStackParamList } from '../../types/navigation';
-
-const CALORIES_ORANGE = '#F97316';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'HomeMain'>;
 
@@ -92,7 +90,7 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
   const recentLogs = useTrainingStore((s) => s.recentLogs);
   const loadRecentLogs = useTrainingStore((s) => s.loadRecentLogs);
 
-  const [streak, setStreak] = useState(0);
+  const [trophyTotal, setTrophyTotal] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
 
   const activeDate = useUiStore((s) => s.activeDate);
@@ -121,8 +119,8 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
       loadMeasurements(userId),
       loadPhotos(userId),
     ]);
-    const streakInfo = await computeStreak(userId);
-    setStreak(streakInfo.current);
+    const trophyStats = await getTrophyStats(userId);
+    setTrophyTotal(trophyStats.total);
     // Solo refrescar pasos si el usuario ya conectó explícitamente
     if (useProgressStore.getState().healthConnected) {
       const todaySteps = await fetchTodaySteps(true);
@@ -220,27 +218,14 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
 
   const firstName = profile?.full_name?.split(' ')[0] ?? 'Atleta';
 
-  // Mensajes sin leer del coach → badge en el header, en vivo.
-  const [unreadMsgs, setUnreadMsgs] = useState(0);
-  useEffect(() => {
-    if (!userId) return;
-    let active = true;
-    const fetchUnread = async () => {
-      const { count } = await supabase
-        .from('messages')
-        .select('id', { count: 'exact', head: true })
-        .eq('client_id', userId)
-        .eq('sender_role', 'trainer')
-        .eq('read', false);
-      if (active) setUnreadMsgs(count ?? 0);
-    };
-    void fetchUnread();
-    const channel = supabase
-      .channel(`home-msgs-${userId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `client_id=eq.${userId}` }, () => void fetchUnread())
-      .subscribe();
-    return () => { active = false; void supabase.removeChannel(channel); };
-  }, [userId]);
+  const loadInbox = useInboxStore((s) => s.loadInbox);
+  const unreadMsgs = useInboxStore((s) => s.totalUnread);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (userId) void loadInbox(userId, profile?.trainer_id);
+    }, [userId, profile?.trainer_id, loadInbox])
+  );
 
   return (
     <View style={styles.flex}>
@@ -264,19 +249,26 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
             <AppText variant="h1" color={colors.text.primary} style={styles.greeting}>
               {t.greeting.morning}, {firstName}
             </AppText>
-            <View style={styles.streakRow}>
-              <Ionicons name="flame" size={16} color={CALORIES_ORANGE} />
-              <AppText variant="body13SemiBold" color={colors.primary.default}>
-                {streak > 0
-                  ? i18n(t.greeting.streak, { n: streak, unit: streak === 1 ? t.greeting.streak_day : t.greeting.streak_days })
-                  : t.greeting.streak_start}
-              </AppText>
-            </View>
+            <Pressable
+              style={styles.trophyRow}
+              onPress={() => navigation.navigate('Achievements')}
+              accessibilityLabel={`${trophyTotal} trofeos. Ver logros`}
+            >
+              <Image source={illustrations.trophy} style={styles.trophyMark} contentFit="contain" />
+              <View style={styles.trophyMeta}>
+                <AppText variant="metricMedium" color={colors.text.primary}>
+                  {trophyTotal}
+                </AppText>
+                <AppText variant="caps11" color={colors.text.tertiary}>
+                  {trophyTotal === 1 ? t.greeting.trophy_one : t.greeting.trophy_other}
+                </AppText>
+              </View>
+            </Pressable>
           </View>
           <View style={styles.headerActions}>
             <Pressable
-              onPress={() => navigation.navigate('CoachChat')}
-              accessibilityLabel={unreadMsgs > 0 ? `Mensajes, ${unreadMsgs} sin leer` : 'Mensajes con tu coach'}
+              onPress={() => navigation.navigate('Messages')}
+              accessibilityLabel={unreadMsgs > 0 ? `Mensajes, ${unreadMsgs} sin leer` : 'Mensajes'}
               style={styles.headerIconBtn}
               hitSlop={8}
             >
@@ -684,8 +676,7 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
         <View style={styles.quickGrid}>
           {(
             [
-              { label: t.home.community, icon: 'people-outline', screen: 'Community', adminOnly: false },
-              { label: t.home.coach,     icon: 'chatbubbles-outline', screen: 'CoachChat', adminOnly: false },
+              { label: t.home.messages, icon: 'chatbubbles-outline', screen: 'Messages', adminOnly: false },
               { label: t.home.achievements, icon: 'trophy-outline', screen: 'Achievements', adminOnly: false },
               { label: t.home.my_plan,   icon: 'card-outline', screen: 'Subscription', adminOnly: false },
               { label: t.home.trainer,   icon: 'people-circle-outline', screen: 'TrainerPanel', adminOnly: true },
@@ -751,7 +742,15 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     borderColor: colors.background,
   },
   greeting: { marginTop: 2 },
-  streakRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, marginTop: spacing.xs },
+  trophyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+    alignSelf: 'flex-start',
+  },
+  trophyMark: { width: 44, height: 44 },
+  trophyMeta: { gap: 0 },
   dayCard: {
     marginBottom: spacing.md,
     overflow: 'hidden',

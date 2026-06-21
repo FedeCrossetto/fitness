@@ -13,6 +13,8 @@ const ICONS = {
   info: 'information-circle' as const,
 };
 
+const BRAND_LIME = '#31F37B';
+
 /** Toast global controlado por uiStore. Montar una sola vez en App. */
 export function ToastHost(): React.JSX.Element | null {
   const toast = useUiStore((s) => s.toast);
@@ -23,7 +25,7 @@ export function ToastHost(): React.JSX.Element | null {
   if (!toast) return null;
 
   const iconColors = {
-    success: colors.states.success,
+    success: BRAND_LIME,
     error: colors.states.error,
     info: colors.states.info,
   };
@@ -36,7 +38,15 @@ export function ToastHost(): React.JSX.Element | null {
       style={[styles.container, { top: insets.top + spacing.sm }]}
       pointerEvents="none"
     >
-      <View style={styles.toast}>
+      <View
+        style={[
+          styles.toast,
+          toast.kind === 'success' && {
+            backgroundColor: 'rgba(49, 243, 123, 0.16)',
+            borderColor: 'rgba(49, 243, 123, 0.35)',
+          },
+        ]}
+      >
         <Ionicons name={ICONS[toast.kind]} size={20} color={iconColors[toast.kind]} />
         <AppText variant="body14Medium" color={colors.text.primary} style={styles.message}>
           {toast.message}
