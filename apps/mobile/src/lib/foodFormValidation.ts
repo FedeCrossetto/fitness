@@ -29,8 +29,6 @@ export function validateFoodForm(input: FoodFormValidationInput): FoodFormValida
 
   if (!(input.portionAmount > 0)) return 'validation_portion_required';
 
-  if (!input.requiresMacroInput) return null;
-
   if (input.hasCatalogMacros) return null;
 
   const hasManualMacros =
@@ -46,7 +44,9 @@ export function validateFoodForm(input: FoodFormValidationInput): FoodFormValida
       (input.storedMacros.carbs ?? 0) > 0 ||
       (input.storedMacros.fat ?? 0) > 0);
 
-  if (!hasManualMacros && !hasStored) return 'validation_macros_required';
+  if (hasManualMacros || hasStored) return null;
+
+  if (input.requiresMacroInput) return 'validation_macros_required';
 
   return null;
 }

@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, radius, spacing, useTheme, useThemedStyles } from '../../theme';
 import { AppText } from './AppText';
 import { buildDateRange, getDayInfo, todayISO, formatDayMonth } from '../../lib/dates';
+import { hapticTap } from '../../lib/haptics';
 import { useUiStore } from '../../stores/uiStore';
 
 const DAYS_BEFORE = 30;
@@ -11,11 +12,19 @@ const DAYS_AFTER = 14;
 const DAY_CELL_WIDTH = 52;
 const DAY_CELL_GAP = 6;
 
+export type WeekStripHeaderAction = {
+  icon: keyof typeof Ionicons.glyphMap;
+  accessibilityLabel: string;
+  onPress: () => void;
+  active?: boolean;
+};
+
 interface WeekStripProps {
   onDateChange?: (date: string) => void;
+  headerAction?: WeekStripHeaderAction;
 }
 
-export function WeekStrip({ onDateChange }: WeekStripProps): React.JSX.Element {
+export function WeekStrip({ onDateChange, headerAction }: WeekStripProps): React.JSX.Element {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
 
@@ -79,6 +88,26 @@ export function WeekStrip({ onDateChange }: WeekStripProps): React.JSX.Element {
               </AppText>
             </Pressable>
           )}
+          {headerAction ? (
+            <Pressable
+              style={[
+                styles.calBtn,
+                headerAction.active && styles.headerActionActive,
+              ]}
+              onPress={() => {
+                hapticTap();
+                headerAction.onPress();
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={headerAction.accessibilityLabel}
+            >
+              <Ionicons
+                name={headerAction.icon}
+                size={18}
+                color={headerAction.active ? colors.primary.default : colors.text.tertiary}
+              />
+            </Pressable>
+          ) : null}
           <Pressable
             style={styles.calBtn}
             onPress={handleToday}
@@ -190,6 +219,10 @@ const createStyles = (colors: Colors) =>
       backgroundColor: colors.surface.base,
       borderWidth: 1,
       borderColor: colors.border.subtle,
+    },
+    headerActionActive: {
+      borderColor: colors.primary.default,
+      backgroundColor: colors.primary.muted,
     },
     strip: {
       gap: DAY_CELL_GAP,

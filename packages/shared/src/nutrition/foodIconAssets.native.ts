@@ -26,6 +26,7 @@ const FOOD_ICON_SOURCES: Record<FoodIconKey, number> = {
   soda: require('../../assets/food-icons/soda-icon.png'),
   vegetable: require('../../assets/food-icons/vegetable-icon.png'),
   walnuts: require('../../assets/food-icons/walnuts-icon.png'),
+  water: require('../../assets/food-icons/water-icon.png'),
   wheat: require('../../assets/food-icons/wheat-icon.png'),
 };
 

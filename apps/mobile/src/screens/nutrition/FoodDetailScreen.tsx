@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
@@ -44,6 +44,7 @@ import { hapticSuccess, hapticWarning } from '../../lib/haptics';
 import { storedMacrosFromPer100, validateFoodForm } from '../../lib/foodFormValidation';
 import { isTodayDate } from '../../lib/dates';
 import { fetchProductByBarcode, type OffProduct } from '../../services/openFoodFacts';
+import { consumeScanProductCache } from '../../services/scanProductCache';
 import { useAuthStore } from '../../stores/authStore';
 import { useNutritionStore } from '../../stores/nutritionStore';
 import { useTranslation } from '../../stores/i18nStore';
@@ -109,13 +110,37 @@ function applyStoredFoodMacros(
   setters.setPortionUnit(unit);
 }
 
+function applyOffProduct(
+  product: OffProduct,
+  setters: {
+    setOffProduct: (p: OffProduct) => void;
+    setName: (n: string) => void;
+    setPer100: (p: Per100) => void;
+    setPortion: (v: string) => void;
+    setOffStatus: (s: OffStatus) => void;
+  },
+): void {
+  setters.setOffProduct(product);
+  setters.setName(product.productName);
+  setters.setPer100({
+    kcal: product.kcal100g,
+    protein: product.protein100g,
+    carbs: product.carbs100g,
+    fat: product.fat100g,
+  });
+  if (product.servingGrams !== null && product.servingGrams > 0) {
+    setters.setPortion(String(product.servingGrams));
+  }
+  setters.setOffStatus('done');
+}
+
 export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Element {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const { t, i18n } = useTranslation();
 
   const insets = useSafeAreaInsets();
-  const { mealType, foodId, trainerFoodId, barcode, mealLogId, entryMode, initialName, voiceTranscript } =
+  const { mealType, foodId, trainerFoodId, barcode, mealLogId, entryMode, initialName, voiceTranscript, scanPurpose } =
     route.params;
 
   const session = useAuthStore((s) => s.session);
@@ -199,29 +224,46 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
   const remotePhoto = offProduct?.imageUrl ?? null;
   const showIconPicker = true;
 
+  const scanAgain = useCallback(() => {
+    navigation.replace('BarcodeScanner', {
+      mealType: MEAL_TYPES[mealTypeIdx] ?? mealType,
+      purpose: scanPurpose ?? (isCatalogCreate ? 'create' : 'add'),
+    });
+  }, [navigation, mealTypeIdx, mealType, scanPurpose, isCatalogCreate]);
+
+  const applyOff = useCallback((product: OffProduct) => {
+    applyOffProduct(product, { setOffProduct, setName, setPer100, setPortion, setOffStatus });
+  }, []);
+
   // Modo barcode: buscar en Open Food Facts
   const loadOff = async () => {
     if (barcode === undefined) return;
+    const cached = consumeScanProductCache(barcode);
+    if (cached) {
+      applyOff(cached);
+      return;
+    }
     try {
+      setOffStatus('loading');
       const product = await fetchProductByBarcode(barcode);
       if (!product) {
         setOffStatus('notfound');
         return;
       }
-      setOffProduct(product);
-      setName(product.productName);
-      setPer100({ kcal: product.kcal100g, protein: product.protein100g, carbs: product.carbs100g, fat: product.fat100g });
-      if (product.servingGrams !== null && product.servingGrams > 0) setPortion(String(product.servingGrams));
-      setOffStatus('done');
+      applyOff(product);
     } catch {
       setOffStatus('error');
     }
   };
 
-  // Carga inicial inline: los setState ocurren después del await.
   useEffect(() => {
     if (barcode === undefined) return;
     let cancelled = false;
+    const cached = consumeScanProductCache(barcode);
+    if (cached) {
+      applyOff(cached);
+      return;
+    }
     void (async () => {
       try {
         const product = await fetchProductByBarcode(barcode);
@@ -230,18 +272,7 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
           setOffStatus('notfound');
           return;
         }
-        setOffProduct(product);
-        setName(product.productName);
-        setPer100({
-          kcal: product.kcal100g,
-          protein: product.protein100g,
-          carbs: product.carbs100g,
-          fat: product.fat100g,
-        });
-        if (product.servingGrams !== null && product.servingGrams > 0) {
-          setPortion(String(product.servingGrams));
-        }
-        setOffStatus('done');
+        applyOff(product);
       } catch {
         if (!cancelled) setOffStatus('error');
       }
@@ -249,28 +280,31 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
     return () => {
       cancelled = true;
     };
-  }, [barcode]);
+  }, [barcode, applyOff]);
 
   useEffect(() => {
     if (barcode === undefined) return;
     if (offStatus === 'notfound' && offAlertShown.current !== 'notfound') {
       offAlertShown.current = 'notfound';
       Alert.alert(t.nutrition.scan_not_found_title, t.nutrition.scan_not_found_message, [
-        { text: t.ui.confirm },
+        { text: t.nutrition.scan_again, onPress: scanAgain },
+        { text: t.nutrition.manual_entry, onPress: () => {
+          setOffStatus('idle');
+          setOffProduct(null);
+          setPer100(null);
+        } },
       ]);
     } else if (offStatus === 'error' && offAlertShown.current !== 'error') {
       offAlertShown.current = 'error';
       Alert.alert(t.nutrition.scan_error_title, t.nutrition.scan_error_message, [
-        { text: t.ui.retry, onPress: () => {
-          setOffStatus('loading');
-          void loadOff();
-        } },
+        { text: t.ui.retry, onPress: () => void loadOff() },
+        { text: t.nutrition.scan_again, onPress: scanAgain },
         { text: t.ui.cancel, style: 'cancel' },
       ]);
     } else if (offStatus === 'done') {
       offAlertShown.current = null;
     }
-  }, [barcode, offStatus, t]);
+  }, [barcode, offStatus, t, scanAgain]);
 
   // Cargar alimentos personales al editar catálogo
   useEffect(() => {
@@ -372,8 +406,34 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
     [t],
   );
 
-  const requiresMacroInput = isCatalogCreate || isCatalogEdit || (!selectedFood && !selectedTrainerFood && !offProduct);
-  const hasCatalogMacros = selectedFood != null || selectedTrainerFood != null || offProduct != null;
+  const requiresMacroInput =
+    isCatalogCreate ||
+    isCatalogEdit ||
+    barcode !== undefined ||
+    (!selectedFood && !selectedTrainerFood && !offProduct);
+  const storedPer100 = storedMacrosFromPer100(per100);
+  const hasCatalogMacros =
+    (selectedFood != null || selectedTrainerFood != null || offProduct != null) &&
+    storedPer100 != null &&
+    hasStoredMacros(storedPer100);
+
+  const showPer100MacrosEditor =
+    !readOnlyMeal &&
+    (isCatalogCreate || isCatalogEdit || barcode !== undefined || offProduct != null);
+
+  const updatePer100Field = (field: keyof Per100, text: string) => {
+    const parsed = parseMacroAmount(text);
+    setPer100((prev) => ({
+      kcal: prev?.kcal ?? null,
+      protein: prev?.protein ?? null,
+      carbs: prev?.carbs ?? null,
+      fat: prev?.fat ?? null,
+      [field]: parsed,
+    }));
+  };
+
+  const per100FieldValue = (value: number | null | undefined): string =>
+    value != null ? formatMacroAmount(value) : '';
 
   const showFormError = (messageKey: keyof typeof t.nutrition) => {
     hapticWarning();
@@ -645,20 +705,24 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
                     ? t.nutrition.scan_not_found_message
                     : t.nutrition.scan_error_message}
                 </AppText>
-                {offStatus === 'error' ? (
-                  <Pressable
-                    onPress={() => {
-                      setOffStatus('loading');
-                      void loadOff();
-                    }}
-                    hitSlop={8}
-                    accessibilityRole="button"
-                  >
+                <View style={styles.offErrorActions}>
+                  <Pressable onPress={scanAgain} hitSlop={8} accessibilityRole="button">
                     <AppText variant="body13SemiBold" color={colors.primary.default}>
-                      Reintentar
+                      {t.nutrition.scan_again}
                     </AppText>
                   </Pressable>
-                ) : null}
+                  {offStatus === 'error' ? (
+                    <Pressable
+                      onPress={() => void loadOff()}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                    >
+                      <AppText variant="body13SemiBold" color={colors.primary.default}>
+                        {t.ui.retry}
+                      </AppText>
+                    </Pressable>
+                  ) : null}
+                </View>
               </View>
             ) : null}
 
@@ -745,6 +809,53 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
             </Card>
             ) : null}
 
+            {showPer100MacrosEditor ? (
+              <Card style={styles.sectionCard}>
+                <AppText variant="caps12" color={colors.text.tertiary} style={styles.sectionTitle}>
+                  {t.nutrition.macros_per_100g}
+                </AppText>
+                <AppText variant="body12" color={colors.text.tertiary} style={styles.macrosHint}>
+                  {t.nutrition.macros_per_100g_hint}
+                </AppText>
+                <View style={styles.manualRow}>
+                  <Input
+                    label="Kcal"
+                    value={per100FieldValue(per100?.kcal)}
+                    onChangeText={(text) => updatePer100Field('kcal', sanitizeMacroInput(text))}
+                    keyboardType="decimal-pad"
+                    placeholder="0"
+                    containerStyle={styles.manualField}
+                  />
+                  <Input
+                    label={t.nutrition.proteins_label}
+                    value={per100FieldValue(per100?.protein)}
+                    onChangeText={(text) => updatePer100Field('protein', sanitizeMacroInput(text))}
+                    keyboardType="decimal-pad"
+                    placeholder="0"
+                    containerStyle={styles.manualField}
+                  />
+                </View>
+                <View style={styles.manualRow}>
+                  <Input
+                    label={t.nutrition.carbs_label}
+                    value={per100FieldValue(per100?.carbs)}
+                    onChangeText={(text) => updatePer100Field('carbs', sanitizeMacroInput(text))}
+                    keyboardType="decimal-pad"
+                    placeholder="0"
+                    containerStyle={styles.manualField}
+                  />
+                  <Input
+                    label={t.nutrition.fats_label}
+                    value={per100FieldValue(per100?.fat)}
+                    onChangeText={(text) => updatePer100Field('fat', sanitizeMacroInput(text))}
+                    keyboardType="decimal-pad"
+                    placeholder="0"
+                    containerStyle={styles.manualField}
+                  />
+                </View>
+              </Card>
+            ) : null}
+
             {(per100 || isEdit || Number(kcalText) > 0) ? (
               <View style={styles.macroCardsRow}>
                 {(
@@ -767,7 +878,7 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
               </View>
             ) : null}
 
-            {!per100 && !readOnlyMeal ? (
+            {!showPer100MacrosEditor && !per100 && !readOnlyMeal ? (
               <>
                 <View style={styles.manualRow}>
                   <Input
@@ -862,7 +973,8 @@ const createStyles = (colors: Colors) => StyleSheet.create({
   offSkeleton: { marginBottom: spacing.md },
   offErrorBanner: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    flexWrap: 'wrap',
     gap: spacing.xs,
     backgroundColor: colors.surface.base,
     borderWidth: 1,
@@ -871,7 +983,8 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     padding: spacing.sm,
     marginBottom: spacing.md,
   },
-  offErrorText: { flex: 1 },
+  offErrorText: { flex: 1, minWidth: 160 },
+  offErrorActions: { flexDirection: 'row', gap: spacing.md, width: '100%', paddingTop: spacing.xxs },
   offCardCompact: {
     flexDirection: 'row',
     gap: spacing.sm,
@@ -911,6 +1024,9 @@ const createStyles = (colors: Colors) => StyleSheet.create({
   },
   sectionTitle: {
     marginBottom: spacing.xxs,
+  },
+  macrosHint: {
+    marginBottom: spacing.xs,
   },
   fieldCompact: {
     marginTop: spacing.xs,

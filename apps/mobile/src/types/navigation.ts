@@ -41,6 +41,7 @@ export type NutritionStackParamList = {
     entryMode?: 'create' | 'edit';
     initialName?: string;
     voiceTranscript?: string;
+    scanPurpose?: 'create' | 'add';
   };
   BarcodeScanner: { mealType: MealType; purpose?: 'create' | 'add' };
   VoiceLog: { mealType: MealType; purpose?: 'create' | 'add' };

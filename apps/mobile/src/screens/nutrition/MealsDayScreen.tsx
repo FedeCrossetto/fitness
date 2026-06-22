@@ -10,6 +10,7 @@ import { FoodSearchSheet } from '../../components/nutrition/FoodSearchSheet';
 import { MacroDaySummary } from '../../components/nutrition/MacroDaySummary';
 import { MealSectionActionsSheet } from '../../components/nutrition/MealSectionActionsSheet';
 import { MealSectionCard } from '../../components/nutrition/MealSectionCard';
+import { hapticTap } from '../../lib/haptics';
 import { isTodayDate } from '../../lib/dates';
 import { defaultMealTypeForNow, mealLabelKey } from '../../lib/meals';
 import { hapticSuccess } from '../../lib/haptics';
@@ -100,10 +101,15 @@ export function MealsDayScreen({ navigation }: Props): React.JSX.Element {
   const showSkeletons = loading && dayMeals.length === 0;
   const showError = !loading && error !== null && dayMeals.length === 0;
 
-  const openSearch = (mealType: MealType) => {
+  const openSearch = useCallback((mealType: MealType) => {
+    hapticTap();
     setSearchMealType(mealType);
     setSearchSheetVisible(true);
-  };
+  }, []);
+
+  const quickAddFood = useCallback(() => {
+    openSearch(defaultMealTypeForNow());
+  }, [openSearch]);
 
   const editMeal = (meal: MealLogRow) => {
     navigation.navigate('FoodDetail', { mealType: meal.meal_type, mealLogId: meal.id });
@@ -159,7 +165,18 @@ export function MealsDayScreen({ navigation }: Props): React.JSX.Element {
           </AppText>
         </View>
 
-        <WeekStrip />
+        <WeekStrip
+          headerAction={
+            canEditDay
+              ? {
+                  icon: 'restaurant-outline',
+                  accessibilityLabel: t.nutrition.search_foods,
+                  onPress: quickAddFood,
+                  active: searchSheetVisible,
+                }
+              : undefined
+          }
+        />
 
         {!canEditDay ? (
           <AppText variant="body13" color={colors.text.tertiary} style={styles.readonlyHint}>

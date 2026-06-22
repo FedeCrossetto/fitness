@@ -25,6 +25,7 @@ export const FOOD_ICON_ITEMS = [
   { key: 'soda', label: 'Gaseosa' },
   { key: 'vegetable', label: 'Verdura' },
   { key: 'walnuts', label: 'Frutos secos' },
+  { key: 'water', label: 'Agua' },
   { key: 'wheat', label: 'Cereal' },
 ] as const;
 
@@ -58,6 +59,7 @@ export const FOOD_ICON_FILENAMES: Record<FoodIconKey, string> = {
   soda: 'soda-icon.png',
   vegetable: 'vegetable-icon.png',
   walnuts: 'walnuts-icon.png',
+  water: 'water-icon.png',
   wheat: 'wheat-icon.png',
 };
 

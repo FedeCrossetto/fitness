@@ -1390,13 +1390,17 @@ tbody tr:hover td:last-child { border-top-right-radius: 11px; border-bottom-righ
 /* ---------- Toast flotante global ---------- */
 .toast-viewport {
   position: fixed;
-  top: 16px;
-  right: 16px;
+  right: 24px;
+  bottom: 24px;
+  left: auto;
+  top: auto;
   z-index: 1000;
   display: flex;
   flex-direction: column;
+  align-items: flex-end;
   gap: 8px;
   pointer-events: none;
+  max-width: min(360px, calc(100vw - 32px));
 }
 .toast-float {
   display: flex;
@@ -1435,7 +1439,7 @@ tbody tr:hover td:last-child { border-top-right-radius: 11px; border-bottom-righ
 .toast-float.error   .toast-float-ico { background: var(--bad, #dc2626); }
 .toast-float.info    .toast-float-ico { background: var(--text-tertiary); }
 @keyframes toast-in {
-  from { opacity: 0; transform: translateY(-6px); }
+  from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
@@ -2338,6 +2342,236 @@ tbody tr:hover td:last-child { border-top-right-radius: 11px; border-bottom-righ
   padding: 16px;
   font-size: 13px;
 }
+
+/* ---------- Trophy ranking (Overview) ---------- */
+.dash-trophy-rank {
+  margin-top: 14px;
+  padding: 20px;
+  overflow: hidden;
+}
+.dash-trophy-rank-header {
+  margin-bottom: 18px;
+}
+.dash-trophy-rank-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+.dash-trophy-rank-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.dash-trophy-rank-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+.dash-trophy-rank-sub {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+}
+.dash-trophy-rank-mark {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+.dash-trophy-rank-empty {
+  margin: 0;
+  font-size: 13px;
+  padding: 8px 0 4px;
+}
+.trophy-rank-period {
+  align-self: flex-start;
+}
+.trophy-rank-period button.active {
+  background: var(--brand-lime-soft);
+  color: var(--text-primary);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand-lime) 28%, transparent);
+}
+
+.trophy-rank-streak {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  color: color-mix(in srgb, var(--brand-lime) 72%, #0c0c0c);
+  background: var(--brand-lime-soft);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.trophy-rank-streak svg { flex-shrink: 0; opacity: 0.9; }
+
+.trophy-podium {
+  display: grid;
+  grid-template-columns: 1fr 1.15fr 1fr;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 16px;
+}
+.trophy-podium-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 10px 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: var(--radius);
+  transition: transform 160ms var(--ease), background 160ms ease;
+  min-width: 0;
+}
+.trophy-podium-slot:hover {
+  background: var(--surface-hover);
+  transform: translateY(-2px);
+}
+.trophy-podium-slot--empty { pointer-events: none; }
+.trophy-podium-rank {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary);
+}
+.trophy-podium-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: center;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.trophy-podium-bar {
+  width: 100%;
+  border-radius: 10px 10px 4px 4px;
+  margin-top: 4px;
+}
+.trophy-podium-slot--first .trophy-podium-rank { color: #b8860b; }
+.trophy-podium-slot--first .trophy-podium-bar {
+  height: 72px;
+  background: linear-gradient(180deg, color-mix(in srgb, #ffd54f 55%, var(--surface)) 0%, color-mix(in srgb, #ffb300 18%, var(--surface)) 100%);
+  border: 1px solid color-mix(in srgb, #ffb300 35%, transparent);
+}
+.trophy-podium-slot--second .trophy-podium-rank { color: #7a8799; }
+.trophy-podium-slot--second .trophy-podium-bar {
+  height: 52px;
+  background: linear-gradient(180deg, color-mix(in srgb, #cfd8e3 70%, var(--surface)) 0%, color-mix(in srgb, #9aa8b8 16%, var(--surface)) 100%);
+  border: 1px solid color-mix(in srgb, #9aa8b8 28%, transparent);
+}
+.trophy-podium-slot--third .trophy-podium-rank { color: #a0714f; }
+.trophy-podium-slot--third .trophy-podium-bar {
+  height: 38px;
+  background: linear-gradient(180deg, color-mix(in srgb, #d4a574 45%, var(--surface)) 0%, color-mix(in srgb, #b87333 14%, var(--surface)) 100%);
+  border: 1px solid color-mix(in srgb, #b87333 24%, transparent);
+}
+
+.trophy-rank-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+.trophy-rank-count-icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+
+.trophy-rank-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.trophy-rank-row {
+  display: grid;
+  grid-template-columns: 28px 32px minmax(0, 1fr) auto minmax(56px, 88px) auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: calc(var(--radius) - 4px);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: background 120ms ease;
+}
+.trophy-rank-row:hover { background: var(--surface-hover); }
+.trophy-rank-pos {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  text-align: center;
+}
+.trophy-rank-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.trophy-rank-bar-wrap {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-elevated);
+  overflow: hidden;
+}
+.trophy-rank-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--brand-lime) 70%, #fff) 0%, var(--brand-lime) 100%);
+}
+
+.trophy-rank-skeleton { display: flex; flex-direction: column; gap: 10px; }
+.trophy-rank-skeleton-podium {
+  height: 160px;
+  border-radius: var(--radius);
+  background: linear-gradient(90deg, var(--surface-elevated) 25%, var(--surface-hover) 50%, var(--surface-elevated) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s infinite;
+}
+.trophy-rank-skeleton-row {
+  height: 44px;
+  border-radius: calc(var(--radius) - 4px);
+  background: linear-gradient(90deg, var(--surface-elevated) 25%, var(--surface-hover) 50%, var(--surface-elevated) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s infinite;
+}
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@media (max-width: 640px) {
+  .trophy-podium { grid-template-columns: 1fr; }
+  .trophy-podium-slot--empty { display: none; }
+  .trophy-podium-bar { height: 24px !important; }
+  .trophy-rank-row {
+    grid-template-columns: 24px 32px minmax(0, 1fr) auto;
+  }
+  .trophy-rank-bar-wrap,
+  .trophy-rank-row .trophy-rank-streak { display: none; }
+}
+
 .student-row {
   display: flex;
   align-items: center;
@@ -2843,6 +3077,74 @@ tbody tr:hover td:last-child { border-top-right-radius: 11px; border-bottom-righ
 }
 .foods-table-delete {
   color: var(--error);
+}
+.foods-table-toolbar {
+  flex-wrap: wrap;
+}
+.foods-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 14px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.foods-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.foods-filter-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.foods-filter .inline-select {
+  min-width: 148px;
+}
+.foods-filter-clear {
+  margin-left: auto;
+  align-self: flex-end;
+}
+.foods-filter-empty {
+  padding: 36px 20px;
+  text-align: center;
+}
+.foods-filter-empty .t {
+  font-weight: 650;
+  margin-bottom: 6px;
+}
+.foods-filter-empty p {
+  margin: 0 0 14px;
+  font-size: 13px;
+}
+
+.table-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+}
+.table-pagination-info {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+.table-pagination-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.table-pagination-page {
+  font-size: 12px;
+  color: var(--text-secondary);
+  min-width: 96px;
+  text-align: center;
 }
 
 /* ---------- Food form modal ---------- */

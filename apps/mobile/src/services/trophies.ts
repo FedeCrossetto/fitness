@@ -1,31 +1,16 @@
 import { supabase } from '../lib/supabase';
 import { addDays, todayISO } from '../lib/dates';
+import { computeTrophyStreak } from '@reset-fitness/shared';
 
 export interface TrophyStats {
   /** Total de días con todas las metas cumplidas */
   total: number;
   /** Días consecutivos con trofeo (hacia atrás desde hoy o ayer) */
   currentStreak: number;
-  /** Últimos 7 días (dom → sáb): true si hay trofeo ese día */
+  /** Últimos 7 días (lun → dom): true si hay trofeo ese día */
   lastWeek: boolean[];
   /** Fechas ISO con trofeo en la ventana consultada */
   dates: string[];
-}
-
-function computeTrophyStreak(sortedDatesDesc: string[]): number {
-  if (sortedDatesDesc.length === 0) return 0;
-
-  const today = todayISO();
-  const yesterday = addDays(today, -1);
-  const newest = sortedDatesDesc[0];
-  if (newest !== today && newest !== yesterday) return 0;
-
-  let streak = 1;
-  for (let i = 1; i < sortedDatesDesc.length; i++) {
-    if (addDays(sortedDatesDesc[i]!, 1) === sortedDatesDesc[i - 1]) streak++;
-    else break;
-  }
-  return streak;
 }
 
 /** Lunes → domingo de la semana calendario actual */

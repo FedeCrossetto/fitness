@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { ProfileRow, WorkoutLogRow, MealLogRow, ProgressPhotoRow, BodyMeasurementRow } from '@reset-fitness/shared/types/database';
-import { formatMacroDisplay, DEFAULT_KCAL_GOAL } from '@reset-fitness/shared';
+import { formatMacroDisplay, DEFAULT_KCAL_GOAL, buildTrophyLeaderboard, type TrophyRankPeriod } from '@reset-fitness/shared';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -9,6 +9,7 @@ import { TrophyIcon, UsersIcon, CheckIcon, DumbbellIcon } from '@/components/ico
 import { AreaChart } from '@/components/charts';
 import { ErrorState, Lightbox, useCountUp } from '@/components/ui';
 import { UserAvatar } from '@/components/UserAvatar';
+import { TrophyRankCard } from '@/components/TrophyRankCard';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -293,6 +294,10 @@ export function DashboardPage(): React.JSX.Element {
   const [phaseCount, setPhaseCount]     = useState<number | null>(null);
   const [workouts, setWorkouts]         = useState<Pick<WorkoutLogRow, 'date' | 'completed'>[]>([]);
   const [range, setRange]               = useState<30 | 90>(30);
+  const [trophyRaw, setTrophyRaw]           = useState<{ user_id: string; date: string }[]>([]);
+  const [trophyClients, setTrophyClients]   = useState<{ id: string; full_name: string | null; avatar_url: string | null }[]>([]);
+  const [trophyPeriod, setTrophyPeriod]     = useState<TrophyRankPeriod>('30d');
+  const [loadingRank, setLoadingRank]       = useState(true);
 
   // Activity feed state
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -304,6 +309,37 @@ export function DashboardPage(): React.JSX.Element {
   const [thumbs, setThumbs]           = useState<Record<string, string>>({});
   const [lightbox, setLightbox]       = useState<{ src: string; caption: string } | null>(null);
 
+  const formatTrophyCount = useCallback(
+    (n: number) => (n === 1 ? t.dashboard.trophy_rank_count_one : i18n(t.dashboard.trophy_rank_count, { n })),
+    [t, i18n, language],
+  );
+
+  const formatTrophyStreak = useCallback(
+    (n: number) => i18n(t.dashboard.trophy_rank_streak, { n }),
+    [t, i18n, language],
+  );
+
+  const trophyPeriodOptions = useMemo(
+    () => [
+      { key: '30d' as const, label: t.dashboard.trophy_rank_period_30d },
+      { key: 'month' as const, label: t.dashboard.trophy_rank_period_month },
+      { key: 'all' as const, label: t.dashboard.trophy_rank_period_all },
+    ],
+    [t, language],
+  );
+
+  const trophyRank = useMemo(
+    () =>
+      buildTrophyLeaderboard(
+        trophyClients,
+        trophyRaw,
+        trophyPeriod,
+        t.dashboard.activity_student_default,
+        language === 'es' ? 'es-AR' : 'en-US',
+      ),
+    [trophyClients, trophyRaw, trophyPeriod, t.dashboard.activity_student_default, language],
+  );
+
   useEffect(() => {
     if (!userId) return;
     let active = true;
@@ -311,6 +347,7 @@ export function DashboardPage(): React.JSX.Element {
 
     void (async () => {
      try {
+      setLoadingRank(true);
       // ── Stats queries ────────────────────────────────────────────────────
       const since90 = new Date();
       since90.setDate(since90.getDate() - 90);
@@ -338,6 +375,33 @@ export function DashboardPage(): React.JSX.Element {
       setPhaseCount(pc ?? 0);
       setStudents((studentsData as StudentMin[] | null) ?? []);
       setWorkouts((wl as Pick<WorkoutLogRow, 'date' | 'completed'>[] | null) ?? []);
+
+      const { data: allActive } = await supabase
+        .from('profiles')
+        .select('id, full_name, avatar_url')
+        .eq('trainer_id', userId)
+        .eq('client_status', 'active');
+
+      const activeClients = allActive ?? [];
+      const activeIds = activeClients.map((p) => p.id);
+
+      if (activeIds.length === 0) {
+        setTrophyClients([]);
+        setTrophyRaw([]);
+        setLoadingRank(false);
+      } else {
+        const { data: trophyRows, error: trophyErr } = await supabase
+          .from('user_trophy_days')
+          .select('user_id, date')
+          .in('user_id', activeIds);
+
+        if (trophyErr) throw trophyErr;
+
+        if (!active) return;
+        setTrophyClients(activeClients);
+        setTrophyRaw(trophyRows ?? []);
+        setLoadingRank(false);
+      }
 
       // ── Activity feed queries ─────────────────────────────────────────────
       const allStudents = (studentsData as StudentMin[] | null) ?? [];
@@ -404,6 +468,7 @@ export function DashboardPage(): React.JSX.Element {
       if (active) {
         setLoadError(err instanceof Error ? err.message : 'No pudimos cargar el panel.');
         setLoadingFeed(false);
+        setLoadingRank(false);
       }
      }
     })();
@@ -558,6 +623,20 @@ export function DashboardPage(): React.JSX.Element {
             )}
           </div>
         </div>
+
+        <TrophyRankCard
+          entries={trophyRank}
+          loading={loadingRank}
+          title={t.dashboard.trophy_rank_title}
+          subtitle={t.dashboard.trophy_rank_sub}
+          emptyMessage={t.dashboard.trophy_rank_empty}
+          period={trophyPeriod}
+          periodOptions={trophyPeriodOptions}
+          onPeriodChange={setTrophyPeriod}
+          formatCount={formatTrophyCount}
+          formatStreak={formatTrophyStreak}
+          onStudentClick={(id) => navigate(`/students/${id}`)}
+        />
       </div>
 
       {/* ── Right: activity panel ───────────────────────────────────────── */}

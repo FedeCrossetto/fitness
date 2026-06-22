@@ -23,6 +23,7 @@ import saladIcon from '../../assets/food-icons/salad-icon.png';
 import sodaIcon from '../../assets/food-icons/soda-icon.png';
 import vegetableIcon from '../../assets/food-icons/vegetable-icon.png';
 import walnutsIcon from '../../assets/food-icons/walnuts-icon.png';
+import waterIcon from '../../assets/food-icons/water-icon.png';
 import wheatIcon from '../../assets/food-icons/wheat-icon.png';
 
 const FOOD_ICON_URLS: Record<FoodIconKey, string> = {
@@ -50,6 +51,7 @@ const FOOD_ICON_URLS: Record<FoodIconKey, string> = {
   soda: sodaIcon,
   vegetable: vegetableIcon,
   walnuts: walnutsIcon,
+  water: waterIcon,
   wheat: wheatIcon,
 };
 

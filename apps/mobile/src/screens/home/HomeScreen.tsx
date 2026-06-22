@@ -23,6 +23,7 @@ import {
   WeekStrip,
 } from '../../components/common';
 import { HomeMacroProgressCard } from '../../components/home/HomeMacroProgressCard';
+import { FoodIconThumb } from '../../components/nutrition/FoodIconThumb';
 import { SubscriptionBanner } from '../../components/home/SubscriptionBanner';
 import { ActiveSessionBanner } from '../../components/training/ActiveSessionBanner';
 import { useAuthStore } from '../../stores/authStore';
@@ -249,23 +250,23 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
             <AppText variant="h1" color={colors.text.primary} style={styles.greeting}>
               {t.greeting.morning}, {firstName}
             </AppText>
-            <Pressable
-              style={styles.trophyRow}
-              onPress={() => navigation.navigate('Achievements')}
-              accessibilityLabel={`${trophyTotal} trofeos. Ver logros`}
-            >
-              <Image source={illustrations.trophy} style={styles.trophyMark} contentFit="contain" />
-              <View style={styles.trophyMeta}>
-                <AppText variant="metricMedium" color={colors.text.primary}>
-                  {trophyTotal}
-                </AppText>
-                <AppText variant="caps11" color={colors.text.tertiary}>
-                  {trophyTotal === 1 ? t.greeting.trophy_one : t.greeting.trophy_other}
-                </AppText>
-              </View>
-            </Pressable>
           </View>
           <View style={styles.headerActions}>
+            <Pressable
+              onPress={() => navigation.navigate('Achievements')}
+              accessibilityLabel={`${trophyTotal} trofeos. Ver logros`}
+              style={styles.headerIconBtn}
+              hitSlop={8}
+            >
+              <Image source={illustrations.trophy} style={styles.headerTrophyIcon} contentFit="contain" />
+              {trophyTotal > 0 ? (
+                <View style={styles.headerBadge}>
+                  <AppText variant="caps11" color={colors.primary.onText}>
+                    {trophyTotal > 9 ? '9+' : trophyTotal}
+                  </AppText>
+                </View>
+              ) : null}
+            </Pressable>
             <Pressable
               onPress={() => navigation.navigate('Messages')}
               accessibilityLabel={unreadMsgs > 0 ? `Mensajes, ${unreadMsgs} sin leer` : 'Mensajes'}
@@ -510,7 +511,7 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
                 {t.home.hydration}
               </AppText>
               <View style={styles.progressCardIcon}>
-                <Ionicons name="water" size={14} color={colors.water} />
+                <FoodIconThumb iconKey="water" size={22} />
               </View>
             </View>
             <View style={styles.progressCardMeta} />
@@ -727,6 +728,7 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.surface.elevated,
   },
+  headerTrophyIcon: { width: 26, height: 26 },
   headerBadge: {
     position: 'absolute',
     top: 2,
@@ -742,15 +744,6 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     borderColor: colors.background,
   },
   greeting: { marginTop: 2 },
-  trophyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    marginTop: spacing.sm,
-    alignSelf: 'flex-start',
-  },
-  trophyMark: { width: 44, height: 44 },
-  trophyMeta: { gap: 0 },
   dayCard: {
     marginBottom: spacing.md,
     overflow: 'hidden',

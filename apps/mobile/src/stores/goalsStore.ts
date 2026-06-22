@@ -19,6 +19,8 @@ interface GoalsState {
   toggleGoal: (goalId: string) => Promise<void>;
   /** Sincroniza una meta auto-trackeable con la actividad real (vía RPC). */
   syncAutoGoal: (userId: string, goalType: GoalType, currentValue: number) => Promise<boolean>;
+  /** Actualiza la meta de comidas según los registros del día. */
+  syncMealsGoal: (userId: string) => Promise<boolean>;
 }
 
 export const useGoalsStore = create<GoalsState>((set, get) => ({
@@ -47,6 +49,8 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
         },
         (data) => set({ goals: data, loading: false })
       );
+
+      await get().syncMealsGoal(userId);
     } catch {
       set({ loading: false, error: 'No pudimos cargar tus metas de hoy.' });
     }
@@ -136,6 +140,22 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
         return data.some((d) => !d.was_completed && d.is_now_completed);
       }
       return false;
+    } catch {
+      return false;
+    }
+  },
+
+  syncMealsGoal: async (userId) => {
+    const date = todayISO();
+    try {
+      const { data, error } = await supabase
+        .from('meal_logs')
+        .select('meal_type')
+        .eq('user_id', userId)
+        .eq('date', date);
+      if (error) throw error;
+      const count = new Set((data ?? []).map((r) => r.meal_type)).size;
+      return get().syncAutoGoal(userId, 'meals', count);
     } catch {
       return false;
     }

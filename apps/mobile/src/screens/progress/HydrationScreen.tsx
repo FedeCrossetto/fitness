@@ -23,6 +23,7 @@ import { useProgressStore } from '../../stores/progressStore';
 import { useUiStore } from '../../stores/uiStore';
 import { useTranslation } from '../../stores/i18nStore';
 import { useTabBarScrollPadding } from '../../hooks/useTabBarScrollPadding';
+import { FoodIconThumb } from '../../components/nutrition/FoodIconThumb';
 
 // Quick actions are built dynamically inside the component using translations
 
@@ -143,6 +144,9 @@ export function HydrationScreen(): React.JSX.Element {
           showsVerticalScrollIndicator={false}
         >
           <Card elevated style={styles.waterCard}>
+            <View style={styles.waterHeroIcon}>
+              <FoodIconThumb iconKey="water" size={56} />
+            </View>
             <WaterLevelBox
               progress={progress}
               width={boxW}
@@ -213,11 +217,11 @@ export function HydrationScreen(): React.JSX.Element {
                 style={({ pressed }) => [styles.quickItem, pressed && styles.quickPressed]}
               >
                 <View style={styles.quickIcon}>
-                  <Ionicons
-                    name={action.icon}
-                    size={20}
-                    color={action.ml > 0 ? colors.water : colors.text.tertiary}
-                  />
+                  {action.ml > 0 ? (
+                    <FoodIconThumb iconKey="water" size={28} />
+                  ) : (
+                    <Ionicons name={action.icon} size={20} color={colors.text.tertiary} />
+                  )}
                 </View>
                 <AppText variant="body14SemiBold" color={colors.text.primary}>
                   {action.label}
@@ -279,6 +283,7 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     paddingHorizontal: layout.screenPadding,
   },
   waterCard: { alignItems: 'center', paddingVertical: spacing.xl, marginBottom: spacing.lg },
+  waterHeroIcon: { marginBottom: spacing.md },
   valueRow: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs },
   bigValue: { fontSize: 56, lineHeight: 64 },
   litrosLabel: { marginTop: spacing.xxs, letterSpacing: 2 },

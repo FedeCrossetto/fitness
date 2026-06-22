@@ -4,6 +4,13 @@ import { staleWhileRevalidate } from '../lib/cache';
 import { todayISO } from '../lib/dates';
 import { clientConfig } from '../config/clientConfig';
 import type { FoodRow, FoodSubmissionRow, MealLogRow, MealType, MacroSource, ServingUnit, TrainerFoodRow } from '../types/database';
+import { useGoalsStore } from './goalsStore';
+
+function syncMealsGoalIfToday(userId: string, date: string): void {
+  if (date === todayISO()) {
+    void useGoalsStore.getState().syncMealsGoal(userId);
+  }
+}
 
 export interface MacroTotals {
   kcal: number;
@@ -145,6 +152,7 @@ export const useNutritionStore = create<NutritionState>((set, get) => ({
         .single();
       if (error) throw error;
       set({ meals: [...get().meals, data] });
+      syncMealsGoalIfToday(userId, get().date);
       return true;
     } catch {
       set({ error: 'No pudimos registrar la comida.' });
@@ -202,12 +210,14 @@ export const useNutritionStore = create<NutritionState>((set, get) => ({
 
   deleteMeal: async (mealLogId) => {
     const previous = get().meals;
+    const meal = previous.find((m) => m.id === mealLogId);
     set({ meals: previous.filter((m) => m.id !== mealLogId) });
     const { error } = await supabase.from('meal_logs').delete().eq('id', mealLogId);
     if (error) {
       set({ meals: previous });
       return false;
     }
+    if (meal) syncMealsGoalIfToday(meal.user_id, meal.date);
     return true;
   },
 

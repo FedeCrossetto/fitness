@@ -6,3 +6,4 @@ export * from './nutrition/foodIcons';
 export * from './nutrition/servingUnits';
 export * from './nutrition/macroServing';
 export * from './nutrition/defaults';
+export * from './trophies';

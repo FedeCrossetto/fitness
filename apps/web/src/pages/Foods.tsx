@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   DEFAULT_FOOD_ICON_KEY,
@@ -27,10 +27,132 @@ import { getFoodIconUrl } from '@reset-fitness/shared/nutrition/foodIconAssets';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/useToast';
-import { PlusIcon, NutritionIcon, CheckIcon } from '@/components/icons';
+import { refreshPendingFoodCount, usePendingFoodCount, usePendingFoodRefresh } from '@/hooks/usePendingFoodCount';
+import { PlusIcon, NutritionIcon, CheckIcon, SearchIcon } from '@/components/icons';
 import { LoadingRows, EmptyState } from '@/components/ui';
 
 type Tab = 'catalog' | 'pending';
+type CatalogSort = 'name-asc' | 'name-desc' | 'kcal-desc' | 'kcal-asc';
+type PendingSort = 'date-desc' | 'date-asc' | 'name-asc';
+type MacroFilter = 'all' | 'complete' | 'incomplete';
+
+const PAGE_SIZE = 25;
+const SEARCH_DEBOUNCE_MS = 300;
+
+function normalizeSearch(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function ilikePattern(value: string): string {
+  const escaped = value.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+  return `%${escaped}%`;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function applyCatalogFilters<T extends { or: (filters: string) => T; eq: (col: string, val: string) => T; not: (col: string, op: string, val: null) => T; order: (col: string, opts?: { ascending?: boolean; nullsFirst?: boolean }) => T }>(
+  builder: T,
+  options: {
+    query: string;
+    iconFilter: FoodIconKey | 'all';
+    macroFilter: MacroFilter;
+    catalogSort: CatalogSort;
+  },
+): T {
+  let q = builder;
+  const search = normalizeSearch(options.query);
+  if (search) {
+    const pattern = ilikePattern(search);
+    q = q.or(`name.ilike.${pattern},brand.ilike.${pattern}`);
+  }
+  if (options.iconFilter !== 'all') q = q.eq('icon_key', options.iconFilter);
+  if (options.macroFilter === 'complete') {
+    q = q
+      .not('kcal_100g', 'is', null)
+      .not('protein_g_100g', 'is', null)
+      .not('carbs_g_100g', 'is', null)
+      .not('fat_g_100g', 'is', null);
+  } else if (options.macroFilter === 'incomplete') {
+    q = q.or('kcal_100g.is.null,protein_g_100g.is.null,carbs_g_100g.is.null,fat_g_100g.is.null');
+  }
+  switch (options.catalogSort) {
+    case 'name-desc':
+      return q.order('name', { ascending: false });
+    case 'kcal-desc':
+      return q.order('kcal_100g', { ascending: false, nullsFirst: false });
+    case 'kcal-asc':
+      return q.order('kcal_100g', { ascending: true, nullsFirst: false });
+    case 'name-asc':
+    default:
+      return q.order('name', { ascending: true });
+  }
+}
+
+function applyPendingSort<T extends { order: (col: string, opts?: { ascending?: boolean }) => T }>(
+  builder: T,
+  pendingSort: PendingSort,
+): T {
+  switch (pendingSort) {
+    case 'date-asc':
+      return builder.order('created_at', { ascending: true });
+    case 'name-asc':
+      return builder.order('name', { ascending: true });
+    case 'date-desc':
+    default:
+      return builder.order('created_at', { ascending: false });
+  }
+}
+
+function pageRange(page: number): { from: number; to: number } {
+  const from = (page - 1) * PAGE_SIZE;
+  return { from, to: from + PAGE_SIZE - 1 };
+}
+
+function totalPages(total: number): number {
+  return Math.max(1, Math.ceil(total / PAGE_SIZE));
+}
+
+function TablePagination({
+  page,
+  total,
+  onPageChange,
+}: {
+  page: number;
+  total: number;
+  onPageChange: (page: number) => void;
+}): React.JSX.Element | null {
+  const pages = totalPages(total);
+  if (total <= PAGE_SIZE) return null;
+
+  const from = (page - 1) * PAGE_SIZE + 1;
+  const to = Math.min(page * PAGE_SIZE, total);
+
+  return (
+    <div className="table-pagination">
+      <span className="table-pagination-info">
+        {from}–{to} de {total}
+      </span>
+      <div className="table-pagination-actions">
+        <button
+          type="button"
+          className="btn secondary sm"
+          disabled={page <= 1}
+          onClick={() => onPageChange(page - 1)}
+        >
+          Anterior
+        </button>
+        <span className="table-pagination-page">Página {page} de {pages}</span>
+        <button
+          type="button"
+          className="btn secondary sm"
+          disabled={page >= pages}
+          onClick={() => onPageChange(page + 1)}
+        >
+          Siguiente
+        </button>
+      </div>
+    </div>
+  );
+}
 
 type FoodForm = {
   name: string;
@@ -134,22 +256,132 @@ export function FoodsPage(): React.JSX.Element {
 
   const [tab, setTab] = useState<Tab>('catalog');
   const [catalog, setCatalog] = useState<TrainerFoodRow[]>([]);
+  const [catalogTotal, setCatalogTotal] = useState(0);
+  const [catalogFilteredTotal, setCatalogFilteredTotal] = useState(0);
+  const [catalogPage, setCatalogPage] = useState(1);
+  const [catalogLoading, setCatalogLoading] = useState(true);
   const [pending, setPending] = useState<(FoodSubmissionRow & { submitter_name?: string })[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [pendingFilteredTotal, setPendingFilteredTotal] = useState(0);
+  const [pendingPage, setPendingPage] = useState(1);
+  const [pendingLoading, setPendingLoading] = useState(false);
+  const [pendingLoaded, setPendingLoaded] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<TrainerFoodRow | null>(null);
   const [form, setForm] = useState<FoodForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [searchInput, setSearchInput] = useState('');
+  const [query, setQuery] = useState('');
+  const [iconFilter, setIconFilter] = useState<FoodIconKey | 'all'>('all');
+  const [macroFilter, setMacroFilter] = useState<MacroFilter>('all');
+  const [catalogSort, setCatalogSort] = useState<CatalogSort>('name-asc');
+  const [pendingSort, setPendingSort] = useState<PendingSort>('date-desc');
 
-  const load = useCallback(async () => {
+  const pendingFoodCount = usePendingFoodCount();
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setQuery(searchInput), SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [searchInput]);
+
+  const fetchCatalogTotal = useCallback(async () => {
     if (!trainerId) return;
-    setLoading(true);
-    const [catalogRes, pendingRes] = await Promise.all([
-      supabase.from('trainer_foods').select('*').eq('trainer_id', trainerId).eq('active', true).order('name'),
-      supabase.from('food_submissions').select('*').eq('trainer_id', trainerId).eq('status', 'pending').order('created_at', { ascending: false }),
-    ]);
+    const { count } = await supabase
+      .from('trainer_foods')
+      .select('id', { count: 'exact', head: true })
+      .eq('trainer_id', trainerId)
+      .eq('active', true);
+    setCatalogTotal(count ?? 0);
+  }, [trainerId]);
 
-    let pendingRows = (pendingRes.data ?? []) as FoodSubmissionRow[];
+  const fetchCatalogPage = useCallback(async (options?: { silent?: boolean; page?: number }) => {
+    if (!trainerId) return;
+    const page = options?.page ?? catalogPage;
+    if (!options?.silent) setCatalogLoading(true);
+
+    let builder = supabase
+      .from('trainer_foods')
+      .select('*', { count: 'exact' })
+      .eq('trainer_id', trainerId)
+      .eq('active', true);
+
+    builder = applyCatalogFilters(builder, { query, iconFilter, macroFilter, catalogSort });
+
+    const { from, to } = pageRange(page);
+    const { data, count, error } = await builder.range(from, to);
+
+    if (error) {
+      console.error('trainer_foods fetch error:', error);
+      if (!options?.silent) setCatalogLoading(false);
+      return;
+    }
+
+    const total = count ?? 0;
+    const pages = totalPages(total);
+    const nextPage = Math.min(page, pages);
+    if (nextPage !== page) {
+      setCatalogPage(nextPage);
+      if (!options?.silent) setCatalogLoading(false);
+      return;
+    }
+
+    setCatalog((data ?? []) as TrainerFoodRow[]);
+    setCatalogFilteredTotal(total);
+    if (!options?.silent) setCatalogLoading(false);
+  }, [trainerId, catalogPage, query, iconFilter, macroFilter, catalogSort]);
+
+  const fetchPendingPage = useCallback(async (options?: { silent?: boolean; page?: number }) => {
+    if (!trainerId) return;
+    const page = options?.page ?? pendingPage;
+    if (!options?.silent) setPendingLoading(true);
+
+    const search = normalizeSearch(query);
+    let submitterIds: string[] = [];
+    if (search) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('trainer_id', trainerId)
+        .ilike('full_name', ilikePattern(search));
+      submitterIds = (profiles ?? []).map((p) => p.id);
+    }
+
+    let builder = supabase
+      .from('food_submissions')
+      .select('*', { count: 'exact' })
+      .eq('trainer_id', trainerId)
+      .eq('status', 'pending');
+
+    if (search) {
+      const pattern = ilikePattern(search);
+      const orParts = [`name.ilike.${pattern}`, `brand.ilike.${pattern}`];
+      if (submitterIds.length > 0) {
+        orParts.push(`submitted_by.in.(${submitterIds.join(',')})`);
+      }
+      builder = builder.or(orParts.join(','));
+    }
+
+    if (iconFilter !== 'all') builder = builder.eq('icon_key', iconFilter);
+    builder = applyPendingSort(builder, pendingSort);
+
+    const { from, to } = pageRange(page);
+    const { data, count, error } = await builder.range(from, to);
+
+    if (error) {
+      console.error('food_submissions fetch error:', error);
+      if (!options?.silent) setPendingLoading(false);
+      return;
+    }
+
+    const total = count ?? 0;
+    const pages = totalPages(total);
+    const nextPage = Math.min(page, pages);
+    if (nextPage !== page) {
+      setPendingPage(nextPage);
+      if (!options?.silent) setPendingLoading(false);
+      return;
+    }
+
+    let pendingRows = (data ?? []) as FoodSubmissionRow[];
     if (pendingRows.length > 0) {
       const ids = [...new Set(pendingRows.map((r) => r.submitted_by))];
       const { data: profiles } = await supabase.from('profiles').select('id, full_name').in('id', ids);
@@ -157,14 +389,42 @@ export function FoodsPage(): React.JSX.Element {
       pendingRows = pendingRows.map((r) => ({ ...r, submitter_name: nameById.get(r.submitted_by) ?? 'Alumno' }));
     }
 
-    setCatalog((catalogRes.data ?? []) as TrainerFoodRow[]);
     setPending(pendingRows);
-    setLoading(false);
-  }, [trainerId]);
+    setPendingFilteredTotal(total);
+    setPendingLoaded(true);
+    if (!options?.silent) setPendingLoading(false);
+  }, [trainerId, pendingPage, query, iconFilter, pendingSort]);
+
+  const refreshViews = useCallback(async (options?: { silent?: boolean }) => {
+    await fetchCatalogTotal();
+    if (tab === 'catalog') await fetchCatalogPage(options);
+    else await fetchPendingPage(options);
+  }, [tab, fetchCatalogTotal, fetchCatalogPage, fetchPendingPage]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (!trainerId) return;
+    void fetchCatalogTotal();
+  }, [trainerId, fetchCatalogTotal]);
+
+  useEffect(() => {
+    if (!trainerId || tab !== 'catalog') return;
+    void fetchCatalogPage();
+  }, [trainerId, tab, catalogPage, query, iconFilter, macroFilter, catalogSort, fetchCatalogPage]);
+
+  useEffect(() => {
+    if (!trainerId || tab !== 'pending') return;
+    void fetchPendingPage();
+  }, [trainerId, tab, pendingPage, query, iconFilter, pendingSort, fetchPendingPage]);
+
+  useEffect(() => {
+    setCatalogPage(1);
+  }, [query, iconFilter, macroFilter, catalogSort]);
+
+  useEffect(() => {
+    setPendingPage(1);
+  }, [query, iconFilter, pendingSort]);
+
+  usePendingFoodRefresh(useCallback(() => refreshViews({ silent: true }), [refreshViews]));
 
   const openCreate = () => {
     setEditing(null);
@@ -220,7 +480,7 @@ export function FoodsPage(): React.JSX.Element {
     }
     showToast('success', editing ? 'Alimento actualizado' : 'Alimento agregado al catálogo');
     setModalOpen(false);
-    void load();
+    void refreshViews();
   };
 
   const deactivate = async (id: string) => {
@@ -229,7 +489,7 @@ export function FoodsPage(): React.JSX.Element {
     if (error) showToast('error', 'No pudimos eliminar el alimento.');
     else {
       showToast('success', 'Alimento eliminado');
-      void load();
+      void refreshViews();
     }
   };
 
@@ -275,7 +535,7 @@ export function FoodsPage(): React.JSX.Element {
 
     if (updateErr) showToast('error', 'Alimento creado pero falló actualizar la solicitud.');
     else showToast('success', `"${sub.name}" aprobado y publicado`);
-    void load();
+    void refreshPendingFoodCount();
   };
 
   const rejectSubmission = async (sub: FoodSubmissionRow) => {
@@ -291,12 +551,27 @@ export function FoodsPage(): React.JSX.Element {
     if (error) showToast('error', 'No pudimos rechazar la solicitud.');
     else {
       showToast('success', 'Solicitud rechazada');
-      void load();
+      void refreshPendingFoodCount();
     }
   };
 
-  const pendingCount = pending.length;
-  const filteredCatalog = useMemo(() => catalog, [catalog]);
+  const catalogFiltersActive =
+    normalizeSearch(query).length > 0 || iconFilter !== 'all' || macroFilter !== 'all' || catalogSort !== 'name-asc';
+  const pendingFiltersActive =
+    normalizeSearch(query).length > 0 || iconFilter !== 'all' || pendingSort !== 'date-desc';
+
+  const catalogHasFilters = catalogFilteredTotal !== catalogTotal;
+
+  const clearFilters = () => {
+    setSearchInput('');
+    setQuery('');
+    setIconFilter('all');
+    setMacroFilter('all');
+    setCatalogSort('name-asc');
+    setPendingSort('date-desc');
+    setCatalogPage(1);
+    setPendingPage(1);
+  };
 
   return (
     <div>
@@ -315,20 +590,18 @@ export function FoodsPage(): React.JSX.Element {
           className={`btn${tab === 'catalog' ? '' : ' secondary'}`}
           onClick={() => setTab('catalog')}
         >
-          Catálogo ({filteredCatalog.length})
+          Catálogo ({catalogTotal})
         </button>
         <button
           className={`btn${tab === 'pending' ? '' : ' secondary'}`}
           onClick={() => setTab('pending')}
         >
-          Pendientes{pendingCount > 0 ? ` (${pendingCount})` : ''}
+          Pendientes{pendingFoodCount > 0 ? ` (${pendingFoodCount})` : ''}
         </button>
       </div>
 
-      {loading ? (
-        <div className="card" style={{ padding: 16 }}><LoadingRows rows={5} /></div>
-      ) : tab === 'catalog' ? (
-        filteredCatalog.length === 0 ? (
+      {tab === 'catalog' ? (
+        catalogTotal === 0 && !catalogLoading ? (
           <div className="card">
             <EmptyState
               icon={<NutritionIcon size={22} />}
@@ -339,42 +612,121 @@ export function FoodsPage(): React.JSX.Element {
           </div>
         ) : (
           <div className="card foods-catalog-card">
-            <table className="foods-table">
-              <thead>
-                <tr>
-                  <th>Alimento</th>
-                  <th>Porción y macros</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {filteredCatalog.map((food) => (
-                  <tr key={food.id}>
-                    <td>
-                      <div className="foods-table-food">
-                        <FoodIcon iconKey={food.icon_key} size={32} />
-                        <div>
-                          <div className="cell-name">{food.name}</div>
-                          {food.brand ? <div className="cell-sub">{food.brand}</div> : null}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="muted">
-                      {formatServingLabel(food.default_serving_grams, food.serving_unit)} · {macrosLine(food)}
-                    </td>
-                    <td>
-                      <div className="foods-table-actions">
-                        <button type="button" className="btn secondary sm" onClick={() => openEdit(food)}>Editar</button>
-                        <button type="button" className="btn secondary sm foods-table-delete" onClick={() => void deactivate(food.id)}>Eliminar</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="table-toolbar foods-table-toolbar">
+              <div className="search-field">
+                <SearchIcon size={16} />
+                <input
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  placeholder="Buscar por nombre o marca…"
+                />
+              </div>
+              <span className="row-count">
+                {catalogLoading
+                  ? '…'
+                  : catalogHasFilters
+                    ? `${catalogFilteredTotal} de ${catalogTotal} alimento${catalogTotal === 1 ? '' : 's'}`
+                    : `${catalogTotal} alimento${catalogTotal === 1 ? '' : 's'}`}
+              </span>
+            </div>
+            <div className="foods-filters">
+              <label className="foods-filter">
+                <span className="foods-filter-label">Icono</span>
+                <select
+                  className="inline-select"
+                  value={iconFilter}
+                  onChange={(e) => setIconFilter(e.target.value as FoodIconKey | 'all')}
+                >
+                  <option value="all">Todos</option>
+                  {FOOD_ICON_ITEMS.map((item) => (
+                    <option key={item.key} value={item.key}>{item.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="foods-filter">
+                <span className="foods-filter-label">Macros</span>
+                <select
+                  className="inline-select"
+                  value={macroFilter}
+                  onChange={(e) => setMacroFilter(e.target.value as MacroFilter)}
+                >
+                  <option value="all">Todos</option>
+                  <option value="complete">Completos</option>
+                  <option value="incomplete">Incompletos</option>
+                </select>
+              </label>
+              <label className="foods-filter">
+                <span className="foods-filter-label">Orden</span>
+                <select
+                  className="inline-select"
+                  value={catalogSort}
+                  onChange={(e) => setCatalogSort(e.target.value as CatalogSort)}
+                >
+                  <option value="name-asc">Nombre A–Z</option>
+                  <option value="name-desc">Nombre Z–A</option>
+                  <option value="kcal-desc">Más kcal</option>
+                  <option value="kcal-asc">Menos kcal</option>
+                </select>
+              </label>
+              {catalogFiltersActive ? (
+                <button type="button" className="btn secondary sm foods-filter-clear" onClick={clearFilters}>
+                  Limpiar
+                </button>
+              ) : null}
+            </div>
+            {catalogLoading ? (
+              <div style={{ padding: 16 }}><LoadingRows rows={5} /></div>
+            ) : catalogFilteredTotal === 0 ? (
+              <div className="foods-filter-empty">
+                <div className="t">Sin resultados</div>
+                <p className="muted">Probá con otro término o ajustá los filtros.</p>
+                <button type="button" className="btn secondary sm" onClick={clearFilters}>Limpiar filtros</button>
+              </div>
+            ) : (
+              <>
+                <table className="foods-table">
+                  <thead>
+                    <tr>
+                      <th>Alimento</th>
+                      <th>Porción y macros</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {catalog.map((food) => (
+                      <tr key={food.id}>
+                        <td>
+                          <div className="foods-table-food">
+                            <FoodIcon iconKey={food.icon_key} size={32} />
+                            <div>
+                              <div className="cell-name">{food.name}</div>
+                              {food.brand ? <div className="cell-sub">{food.brand}</div> : null}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="muted">
+                          {formatServingLabel(food.default_serving_grams, food.serving_unit)} · {macrosLine(food)}
+                        </td>
+                        <td>
+                          <div className="foods-table-actions">
+                            <button type="button" className="btn secondary sm" onClick={() => openEdit(food)}>Editar</button>
+                            <button type="button" className="btn secondary sm foods-table-delete" onClick={() => void deactivate(food.id)}>Eliminar</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <TablePagination
+                  page={catalogPage}
+                  total={catalogFilteredTotal}
+                  onPageChange={setCatalogPage}
+                />
+              </>
+            )}
           </div>
         )
-      ) : pending.length === 0 ? (
+      ) : pendingFoodCount === 0 && pendingLoaded && !pendingLoading ? (
         <div className="card">
           <EmptyState
             icon={<CheckIcon size={22} />}
@@ -384,39 +736,103 @@ export function FoodsPage(): React.JSX.Element {
         </div>
       ) : (
         <div className="card foods-catalog-card">
-          <table className="foods-table">
-            <thead>
-              <tr>
-                <th>Alimento</th>
-                <th>Detalle</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {pending.map((sub) => (
-                <tr key={sub.id}>
-                  <td>
-                    <div className="foods-table-food">
-                      <FoodIcon iconKey={sub.icon_key} size={32} />
-                      <div>
-                        <div className="cell-name">{sub.name}</div>
-                        <div className="cell-sub">Propuesto por {sub.submitter_name ?? 'alumno'}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="muted">
-                    {formatServingLabel(sub.default_serving_grams, sub.serving_unit)} · {macrosLine(sub)}
-                  </td>
-                  <td>
-                    <div className="foods-table-actions">
-                      <button type="button" className="btn sm" onClick={() => void approveSubmission(sub)}>Aprobar</button>
-                      <button type="button" className="btn secondary sm" onClick={() => void rejectSubmission(sub)}>Rechazar</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="table-toolbar foods-table-toolbar">
+            <div className="search-field">
+              <SearchIcon size={16} />
+              <input
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="Buscar por alimento o alumno…"
+              />
+            </div>
+            <span className="row-count">
+              {pendingLoading
+                ? '…'
+                : `${pendingFilteredTotal} solicitud${pendingFilteredTotal === 1 ? '' : 'es'}`}
+            </span>
+          </div>
+          <div className="foods-filters">
+            <label className="foods-filter">
+              <span className="foods-filter-label">Icono</span>
+              <select
+                className="inline-select"
+                value={iconFilter}
+                onChange={(e) => setIconFilter(e.target.value as FoodIconKey | 'all')}
+              >
+                <option value="all">Todos</option>
+                {FOOD_ICON_ITEMS.map((item) => (
+                  <option key={item.key} value={item.key}>{item.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="foods-filter">
+              <span className="foods-filter-label">Orden</span>
+              <select
+                className="inline-select"
+                value={pendingSort}
+                onChange={(e) => setPendingSort(e.target.value as PendingSort)}
+              >
+                <option value="date-desc">Más recientes</option>
+                <option value="date-asc">Más antiguas</option>
+                <option value="name-asc">Nombre A–Z</option>
+              </select>
+            </label>
+            {pendingFiltersActive ? (
+              <button type="button" className="btn secondary sm foods-filter-clear" onClick={clearFilters}>
+                Limpiar
+              </button>
+            ) : null}
+          </div>
+          {pendingLoading ? (
+            <div style={{ padding: 16 }}><LoadingRows rows={5} /></div>
+          ) : pendingFilteredTotal === 0 ? (
+            <div className="foods-filter-empty">
+              <div className="t">Sin resultados</div>
+              <p className="muted">Probá con otro término o ajustá los filtros.</p>
+              <button type="button" className="btn secondary sm" onClick={clearFilters}>Limpiar filtros</button>
+            </div>
+          ) : (
+            <>
+              <table className="foods-table">
+                <thead>
+                  <tr>
+                    <th>Alimento</th>
+                    <th>Detalle</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {pending.map((sub) => (
+                    <tr key={sub.id}>
+                      <td>
+                        <div className="foods-table-food">
+                          <FoodIcon iconKey={sub.icon_key} size={32} />
+                          <div>
+                            <div className="cell-name">{sub.name}</div>
+                            <div className="cell-sub">Propuesto por {sub.submitter_name ?? 'alumno'}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="muted">
+                        {formatServingLabel(sub.default_serving_grams, sub.serving_unit)} · {macrosLine(sub)}
+                      </td>
+                      <td>
+                        <div className="foods-table-actions">
+                          <button type="button" className="btn sm" onClick={() => void approveSubmission(sub)}>Aprobar</button>
+                          <button type="button" className="btn secondary sm" onClick={() => void rejectSubmission(sub)}>Rechazar</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <TablePagination
+                page={pendingPage}
+                total={pendingFilteredTotal}
+                onPageChange={setPendingPage}
+              />
+            </>
+          )}
         </div>
       )}
 

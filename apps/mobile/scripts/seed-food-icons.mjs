@@ -45,6 +45,7 @@ const ICON_CATALOG = [
   { file: 'paste-icon.png', key: 'pasta', name: 'Pasta' },
   { file: 'potato-icon.png', key: 'potato', name: 'Papa' },
   { file: 'rice-icon.png', key: 'rice', name: 'Arroz' },
+  { file: 'water-icon.png', key: 'water', name: 'Agua' },
 ];
 
 function loadEnvFile(path) {
