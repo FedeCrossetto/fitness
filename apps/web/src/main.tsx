@@ -25,9 +25,7 @@ const RoutinesPage         = lazy(() => import('@/pages/Routines').then((m) => (
 const MessagesPage         = lazy(() => import('@/pages/Messages').then((m) => ({ default: m.MessagesPage })));
 const GroupsPage           = lazy(() => import('@/pages/Groups').then((m) => ({ default: m.GroupsPage })));
 const GroupDetailPage      = lazy(() => import('@/pages/GroupDetail').then((m) => ({ default: m.GroupDetailPage })));
-const ChallengesPage       = lazy(() => import('@/pages/Challenges').then((m) => ({ default: m.ChallengesPage })));
 const PaymentsPage         = lazy(() => import('@/pages/Payments').then((m) => ({ default: m.PaymentsPage })));
-const SchedulingPage       = lazy(() => import('@/pages/Scheduling').then((m) => ({ default: m.SchedulingPage })));
 const SettingsPage         = lazy(() => import('@/pages/Settings').then((m) => ({ default: m.SettingsPage })));
 const AutoMessagesPage     = lazy(() => import('@/pages/AutoMessages').then((m) => ({ default: m.AutoMessagesPage })));
 const ConsultationFormPage = lazy(() => import('@/pages/ConsultationForm').then((m) => ({ default: m.ConsultationFormPage })));
@@ -82,14 +80,14 @@ function App(): React.JSX.Element {
             <Route path="/messages" element={<MessagesPage />} />
             <Route path="/groups" element={<GroupsPage />} />
             <Route path="/groups/:id" element={<GroupDetailPage />} />
-            <Route path="/challenges" element={<ChallengesPage />} />
+            <Route path="/challenges" element={<Navigate to="/groups" replace />} />
             <Route path="/students" element={<StudentsPage />} />
             <Route path="/students/:id" element={<StudentDetailPage />} />
             <Route path="/payments" element={<PaymentsPage />} />
             <Route path="/routines" element={<RoutinesPage />} />
             <Route path="/foods" element={<FoodsPage />} />
             <Route path="/branding" element={<BrandingPage />} />
-            <Route path="/scheduling" element={<SchedulingPage />} />
+            <Route path="/scheduling" element={<Navigate to="/" replace />} />
             <Route path="/announcements" element={<AnnouncementsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/settings/auto-messages" element={<AutoMessagesPage />} />

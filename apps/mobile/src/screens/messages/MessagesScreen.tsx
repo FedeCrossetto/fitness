@@ -22,10 +22,11 @@ import { useTranslation } from '../../stores/i18nStore';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'Messages'>;
 
-export function MessagesScreen({ navigation }: Props): React.JSX.Element {
+export function MessagesScreen({ navigation, route }: Props): React.JSX.Element {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const { t } = useTranslation();
+  const groupsOnly = route.params?.focus === 'groups';
 
   const insets = useSafeAreaInsets();
   const scrollBottom = useTabBarScrollPadding();
@@ -44,6 +45,8 @@ export function MessagesScreen({ navigation }: Props): React.JSX.Element {
     }, [userId, profile?.trainer_id, loadInbox])
   );
 
+  const visibleThreads = groupsOnly ? threads.filter((thread) => thread.kind === 'group') : threads;
+
   const onPressThread = (thread: InboxThread) => {
     if (thread.kind === 'coach') {
       navigation.navigate('CoachChat');
@@ -60,9 +63,9 @@ export function MessagesScreen({ navigation }: Props): React.JSX.Element {
 
   const renderItem = ({ item, index }: { item: InboxThread; index: number }) => (
     <View>
-      {index === 1 ? (
+      {!groupsOnly && index === 1 ? (
         <AppText variant="caps12" color={colors.text.tertiary} style={styles.sectionLabel}>
-          Grupos
+          {t.messages.groups_section}
         </AppText>
       ) : null}
       <Pressable
@@ -102,7 +105,7 @@ export function MessagesScreen({ navigation }: Props): React.JSX.Element {
           <Ionicons name="chevron-forward" size={18} color={colors.text.disabled} />
         </View>
       </Pressable>
-      {index === 0 && threads.length > 1 ? <View style={styles.separator} /> : null}
+      {index === 0 && !groupsOnly && threads.length > 1 ? <View style={styles.separator} /> : null}
     </View>
   );
 
@@ -111,7 +114,7 @@ export function MessagesScreen({ navigation }: Props): React.JSX.Element {
       <View style={styles.header}>
         <IconButton icon="chevron-back" onPress={() => navigation.goBack()} accessibilityLabel={t.ui.back} />
         <AppText variant="h2" color={colors.text.primary} style={styles.title}>
-          {t.home.messages}
+          {groupsOnly ? t.home.community : t.home.messages}
         </AppText>
         <View style={styles.headerSpacer} />
       </View>
@@ -123,15 +126,15 @@ export function MessagesScreen({ navigation }: Props): React.JSX.Element {
         </View>
       ) : error && threads.length === 0 ? (
         <ErrorState message={error} onRetry={() => userId && void loadInbox(userId, profile?.trainer_id)} />
-      ) : threads.length === 0 ? (
+      ) : visibleThreads.length === 0 ? (
         <EmptyState
           pillar="generic"
-          title="Sin mensajes"
-          message="Cuando tu coach o tus grupos te escriban, aparecen acá."
+          title={groupsOnly ? t.home.community : t.messages.empty_title}
+          message={groupsOnly ? t.messages.community_empty : t.messages.empty_body}
         />
       ) : (
         <FlatList
-          data={threads}
+          data={visibleThreads}
           keyExtractor={(item) => item.key}
           renderItem={renderItem}
           contentContainerStyle={{ paddingHorizontal: layout.screenPadding, paddingBottom: scrollBottom }}

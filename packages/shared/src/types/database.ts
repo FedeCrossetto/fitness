@@ -4,6 +4,7 @@
  */
 
 import type { ServingUnit } from '../nutrition/servingUnits';
+import type { WorkoutSessionDetail } from '../training/workoutSession';
 
 export type { ServingUnit };
 
@@ -31,6 +32,8 @@ export interface ProfileRow {
   trainer_id: string | null;
   client_status: 'active' | 'pending';
   locale: string;
+  /** Programa de entrenamiento asignado por el coach (training_phases.program_key). */
+  assigned_program_key: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -104,12 +107,16 @@ export interface WorkoutLogRow {
   date: string;
   workout_name: string;
   workout_type: string | null;
+  workout_id: string | null;
   duration_min: number | null;
   rpe: number | null;
   comments: string | null;
   completed: boolean;
   elapsed_seconds: number | null;
   completed_exercises: string[] | null;
+  session_detail: WorkoutSessionDetail | null;
+  total_volume_kg: number | null;
+  completed_sets: number;
   cardio_activity: string | null;
   distance: number | null;
   distance_unit: string | null;
@@ -473,6 +480,24 @@ export interface CommunityMessageRow {
   created_at: string;
 }
 
+export type AnnouncementTargetType = 'all_clients' | 'groups' | 'clients';
+export type AnnouncementStatus = 'scheduled' | 'sent' | 'failed' | 'cancelled';
+
+export interface AnnouncementRow {
+  id: string;
+  trainer_id: string;
+  title: string | null;
+  content: string;
+  target_type: AnnouncementTargetType;
+  target_ids: string[];
+  send_at: string;
+  status: AnnouncementStatus;
+  sent_at: string | null;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface UserTrophyDayRow {
   id: string;
   user_id: string;
@@ -537,6 +562,7 @@ export interface Database {
       communities: TableDef<CommunityRow, 'trainer_id' | 'name'>;
       community_members: TableDef<CommunityMemberRow, 'community_id' | 'user_id'>;
       community_messages: TableDef<CommunityMessageRow, 'community_id' | 'content' | 'kind'>;
+      announcements: TableDef<AnnouncementRow, 'trainer_id' | 'content' | 'target_type'>;
       user_trophy_days: TableDef<UserTrophyDayRow, 'user_id' | 'date'>;
     };
     Views: Record<string, never>;
@@ -564,6 +590,41 @@ export interface Database {
       try_send_auto_message: {
         Args: { p_client_id: string; p_trigger_key: string };
         Returns: boolean;
+      };
+      deliver_announcement: {
+        Args: { p_announcement_id: string };
+        Returns: boolean;
+      };
+      process_due_announcements: {
+        Args: Record<string, never>;
+        Returns: number;
+      };
+      get_client_waiver_gate: {
+        Args: Record<string, never>;
+        Returns: Json;
+      };
+      save_client_waiver_signature: {
+        Args: {
+          p_trainer_id: string;
+          p_full_name: string;
+          p_signature_data: string;
+          p_document_snapshot: string;
+          p_document_title: string;
+        };
+        Returns: string;
+      };
+      get_client_image_consent_gate: {
+        Args: Record<string, never>;
+        Returns: Json;
+      };
+      save_client_image_consent: {
+        Args: {
+          p_trainer_id: string;
+          p_full_name: string;
+          p_document_snapshot: string;
+          p_document_title: string;
+        };
+        Returns: string;
       };
       register_manual_payment: {
         Args: { p_client_id: string; p_plan_id: string };

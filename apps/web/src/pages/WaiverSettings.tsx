@@ -26,12 +26,30 @@ Por medio de la presente, libero a mi entrenador personal, sus empleados, repres
 
 Al firmar este documento manifiesto que he leído, entendido y acepto en su totalidad el contenido de este deslinde de responsabilidad.`;
 
+const DEFAULT_IMAGE_CONSENT_BODY = `CONSENTIMIENTO PARA EL USO DE IMÁGENES
+
+Autorizo expresamente a mi entrenador personal y a su equipo a capturar, almacenar y utilizar fotografías y/o videos de mi persona tomados durante las sesiones de entrenamiento, evaluaciones físicas o actividades relacionadas con el servicio contratado.
+
+FINALIDAD DEL USO
+Las imágenes podrán utilizarse exclusivamente con los siguientes fines:
+• Seguimiento de mi progreso físico y evaluación de resultados.
+• Material de referencia interna para la planificación de mi entrenamiento.
+• Publicación en redes sociales, sitio web u otros medios de comunicación del entrenador, únicamente con fines promocionales o de testimonio (previo aviso cuando corresponda).
+
+DURACIÓN Y REVOCACIÓN
+Este consentimiento permanece vigente mientras mantenga una relación activa con el entrenador. Puedo revocarlo en cualquier momento contactando directamente a mi entrenador, sin que ello afecte la prestación del servicio de entrenamiento.
+
+Al aceptar, declaro haber leído y comprendido el presente consentimiento y otorgo mi autorización de forma libre e informada.`;
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 interface WaiverConfig {
   title: string;
   body: string;
   require_before_start: boolean;
+  image_consent_enabled: boolean;
+  image_consent_title: string;
+  image_consent_body: string;
 }
 
 export function WaiverSettingsPage(): React.JSX.Element {
@@ -40,6 +58,9 @@ export function WaiverSettingsPage(): React.JSX.Element {
     title: 'Deslinde de Responsabilidad',
     body: DEFAULT_BODY,
     require_before_start: true,
+    image_consent_enabled: true,
+    image_consent_title: 'Consentimiento de uso de imágenes',
+    image_consent_body: DEFAULT_IMAGE_CONSENT_BODY,
   });
   const [loading, setLoading]   = useState(true);
   const [saving, setSaving]     = useState(false);
@@ -54,18 +75,43 @@ export function WaiverSettingsPage(): React.JSX.Element {
     void (async () => {
       try {
         const { data, error } = await waiverCfgTable()
-          .select('title, body, require_before_start')
+          .select('title, body, require_before_start, image_consent_enabled, image_consent_title, image_consent_body')
           .eq('trainer_id', profile.id)
           .maybeSingle();
         if (!active) return;
         if (error?.message?.includes('does not exist')) {
           setDbMissing(true);
         } else if (data) {
+          const row = data as WaiverConfig;
           setConfig({
-            title: (data as WaiverConfig).title,
-            body: (data as WaiverConfig).body,
-            require_before_start: (data as WaiverConfig).require_before_start,
+            title: row.title,
+            body: row.body,
+            require_before_start: row.require_before_start,
+            image_consent_enabled: row.image_consent_enabled ?? true,
+            image_consent_title: row.image_consent_title ?? 'Consentimiento de uso de imágenes',
+            image_consent_body: row.image_consent_body || DEFAULT_IMAGE_CONSENT_BODY,
           });
+        } else if (!error && profile.id) {
+          const seed = {
+            trainer_id: profile.id,
+            title: 'Deslinde de Responsabilidad',
+            body: DEFAULT_BODY,
+            require_before_start: true,
+            image_consent_enabled: true,
+            image_consent_title: 'Consentimiento de uso de imágenes',
+            image_consent_body: DEFAULT_IMAGE_CONSENT_BODY,
+          };
+          const { error: seedError } = await waiverCfgTable().upsert(seed, { onConflict: 'trainer_id' });
+          if (!seedError) {
+            setConfig({
+              title: seed.title,
+              body: seed.body,
+              require_before_start: seed.require_before_start,
+              image_consent_enabled: seed.image_consent_enabled,
+              image_consent_title: seed.image_consent_title,
+              image_consent_body: seed.image_consent_body,
+            });
+          }
         }
       } finally {
         if (active) setLoading(false);
@@ -83,6 +129,9 @@ export function WaiverSettingsPage(): React.JSX.Element {
       title: config.title.trim(),
       body: config.body,
       require_before_start: config.require_before_start,
+      image_consent_enabled: config.image_consent_enabled,
+      image_consent_title: config.image_consent_title.trim(),
+      image_consent_body: config.image_consent_body,
     }, { onConflict: 'trainer_id' });
     setSaving(false);
     if (!error) { setSaved(true); setTimeout(() => setSaved(false), 3000); }
@@ -141,6 +190,50 @@ export function WaiverSettingsPage(): React.JSX.Element {
               rows={22}
             />
           </div>
+
+          <div className="card" style={{ padding: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-primary)' }}>
+                  Consentimiento de imágenes
+                </div>
+                <div style={{ fontSize: 12.5, color: 'var(--text-tertiary)', marginTop: 4, lineHeight: 1.5 }}>
+                  El alumno lo acepta en la app justo después de firmar el deslinde.
+                </div>
+              </div>
+              <button
+                className={`waiver-toggle${config.image_consent_enabled ? ' on' : ''}`}
+                onClick={() => setConfig((c) => ({ ...c, image_consent_enabled: !c.image_consent_enabled }))}
+                aria-pressed={config.image_consent_enabled}
+              >
+                <span className="waiver-toggle-thumb" />
+              </button>
+            </div>
+
+            {config.image_consent_enabled ? (
+              <>
+                <label className="waiver-label">Título del consentimiento</label>
+                <input
+                  className="field-input"
+                  value={config.image_consent_title}
+                  onChange={(e) => setConfig((c) => ({ ...c, image_consent_title: e.target.value }))}
+                  style={{ marginBottom: 16 }}
+                />
+                <label className="waiver-label">Texto del consentimiento</label>
+                <textarea
+                  className="field-input waiver-textarea"
+                  value={config.image_consent_body}
+                  onChange={(e) => setConfig((c) => ({ ...c, image_consent_body: e.target.value }))}
+                  rows={14}
+                  style={{ minHeight: 280 }}
+                />
+              </>
+            ) : (
+              <div style={{ padding: '12px 14px', borderRadius: 8, background: 'var(--surface-elevated)', border: '1px solid var(--border)', fontSize: 12.5, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
+                Desactivado: los alumnos no verán esta pantalla al iniciar sesión.
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Sidebar options */}
@@ -178,9 +271,9 @@ export function WaiverSettingsPage(): React.JSX.Element {
             <ol style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 10 }}>
               {[
                 'El alumno abre la app mobile por primera vez.',
-                'Aparece este deslinde para leer.',
-                'Escribe su nombre y firma con el dedo.',
-                'La firma queda guardada. Podés verla en el perfil del alumno.',
+                'Aparece el deslinde para leer y firmar.',
+                'Luego acepta el consentimiento de imágenes (si está activo).',
+                'Los registros quedan guardados. Podés verlos en el perfil del alumno.',
               ].map((step, i) => (
                 <li key={i} style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
                   {step}

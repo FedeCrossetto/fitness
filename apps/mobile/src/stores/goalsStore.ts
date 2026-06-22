@@ -3,6 +3,11 @@ import { supabase } from '../lib/supabase';
 import { staleWhileRevalidate } from '../lib/cache';
 import { todayISO } from '../lib/dates';
 import type { DailyGoalRow, GoalType, GoalUnit } from '../types/database';
+import { useUiStore } from './uiStore';
+
+function toastError(message: string): void {
+  useUiStore.getState().showToast('error', message);
+}
 
 interface GoalsState {
   goals: DailyGoalRow[];
@@ -53,6 +58,7 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
       await get().syncMealsGoal(userId);
     } catch {
       set({ loading: false, error: 'No pudimos cargar tus metas de hoy.' });
+      toastError('No pudimos cargar tus metas de hoy.');
     }
   },
 
@@ -77,6 +83,7 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
       return true;
     } catch {
       set({ error: 'No pudimos crear la meta.' });
+      toastError('No pudimos crear la meta.');
       return false;
     }
   },
@@ -94,6 +101,7 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
       return true;
     } catch {
       set({ error: 'No pudimos actualizar la meta.' });
+      toastError('No pudimos actualizar la meta.');
       return false;
     }
   },
@@ -104,6 +112,7 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
     const { error } = await supabase.from('daily_goals').delete().eq('id', goalId);
     if (error) {
       set({ goals: previous, error: 'No pudimos eliminar la meta.' });
+      toastError('No pudimos eliminar la meta.');
       return false;
     }
     return true;
@@ -118,6 +127,7 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
     const { error } = await supabase.from('daily_goals').update({ completed }).eq('id', goalId);
     if (error) {
       set({ goals: get().goals.map((g) => (g.id === goalId ? { ...g, completed: !completed } : g)) });
+      toastError('No pudimos actualizar la meta.');
     }
   },
 

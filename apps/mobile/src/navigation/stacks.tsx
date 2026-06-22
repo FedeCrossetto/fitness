@@ -121,7 +121,7 @@ export function ProgressStack(): React.JSX.Element {
       <Progress.Screen name="WeightDetail" component={WeightDetailScreen} />
       <Progress.Screen name="ProgressPhotos" component={ProgressPhotosScreen} />
       <Progress.Screen name="Measurements" component={MeasurementsScreen} />
-      <Progress.Screen name="HydrationDetail" component={HydrationScreen} />
+      <Progress.Screen name="Hydration" component={HydrationScreen} />
     </Progress.Navigator>
   );
 }

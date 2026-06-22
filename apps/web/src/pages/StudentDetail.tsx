@@ -16,7 +16,9 @@ import type {
   WorkoutLogRow,
 } from '@reset-fitness/shared/types/database';
 import { supabase } from '@/lib/supabase';
+import { formatWorkoutVolume, summarizeWorkoutForFeed } from '@reset-fitness/shared';
 import { RoutineManager } from '@/components/RoutineManager';
+import { StudentCoachPanel } from '@/components/StudentCoachPanel';
 import { Lightbox, Spinner } from '@/components/ui';
 
 const anyClient = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> };
@@ -26,6 +28,14 @@ interface WaiverSignature {
   full_name: string;
   signed_at: string;
   signature_data: string;
+  document_snapshot: string;
+  document_title: string;
+}
+
+interface ImageConsentAcceptance {
+  id: string;
+  full_name: string;
+  accepted_at: string;
   document_snapshot: string;
   document_title: string;
 }
@@ -43,7 +53,7 @@ interface ConsultationResponse {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type Profile = Pick<ProfileRow, 'id' | 'full_name' | 'goal' | 'phone' | 'avatar_url' | 'created_at'> & {
+type Profile = Pick<ProfileRow, 'id' | 'full_name' | 'goal' | 'phone' | 'avatar_url' | 'created_at' | 'assigned_program_key'> & {
   client_status?: 'pending' | 'active';
 };
 
@@ -109,6 +119,7 @@ export function StudentDetailPage(): React.JSX.Element {
   const { showToast } = useToast();
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>('resumen');
+  const [defaultProgramKey, setDefaultProgramKey] = useState('default');
 
   const [profile, setProfile]         = useState<Profile | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfileRow | null>(null);
@@ -117,6 +128,7 @@ export function StudentDetailPage(): React.JSX.Element {
   const [meals, setMeals]             = useState<MealLogRow[]>([]);
   const [messages, setMessages]       = useState<MessageRow[]>([]);
   const [waiverSig, setWaiverSig]     = useState<WaiverSignature | null | false>(null); // null=loading, false=not signed
+  const [imageConsent, setImageConsent] = useState<ImageConsentAcceptance | null | false>(null);
   const [consultation, setConsultation] = useState<ConsultationResponse | null | false>(null); // null=loading, false=not submitted
   const [photos, setPhotos]           = useState<ProgressPhotoRow[]>([]);
   const [photoUrls, setPhotoUrls]     = useState<Record<string, string>>({});
@@ -126,17 +138,30 @@ export function StudentDetailPage(): React.JSX.Element {
   const [activating, setActivating]   = useState(false);
 
   useEffect(() => {
+    if (!trainerProfile?.id) return;
+    void (async () => {
+      const { data } = await supabase
+        .from('trainer_branding')
+        .select('default_program_key')
+        .eq('trainer_id', trainerProfile.id)
+        .maybeSingle();
+      setDefaultProgramKey((data as { default_program_key?: string } | null)?.default_program_key ?? 'default');
+    })();
+  }, [trainerProfile?.id]);
+
+  useEffect(() => {
     if (!studentId) return;
     let active = true;
     void (async () => {
-      const [{ data: p }, { data: up }, { data: bm }, { data: wl }, { data: ml }, { data: msgs }, { data: ws }, { data: cr }, { data: pp }, { data: sub }] = await Promise.all([
-        supabase.from('profiles').select('id, full_name, goal, phone, avatar_url, created_at, client_status').eq('id', studentId).maybeSingle(),
+      const [{ data: p }, { data: up }, { data: bm }, { data: wl }, { data: ml }, { data: msgs }, { data: ws }, { data: ic }, { data: cr }, { data: pp }, { data: sub }] = await Promise.all([
+        supabase.from('profiles').select('id, full_name, goal, phone, avatar_url, created_at, client_status, assigned_program_key').eq('id', studentId).maybeSingle(),
         supabase.from('user_profiles').select('*').eq('user_id', studentId).maybeSingle(),
         supabase.from('body_measurements').select('*').eq('user_id', studentId).order('date', { ascending: false }).limit(10),
         supabase.from('workout_logs').select('*').eq('user_id', studentId).order('date', { ascending: false }).limit(20),
         supabase.from('meal_logs').select('*').eq('user_id', studentId).order('created_at', { ascending: false }).limit(20),
         supabase.from('messages').select('*').eq('client_id', studentId).order('created_at', { ascending: true }),
         anyClient.from('waiver_signatures').select('id, full_name, signed_at, signature_data, document_snapshot, document_title').eq('client_id', studentId).maybeSingle(),
+        anyClient.from('image_consent_acceptances').select('id, full_name, accepted_at, document_snapshot, document_title').eq('client_id', studentId).maybeSingle(),
         anyClient.from('consultation_responses').select('responses, submitted_at').eq('client_id', studentId).maybeSingle(),
         supabase.from('progress_photos').select('*').eq('user_id', studentId).order('created_at', { ascending: false }),
         supabase
@@ -156,6 +181,7 @@ export function StudentDetailPage(): React.JSX.Element {
       setMessages((msgs as MessageRow[] | null) ?? []);
       setPhotos((pp as ProgressPhotoRow[] | null) ?? []);
       setWaiverSig((ws as WaiverSignature | null) ?? false);
+      setImageConsent((ic as ImageConsentAcceptance | null) ?? false);
       setConsultation((cr as ConsultationResponse | null) ?? false);
 
       if (sub) {
@@ -420,9 +446,16 @@ export function StudentDetailPage(): React.JSX.Element {
                   </div>
                   <div className="sd-workout-card-stats">
                     <div><span className="sd-wc-val">{formatWorkoutDuration(lastWorkout)}</span><span className="sd-wc-lbl">duración</span></div>
-                    <div><span className="sd-wc-val">{lastWorkout.completed_exercises?.length ?? 0}</span><span className="sd-wc-lbl">ejercicios</span></div>
+                    <div><span className="sd-wc-val">{formatWorkoutVolume(lastWorkout.total_volume_kg)}</span><span className="sd-wc-lbl">volumen</span></div>
                     <div><span className="sd-wc-val">{lastWorkout.rpe != null ? `${lastWorkout.rpe}/10` : '—'}</span><span className="sd-wc-lbl">RPE</span></div>
                   </div>
+                  {summarizeWorkoutForFeed(lastWorkout.session_detail).length > 0 ? (
+                    <ul className="sd-workout-lines">
+                      {summarizeWorkoutForFeed(lastWorkout.session_detail).slice(0, 4).map((line) => (
+                        <li key={line.name}>{line.completedSets} series · {line.name}</li>
+                      ))}
+                    </ul>
+                  ) : null}
                   {lastWorkout.rpe != null ? (
                     <div className="sd-rpe">
                       <div className="sd-rpe-track"><div className="sd-rpe-fill" style={{ width: `${(lastWorkout.rpe / 10) * 100}%` }} /></div>
@@ -487,6 +520,15 @@ export function StudentDetailPage(): React.JSX.Element {
                 <InfoTile label="Se unió" value={new Date(profile.created_at).toLocaleDateString('es-AR')} />
               </div>
             </div>
+
+            {studentId ? (
+              <StudentCoachPanel
+                studentId={studentId}
+                assignedProgramKey={profile.assigned_program_key ?? null}
+                defaultProgramKey={defaultProgramKey}
+                onProgramKeyChange={(key) => setProfile((p) => (p ? { ...p, assigned_program_key: key } : p))}
+              />
+            ) : null}
           </div>
         )}
 
@@ -517,7 +559,7 @@ export function StudentDetailPage(): React.JSX.Element {
                         <th>Tipo</th>
                         <th>Duración</th>
                         <th>RPE</th>
-                        <th>Ejercicios</th>
+                        <th>Series</th>
                         <th>Estado</th>
                       </tr>
                     </thead>
@@ -624,7 +666,7 @@ export function StudentDetailPage(): React.JSX.Element {
 
         {/* DESLINDE */}
         {tab === 'deslinde' && (
-          <WaiverTab sig={waiverSig} trainerId={trainerProfile?.id} />
+          <WaiverTab sig={waiverSig} imageConsent={imageConsent} />
         )}
 
         {/* ENGAGEMENT */}
@@ -771,6 +813,19 @@ export function StudentDetailPage(): React.JSX.Element {
           font-size: 12px; color: var(--text-tertiary); margin-top: 4px; font-style: italic;
           max-width: 280px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
+        .sd-workout-lines {
+          margin: 6px 0 0;
+          padding: 0;
+          list-style: none;
+          display: flex;
+          flex-direction: column;
+          gap: 3px;
+        }
+        .sd-workout-lines li {
+          font-size: 12px;
+          color: var(--text-secondary);
+          line-height: 1.35;
+        }
         .badge.sm { font-size: 11px; padding: 2px 8px; }
 
         @media (max-width: 1100px) { .sd-stat-grid { grid-template-columns: repeat(3, 1fr); } }
@@ -845,6 +900,16 @@ export function StudentDetailPage(): React.JSX.Element {
         .sd-panel-empty {
           padding: 28px 16px; text-align: center; font-size: 13px; color: var(--text-tertiary);
         }
+        .sd-goal-assign-list {
+          list-style: none; margin: 0 0 12px; padding: 0;
+          display: flex; flex-direction: column; gap: 8px;
+        }
+        .sd-goal-assign-item {
+          display: flex; align-items: center; justify-content: space-between; gap: 12px;
+          padding: 10px 12px; border-radius: 10px; background: var(--surface-elevated);
+          border: 1px solid var(--border); font-size: 13px;
+        }
+        .sd-goal-preset-row { display: flex; flex-wrap: wrap; gap: 8px; }
         .sd-info-grid {
           display: grid; grid-template-columns: 1fr 1fr;
           column-gap: 20px; row-gap: 16px;
@@ -951,11 +1016,29 @@ function MeasureTile({
 }
 
 function WorkoutHistoryRow({ workout: w }: { workout: WorkoutLogRow }): React.JSX.Element {
-  const exerciseCount = w.completed_exercises?.length ?? null;
+  const exerciseLines = summarizeWorkoutForFeed(w.session_detail);
+  const exerciseCount = w.completed_sets > 0
+    ? w.completed_sets
+    : (w.completed_exercises?.length ?? null);
+  const volumeLabel = w.total_volume_kg != null && w.total_volume_kg > 0
+    ? formatWorkoutVolume(w.total_volume_kg)
+    : null;
+
   return (
     <tr>
       <td>
         <div className="sd-workout-name">{w.workout_name}</div>
+        {volumeLabel ? <div className="sd-workout-comment">{volumeLabel}</div> : null}
+        {exerciseLines.length > 0 ? (
+          <ul className="sd-workout-lines">
+            {exerciseLines.slice(0, 3).map((line) => (
+              <li key={`${w.id}-${line.name}`}>{line.completedSets} series · {line.name}</li>
+            ))}
+            {exerciseLines.length > 3 ? (
+              <li className="muted">+{exerciseLines.length - 3} ejercicios más</li>
+            ) : null}
+          </ul>
+        ) : null}
         {w.comments ? <div className="sd-workout-comment" title={w.comments}>{w.comments}</div> : null}
         {w.distance != null ? (
           <div className="sd-workout-comment">{w.distance} {w.distance_unit ?? 'km'}</div>
@@ -1119,11 +1202,20 @@ function openEvidencePDF(ws: WaiverSignature, clientName: string): void {
   if (w) { w.document.write(html); w.document.close(); }
 }
 
-function WaiverTab({ sig }: { sig: WaiverSignature | null | false; trainerId?: string }): React.JSX.Element {
+function WaiverTab({
+  sig,
+  imageConsent,
+}: {
+  sig: WaiverSignature | null | false;
+  imageConsent: ImageConsentAcceptance | null | false;
+}): React.JSX.Element {
   const isSigned = sig !== null && sig !== false;
   const ws = isSigned ? (sig as WaiverSignature) : null;
+  const consentAccepted = imageConsent !== null && imageConsent !== false;
+  const ic = consentAccepted ? (imageConsent as ImageConsentAcceptance) : null;
 
   return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 20 }}>
 
       {/* Status card */}
@@ -1204,6 +1296,48 @@ function WaiverTab({ sig }: { sig: WaiverSignature | null | false; trainerId?: s
           </div>
         )}
       </div>
+    </div>
+
+    <div className="card">
+      <div className="section-title" style={{ marginBottom: 16 }}>Consentimiento de imágenes</div>
+      {ic ? (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+            <span style={{ width: 34, height: 34, borderRadius: '50%', background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>✓</span>
+            <div>
+              <div style={{ fontWeight: 700, color: '#16a34a', fontSize: 15 }}>Aceptado</div>
+              <div style={{ fontSize: 12.5, color: 'var(--text-tertiary)' }}>
+                {new Date(ic.accepted_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </div>
+            </div>
+          </div>
+          <dl className="data-list" style={{ marginBottom: 16 }}>
+            <Datum label="Nombre registrado" value={ic.full_name || '—'} />
+            <Datum label="Documento"         value={ic.document_title || 'Consentimiento de uso de imágenes'} />
+            <Datum label="Aceptado el"       value={new Date(ic.accepted_at).toLocaleDateString('es-AR')} />
+            <Datum label="ID de registro"    value={ic.id.slice(0, 8) + '…'} />
+          </dl>
+          {ic.document_snapshot ? (
+            <details>
+              <summary style={{ fontSize: 12.5, color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: 600 }}>Ver texto aceptado</summary>
+              <div style={{ marginTop: 10, padding: '12px 14px', background: 'var(--surface-elevated)', borderRadius: 8, fontSize: 12, lineHeight: 1.7, color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', maxHeight: 220, overflowY: 'auto', border: '1px solid var(--border)' }}>
+                {ic.document_snapshot}
+              </div>
+            </details>
+          ) : null}
+        </>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ width: 34, height: 34, borderRadius: '50%', background: '#fef9c3', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>!</span>
+          <div>
+            <div style={{ fontWeight: 700, color: '#ca8a04', fontSize: 15 }}>Pendiente</div>
+            <div style={{ fontSize: 12.5, color: 'var(--text-tertiary)' }}>
+              El alumno todavía no aceptó el consentimiento de imágenes
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
     </div>
   );
 }

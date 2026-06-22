@@ -307,7 +307,7 @@ export function ProgressDashboardScreen({ navigation }: Props): React.JSX.Elemen
             <ProgressToolsMenu
               onMeasurements={goMeasurements}
               onPhotos={() => navigation.navigate('ProgressPhotos')}
-              onHydration={() => navigation.navigate('HydrationDetail')}
+              onHydration={() => navigation.navigate('Hydration')}
               onWeightDetail={() => navigation.navigate('WeightDetail')}
               showWeightDetail={hasWeight}
             />

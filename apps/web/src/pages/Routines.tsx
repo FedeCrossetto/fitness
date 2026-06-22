@@ -60,7 +60,7 @@ export function RoutinesPage(): React.JSX.Element {
         const { data: dayRows, error: daysError } = await supabase
           .from('training_days')
           .select(
-            '*, workout:workouts(*, exercises:workout_exercises(*, exercise:exercises(id, name, image_url, target_muscles)))'
+            '*, workout:workouts(*, exercises:workout_exercises(sort_order, *, exercise:exercises(id, name, image_url, target_muscles)))'
           )
           .in('phase_id', phaseIds)
           .order('day_number');
@@ -161,9 +161,30 @@ export function RoutinesPage(): React.JSX.Element {
 
   const saveWorkoutExercise = async (
     id: string,
-    patch: Partial<Pick<WorkoutExerciseRow, 'sets' | 'reps' | 'rest_seconds'>>
+    patch: Partial<Pick<WorkoutExerciseRow, 'sets' | 'reps' | 'rest_seconds' | 'weight_kg'>>
   ) => {
     await supabase.from('workout_exercises').update(patch).eq('id', id);
+  };
+
+  const reorderWorkoutExercises = async (orderedIds: string[]) => {
+    await Promise.all(
+      orderedIds.map((id, sort_order) =>
+        supabase.from('workout_exercises').update({ sort_order }).eq('id', id)
+      )
+    );
+    await load();
+  };
+
+  const reorderTrainingDays = async (orderedIds: string[]) => {
+    await Promise.all(
+      orderedIds.map((id, index) =>
+        supabase
+          .from('training_days')
+          .update({ sort_order: index, day_number: index + 1 })
+          .eq('id', id)
+      )
+    );
+    await load();
   };
 
   const removeWorkoutExercise = async (id: string) => {
@@ -209,6 +230,8 @@ export function RoutinesPage(): React.JSX.Element {
             onOpenPicker={setPickerDay}
             onSaveExercise={saveWorkoutExercise}
             onRemoveExercise={removeWorkoutExercise}
+            onReorderExercises={reorderWorkoutExercises}
+            onReorderDays={reorderTrainingDays}
           />
         ))
       )}
@@ -236,6 +259,8 @@ function PhaseEditor({
   onOpenPicker,
   onSaveExercise,
   onRemoveExercise,
+  onReorderExercises,
+  onReorderDays,
 }: {
   phase: PhaseWithDays;
   onRename: (id: string, name: string) => Promise<void>;
@@ -246,13 +271,16 @@ function PhaseEditor({
   onOpenPicker: (day: DayWithWorkout) => void;
   onSaveExercise: (
     id: string,
-    patch: Partial<Pick<WorkoutExerciseRow, 'sets' | 'reps' | 'rest_seconds'>>
+    patch: Partial<Pick<WorkoutExerciseRow, 'sets' | 'reps' | 'rest_seconds' | 'weight_kg'>>
   ) => Promise<void>;
   onRemoveExercise: (id: string) => Promise<void>;
+  onReorderExercises: (orderedIds: string[]) => Promise<void>;
+  onReorderDays: (orderedIds: string[]) => Promise<void>;
 }): React.JSX.Element {
   const [name, setName] = useState(phase.name);
 
   const [openDay, setOpenDay] = useState<string | null>(null);
+  const sortedDays = [...phase.days].sort((a, b) => a.day_number - b.day_number);
 
   return (
     <section className="card phase-card" style={{ padding: 0 }}>
@@ -281,31 +309,18 @@ function PhaseEditor({
           Esta etapa no tiene días. Agregá el primero con “+ Día”.
         </p>
       ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Día</th>
-              <th>Tipo</th>
-              <th>Ejercicios</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {phase.days.map((day) => (
-              <DayRow
-                key={day.id}
-                day={day}
-                expanded={openDay === day.id}
-                onToggle={() => setOpenDay((cur) => (cur === day.id ? null : day.id))}
-                onSaveDay={onSaveDay}
-                onDeleteDay={onDeleteDay}
-                onOpenPicker={onOpenPicker}
-                onSaveExercise={onSaveExercise}
-                onRemoveExercise={onRemoveExercise}
-              />
-            ))}
-          </tbody>
-        </table>
+        <DayListEditor
+          days={sortedDays}
+          openDay={openDay}
+          onToggleDay={(id) => setOpenDay((cur) => (cur === id ? null : id))}
+          onSaveDay={onSaveDay}
+          onDeleteDay={onDeleteDay}
+          onOpenPicker={onOpenPicker}
+          onSaveExercise={onSaveExercise}
+          onRemoveExercise={onRemoveExercise}
+          onReorderExercises={onReorderExercises}
+          onReorderDays={onReorderDays}
+        />
       )}
     </section>
   );
@@ -319,27 +334,140 @@ const TYPE_BADGE: Record<WorkoutType, string> = {
   descanso: 'gray',
 };
 
-function DayRow({
-  day,
-  expanded,
-  onToggle,
+function DayListEditor({
+  days,
+  openDay,
+  onToggleDay,
   onSaveDay,
   onDeleteDay,
   onOpenPicker,
   onSaveExercise,
   onRemoveExercise,
+  onReorderExercises,
+  onReorderDays,
 }: {
-  day: DayWithWorkout;
-  expanded: boolean;
-  onToggle: () => void;
+  days: DayWithWorkout[];
+  openDay: string | null;
+  onToggleDay: (id: string) => void;
   onSaveDay: (id: string, patch: Partial<Pick<TrainingDayRow, 'title' | 'day_type'>>) => Promise<void>;
   onDeleteDay: (day: DayWithWorkout) => Promise<void>;
   onOpenPicker: (day: DayWithWorkout) => void;
   onSaveExercise: (
     id: string,
-    patch: Partial<Pick<WorkoutExerciseRow, 'sets' | 'reps' | 'rest_seconds'>>
+    patch: Partial<Pick<WorkoutExerciseRow, 'sets' | 'reps' | 'rest_seconds' | 'weight_kg'>>
   ) => Promise<void>;
   onRemoveExercise: (id: string) => Promise<void>;
+  onReorderExercises: (orderedIds: string[]) => Promise<void>;
+  onReorderDays: (orderedIds: string[]) => Promise<void>;
+}): React.JSX.Element {
+  const [items, setItems] = useState(days);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [savingOrder, setSavingOrder] = useState(false);
+
+  useEffect(() => {
+    setItems(days);
+  }, [days]);
+
+  const moveDay = async (from: number, to: number) => {
+    if (from === to || to < 0 || to >= items.length) return;
+    const next = [...items];
+    const [removed] = next.splice(from, 1);
+    next.splice(to, 0, removed);
+    setItems(next);
+    setSavingOrder(true);
+    try {
+      await onReorderDays(next.map((day) => day.id));
+    } finally {
+      setSavingOrder(false);
+    }
+  };
+
+  return (
+    <table className={savingOrder ? 'day-table saving' : 'day-table'}>
+      <thead>
+        <tr>
+          <th className="day-col-order" />
+          <th>Día</th>
+          <th>Tipo</th>
+          <th>Ejercicios</th>
+          <th />
+        </tr>
+      </thead>
+      <tbody>
+        {items.map((day, index) => (
+          <DayRow
+            key={day.id}
+            day={day}
+            dayIndex={index}
+            dayCount={items.length}
+            expanded={openDay === day.id}
+            dragging={dragId === day.id}
+            reorderDisabled={savingOrder}
+            onToggle={() => onToggleDay(day.id)}
+            onMoveUp={() => void moveDay(index, index - 1)}
+            onMoveDown={() => void moveDay(index, index + 1)}
+            onDragStart={() => setDragId(day.id)}
+            onDragEnd={() => setDragId(null)}
+            onDropOn={() => {
+              if (!dragId || dragId === day.id) return;
+              const from = items.findIndex((item) => item.id === dragId);
+              void moveDay(from, index);
+              setDragId(null);
+            }}
+            onSaveDay={onSaveDay}
+            onDeleteDay={onDeleteDay}
+            onOpenPicker={onOpenPicker}
+            onSaveExercise={onSaveExercise}
+            onRemoveExercise={onRemoveExercise}
+            onReorderExercises={onReorderExercises}
+          />
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function DayRow({
+  day,
+  dayIndex,
+  dayCount,
+  expanded,
+  dragging,
+  reorderDisabled,
+  onToggle,
+  onMoveUp,
+  onMoveDown,
+  onDragStart,
+  onDragEnd,
+  onDropOn,
+  onSaveDay,
+  onDeleteDay,
+  onOpenPicker,
+  onSaveExercise,
+  onRemoveExercise,
+  onReorderExercises,
+}: {
+  day: DayWithWorkout;
+  dayIndex: number;
+  dayCount: number;
+  expanded: boolean;
+  dragging: boolean;
+  reorderDisabled: boolean;
+  onToggle: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  onDragStart: () => void;
+  onDragEnd: () => void;
+  onDropOn: () => void;
+  onSaveDay: (id: string, patch: Partial<Pick<TrainingDayRow, 'title' | 'day_type'>>) => Promise<void>;
+  onDeleteDay: (day: DayWithWorkout) => Promise<void>;
+  onOpenPicker: (day: DayWithWorkout) => void;
+  onSaveExercise: (
+    id: string,
+    patch: Partial<Pick<WorkoutExerciseRow, 'sets' | 'reps' | 'rest_seconds' | 'weight_kg'>>
+  ) => Promise<void>;
+  onRemoveExercise: (id: string) => Promise<void>;
+  onReorderExercises: (orderedIds: string[]) => Promise<void>;
 }): React.JSX.Element {
   const [title, setTitle] = useState(day.title);
   const exercises = [...(day.workout?.exercises ?? [])].sort((a, b) => a.sort_order - b.sort_order);
@@ -350,7 +478,20 @@ function DayRow({
 
   return (
     <>
-      <tr className="row-clickable" onClick={onToggle}>
+      <tr
+        className={`row-clickable${dragging ? ' dragging' : ''}`}
+        draggable={!reorderDisabled}
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={onDropOn}
+        onClick={onToggle}
+      >
+        <td className="day-col-order" onClick={stop}>
+          <button type="button" className="ex-drag" title="Arrastrar día" aria-label="Arrastrar día">
+            ⠿
+          </button>
+        </td>
         <td>
           <div className="cell-user">
             <span className="day-pill">Día {day.day_number}</span>
@@ -368,16 +509,36 @@ function DayRow({
         </td>
         <td className="muted">{isRest ? '—' : `${exercises.length} ejercicio${exercises.length === 1 ? '' : 's'}`}</td>
         <td style={{ textAlign: 'right' }} onClick={stop}>
-          <button className="icon-btn" title="Eliminar día" onClick={() => void onDeleteDay(day)}>
-            ✕
-          </button>
+          <div className="ex-move">
+            <button
+              type="button"
+              className="icon-btn sm"
+              title="Subir día"
+              disabled={dayIndex === 0 || reorderDisabled}
+              onClick={onMoveUp}
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              className="icon-btn sm"
+              title="Bajar día"
+              disabled={dayIndex >= dayCount - 1 || reorderDisabled}
+              onClick={onMoveDown}
+            >
+              ↓
+            </button>
+            <button className="icon-btn sm" title="Eliminar día" onClick={() => void onDeleteDay(day)}>
+              ✕
+            </button>
+          </div>
         </td>
       </tr>
       {expanded ? (
         <tr className="expand-row">
-          <td colSpan={4}>
+          <td colSpan={5}>
             <div className="day-edit">
-              <div className="field" style={{ marginBottom: 14 }}>
+              <div className="field day-type-field">
                 <label>Tipo de día</label>
                 <select
                   className="inline-select"
@@ -395,49 +556,13 @@ function DayRow({
                 <p className="muted" style={{ margin: 0 }}>Día de descanso — sin ejercicios.</p>
               ) : (
                 <>
-                  <ul className="ex-list">
-                    {exercises.map((we) => (
-                      <li key={we.id} className="ex-row">
-                        <div
-                          className="ex-thumb"
-                          style={we.exercise?.image_url ? { backgroundImage: `url(${we.exercise.image_url})` } : undefined}
-                        />
-                        <div className="ex-info">
-                          <span className="ex-name">{we.exercise?.name ?? 'Ejercicio'}</span>
-                          <div className="ex-fields">
-                            <input
-                              className="inline-input mini"
-                              type="number"
-                              min={1}
-                              defaultValue={we.sets}
-                              onBlur={(e) => void onSaveExercise(we.id, { sets: Number(e.target.value) })}
-                            />
-                            <span className="ex-x">×</span>
-                            <input
-                              className="inline-input mini wide"
-                              defaultValue={we.reps}
-                              onBlur={(e) => void onSaveExercise(we.id, { reps: e.target.value })}
-                            />
-                            <input
-                              className="inline-input mini"
-                              type="number"
-                              min={0}
-                              placeholder="seg"
-                              defaultValue={we.rest_seconds ?? ''}
-                              onBlur={(e) =>
-                                void onSaveExercise(we.id, {
-                                  rest_seconds: e.target.value === '' ? null : Number(e.target.value),
-                                })
-                              }
-                            />
-                          </div>
-                        </div>
-                        <button className="icon-btn" title="Quitar" onClick={() => void onRemoveExercise(we.id)}>
-                          ✕
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+                  <p className="muted ex-list-hint">Arrastrá o usá las flechas para reordenar. Los cambios en series y reps se guardan al salir del campo.</p>
+                  <ExerciseListEditor
+                    exercises={exercises}
+                    onSave={onSaveExercise}
+                    onRemove={onRemoveExercise}
+                    onReorder={onReorderExercises}
+                  />
                   <button className="add-ex" onClick={() => onOpenPicker(day)}>
                     + Agregar ejercicio
                   </button>
@@ -448,6 +573,139 @@ function DayRow({
         </tr>
       ) : null}
     </>
+  );
+}
+
+function ExerciseListEditor({
+  exercises,
+  onSave,
+  onRemove,
+  onReorder,
+}: {
+  exercises: WorkoutExerciseWithExercise[];
+  onSave: (
+    id: string,
+    patch: Partial<Pick<WorkoutExerciseRow, 'sets' | 'reps' | 'rest_seconds' | 'weight_kg'>>
+  ) => Promise<void>;
+  onRemove: (id: string) => Promise<void>;
+  onReorder: (orderedIds: string[]) => Promise<void>;
+}): React.JSX.Element {
+  const [items, setItems] = useState(exercises);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [savingOrder, setSavingOrder] = useState(false);
+
+  useEffect(() => {
+    setItems(exercises);
+  }, [exercises]);
+
+  const move = async (from: number, to: number) => {
+    if (from === to || to < 0 || to >= items.length) return;
+    const next = [...items];
+    const [removed] = next.splice(from, 1);
+    next.splice(to, 0, removed);
+    setItems(next);
+    setSavingOrder(true);
+    try {
+      await onReorder(next.map((item) => item.id));
+    } finally {
+      setSavingOrder(false);
+    }
+  };
+
+  return (
+    <ul className={`ex-list${savingOrder ? ' saving' : ''}`}>
+      {items.map((we, index) => (
+        <li
+          key={we.id}
+          className={`ex-row${dragId === we.id ? ' dragging' : ''}`}
+          draggable
+          onDragStart={() => setDragId(we.id)}
+          onDragEnd={() => setDragId(null)}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={() => {
+            if (!dragId || dragId === we.id) return;
+            const from = items.findIndex((item) => item.id === dragId);
+            void move(from, index);
+            setDragId(null);
+          }}
+        >
+          <button type="button" className="ex-drag" title="Arrastrar" aria-label="Arrastrar">
+            ⠿
+          </button>
+          <div className="ex-thumb ex-thumb-icon" aria-hidden>
+            <DumbbellIcon size={14} />
+          </div>
+          <span className="ex-name">{we.exercise?.name ?? 'Ejercicio'}</span>
+          <div className="ex-fields">
+            <input
+              className="inline-input mini"
+              type="number"
+              min={1}
+              title="Series"
+              defaultValue={we.sets}
+              onBlur={(e) => void onSave(we.id, { sets: Number(e.target.value) })}
+            />
+            <span className="ex-x">×</span>
+            <input
+              className="inline-input mini wide"
+              title="Repeticiones"
+              defaultValue={we.reps}
+              onBlur={(e) => void onSave(we.id, { reps: e.target.value })}
+            />
+            <input
+              className="inline-input mini"
+              type="number"
+              min={0}
+              step="0.5"
+              title="Peso (kg)"
+              placeholder="kg"
+              defaultValue={we.weight_kg ?? ''}
+              onBlur={(e) =>
+                void onSave(we.id, {
+                  weight_kg: e.target.value === '' ? null : Number(e.target.value),
+                })
+              }
+            />
+            <input
+              className="inline-input mini"
+              type="number"
+              min={0}
+              title="Descanso (seg)"
+              placeholder="seg"
+              defaultValue={we.rest_seconds ?? ''}
+              onBlur={(e) =>
+                void onSave(we.id, {
+                  rest_seconds: e.target.value === '' ? null : Number(e.target.value),
+                })
+              }
+            />
+          </div>
+          <div className="ex-move">
+            <button
+              type="button"
+              className="icon-btn sm"
+              title="Subir"
+              disabled={index === 0 || savingOrder}
+              onClick={() => void move(index, index - 1)}
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              className="icon-btn sm"
+              title="Bajar"
+              disabled={index === items.length - 1 || savingOrder}
+              onClick={() => void move(index, index + 1)}
+            >
+              ↓
+            </button>
+            <button type="button" className="icon-btn sm" title="Quitar" onClick={() => void onRemove(we.id)}>
+              ✕
+            </button>
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -511,10 +769,9 @@ function ExercisePicker({
           ) : (
             results.map((ex) => (
               <button key={ex.id} className="picker-row" onClick={() => void onPick(ex)}>
-                <div
-                  className="ex-thumb"
-                  style={ex.image_url ? { backgroundImage: `url(${ex.image_url})` } : undefined}
-                />
+                <div className="ex-thumb ex-thumb-icon" aria-hidden>
+                  <DumbbellIcon size={14} />
+                </div>
                 <div className="ex-info">
                   <span className="ex-name">{ex.name}</span>
                   {ex.target_muscles?.length ? (

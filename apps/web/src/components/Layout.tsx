@@ -9,7 +9,7 @@ import { ConfirmDialog } from '@/components/ui';
 import { LANGUAGES } from '@reset-fitness/shared';
 import {
   GridIcon, BrushIcon, UsersIcon, LogOutIcon,
-  MessageIcon, CalendarIcon, GroupsIcon, CreditCardIcon,
+  MessageIcon, GroupsIcon, CreditCardIcon,
   DumbbellIcon, NutritionIcon, SettingsIcon, ChevronDownIcon, ChevronRightIcon,
   MegaphoneIcon,
 } from '@/components/icons';
@@ -95,8 +95,7 @@ export function Layout(): React.JSX.Element {
         { to: '/routines',      label: t.web.program,        icon: () => <DumbbellIcon /> },
         { to: '/foods',         label: t.web.foods,          icon: () => <NutritionIcon />, badge: pendingFoodCount || undefined },
         { to: '/branding',      label: t.web.branding,       icon: () => <BrushIcon />   },
-        { to: '/scheduling',    label: t.web.scheduling,     icon: () => <CalendarIcon />, mock: true },
-        { to: '/announcements', label: t.web.announcements,  icon: () => <MegaphoneIcon />},
+        { to: '/announcements', label: t.web.announcements,  icon: () => <MegaphoneIcon /> },
       ],
     },
     {

@@ -14,6 +14,7 @@ interface TriggerDef {
   description: string;
   defaultMessage: string;
   group: string;
+  implemented?: boolean;
 }
 
 interface Config {
@@ -35,7 +36,7 @@ const TRIGGERS: TriggerDef[] = [
   { group: 'Onboarding', key: 'day_30',            schedule: '9am — Día 30', description: '30 días después del registro',  defaultMessage: '¡Un mes juntos! 🏆 Este es un gran hito. Revisemos tus resultados y planifiquemos el siguiente mes.' },
 
   // Hitos
-  { group: 'Hitos', key: 'first_workout',    schedule: 'instant', description: 'Primer entreno completado',           defaultMessage: '¡Excelente! Completaste tu primer entreno 🔥 ¿Cómo te sentiste? Ese primer paso es el más importante.' },
+  { group: 'Hitos', key: 'first_workout',    schedule: 'instant', description: 'Primer entreno completado',           defaultMessage: '¡Excelente! Completaste tu primer entreno 🔥 ¿Cómo te sentiste? Ese primer paso es el más importante.', implemented: true },
   { group: 'Hitos', key: 'first_meal',       schedule: 'instant', description: 'Primera comida registrada',           defaultMessage: 'Muy bien, registraste tu primera comida 🥗 Seguir registrando tu alimentación es clave para avanzar.' },
   { group: 'Hitos', key: 'first_photo',      schedule: 'instant', description: 'Primera foto de progreso subida',     defaultMessage: '¡Foto de progreso guardada! 📸 Las fotos son la mejor forma de ver tu evolución real. Seguí tomándolas semana a semana.' },
   { group: 'Hitos', key: 'weight_goal',      schedule: 'instant', description: 'Meta de peso alcanzada',              defaultMessage: '¡INCREÍBLE! Llegaste a tu meta de peso 🎯 Todo el trabajo valió la pena. ¿Establecemos un nuevo objetivo?' },
@@ -199,10 +200,11 @@ export function AutoMessagesPage(): React.JSX.Element {
                   const cfg = configs.get(def.key);
                   const isSaving = saving.has(def.key);
                   const isLast = idx === groupTriggers.length - 1;
+                  const isImplemented = def.implemented === true;
                   return (
                     <div
                       key={def.key}
-                      className={`auto-msg-row${!isLast ? ' bordered' : ''}`}
+                      className={`auto-msg-row${!isLast ? ' bordered' : ''}${!isImplemented ? ' auto-msg-row--pending' : ''}`}
                     >
                       {/* Schedule badge */}
                       <div className="auto-msg-col-schedule">
@@ -211,7 +213,10 @@ export function AutoMessagesPage(): React.JSX.Element {
 
                       {/* Description + message preview */}
                       <div className="auto-msg-col-desc">
-                        <span className="auto-msg-trigger-label">{def.description}</span>
+                        <span className="auto-msg-trigger-label">
+                          {def.description}
+                          {!isImplemented ? <span className="auto-msg-soon">Próximamente</span> : null}
+                        </span>
                         <span className="auto-msg-preview">
                           {cfg?.message ?? def.defaultMessage}
                         </span>
@@ -222,15 +227,16 @@ export function AutoMessagesPage(): React.JSX.Element {
                         <button
                           className="btn secondary auto-msg-customize"
                           onClick={() => openEdit(def.key)}
+                          disabled={!isImplemented}
                         >
                           Personalizar
                         </button>
                         <label className={`toggle-switch${isSaving ? ' saving' : ''}`} aria-label="Habilitar mensaje">
                           <input
                             type="checkbox"
-                            checked={cfg?.enabled ?? true}
+                            checked={isImplemented ? (cfg?.enabled ?? true) : false}
                             onChange={() => toggleEnabled(def.key)}
-                            disabled={isSaving}
+                            disabled={isSaving || !isImplemented}
                           />
                           <span className="toggle-track">
                             <span className="toggle-thumb" />
@@ -249,11 +255,11 @@ export function AutoMessagesPage(): React.JSX.Element {
       {/* ── Edit modal ───────────────────────────────────────────────────── */}
       {editKey && (
         <div className="modal-overlay" onClick={() => setEditKey(null)}>
-          <div className="modal-box auto-msg-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
+          <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-dialog-header">
               <div>
-                <div className="modal-title">Personalizar mensaje</div>
-                <div className="modal-sub">{editingDef?.description}</div>
+                <div className="modal-dialog-title">Personalizar mensaje</div>
+                <div className="modal-dialog-sub">{editingDef?.description}</div>
               </div>
               <button className="icon-action" onClick={() => setEditKey(null)} aria-label="Cerrar">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -262,28 +268,29 @@ export function AutoMessagesPage(): React.JSX.Element {
               </button>
             </div>
 
-            <div className="modal-section-label">
+            <div className="modal-dialog-section">
               <ScheduleBadge schedule={configs.get(editKey)?.schedule ?? editingDef?.schedule ?? 'instant'} />
             </div>
 
-            <div className="modal-field">
+            <div className="modal-dialog-field">
               <label className="field-label">Mensaje</label>
               <textarea
-                className="auto-msg-textarea"
+                className="field-textarea"
                 value={editText}
                 onChange={(e) => setEditText(e.target.value)}
                 placeholder="Escribí el mensaje automático…"
                 rows={5}
                 maxLength={500}
+                style={{ minHeight: 120 }}
               />
               <div className="field-hint">{editText.length}/500 caracteres</div>
             </div>
 
-            <div className="modal-hint">
+            <div className="modal-dialog-hint">
               <strong>Variables disponibles:</strong> {'{{nombre}}'} — nombre del alumno &nbsp;·&nbsp; {'{{fecha}}'} — fecha del evento
             </div>
 
-            <div className="modal-footer">
+            <div className="modal-dialog-footer">
               <button className="btn secondary" onClick={() => setEditKey(null)}>Cancelar</button>
               <button className="btn primary" onClick={() => void saveEdit()}>Guardar mensaje</button>
             </div>
@@ -324,7 +331,13 @@ export function AutoMessagesPage(): React.JSX.Element {
         .auto-msg-col-desc { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
         .auto-msg-col-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 
-        .auto-msg-trigger-label { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+        .auto-msg-trigger-label { font-size: 13px; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .auto-msg-soon {
+          font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+          color: var(--text-tertiary); background: var(--surface-elevated); border: 1px solid var(--border);
+          border-radius: 999px; padding: 2px 7px;
+        }
+        .auto-msg-row--pending { opacity: 0.72; }
         .auto-msg-preview {
           font-size: 11.5px; color: var(--text-tertiary);
           white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 460px;
@@ -372,43 +385,6 @@ export function AutoMessagesPage(): React.JSX.Element {
           background: #fff;
         }
         .toggle-switch.saving { opacity: .4; pointer-events: none; }
-
-        /* Modal */
-        .modal-overlay {
-          position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 200;
-          display: flex; align-items: center; justify-content: center; padding: 24px;
-        }
-        .auto-msg-modal {
-          background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
-          width: 100%; max-width: 500px; display: flex; flex-direction: column;
-          box-shadow: 0 16px 48px rgba(0,0,0,.18);
-        }
-        .modal-header {
-          display: flex; align-items: flex-start; justify-content: space-between;
-          padding: 18px 22px 14px; border-bottom: 1px solid var(--border);
-        }
-        .modal-title { font-size: 15px; font-weight: 700; color: var(--text-primary); }
-        .modal-sub { font-size: 12.5px; color: var(--text-tertiary); margin-top: 2px; }
-        .modal-section-label { padding: 14px 22px 4px; }
-        .modal-field { padding: 10px 22px; display: flex; flex-direction: column; gap: 6px; }
-        .field-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--text-tertiary); }
-        .auto-msg-textarea {
-          width: 100%; border: 1px solid var(--border); border-radius: 6px;
-          background: var(--surface-elevated); color: var(--text-primary);
-          padding: 9px 11px; font-size: 13.5px; line-height: 1.6; resize: vertical;
-          font-family: inherit; box-sizing: border-box; transition: border-color 150ms;
-        }
-        .auto-msg-textarea:focus { outline: none; border-color: var(--primary); }
-        .field-hint { font-size: 11px; color: var(--text-tertiary); text-align: right; }
-        .modal-hint {
-          margin: 0 22px 2px; padding: 9px 12px;
-          background: var(--surface-elevated); border-radius: 6px;
-          font-size: 11.5px; color: var(--text-secondary); border: 1px solid var(--border);
-        }
-        .modal-footer {
-          display: flex; justify-content: flex-end; gap: 8px;
-          padding: 14px 22px 18px; border-top: 1px solid var(--border); margin-top: 14px;
-        }
       `}</style>
     </div>
   );

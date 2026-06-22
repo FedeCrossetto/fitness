@@ -5,6 +5,11 @@ import { todayISO } from '../lib/dates';
 import { clientConfig } from '../config/clientConfig';
 import type { FoodRow, FoodSubmissionRow, MealLogRow, MealType, MacroSource, ServingUnit, TrainerFoodRow } from '../types/database';
 import { useGoalsStore } from './goalsStore';
+import { useUiStore } from './uiStore';
+
+function toastError(message: string): void {
+  useUiStore.getState().showToast('error', message);
+}
 
 function syncMealsGoalIfToday(userId: string, date: string): void {
   if (date === todayISO()) {
@@ -121,6 +126,7 @@ export const useNutritionStore = create<NutritionState>((set, get) => ({
     } catch {
       if (get().date !== date) return;
       set({ loading: false, error: 'No pudimos cargar tus comidas.' });
+      toastError('No pudimos cargar tus comidas.');
     }
   },
 
@@ -156,6 +162,7 @@ export const useNutritionStore = create<NutritionState>((set, get) => ({
       return true;
     } catch {
       set({ error: 'No pudimos registrar la comida.' });
+      toastError('No pudimos registrar la comida.');
       return false;
     }
   },
@@ -204,6 +211,7 @@ export const useNutritionStore = create<NutritionState>((set, get) => ({
       set({ meals: get().meals.map((m) => (m.id === mealLogId ? updated : m)) });
       return true;
     } catch {
+      toastError('No pudimos actualizar la comida.');
       return false;
     }
   },
@@ -215,6 +223,7 @@ export const useNutritionStore = create<NutritionState>((set, get) => ({
     const { error } = await supabase.from('meal_logs').delete().eq('id', mealLogId);
     if (error) {
       set({ meals: previous });
+      toastError('No pudimos eliminar la comida.');
       return false;
     }
     if (meal) syncMealsGoalIfToday(meal.user_id, meal.date);
@@ -277,6 +286,7 @@ export const useNutritionStore = create<NutritionState>((set, get) => ({
       set({ myFoods: [data, ...existing] });
       return data;
     } catch {
+      toastError('No pudimos guardar el alimento.');
       return null;
     }
   },
@@ -293,6 +303,7 @@ export const useNutritionStore = create<NutritionState>((set, get) => ({
       set({ myFoods: get().myFoods.map((f) => (f.id === foodId ? updated : f)) });
       return updated;
     } catch {
+      toastError('No pudimos actualizar el alimento.');
       return null;
     }
   },
@@ -303,6 +314,7 @@ export const useNutritionStore = create<NutritionState>((set, get) => ({
     const { error } = await supabase.from('foods').delete().eq('id', foodId);
     if (error) {
       set({ myFoods: previous });
+      toastError('No pudimos eliminar el alimento.');
       return false;
     }
     return true;

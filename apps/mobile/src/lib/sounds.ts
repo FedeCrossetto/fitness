@@ -35,30 +35,19 @@ async function createAndPlay(opts: {
 /**
  * Sonido al registrar agua.
  *
- * - `add`: 3 gotas en cascada (volúmenes y rates ligeramente distintos) → simula
- *   agua cayendo y resonando en el vaso mientras sube el nivel.
- * - `remove`: 1 gota más grave y suave → "glu" descendente.
- *
- * Para el timbre más realista posible, reemplazá `assets/sounds/water.wav`
- * por una muestra de "water drop single" (freesound.org). El WAV actual ya
- * se aprovecha mejor con las 3 capas que con una sola reproducción.
+ * - `add`: gota corta tipo "plop" en vaso.
+ * - `remove`: la misma muestra más grave y suave.
  */
 export async function playWaterSound(variant: 'add' | 'remove' = 'add'): Promise<void> {
   try {
     await ensureAudio();
 
     if (variant === 'remove') {
-      await createAndPlay({ rate: 0.8, volume: 0.45, shouldCorrectPitch: false });
+      await createAndPlay({ rate: 0.72, volume: 0.4, shouldCorrectPitch: false });
       return;
     }
 
-    // Tres gotas en cascada: la primera más aguda (vaso vacío), las siguientes
-    // más graves y fuertes (el vaso se va llenando, la resonancia baja).
-    await createAndPlay({ rate: 1.15, volume: 0.6 });
-    await new Promise<void>((r) => setTimeout(r, 110));
-    await createAndPlay({ rate: 0.95, volume: 0.75 });
-    await new Promise<void>((r) => setTimeout(r, 130));
-    await createAndPlay({ rate: 0.8, volume: 0.9 });
+    await createAndPlay({ rate: 1, volume: 0.65, shouldCorrectPitch: false });
   } catch {
     // Sin audio en simulador o permisos denegados — no bloquear la acción.
   }

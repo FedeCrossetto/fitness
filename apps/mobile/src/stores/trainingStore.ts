@@ -1,9 +1,28 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { WorkoutSessionDetail } from '@reset-fitness/shared';
 import { supabase } from '../lib/supabase';
 import { staleWhileRevalidate } from '../lib/cache';
 import { todayISO } from '../lib/dates';
-import { clientConfig } from '../config/clientConfig';
+import { defaultClientConfig } from '../config/clientConfig';
+import { useAuthStore } from './authStore';
+import { useBrandingStore } from './brandingStore';
+import { useUiStore } from './uiStore';
+import {
+  addExerciseToSession,
+  addSetToExercise,
+  buildFinishPayload,
+  buildSessionExercises,
+  clearActiveRest,
+  liveCompletedCount,
+  liveTotalSets,
+  normalizeStoredSession,
+  startRestAfterSet,
+  toggleSessionRestEnabled,
+  type ActiveSession,
+  updateExerciseNotes,
+  updateSetInSession,
+} from '../lib/trainingSession';
 import {
   startLiveWorkout,
   updateLiveWorkout,
@@ -19,6 +38,8 @@ import type {
   WorkoutLogRow,
   WorkoutRow,
 } from '../types/database';
+
+export type { ActiveSession };
 
 export interface WorkoutWithCover extends WorkoutRow {
   cover_image_url: string | null;
@@ -38,30 +59,41 @@ export interface WorkoutWithExercises extends WorkoutRow {
   exercises: (WorkoutExerciseRow & { exercise: ExerciseRow })[];
 }
 
-export interface ActiveSession {
-  workoutId: string;
-  workoutTitle: string;
-  /** epoch ms de inicio: el timer sobrevive a cierres de app */
-  startedAt: number;
-  completedExerciseIds: string[];
-  notes: string;
-  rpe: number | null;
-  heartRate: number | null;
-  calories: number | null;
-}
-
 const ACTIVE_SESSION_KEY = 'reset-fitness:activeSession';
 
-function liveStateFrom(
-  session: ActiveSession,
-  detail: WorkoutWithExercises | null
-): LiveWorkoutState {
+function resolveProgramKey(): string {
+  const assigned = useAuthStore.getState().profile?.assigned_program_key;
+  if (assigned) return assigned;
+  return useBrandingStore.getState().branding?.default_program_key ?? defaultClientConfig.programKey;
+}
+
+function liveStateFrom(session: ActiveSession): LiveWorkoutState {
   return {
     workoutTitle: session.workoutTitle,
     startedAt: session.startedAt,
-    completed: session.completedExerciseIds.length,
-    total: detail?.id === session.workoutId ? detail.exercises.length : 0,
+    completed: liveCompletedCount(session),
+    total: liveTotalSets(session),
   };
+}
+
+async function persistSession(session: ActiveSession | null): Promise<void> {
+  if (!session) {
+    await AsyncStorage.removeItem(ACTIVE_SESSION_KEY);
+    return;
+  }
+  await AsyncStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(session));
+}
+
+async function fetchPreviousLogs(userId: string): Promise<{ session_detail: WorkoutSessionDetail | null }[]> {
+  const { data } = await supabase
+    .from('workout_logs')
+    .select('session_detail')
+    .eq('user_id', userId)
+    .eq('workout_type', 'fuerza')
+    .not('session_detail', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(12);
+  return (data ?? []) as { session_detail: WorkoutSessionDetail | null }[];
 }
 
 interface TrainingState {
@@ -82,14 +114,24 @@ interface TrainingState {
   loadProgram: () => Promise<void>;
   loadWorkoutDetail: (workoutId: string) => Promise<void>;
   restoreActiveSession: () => Promise<void>;
-  startSession: (workoutId: string, workoutTitle: string) => Promise<void>;
-  toggleExerciseDone: (exerciseRowId: string) => void;
+  startSession: (userId: string, workoutId: string, workoutTitle: string) => Promise<void>;
+  updateSet: (
+    workoutExerciseId: string,
+    setId: string,
+    patch: Partial<{ weightKg: number | null; reps: number | null; completed: boolean }>,
+  ) => void;
+  addSet: (workoutExerciseId: string) => void;
+  setExerciseNotes: (workoutExerciseId: string, notes: string) => void;
+  toggleRestEnabled: () => void;
+  skipRest: () => void;
+  searchExercises: (query: string) => Promise<Pick<ExerciseRow, 'id' | 'name' | 'image_url' | 'target_muscles'>[]>;
+  addExerciseToSession: (userId: string, exercise: Pick<ExerciseRow, 'id' | 'name' | 'image_url'>) => Promise<void>;
   updateSessionMeta: (data: Partial<Pick<ActiveSession, 'notes' | 'rpe' | 'heartRate' | 'calories'>>) => void;
   finishSession: (userId: string) => Promise<WorkoutLogRow | null>;
   discardSession: () => Promise<void>;
   logCardio: (
     userId: string,
-    data: { activity: string; distance: number; distanceUnit: string; durationSeconds: number }
+    data: { activity: string; distance: number; distanceUnit: string; durationSeconds: number },
   ) => Promise<boolean>;
   loadRecentLogs: (userId: string) => Promise<void>;
   loadLogById: (logId: string) => Promise<WorkoutLogRow | null>;
@@ -108,15 +150,16 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
   logsLoading: false,
 
   loadProgram: async () => {
+    const programKey = resolveProgramKey();
     set({ phasesLoading: true, phasesError: null });
     try {
       await staleWhileRevalidate<PhaseWithDays[]>(
-        `training:program:${clientConfig.programKey}`,
+        `training:program:${programKey}`,
         async () => {
           const { data: phases, error } = await supabase
             .from('training_phases')
             .select('*')
-            .eq('program_key', clientConfig.programKey)
+            .eq('program_key', programKey)
             .eq('is_active', true)
             .order('sort_order');
           if (error) throw error;
@@ -127,7 +170,7 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
           const { data: days, error: daysError } = await supabase
             .from('training_days')
             .select(
-              '*, workout:workouts(*, exercises:workout_exercises(sort_order, exercise:exercises(image_url)))'
+              '*, workout:workouts(*, exercises:workout_exercises(sort_order, exercise:exercises(image_url)))',
             )
             .in('phase_id', phaseIds)
             .order('day_number');
@@ -156,10 +199,11 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
             days: mappedDays.filter((d) => d.phase_id === phase.id),
           }));
         },
-        (data) => set({ phases: data, phasesLoading: false })
+        (data) => set({ phases: data, phasesLoading: false }),
       );
     } catch {
       set({ phasesLoading: false, phasesError: 'No pudimos cargar tu programa.' });
+      useUiStore.getState().showToast('error', 'No pudimos cargar tu programa.');
     }
   },
 
@@ -184,7 +228,7 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
       set({ workoutDetail: detail, detailLoading: false });
       const active = get().activeSession;
       if (active?.workoutId === detail.id) {
-        void updateLiveWorkout(liveStateFrom(active, detail));
+        void updateLiveWorkout(liveStateFrom(active));
       }
     } catch {
       set({ detailLoading: false, detailError: 'No pudimos cargar la rutina.' });
@@ -194,45 +238,116 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
   restoreActiveSession: async () => {
     try {
       const raw = await AsyncStorage.getItem(ACTIVE_SESSION_KEY);
-      if (raw) {
-        const session = JSON.parse(raw) as ActiveSession;
-        set({ activeSession: session });
-        void startLiveWorkout(liveStateFrom(session, get().workoutDetail));
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as unknown;
+      const session = normalizeStoredSession(parsed, get().workoutDetail);
+      if (!session) {
+        await AsyncStorage.removeItem(ACTIVE_SESSION_KEY);
+        return;
       }
+      set({ activeSession: session });
+      void startLiveWorkout(liveStateFrom(session));
     } catch {
       // sesión no restaurable
     }
   },
 
-  startSession: async (workoutId, workoutTitle) => {
+  startSession: async (userId, workoutId, workoutTitle) => {
+    let detail = get().workoutDetail;
+    if (!detail || detail.id !== workoutId) {
+      await get().loadWorkoutDetail(workoutId);
+      detail = get().workoutDetail;
+    }
+    if (!detail) return;
+
+    const previousLogs = await fetchPreviousLogs(userId);
+    const exercises = await buildSessionExercises(detail, previousLogs);
     const session: ActiveSession = {
       workoutId,
       workoutTitle,
       startedAt: Date.now(),
-      completedExerciseIds: [],
+      exercises,
       notes: '',
       rpe: null,
       heartRate: null,
       calories: null,
+      restEnabled: true,
+      activeRest: null,
     };
     set({ activeSession: session });
-    await AsyncStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(session));
-    void startLiveWorkout(liveStateFrom(session, get().workoutDetail));
+    await persistSession(session);
+    void startLiveWorkout(liveStateFrom(session));
   },
 
-  toggleExerciseDone: (exerciseRowId) => {
+  updateSet: (workoutExerciseId, setId, patch) => {
     const session = get().activeSession;
     if (!session) return;
-    const done = session.completedExerciseIds.includes(exerciseRowId);
-    const updated: ActiveSession = {
-      ...session,
-      completedExerciseIds: done
-        ? session.completedExerciseIds.filter((id) => id !== exerciseRowId)
-        : [...session.completedExerciseIds, exerciseRowId],
-    };
+    let updated = updateSetInSession(session, workoutExerciseId, setId, patch);
+    if (patch.completed === true) {
+      updated = startRestAfterSet(updated, workoutExerciseId);
+    } else if (patch.completed === false && updated.activeRest?.workoutExerciseId === workoutExerciseId) {
+      updated = clearActiveRest(updated);
+    }
     set({ activeSession: updated });
-    void AsyncStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(updated));
-    void updateLiveWorkout(liveStateFrom(updated, get().workoutDetail));
+    void persistSession(updated);
+    void updateLiveWorkout(liveStateFrom(updated));
+  },
+
+  addSet: (workoutExerciseId) => {
+    const session = get().activeSession;
+    if (!session) return;
+    const updated = addSetToExercise(session, workoutExerciseId);
+    set({ activeSession: updated });
+    void persistSession(updated);
+    void updateLiveWorkout(liveStateFrom(updated));
+  },
+
+  setExerciseNotes: (workoutExerciseId, notes) => {
+    const session = get().activeSession;
+    if (!session) return;
+    const updated = updateExerciseNotes(session, workoutExerciseId, notes);
+    set({ activeSession: updated });
+    void persistSession(updated);
+  },
+
+  toggleRestEnabled: () => {
+    const session = get().activeSession;
+    if (!session) return;
+    const updated = toggleSessionRestEnabled(session);
+    set({ activeSession: updated });
+    void persistSession(updated);
+  },
+
+  skipRest: () => {
+    const session = get().activeSession;
+    if (!session) return;
+    const updated = clearActiveRest(session);
+    set({ activeSession: updated });
+    void persistSession(updated);
+  },
+
+  searchExercises: async (query) => {
+    let request = supabase
+      .from('exercises')
+      .select('id, name, image_url, target_muscles')
+      .order('name')
+      .limit(40);
+    if (query.trim()) {
+      request = request.ilike('name', `%${query.trim()}%`);
+    }
+    const { data } = await request;
+    return (data ?? []) as Pick<ExerciseRow, 'id' | 'name' | 'image_url' | 'target_muscles'>[];
+  },
+
+  addExerciseToSession: async (userId, exercise) => {
+    const session = get().activeSession;
+    if (!session) return;
+    if (session.exercises.some((item) => item.exerciseId === exercise.id)) return;
+    const previousLogs = await fetchPreviousLogs(userId);
+    const updated = addExerciseToSession(session, exercise, previousLogs);
+    set({ activeSession: updated });
+    await persistSession(updated);
+    void updateLiveWorkout(liveStateFrom(updated));
   },
 
   updateSessionMeta: (data) => {
@@ -240,7 +355,7 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
     if (!session) return;
     const updated = { ...session, ...data };
     set({ activeSession: updated });
-    void AsyncStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(updated));
+    void persistSession(updated);
   },
 
   finishSession: async (userId) => {
@@ -250,35 +365,26 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
     try {
       const { data, error } = await supabase
         .from('workout_logs')
-        .insert({
-          user_id: userId,
-          date: todayISO(),
-          workout_name: session.workoutTitle,
-          workout_type: 'fuerza',
-          duration_min: Math.max(1, Math.round(elapsedSeconds / 60)),
-          elapsed_seconds: elapsedSeconds,
-          completed_exercises: session.completedExerciseIds,
-          rpe: session.rpe,
-          comments: session.notes || null,
-          completed: true,
-        })
+        .insert(buildFinishPayload(session, userId, elapsedSeconds))
         .select()
         .single();
       if (error) throw error;
       set({ activeSession: null, lastSavedLog: data });
-      await AsyncStorage.removeItem(ACTIVE_SESSION_KEY);
+      await persistSession(null);
       void endLiveWorkout();
       void syncTrainingGoal(userId);
       void get().loadRecentLogs(userId);
       return data;
-    } catch {
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'No pudimos guardar el entreno.';
+      useUiStore.getState().showToast('error', message);
       return null;
     }
   },
 
   discardSession: async () => {
     set({ activeSession: null });
-    await AsyncStorage.removeItem(ACTIVE_SESSION_KEY);
+    await persistSession(null);
     void endLiveWorkout();
   },
 
@@ -295,6 +401,7 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
         duration_seconds: durationSeconds,
         duration_min: Math.max(1, Math.round(durationSeconds / 60)),
         completed: true,
+        completed_sets: 0,
       });
       if (error) throw error;
       void syncTrainingGoal(userId);
@@ -315,12 +422,12 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
             .from('workout_logs')
             .select('*')
             .eq('user_id', userId)
-            .order('date', { ascending: false })
+            .order('created_at', { ascending: false })
             .limit(20);
           if (error) throw error;
           return data;
         },
-        (data) => set({ recentLogs: data, logsLoading: false })
+        (data) => set({ recentLogs: data, logsLoading: false }),
       );
     } catch {
       set({ logsLoading: false });

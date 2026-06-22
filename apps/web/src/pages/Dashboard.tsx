@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { ProfileRow, WorkoutLogRow, MealLogRow, ProgressPhotoRow, BodyMeasurementRow } from '@reset-fitness/shared/types/database';
-import { formatMacroDisplay, DEFAULT_KCAL_GOAL, buildTrophyLeaderboard, type TrophyRankPeriod } from '@reset-fitness/shared';
+import { formatMacroDisplay, DEFAULT_KCAL_GOAL, buildTrophyLeaderboard, type TrophyRankPeriod, formatWorkoutDuration, formatWorkoutVolume, summarizeWorkoutForFeed } from '@reset-fitness/shared';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -43,6 +43,9 @@ interface Activity {
   detail: string;
   thumb?: string | null;
   createdAt: string;
+  workoutTitle?: string;
+  workoutStats?: string;
+  workoutLines?: string[];
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -144,7 +147,19 @@ function buildMealDayActivities(
 
 function buildActivities(
   students: StudentMin[],
-  wLogs: Pick<WorkoutLogRow, 'id' | 'user_id' | 'workout_name' | 'workout_type' | 'completed' | 'created_at'>[],
+  wLogs: Pick<
+    WorkoutLogRow,
+    | 'id'
+    | 'user_id'
+    | 'workout_name'
+    | 'workout_type'
+    | 'completed'
+    | 'created_at'
+    | 'duration_min'
+    | 'elapsed_seconds'
+    | 'total_volume_kg'
+    | 'session_detail'
+  >[],
   mLogs: MealLogForFeed[],
   pPhotos: Pick<ProgressPhotoRow, 'id' | 'user_id' | 'photo_url' | 'position' | 'created_at'>[],
   bMeasurements: Pick<BodyMeasurementRow, 'id' | 'user_id' | 'weight_kg' | 'body_fat_pct' | 'created_at'>[],
@@ -158,6 +173,14 @@ function buildActivities(
   for (const w of wLogs) {
     const s = byId.get(w.user_id);
     if (!s) continue;
+    const title = w.workout_name ?? (w.workout_type ?? copy.workoutDefault);
+    const lines = summarizeWorkoutForFeed(w.session_detail).map(
+      (line) => `${line.completedSets} series · ${line.name}`,
+    );
+    const statsParts = [
+      formatWorkoutDuration(w.duration_min, w.elapsed_seconds),
+      formatWorkoutVolume(w.total_volume_kg),
+    ].filter(Boolean);
     items.push({
       id: `w-${w.id}`,
       studentId: w.user_id,
@@ -165,7 +188,10 @@ function buildActivities(
       studentAvatar: s.avatar_url,
       type: 'workout',
       verb: w.completed ? copy.workoutCompleted : copy.workoutIncomplete,
-      detail: w.workout_name ?? (w.workout_type ?? copy.workoutDefault),
+      detail: title,
+      workoutTitle: title,
+      workoutStats: statsParts.join(' · '),
+      workoutLines: lines.slice(0, 4),
       createdAt: w.created_at,
     });
   }
@@ -425,7 +451,7 @@ export function DashboardPage(): React.JSX.Element {
       ] = await Promise.all([
         supabase
           .from('workout_logs')
-          .select('id, user_id, workout_name, workout_type, completed, created_at')
+          .select('id, user_id, workout_name, workout_type, completed, created_at, duration_min, elapsed_seconds, total_volume_kg, session_detail')
           .in('user_id', ids)
           .gte('created_at', since7Iso)
           .order('created_at', { ascending: false })
@@ -703,7 +729,23 @@ export function DashboardPage(): React.JSX.Element {
                   <div className="act-panel-text">
                     <strong>{a.studentName}</strong> {a.verb}
                   </div>
-                  <div className="act-panel-detail">{a.detail}</div>
+                  {a.type === 'workout' && a.workoutTitle ? (
+                    <div className="act-workout-card">
+                      <div className="act-workout-title">{a.workoutTitle}</div>
+                      {a.workoutStats ? <div className="act-workout-stats">{a.workoutStats}</div> : null}
+                      {a.workoutLines && a.workoutLines.length > 0 ? (
+                        <ul className="act-workout-lines">
+                          {a.workoutLines.map((line) => (
+                            <li key={line}>{line}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <div className="act-panel-detail">{a.detail}</div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="act-panel-detail">{a.detail}</div>
+                  )}
                   <div className="act-panel-meta">
                     <span
                       className="act-panel-badge"

@@ -12,7 +12,7 @@ export type HomeStackParamList = {
   Goals: undefined;
   Profile: { section?: 'health' } | undefined;
   Community: undefined;
-  Messages: undefined;
+  Messages: { focus?: 'groups' } | undefined;
   CommunityChat: { communityId: string; communityName?: string; communityAvatarUrl?: string | null };
   Subscription: undefined;
   CoachChat: undefined;
@@ -26,7 +26,7 @@ export type TrainingStackParamList = {
   WorkoutDetail: { workoutId: string; dayTitle?: string };
   LiveSession: { workoutId: string; workoutTitle: string };
   SessionSummary: { logId: string };
-  CardioLog: undefined;
+  CardioLog: { activity?: string; durationMin?: number } | undefined;
 };
 
 export type NutritionStackParamList = {
@@ -52,7 +52,7 @@ export type ProgressStackParamList = {
   WeightDetail: undefined;
   ProgressPhotos: undefined;
   Measurements: undefined;
-  HydrationDetail: undefined;
+  Hydration: undefined;
 };
 
 export type MainTabsParamList = {

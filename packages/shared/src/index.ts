@@ -7,3 +7,5 @@ export * from './nutrition/servingUnits';
 export * from './nutrition/macroServing';
 export * from './nutrition/defaults';
 export * from './trophies';
+export * from './training/workoutSession';
+export * from './training/exerciseDisplay';

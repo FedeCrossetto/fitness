@@ -18,6 +18,7 @@ import {
   SegmentedTabs,
 } from '../../components/common';
 import { useAuthStore } from '../../stores/authStore';
+import { useTranslation } from '../../stores/i18nStore';
 import { useTrainingStore } from '../../stores/trainingStore';
 import { useUiStore } from '../../stores/uiStore';
 import { useTabBarScrollPadding } from '../../hooks/useTabBarScrollPadding';
@@ -28,8 +29,9 @@ type Props = NativeStackScreenProps<TrainingStackParamList, 'CardioLog'>;
 const ACTIVITIES = ['Correr', 'Caminar', 'Bici', 'Natación', 'Remo', 'Otro'] as const;
 const DISTANCE_UNITS = ['km', 'mi'] as const;
 
-export function CardioLogScreen({ navigation }: Props): React.JSX.Element {
+export function CardioLogScreen({ navigation, route }: Props): React.JSX.Element {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const styles = useThemedStyles(createStyles);
 
   const insets = useSafeAreaInsets();
@@ -43,10 +45,12 @@ export function CardioLogScreen({ navigation }: Props): React.JSX.Element {
   const logsLoading = useTrainingStore((s) => s.logsLoading);
   const loadRecentLogs = useTrainingStore((s) => s.loadRecentLogs);
 
-  const [activity, setActivity] = useState<string | null>(null);
+  const [activity, setActivity] = useState<string | null>(route.params?.activity ?? null);
   const [distance, setDistance] = useState('');
   const [unitIndex, setUnitIndex] = useState(0);
-  const [minutes, setMinutes] = useState('');
+  const [minutes, setMinutes] = useState(
+    route.params?.durationMin != null ? String(route.params.durationMin) : '',
+  );
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -55,7 +59,7 @@ export function CardioLogScreen({ navigation }: Props): React.JSX.Element {
 
   const cardioLogs = useMemo(
     () => recentLogs.filter((l) => l.workout_type === 'cardio'),
-    [recentLogs]
+    [recentLogs],
   );
 
   const minutesNum = parseInt(minutes, 10);
@@ -74,20 +78,25 @@ export function CardioLogScreen({ navigation }: Props): React.JSX.Element {
     setSaving(false);
     if (ok) {
       hapticSuccess();
-      useUiStore.getState().showToast('success', 'Cardio registrado. ¡Bien ahí!');
+      useUiStore.getState().showToast('success', t.training.cardio_saved);
       navigation.goBack();
     } else {
-      useUiStore.getState().showToast('error', 'No pudimos guardar tu cardio. Probá de nuevo.');
+      useUiStore.getState().showToast('error', t.training.cardio_save_error);
     }
   };
 
   return (
     <View style={[styles.flex, { paddingTop: insets.top + spacing.md }]}>
       <View style={styles.header}>
-        <IconButton icon="chevron-back" onPress={() => navigation.goBack()} accessibilityLabel="Volver" />
-        <AppText variant="h3" color={colors.text.primary} style={styles.headerTitle}>
-          Registrar cardio
-        </AppText>
+        <IconButton icon="chevron-back" onPress={() => navigation.goBack()} accessibilityLabel={t.training.go_back} />
+        <View style={styles.headerText}>
+          <AppText variant="h3" color={colors.text.primary}>
+            {t.training.cardio_title}
+          </AppText>
+          <AppText variant="body13" color={colors.text.tertiary}>
+            {t.training.register_cardio}
+          </AppText>
+        </View>
       </View>
 
       <ScrollView
@@ -95,10 +104,15 @@ export function CardioLogScreen({ navigation }: Props): React.JSX.Element {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <Card style={styles.formCard}>
+        <Card elevated style={styles.formCard}>
           <AppText variant="caps12" color={colors.text.tertiary} style={styles.label}>
-            Actividad
+            {t.training.activity}
           </AppText>
+          {activity && !ACTIVITIES.includes(activity as (typeof ACTIVITIES)[number]) ? (
+            <AppText variant="body14SemiBold" color={colors.text.primary} style={styles.customActivity}>
+              {activity}
+            </AppText>
+          ) : null}
           <View style={styles.chipsRow}>
             {ACTIVITIES.map((item) => (
               <Chip key={item} label={item} active={activity === item} onPress={() => setActivity(item)} />
@@ -106,7 +120,7 @@ export function CardioLogScreen({ navigation }: Props): React.JSX.Element {
           </View>
 
           <AppText variant="caps12" color={colors.text.tertiary} style={[styles.label, styles.spacedLabel]}>
-            Distancia (opcional)
+            {t.training.distance_optional}
           </AppText>
           <View style={styles.distanceRow}>
             <Input
@@ -123,7 +137,7 @@ export function CardioLogScreen({ navigation }: Props): React.JSX.Element {
           </View>
 
           <Input
-            label="Duración (minutos)"
+            label={t.training.duration_minutes}
             placeholder="30"
             keyboardType="number-pad"
             value={minutes}
@@ -133,7 +147,7 @@ export function CardioLogScreen({ navigation }: Props): React.JSX.Element {
           />
 
           <Button
-            label="Guardar"
+            label={t.training.save}
             icon="checkmark"
             onPress={() => void onSave()}
             disabled={!isValid}
@@ -144,7 +158,7 @@ export function CardioLogScreen({ navigation }: Props): React.JSX.Element {
         </Card>
 
         <AppText variant="caps12" color={colors.text.tertiary} style={styles.sectionLabel}>
-          Últimos registros
+          {t.training.recent_logs}
         </AppText>
 
         {logsLoading && cardioLogs.length === 0 ? (
@@ -152,8 +166,9 @@ export function CardioLogScreen({ navigation }: Props): React.JSX.Element {
         ) : cardioLogs.length === 0 ? (
           <EmptyState
             pillar="training"
-            title="Sin cardio registrado"
-            message="Tu primer registro de cardio va a aparecer acá."
+            hideIllustration
+            title={t.training.no_cardio_logs}
+            message={t.training.no_cardio_logs_message}
             compact
           />
         ) : (
@@ -192,17 +207,18 @@ const createStyles = (colors: Colors) => StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: spacing.sm,
     paddingHorizontal: layout.screenPadding,
     marginBottom: spacing.md,
   },
-  headerTitle: { flex: 1 },
+  headerText: { flex: 1, paddingTop: 2 },
   content: {
     paddingHorizontal: layout.screenPadding,
   },
   formCard: { marginBottom: spacing.lg },
   label: { marginBottom: spacing.xs },
+  customActivity: { marginBottom: spacing.sm },
   spacedLabel: { marginTop: spacing.md },
   chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
   distanceRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },

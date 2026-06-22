@@ -7,6 +7,7 @@ import { Colors, radius, spacing, shadows, useTheme, useThemedStyles } from '../
 import { formatDuration } from '../../lib/dates';
 import { hapticTap } from '../../lib/haptics';
 import { AppText } from '../common';
+import { useTranslation } from '../../stores/i18nStore';
 import { useTrainingStore } from '../../stores/trainingStore';
 import type { MainTabsParamList } from '../../types/navigation';
 
@@ -14,6 +15,7 @@ import type { MainTabsParamList } from '../../types/navigation';
 export function ActiveSessionBanner(): React.JSX.Element | null {
   const session = useTrainingStore((s) => s.activeSession);
   const navigation = useNavigation<NavigationProp<MainTabsParamList>>();
+  const { t } = useTranslation();
   const [now, setNow] = useState(() => Date.now());
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
@@ -46,7 +48,7 @@ export function ActiveSessionBanner(): React.JSX.Element | null {
       </View>
       <View style={styles.info}>
         <AppText variant="caps11" color={colors.primary.darkest}>
-          Entrenamiento activo
+          {t.training.active_session}
         </AppText>
         <AppText variant="body14SemiBold" color={colors.primary.onText} numberOfLines={1}>
           {session.workoutTitle}

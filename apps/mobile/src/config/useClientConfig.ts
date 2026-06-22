@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { defaultClientConfig, type ClientConfig } from './clientConfig';
+import { useAuthStore } from '../stores/authStore';
 import { useBrandingStore } from '../stores/brandingStore';
 
 /**
@@ -9,12 +10,17 @@ import { useBrandingStore } from '../stores/brandingStore';
  */
 export function useClientConfig(): ClientConfig {
   const branding = useBrandingStore((s) => s.branding);
+  const assignedProgramKey = useAuthStore((s) => s.profile?.assigned_program_key);
   return useMemo(() => {
-    if (!branding) return defaultClientConfig;
+    const brandingProgramKey = branding?.default_program_key || defaultClientConfig.programKey;
+    const programKey = assignedProgramKey || brandingProgramKey;
+    if (!branding) {
+      return { ...defaultClientConfig, programKey };
+    }
     return {
       ...defaultClientConfig,
       appName: branding.app_name || defaultClientConfig.appName,
-      programKey: branding.default_program_key || defaultClientConfig.programKey,
+      programKey,
       modules: { ...defaultClientConfig.modules, ...branding.modules },
       copy: {
         welcomeTitle: branding.welcome_title ?? defaultClientConfig.copy.welcomeTitle,
@@ -22,5 +28,5 @@ export function useClientConfig(): ClientConfig {
         onboardingCta: branding.onboarding_cta ?? defaultClientConfig.copy.onboardingCta,
       },
     };
-  }, [branding]);
+  }, [branding, assignedProgramKey]);
 }
