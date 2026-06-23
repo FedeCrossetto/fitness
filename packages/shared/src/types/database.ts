@@ -626,6 +626,17 @@ export interface Database {
         };
         Returns: string;
       };
+      save_client_onboarding_intake: {
+        Args: {
+          p_phone: string;
+          p_goal: string;
+          p_level: string;
+          p_gender: string | null;
+          p_weight_kg: number | null;
+          p_responses: Json;
+        };
+        Returns: undefined;
+      };
       register_manual_payment: {
         Args: { p_client_id: string; p_plan_id: string };
         Returns: string;

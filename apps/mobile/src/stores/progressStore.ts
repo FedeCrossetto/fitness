@@ -2,8 +2,10 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
-import { staleWhileRevalidate } from '../lib/cache';
+import { staleWhileRevalidate, invalidateCache } from '../lib/cache';
 import { deletePrivateImage } from '../services/storage';
+import { backfillWeightFromConsultation, mergeMeasurementFields } from '../services/measurements';
+import { validateBodyMeasurements } from '@reset-fitness/shared';
 import { todayISO } from '../lib/dates';
 import { clientConfig } from '../config/clientConfig';
 import type { BodyMeasurementRow, HydrationLogRow, PhotoPosition, ProgressPhotoRow } from '../types/database';
@@ -68,7 +70,17 @@ export const useProgressStore = create<ProgressState>()(
             .order('date', { ascending: false })
             .limit(90);
           if (error) throw error;
-          return data;
+          let rows = data ?? [];
+          rows = await backfillWeightFromConsultation(userId, rows, async (payload) => {
+            const { data: saved, error: upsertError } = await supabase
+              .from('body_measurements')
+              .upsert(payload, { onConflict: 'user_id,date' })
+              .select()
+              .single();
+            if (upsertError) return null;
+            return saved;
+          });
+          return rows;
         },
         (data) => set({ measurements: data, measurementsLoading: false })
       );
@@ -79,17 +91,35 @@ export const useProgressStore = create<ProgressState>()(
 
   saveMeasurement: async (userId, data) => {
     try {
+      const date = data.date ?? todayISO();
+      const existing = get().measurements.find((m) => m.date === date);
+      const payload = mergeMeasurementFields(existing, data, userId, date);
+
+      const validation = validateBodyMeasurements({
+        weight_kg: payload.weight_kg,
+        body_fat_pct: payload.body_fat_pct,
+        chest_cm: payload.chest_cm,
+        waist_cm: payload.waist_cm,
+        hips_cm: payload.hips_cm,
+        arms_cm: payload.arms_cm,
+        legs_cm: payload.legs_cm,
+      });
+      if (!validation.ok) {
+        return false;
+      }
+
       const { data: saved, error } = await supabase
         .from('body_measurements')
-        .upsert({ ...data, user_id: userId, date: data.date ?? todayISO() }, { onConflict: 'user_id,date' })
+        .upsert(payload, { onConflict: 'user_id,date' })
         .select()
         .single();
       if (error) throw error;
       const rest = get().measurements.filter((m) => m.id !== saved.id);
       set({ measurements: [saved, ...rest].sort((a, b) => (a.date < b.date ? 1 : -1)) });
+      await invalidateCache(`progress:measurements:${userId}`);
       return true;
-    } catch {
-      set({ measurementsError: 'No pudimos guardar la medición.' });
+    } catch (error) {
+      if (__DEV__) console.warn('[measurements] save failed', error);
       return false;
     }
   },

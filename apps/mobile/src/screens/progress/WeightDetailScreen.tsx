@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Dimensions, FlatList, StyleSheet, View } from 'react-native';
+import { FlatList, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -18,17 +18,20 @@ import {
   Input,
   SegmentedTabs,
 } from '../../components/common';
-import { LineChart } from '../../components/charts/LineChart';
+import { WeightTrendChart } from '../../components/progress';
 import { useAuthStore } from '../../stores/authStore';
 import { useProgressStore } from '../../stores/progressStore';
 import { useUiStore } from '../../stores/uiStore';
+import { i, validateBodyMeasurements } from '@reset-fitness/shared';
+import { formatMeasurementValidationError } from '../../lib/bodyMeasurementValidation';
+import { useTranslation } from '../../stores/i18nStore';
 import type { BodyMeasurementRow } from '../../types/database';
 import { useTabBarScrollPadding } from '../../hooks/useTabBarScrollPadding';
 import type { ProgressStackParamList } from '../../types/navigation';
 
 type Props = NativeStackScreenProps<ProgressStackParamList, 'WeightDetail'>;
 
-const CHART_WIDTH = Dimensions.get('window').width - layout.screenPadding * 2 - spacing.md * 2;
+const CARD_CHART_BLEED = spacing.md;
 const RANGES = ['1M', '3M', 'Todo'] as const;
 
 function parseDecimal(value: string): number | null {
@@ -39,6 +42,7 @@ function parseDecimal(value: string): number | null {
 export function WeightDetailScreen({ navigation }: Props): React.JSX.Element {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
+  const { t } = useTranslation();
 
   const insets = useSafeAreaInsets();
   const scrollBottom = useTabBarScrollPadding();
@@ -57,6 +61,13 @@ export function WeightDetailScreen({ navigation }: Props): React.JSX.Element {
   const [weightInput, setWeightInput] = useState('');
   const [fatInput, setFatInput] = useState('');
   const [saving, setSaving] = useState(false);
+  const [chartWidth, setChartWidth] = useState(0);
+  const [weightError, setWeightError] = useState<string | undefined>();
+  const [fatError, setFatError] = useState<string | undefined>();
+
+  const onChartLayout = useCallback((event: LayoutChangeEvent) => {
+    setChartWidth(event.nativeEvent.layout.width);
+  }, []);
 
   useEffect(() => {
     if (userId) void loadMeasurements(userId);
@@ -93,10 +104,33 @@ export function WeightDetailScreen({ navigation }: Props): React.JSX.Element {
     if (!userId) return;
     const weight = parseDecimal(weightInput);
     if (weight === null) {
-      useUiStore.getState().showToast('error', 'Ingresá un peso válido en kg.');
+      const message = i(t.progress.measurements_enter_valid, { label: t.progress.weight });
+      setWeightError(message);
+      useUiStore.getState().showToast('error', message);
       return;
     }
     const fat = fatInput.trim().length > 0 ? parseDecimal(fatInput) : null;
+    if (fatInput.trim().length > 0 && fat === null) {
+      const message = i(t.progress.measurements_enter_valid, { label: t.progress.fat_pct });
+      setFatError(message);
+      useUiStore.getState().showToast('error', message);
+      return;
+    }
+
+    const validation = validateBodyMeasurements({
+      weight_kg: weight,
+      ...(fat !== null ? { body_fat_pct: fat } : {}),
+    });
+    if (!validation.ok) {
+      const message = formatMeasurementValidationError(validation, t);
+      if (validation.field === 'weight_kg') setWeightError(message);
+      if (validation.field === 'body_fat_pct') setFatError(message);
+      useUiStore.getState().showToast('error', message);
+      return;
+    }
+
+    setWeightError(undefined);
+    setFatError(undefined);
     setSaving(true);
     const ok = await saveMeasurement(userId, {
       weight_kg: weight,
@@ -105,12 +139,12 @@ export function WeightDetailScreen({ navigation }: Props): React.JSX.Element {
     setSaving(false);
     if (ok) {
       hapticSuccess();
-      useUiStore.getState().showToast('success', 'Peso registrado');
+      useUiStore.getState().showToast('success', t.progress.measurements_saved);
       setSheetVisible(false);
     } else {
-      useUiStore.getState().showToast('error', 'No pudimos guardar la medición.');
+      useUiStore.getState().showToast('error', t.progress.measurements_db_range);
     }
-  }, [userId, weightInput, fatInput, saveMeasurement]);
+  }, [userId, weightInput, fatInput, saveMeasurement, t]);
 
   const isLoading = measurementsLoading && measurements.length === 0;
   const hasError = measurementsError !== null && measurements.length === 0;
@@ -200,19 +234,19 @@ export function WeightDetailScreen({ navigation }: Props): React.JSX.Element {
             <View>
               <SegmentedTabs tabs={[...RANGES]} activeIndex={rangeIndex} onChange={setRangeIndex} />
               <Card elevated style={styles.chartCard}>
-                {chartData.length > 0 ? (
-                  <LineChart
-                    data={chartData}
-                    width={CHART_WIDTH}
-                    height={180}
-                    showDots
-                    formatValue={(v) => `${v.toFixed(1)} kg`}
-                  />
-                ) : (
-                  <AppText variant="body14" color={colors.text.tertiary} align="center" style={styles.noRange}>
-                    No hay mediciones en este rango.
-                  </AppText>
-                )}
+                <View style={styles.chartBleed} onLayout={onChartLayout}>
+                  {chartWidth > 0 && chartData.length > 0 ? (
+                    <WeightTrendChart
+                      data={chartData}
+                      width={chartWidth}
+                      height={168}
+                    />
+                  ) : chartData.length === 0 ? (
+                    <AppText variant="body14" color={colors.text.tertiary} align="center" style={styles.noRange}>
+                      No hay mediciones en este rango.
+                    </AppText>
+                  ) : null}
+                </View>
               </Card>
               <Button label="Registrar peso" icon="add" onPress={openSheet} fullWidth style={styles.cta} />
               <AppText variant="caps12" color={colors.text.tertiary} style={styles.listTitle}>
@@ -229,8 +263,12 @@ export function WeightDetailScreen({ navigation }: Props): React.JSX.Element {
           icon="scale-outline"
           keyboardType="decimal-pad"
           value={weightInput}
-          onChangeText={setWeightInput}
+          onChangeText={(v) => {
+            setWeightError(undefined);
+            setWeightInput(v);
+          }}
           placeholder="Ej: 78.5"
+          error={weightError}
           containerStyle={styles.sheetInput}
         />
         <Input
@@ -238,8 +276,12 @@ export function WeightDetailScreen({ navigation }: Props): React.JSX.Element {
           icon="analytics-outline"
           keyboardType="decimal-pad"
           value={fatInput}
-          onChangeText={setFatInput}
+          onChangeText={(v) => {
+            setFatError(undefined);
+            setFatInput(v);
+          }}
           placeholder="Ej: 18.2"
+          error={fatError}
           containerStyle={styles.sheetInput}
         />
         <Button label="Guardar" onPress={() => void onSave()} loading={saving} fullWidth />
@@ -261,7 +303,8 @@ const createStyles = (colors: Colors) => StyleSheet.create({
   listContent: {
     paddingHorizontal: layout.screenPadding,
   },
-  chartCard: { marginTop: spacing.md, marginBottom: spacing.md },
+  chartCard: { marginTop: spacing.md, marginBottom: spacing.md, overflow: 'hidden' },
+  chartBleed: { marginHorizontal: -CARD_CHART_BLEED, alignSelf: 'stretch' },
   noRange: { paddingVertical: spacing.xl },
   cta: { marginBottom: spacing.lg },
   listTitle: { marginBottom: spacing.sm },

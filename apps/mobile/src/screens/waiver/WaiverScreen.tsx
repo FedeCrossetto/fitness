@@ -177,10 +177,8 @@ export function WaiverScreen({
     JSON.stringify(data.map((s) => s.map((pt) => [Math.round(pt.x), Math.round(pt.y)])));
 
   const saveSignature = async (): Promise<{ ok: boolean; error?: string }> => {
-    await useAuthStore.getState().refreshProfile();
-    const freshProfile = useAuthStore.getState().profile;
-    const resolvedTrainerId = freshProfile?.trainer_id ?? trainerId;
-    const clientId = freshProfile?.id ?? profile?.id;
+    const clientId = profile?.id;
+    const resolvedTrainerId = trainerId;
     if (!clientId || !resolvedTrainerId) {
       return { ok: false, error: 'no_trainer_linked' };
     }
@@ -357,7 +355,7 @@ export function WaiverScreen({
   );
 
   if (embedded) {
-    return <View style={[styles.flex, { backgroundColor: colors.background }]}>{content}</View>;
+    return <View style={styles.flex}>{content}</View>;
   }
 
   return (

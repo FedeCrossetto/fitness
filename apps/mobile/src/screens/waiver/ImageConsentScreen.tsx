@@ -225,7 +225,7 @@ export function ImageConsentScreen({
   );
 
   if (embedded) {
-    return <View style={[styles.flex, { backgroundColor: colors.background }]}>{content}</View>;
+    return <View style={styles.flex}>{content}</View>;
   }
 
   return (

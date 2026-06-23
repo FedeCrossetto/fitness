@@ -71,8 +71,6 @@ export function LineChart({
   const styles = useThemedStyles(createStyles);
   const stroke = color ?? colors.primary.default;
   const useSoft = soft || curved;
-  const gridVisible = soft ? false : showGrid;
-  const rangeVisible = soft ? false : showRange;
   const lineWidth = soft ? 2 : 2.5;
   const areaOpacityTop = soft ? 0.14 : 0.25;
   const areaOpacityBottom = 0;
@@ -81,30 +79,52 @@ export function LineChart({
     return <View style={[styles.empty, { height }]} />;
   }
 
-  const padding = { top: soft ? 12 : 16, bottom: soft ? 4 : 8, left: 4, right: 4 };
+  const isSingle = data.length === 1;
+  const rangeVisible = soft && !isSingle ? false : showRange;
+  const padding = { top: soft ? 10 : 16, bottom: soft ? 2 : 8, left: soft ? 6 : 4, right: soft ? 6 : 4 };
   const chartW = width - padding.left - padding.right;
   const chartH = height - padding.top - padding.bottom;
 
   const values = data.map((d) => d.value);
-  const rawMin = Math.min(...values);
-  const rawMax = Math.max(...values);
-  const rawRange = rawMax - rawMin || 1;
+  let rawMin = Math.min(...values);
+  let rawMax = Math.max(...values);
+  let rawRange = rawMax - rawMin;
+  if (isSingle) {
+    const padKg = Math.max(2, Math.abs(values[0]!) * 0.025);
+    rawMin = values[0]! - padKg;
+    rawMax = values[0]! + padKg;
+    rawRange = rawMax - rawMin;
+  } else if (rawRange === 0) {
+    rawRange = 1;
+  }
   const padRatio = soft ? 0.18 : 0;
   const min = rawMin - rawRange * padRatio;
   const max = rawMax + rawRange * padRatio;
   const range = max - min || 1;
 
   const points = data.map((d, i) => ({
-    x: padding.left + (data.length === 1 ? chartW / 2 : (i / (data.length - 1)) * chartW),
+    x: padding.left + (data.length === 1 ? chartW : (i / (data.length - 1)) * chartW),
     y: padding.top + chartH - ((d.value - min) / range) * chartH,
   }));
 
-  const linePath = useSoft ? buildSmoothPath(points) : buildLinePath(points);
-  const areaPath = `${linePath} L ${points[points.length - 1]!.x.toFixed(1)} ${height - padding.bottom} L ${points[0]!.x.toFixed(1)} ${height - padding.bottom} Z`;
+  let linePath: string;
+  let areaPath: string;
+  if (isSingle) {
+    const y = points[0]!.y;
+    const xStart = padding.left;
+    const xEnd = padding.left + chartW;
+    points[0]!.x = xEnd;
+    linePath = `M ${xStart.toFixed(1)} ${y.toFixed(1)} L ${xEnd.toFixed(1)} ${y.toFixed(1)}`;
+    areaPath = `${linePath} L ${xEnd.toFixed(1)} ${(height - padding.bottom).toFixed(1)} L ${xStart.toFixed(1)} ${(height - padding.bottom).toFixed(1)} Z`;
+  } else {
+    linePath = useSoft ? buildSmoothPath(points) : buildLinePath(points);
+    areaPath = `${linePath} L ${points[points.length - 1]!.x.toFixed(1)} ${height - padding.bottom} L ${points[0]!.x.toFixed(1)} ${height - padding.bottom} Z`;
+  }
 
   const last = points[points.length - 1]!;
   const labelStep = Math.max(1, Math.ceil(data.length / maxLabels));
   const gridLines = [0.33, 0.66].map((t) => padding.top + chartH * t);
+  const gridVisible = isSingle ? true : soft ? false : showGrid;
 
   return (
     <View>
@@ -172,7 +192,7 @@ export function LineChart({
           <Circle cx={last.x} cy={last.y} r={5} fill={stroke} stroke={colors.background} strokeWidth={2} />
         )}
       </Svg>
-      <View style={styles.labels}>
+      <View style={[styles.labels, isSingle && styles.labelsSingle]}>
         {data
           .filter((_, i) => i % labelStep === 0 || i === data.length - 1)
           .map((d, i) => (
@@ -197,6 +217,8 @@ const createStyles = (colors: Colors) =>
       flexDirection: 'row',
       justifyContent: 'space-between',
       marginTop: spacing.xxs,
-      paddingHorizontal: spacing.xxs,
+    },
+    labelsSingle: {
+      justifyContent: 'flex-end',
     },
   });

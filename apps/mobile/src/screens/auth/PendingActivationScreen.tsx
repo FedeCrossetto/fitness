@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { spacing, radius, Colors, useThemedStyles, useTheme } from '../../theme';
-import { AppText, Button, CardSkeleton } from '../../components/common';
+import { AppText, Button, CardSkeleton, FlowBackdrop, FlowHeroIcon, flowShadowStyle } from '../../components/common';
 import { useAuthStore } from '../../stores/authStore';
 import { useUiStore } from '../../stores/uiStore';
 import { fetchPlans } from '../../services/payments';
@@ -21,7 +21,7 @@ function monthsOf(plan: PlanRow): number {
  *   • Pagar en efectivo a su entrenador → el entrenador lo registra en la web.
  */
 export function PendingActivationScreen(): React.JSX.Element {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
 
@@ -74,44 +74,47 @@ export function PendingActivationScreen(): React.JSX.Element {
   const firstName = profile?.full_name?.split(' ')[0];
 
   return (
-    <ScrollView
-      style={styles.flex}
-      contentContainerStyle={[
-        styles.content,
-        { paddingTop: insets.top + spacing.xxl, paddingBottom: insets.bottom + spacing.xl },
-      ]}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={styles.iconWrap}>
-        <Ionicons name="sparkles-outline" size={28} color={colors.primary.default} />
-      </View>
+    <FlowBackdrop style={styles.flex}>
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: insets.top + spacing.xxl, paddingBottom: insets.bottom + spacing.xl },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <FlowHeroIcon icon={<Ionicons name="sparkles" size={28} color={colors.primary.onText} />} />
 
-      <AppText variant="h1" color={colors.text.primary} style={styles.title}>
-        {firstName ? `Activá tu cuenta, ${firstName}` : 'Activá tu cuenta'}
-      </AppText>
-      <AppText variant="body14" color={colors.text.secondary} style={styles.subtitle}>
-        Elegí un plan y suscribite para empezar a entrenar. Si arreglaste pagar en
-        efectivo, tu entrenador te activa al registrar el pago.
-      </AppText>
+        <AppText variant="h1" color={colors.text.primary} style={styles.title}>
+          {firstName ? `Activá tu cuenta, ${firstName}` : 'Activá tu cuenta'}
+        </AppText>
+        <AppText variant="body14" color={colors.text.secondary} style={styles.subtitle}>
+          Elegí un plan y suscribite para empezar a entrenar. Si arreglaste pagar en
+          efectivo, tu entrenador te activa al registrar el pago.
+        </AppText>
 
-      {loadingPlans ? (
-        <View style={styles.plansBlock}>
-          <CardSkeleton />
-          <CardSkeleton />
-        </View>
-      ) : plans.length > 0 ? (
-        <View style={styles.plansBlock}>
-          {plans.map((plan) => {
-            const months = monthsOf(plan);
-            const selected = selectedId === plan.id;
-            return (
-              <Pressable
-                key={plan.id}
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
-                onPress={() => setSelectedId(plan.id)}
-                style={[styles.planCard, selected && styles.planSelected]}
-              >
+        {loadingPlans ? (
+          <View style={styles.plansBlock}>
+            <CardSkeleton />
+            <CardSkeleton />
+          </View>
+        ) : plans.length > 0 ? (
+          <View style={styles.plansBlock}>
+            {plans.map((plan) => {
+              const months = monthsOf(plan);
+              const selected = selectedId === plan.id;
+              return (
+                <Pressable
+                  key={plan.id}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  onPress={() => setSelectedId(plan.id)}
+                  style={[
+                    styles.planCard,
+                    flowShadowStyle(isDark),
+                    selected && styles.planSelected,
+                  ]}
+                >
                 <View style={styles.planInfo}>
                   <AppText variant="body16SemiBold" color={colors.text.primary}>
                     {plan.name}
@@ -168,21 +171,13 @@ export function PendingActivationScreen(): React.JSX.Element {
         </Pressable>
       </View>
     </ScrollView>
+    </FlowBackdrop>
   );
 }
 
 const createStyles = (colors: Colors) => StyleSheet.create({
-  flex: { flex: 1, backgroundColor: colors.background },
+  flex: { flex: 1 },
   content: { paddingHorizontal: spacing.xl, flexGrow: 1 },
-  iconWrap: {
-    width: 56,
-    height: 56,
-    borderRadius: radius.lg,
-    backgroundColor: colors.primary.muted,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.lg,
-  },
   title: { marginBottom: spacing.sm },
   subtitle: { lineHeight: 21, marginBottom: spacing.xl },
   plansBlock: { gap: spacing.sm, marginBottom: spacing.lg },
@@ -193,7 +188,7 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     backgroundColor: colors.surface.elevated,
     borderRadius: radius.lg,
     borderWidth: 1.5,
-    borderColor: 'transparent',
+    borderColor: colors.border.subtle,
     padding: spacing.lg,
   },
   planSelected: { borderColor: colors.primary.default, backgroundColor: colors.primary.muted },
@@ -216,6 +211,8 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     gap: spacing.xs,
     backgroundColor: colors.surface.elevated,
     borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
     padding: spacing.md,
     marginTop: spacing.md,
   },

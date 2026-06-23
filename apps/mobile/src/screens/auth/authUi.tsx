@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   StyleProp,
   StyleSheet,
@@ -14,6 +15,8 @@ import Svg, { Path } from 'react-native-svg';
 import { radius, spacing, typography, layout } from '../../theme';
 import { AppText } from '../../components/common';
 import { authColors } from './authScreenTheme';
+import { isAppleSignInEnabled } from '../../config/authConfig';
+import type { OAuthProvider } from '../../stores/authStore';
 
 // ── Brand icons (color original solo acá) ────────────────────────────────────
 
@@ -24,6 +27,17 @@ export function GoogleBrandIcon({ size = 18 }: { size?: number }): React.JSX.Ele
       <Path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
       <Path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
       <Path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+    </Svg>
+  );
+}
+
+export function AppleBrandIcon({ size = 18, color = '#FFFFFF' }: { size?: number; color?: string }): React.JSX.Element {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Path
+        fill={color}
+        d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"
+      />
     </Svg>
   );
 }
@@ -147,23 +161,112 @@ export function AuthButton({
   );
 }
 
-interface AuthGoogleButtonProps {
+interface AuthSocialButtonProps {
+  provider: OAuthProvider;
   onPress: () => void;
+  loading?: boolean;
+  disabled?: boolean;
+  fullWidth?: boolean;
   style?: StyleProp<ViewStyle>;
 }
 
-export function AuthGoogleButton({ onPress, style }: AuthGoogleButtonProps): React.JSX.Element {
+function AuthSocialButton({
+  provider,
+  onPress,
+  loading = false,
+  disabled = false,
+  fullWidth = false,
+  style,
+}: AuthSocialButtonProps): React.JSX.Element {
+  const isApple = provider === 'apple';
+  const isDisabled = disabled || loading;
+  const label = isApple ? 'Apple' : 'Google';
+  const textColor = isApple ? '#FFFFFF' : authColors.textPrimary;
+
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={`Continuar con ${label}`}
+      accessibilityState={{ disabled: isDisabled }}
       onPress={onPress}
-      style={({ pressed }) => [styles.oauthBtn, pressed && styles.pressed, style]}
+      disabled={isDisabled}
+      style={({ pressed }) => [
+        styles.socialBtn,
+        isApple ? styles.socialBtnApple : styles.socialBtnGoogle,
+        fullWidth && styles.fullWidth,
+        pressed && !isDisabled && styles.pressed,
+        isDisabled && styles.disabled,
+        style,
+      ]}
     >
-      <GoogleBrandIcon />
-      <AppText variant="body14SemiBold" color={authColors.textPrimary}>
-        Google
-      </AppText>
+      {loading ? (
+        <ActivityIndicator color={textColor} />
+      ) : (
+        <>
+          {isApple ? <AppleBrandIcon /> : <GoogleBrandIcon />}
+          <AppText variant="body14SemiBold" color={textColor}>
+            {label}
+          </AppText>
+        </>
+      )}
     </Pressable>
+  );
+}
+
+interface AuthSocialLoginCardProps {
+  onGoogle: () => void;
+  onApple: () => void;
+  loadingProvider?: OAuthProvider | null;
+  disabled?: boolean;
+  style?: StyleProp<ViewStyle>;
+}
+
+/** Card con acceso rápido vía Google y Apple (Apple solo iOS/web). */
+export function AuthSocialLoginCard({
+  onGoogle,
+  onApple,
+  loadingProvider = null,
+  disabled = false,
+  style,
+}: AuthSocialLoginCardProps): React.JSX.Element {
+  const showApple = isAppleSignInEnabled && (Platform.OS === 'ios' || Platform.OS === 'web');
+  const anyLoading = loadingProvider !== null;
+
+  return (
+    <View style={[styles.socialCard, style]}>
+      <AppText variant="caps12" color={authColors.textTertiary} style={styles.socialCardLabel}>
+        Acceso rápido
+      </AppText>
+      <View style={[styles.socialRow, !showApple && styles.socialRowSingle]}>
+        <AuthSocialButton
+          provider="google"
+          onPress={onGoogle}
+          loading={loadingProvider === 'google'}
+          disabled={disabled || (anyLoading && loadingProvider !== 'google')}
+          style={showApple ? styles.socialBtnHalf : undefined}
+          fullWidth={!showApple}
+        />
+        {showApple ? (
+          <AuthSocialButton
+            provider="apple"
+            onPress={onApple}
+            loading={loadingProvider === 'apple'}
+            disabled={disabled || (anyLoading && loadingProvider !== 'apple')}
+            style={styles.socialBtnHalf}
+          />
+        ) : null}
+      </View>
+      <AppText variant="body12" color={authColors.textDisabled} align="center" style={styles.socialHint}>
+        Sin contraseña · mismo email que uses en {showApple ? 'Google o Apple' : 'Google'}
+      </AppText>
+    </View>
+  );
+}
+
+/** @deprecated Usar AuthSocialLoginCard */
+export function AuthGoogleButton({ onPress, style }: { onPress: () => void; style?: StyleProp<ViewStyle> }): React.JSX.Element {
+  return (
+    <AuthSocialButton provider="google" onPress={onPress} fullWidth style={style} />
   );
 }
 
@@ -213,19 +316,49 @@ const styles = StyleSheet.create({
   primaryBtnBrand: {
     backgroundColor: authColors.buttonBrand,
   },
-  oauthBtn: {
+  socialCard: {
+    padding: spacing.md,
+    backgroundColor: authColors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: authColors.border,
+    gap: spacing.sm,
+  },
+  socialCardLabel: {
+    textAlign: 'center',
+    letterSpacing: 0.6,
+  },
+  socialRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  socialRowSingle: {
+    flexDirection: 'column',
+  },
+  socialBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.xs,
-    alignSelf: 'stretch',
     minHeight: layout.minHitTarget,
     paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+  },
+  socialBtnHalf: {
+    flex: 1,
+  },
+  socialBtnGoogle: {
     backgroundColor: authColors.background,
     borderWidth: 1,
     borderColor: authColors.border,
-    borderRadius: radius.md,
+  },
+  socialBtnApple: {
+    backgroundColor: authColors.textPrimary,
+  },
+  socialHint: {
+    lineHeight: 18,
+    paddingHorizontal: spacing.xxs,
   },
   fullWidth: { alignSelf: 'stretch' },
   pressed: { opacity: 0.82 },

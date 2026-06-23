@@ -20,7 +20,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { fetchInvitePreview, readPendingInviteCode } from '../../services/invite';
 import type { AuthStackParamList } from '../../types/navigation';
 import { authColors } from './authScreenTheme';
-import { AuthButton, AuthErrorBox, AuthGoogleButton, AuthInput } from './authUi';
+import { AuthButton, AuthErrorBox, AuthInput, AuthSocialLoginCard } from './authUi';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'SignUp'>;
 
@@ -36,7 +36,7 @@ function trainerInitials(name: string | null | undefined): string {
 
 export function SignUpScreen({ navigation, route }: Props): React.JSX.Element {
   const insets = useSafeAreaInsets();
-  const { signUp, signInWithOAuth, loading, error, clearError } = useAuthStore();
+  const { signUp, signInWithOAuth, loading, oauthProvider, error, clearError } = useAuthStore();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -252,13 +252,16 @@ export function SignUpScreen({ navigation, route }: Props): React.JSX.Element {
             <View style={styles.dividerRow}>
               <View style={styles.divider} />
               <AppText variant="caps11" color={authColors.textDisabled}>
-                o continuar con
+                o
               </AppText>
               <View style={styles.divider} />
             </View>
 
-            <AuthGoogleButton
-              onPress={() => void signInWithOAuth('google', preview.invite_code, 'signup')}
+            <AuthSocialLoginCard
+              onGoogle={() => void signInWithOAuth('google', preview.invite_code, 'signup')}
+              onApple={() => void signInWithOAuth('apple', preview.invite_code, 'signup')}
+              loadingProvider={oauthProvider}
+              disabled={loading && !oauthProvider}
             />
           </>
         ) : codeStatus === 'loading' ? (
@@ -345,7 +348,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    marginVertical: spacing.xl,
+    marginTop: spacing.xl,
+    marginBottom: spacing.sm,
   },
   divider: { flex: 1, height: 1, backgroundColor: authColors.border },
   loadingHint: { alignItems: 'center', paddingVertical: spacing.xl },

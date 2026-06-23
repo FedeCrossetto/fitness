@@ -18,6 +18,8 @@ import { useAuthStore } from '../../stores/authStore';
 import { useProgressStore } from '../../stores/progressStore';
 import { useUiStore } from '../../stores/uiStore';
 import { useTranslation } from '../../stores/i18nStore';
+import { validateBodyMeasurements, type BodyMeasurementField } from '@reset-fitness/shared';
+import { formatMeasurementValidationError } from '../../lib/bodyMeasurementValidation';
 import type { BodyMeasurementRow } from '../../types/database';
 import { useTabBarScrollPadding } from '../../hooks/useTabBarScrollPadding';
 import type { ProgressStackParamList } from '../../types/navigation';
@@ -28,6 +30,16 @@ type FormField = 'weight' | 'fat' | 'chest' | 'waist' | 'hips' | 'arms' | 'legs'
 type FormState = Record<FormField, string>;
 
 const EMPTY_FORM: FormState = { weight: '', fat: '', chest: '', waist: '', hips: '', arms: '', legs: '' };
+
+const MEASURE_TO_FORM: Record<BodyMeasurementField, FormField> = {
+  weight_kg: 'weight',
+  body_fat_pct: 'fat',
+  chest_cm: 'chest',
+  waist_cm: 'waist',
+  hips_cm: 'hips',
+  arms_cm: 'arms',
+  legs_cm: 'legs',
+};
 
 function parseDecimal(value: string): number | null {
   const n = Number.parseFloat(value.replace(',', '.'));
@@ -98,6 +110,7 @@ export function MeasurementsScreen({ navigation }: Props): React.JSX.Element {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [gender, setGender] = useState<BodyGender>('male');
   const [saving, setSaving] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<FormField, string>>>({});
 
   const latest = measurements[0];
 
@@ -141,6 +154,7 @@ export function MeasurementsScreen({ navigation }: Props): React.JSX.Element {
   }, [userId, loadMeasurements]);
 
   const setField = useCallback((key: FormField, value: string) => {
+    setFieldErrors((prev) => ({ ...prev, [key]: undefined }));
     setForm((prev) => ({ ...prev, [key]: value }));
   }, []);
 
@@ -162,6 +176,24 @@ export function MeasurementsScreen({ navigation }: Props): React.JSX.Element {
       useUiStore.getState().showToast('error', t.progress.measurements_required);
       return;
     }
+
+    const validation = validateBodyMeasurements({
+      weight_kg: data.weight_kg,
+      body_fat_pct: data.body_fat_pct,
+      chest_cm: data.chest_cm,
+      waist_cm: data.waist_cm,
+      hips_cm: data.hips_cm,
+      arms_cm: data.arms_cm,
+      legs_cm: data.legs_cm,
+    });
+    if (!validation.ok) {
+      const message = formatMeasurementValidationError(validation, t);
+      setFieldErrors({ [MEASURE_TO_FORM[validation.field]]: message });
+      useUiStore.getState().showToast('error', message);
+      return;
+    }
+
+    setFieldErrors({});
     setSaving(true);
     const ok = await saveMeasurement(userId, data);
     setSaving(false);
@@ -169,7 +201,7 @@ export function MeasurementsScreen({ navigation }: Props): React.JSX.Element {
       hapticSuccess();
       useUiStore.getState().showToast('success', t.progress.measurements_saved);
     } else {
-      useUiStore.getState().showToast('error', t.progress.measurements_save_error);
+      useUiStore.getState().showToast('error', t.progress.measurements_db_range);
     }
   }, [userId, form, gender, saveMeasurement, t]);
 
@@ -220,6 +252,7 @@ export function MeasurementsScreen({ navigation }: Props): React.JSX.Element {
                   value={form[field.key]}
                   onChangeText={(v) => setField(field.key, v)}
                   placeholder={field.placeholder}
+                  error={fieldErrors[field.key]}
                   containerStyle={styles.formField}
                 />
               ))}

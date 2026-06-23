@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useTheme, useThemeHydrated } from '../theme';
@@ -210,13 +210,14 @@ export function RootNavigator(): React.JSX.Element {
   const [waiverRequired, setWaiverRequired] = useState(false);
   const [waiverConfig, setWaiverConfig] = useState<WaiverCfg | null>(null);
 
-  const [imageConsentChecked, setImageConsentChecked] = useState(false);
   const [imageConsentRequired, setImageConsentRequired] = useState(false);
   const [imageConsentConfig, setImageConsentConfig] = useState<ImageConsentCfg | null>(null);
 
-  const [consultationChecked, setConsultationChecked] = useState(false);
   const [consultationRequired, setConsultationRequired] = useState(false);
   const [consultationFormCode, setConsultationFormCode] = useState<string | null>(null);
+
+  /** Evita pantalla negra al re-chequear gates (p. ej. refreshProfile al firmar deslinde). */
+  const gatesInitializedRef = useRef(false);
 
   useEffect(() => {
     void restoreActiveSession();
@@ -245,52 +246,62 @@ export function RootNavigator(): React.JSX.Element {
     return unsubscribe;
   }, [session?.user.id, profile?.id, profile?.trainer_id, profile?.role, profile?.client_status, needsOnboarding]);
 
+  const applyImageConsentGate = useCallback(async () => {
+    try {
+      const result = await resolveImageConsentGate();
+      setImageConsentConfig(result.config);
+      setImageConsentRequired(result.required);
+    } catch (err) {
+      if (__DEV__) console.warn('[image_consent] gate check failed:', err);
+      setImageConsentRequired(false);
+      setImageConsentConfig(null);
+    }
+  }, []);
+
   const checkWaiver = useCallback(async () => {
     if (!session || needsOnboarding || needsTrainerLink(profile)) {
       setWaiverChecked(true);
       setWaiverRequired(false);
       setWaiverConfig(null);
-      setImageConsentChecked(true);
       setImageConsentRequired(false);
       setImageConsentConfig(null);
+      gatesInitializedRef.current = true;
       return;
     }
     if (!profile?.id) {
-      setWaiverChecked(false);
-      setImageConsentChecked(false);
+      if (!gatesInitializedRef.current) setWaiverChecked(false);
       return;
     }
     if (profile.role === 'trainer' || profile.role === 'admin') {
       setWaiverChecked(true);
       setWaiverRequired(false);
       setWaiverConfig(null);
-      setImageConsentChecked(true);
       setImageConsentRequired(false);
       setImageConsentConfig(null);
+      gatesInitializedRef.current = true;
       return;
     }
     if (!profile.trainer_id) {
       setWaiverChecked(true);
       setWaiverRequired(false);
       setWaiverConfig(null);
-      setImageConsentChecked(true);
       setImageConsentRequired(false);
       setImageConsentConfig(null);
+      gatesInitializedRef.current = true;
       return;
     }
 
-    setWaiverChecked(false);
-    setImageConsentChecked(false);
+    const isRecheck = gatesInitializedRef.current;
+    if (!isRecheck) setWaiverChecked(false);
+
     try {
       const result = await resolveWaiverGate();
       setWaiverConfig(result.config);
       setWaiverRequired(result.required);
 
       if (!result.required) {
-        const consentResult = await resolveImageConsentGate();
-        setImageConsentConfig(consentResult.config);
-        setImageConsentRequired(consentResult.required);
-      } else {
+        await applyImageConsentGate();
+      } else if (!isRecheck) {
         setImageConsentRequired(false);
         setImageConsentConfig(null);
       }
@@ -302,28 +313,9 @@ export function RootNavigator(): React.JSX.Element {
       setImageConsentConfig(null);
     } finally {
       setWaiverChecked(true);
-      setImageConsentChecked(true);
+      gatesInitializedRef.current = true;
     }
-  }, [session, profile, needsOnboarding]);
-
-  const checkImageConsent = useCallback(async () => {
-    if (!session || !profile?.id || !profile.trainer_id) return;
-    if (profile.role === 'trainer' || profile.role === 'admin') return;
-    if (needsOnboarding || needsTrainerLink(profile)) return;
-
-    setImageConsentChecked(false);
-    try {
-      const result = await resolveImageConsentGate();
-      setImageConsentConfig(result.config);
-      setImageConsentRequired(result.required);
-    } catch (err) {
-      if (__DEV__) console.warn('[image_consent] check failed:', err);
-      setImageConsentRequired(false);
-      setImageConsentConfig(null);
-    } finally {
-      setImageConsentChecked(true);
-    }
-  }, [session, profile, needsOnboarding]);
+  }, [session, profile, needsOnboarding, applyImageConsentGate]);
 
   useEffect(() => {
     void checkWaiver();
@@ -340,19 +332,16 @@ export function RootNavigator(): React.JSX.Element {
   useEffect(() => {
     if (!waiverChecked || waiverRequired || imageConsentRequired) return;
     if (!session || !profile?.id || needsOnboarding || needsTrainerLink(profile)) {
-      setConsultationChecked(true);
       setConsultationRequired(false);
       return;
     }
     const trainerId = profile.trainer_id;
     if (!trainerId) {
-      setConsultationChecked(true);
       setConsultationRequired(false);
       return;
     }
 
     let active = true;
-    setConsultationChecked(false);
 
     void (async () => {
       try {
@@ -363,7 +352,7 @@ export function RootNavigator(): React.JSX.Element {
           .maybeSingle() as { data: { form_code: string } | null };
 
         if (!cfg?.form_code?.trim()) {
-          if (active) setConsultationChecked(true);
+          if (active) setConsultationRequired(false);
           return;
         }
 
@@ -377,14 +366,13 @@ export function RootNavigator(): React.JSX.Element {
         if (!active) return;
 
         if (existing) {
-          setConsultationChecked(true);
+          setConsultationRequired(false);
         } else {
           setConsultationFormCode(cfg.form_code);
           setConsultationRequired(true);
-          setConsultationChecked(true);
         }
       } catch {
-        if (active) setConsultationChecked(true);
+        if (active) setConsultationRequired(false);
       }
     })();
 
@@ -396,9 +384,7 @@ export function RootNavigator(): React.JSX.Element {
     !!profile?.id &&
     !needsOnboarding &&
     !needsTrainerLink(profile) &&
-    (!waiverChecked ||
-      (!waiverRequired && !imageConsentChecked) ||
-      (!waiverRequired && !imageConsentRequired && !consultationChecked));
+    !waiverChecked;
 
   const showLoading = initializing || loading || gatesPending;
 
@@ -417,7 +403,7 @@ export function RootNavigator(): React.JSX.Element {
         onSigned={() => {
           setWaiverRequired(false);
           setWaiverConfig(null);
-          void checkImageConsent();
+          void applyImageConsentGate();
         }}
       />
     );

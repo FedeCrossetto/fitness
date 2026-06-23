@@ -32,8 +32,10 @@ export function getOAuthReturnUri(): string {
   return `${getAppScheme()}://${AUTH_CALLBACK_PATH}`;
 }
 
+type OAuthProvider = 'apple' | 'google';
+
 /** Completa la sesión OAuth desde la URL de retorno (PKCE o tokens en hash). */
-export async function completeOAuthFromUrl(url: string): Promise<void> {
+export async function completeOAuthFromUrl(url: string, provider: OAuthProvider = 'google'): Promise<void> {
   const parsed = new URL(url);
   const authCode = parsed.searchParams.get('code');
 
@@ -55,5 +57,6 @@ export async function completeOAuthFromUrl(url: string): Promise<void> {
   const oauthError = parsed.searchParams.get('error_description') ?? hash.get('error_description');
   if (oauthError) throw new Error(decodeURIComponent(oauthError.replace(/\+/g, ' ')));
 
-  throw new Error('No se recibió la confirmación de Google.');
+  const label = provider === 'apple' ? 'Apple' : 'Google';
+  throw new Error(`No se recibió la confirmación de ${label}.`);
 }

@@ -40,6 +40,7 @@ import { VoiceLogScreen } from '../screens/nutrition/VoiceLogScreen';
 import { ProgressDashboardScreen } from '../screens/progress/ProgressDashboardScreen';
 import { WeightDetailScreen } from '../screens/progress/WeightDetailScreen';
 import { ProgressPhotosScreen } from '../screens/progress/ProgressPhotosScreen';
+import { ProgressPhotoCompareScreen } from '../screens/progress/ProgressPhotoCompareScreen';
 import { MeasurementsScreen } from '../screens/progress/MeasurementsScreen';
 
 function useStackOptions(): NativeStackNavigationOptions {
@@ -120,6 +121,7 @@ export function ProgressStack(): React.JSX.Element {
       <Progress.Screen name="Dashboard" component={ProgressDashboardScreen} />
       <Progress.Screen name="WeightDetail" component={WeightDetailScreen} />
       <Progress.Screen name="ProgressPhotos" component={ProgressPhotosScreen} />
+      <Progress.Screen name="ProgressPhotoCompare" component={ProgressPhotoCompareScreen} />
       <Progress.Screen name="Measurements" component={MeasurementsScreen} />
       <Progress.Screen name="Hydration" component={HydrationScreen} />
     </Progress.Navigator>

@@ -15,7 +15,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import { readFileSync, readdirSync, existsSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -23,30 +23,12 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const MOBILE_ROOT = join(__dirname, '..');
 const REPO_ROOT = join(MOBILE_ROOT, '../..');
 const DEFAULT_ICONS_DIR = join(REPO_ROOT, 'packages/shared/assets/food-icons');
+const CATALOG_PATH = join(REPO_ROOT, 'packages/shared/src/nutrition/foodIconCatalog.json');
 const BUCKET = 'food-images';
 const STORAGE_PREFIX = 'icons';
 
-/** filename → { key, name } */
-const ICON_CATALOG = [
-  { file: 'banana-icon.png', key: 'banana', name: 'Banana' },
-  { file: 'bread-icon.png', key: 'bread', name: 'Pan' },
-  { file: 'cake-icon.png', key: 'cake', name: 'Pastel' },
-  { file: 'cheese-icon.png', key: 'cheese', name: 'Queso' },
-  { file: 'chicken-icon.png', key: 'chicken', name: 'Pollo' },
-  { file: 'chocolate-icon.png', key: 'chocolate', name: 'Chocolate' },
-  { file: 'coffe-icon.png', key: 'coffee', name: 'Café' },
-  { file: 'ddl-icon.png', key: 'dulce-de-leche', name: 'Dulce de leche' },
-  { file: 'dressing-icon.png', key: 'dressing', name: 'Aderezo' },
-  { file: 'egg-icon.png', key: 'egg', name: 'Huevo' },
-  { file: 'fish-icon.png', key: 'fish', name: 'Pescado' },
-  { file: 'fruit-generic.png', key: 'fruit', name: 'Fruta' },
-  { file: 'meat-icon.png', key: 'meat', name: 'Carne' },
-  { file: 'oil-icon.png', key: 'oil', name: 'Aceite' },
-  { file: 'paste-icon.png', key: 'pasta', name: 'Pasta' },
-  { file: 'potato-icon.png', key: 'potato', name: 'Papa' },
-  { file: 'rice-icon.png', key: 'rice', name: 'Arroz' },
-  { file: 'water-icon.png', key: 'water', name: 'Agua' },
-];
+/** Catálogo compartido con web/mobile (foodIconCatalog.json). */
+const ICON_CATALOG = JSON.parse(readFileSync(CATALOG_PATH, 'utf8'));
 
 function loadEnvFile(path) {
   if (!existsSync(path)) return;
@@ -120,7 +102,7 @@ async function main() {
 
     if (dryRun) {
       console.log(`→ ${item.file} → key="${item.key}" → ${storagePath}`);
-      rows.push({ key: item.key, name: item.name, image_url: imageUrl });
+      rows.push({ key: item.key, name: item.label, image_url: imageUrl });
       ok += 1;
       continue;
     }
@@ -136,7 +118,7 @@ async function main() {
     }
 
     const { error: dbError } = await supabase.from('food_images').upsert(
-      { key: item.key, name: item.name, image_url: imageUrl },
+      { key: item.key, name: item.label, image_url: imageUrl },
       { onConflict: 'key' },
     );
 
@@ -145,8 +127,8 @@ async function main() {
       continue;
     }
 
-    console.log(`✓ ${item.key} (${item.name})`);
-    rows.push({ key: item.key, name: item.name, image_url: imageUrl });
+    console.log(`✓ ${item.key} (${item.label})`);
+    rows.push({ key: item.key, name: item.label, image_url: imageUrl });
     ok += 1;
   }
 

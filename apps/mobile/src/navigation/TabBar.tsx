@@ -17,6 +17,14 @@ const TAB_META: Record<string, { label: string; icon: keyof typeof Ionicons.glyp
   ProgressTab: { label: 'Progreso', icon: 'stats-chart-outline', iconActive: 'stats-chart' },
 };
 
+/** Pantalla raíz de cada stack: al tocar el tab siempre volvemos acá. */
+const TAB_ROOT_SCREEN: Partial<Record<string, string>> = {
+  HomeTab: 'HomeMain',
+  TrainingTab: 'Program',
+  NutritionTab: 'MealsDay',
+  ProgressTab: 'Dashboard',
+};
+
 // Pantallas full-screen donde el tab bar estorba (chats, etc.).
 const HIDE_ON_ROUTES = ['CoachChat', 'Messages', 'CommunityChat'];
 
@@ -70,7 +78,14 @@ export function TabBar({ state, navigation }: BottomTabBarProps): React.JSX.Elem
           const onPress = () => {
             hapticSelect();
             const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-            if (!isFocused && !event.defaultPrevented) {
+            if (event.defaultPrevented) return;
+
+            const rootScreen = TAB_ROOT_SCREEN[route.name];
+            if (rootScreen) {
+              navigation.navigate(route.name, { screen: rootScreen });
+              return;
+            }
+            if (!isFocused) {
               navigation.navigate(route.name);
             }
           };

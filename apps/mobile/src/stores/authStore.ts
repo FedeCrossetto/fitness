@@ -2,8 +2,9 @@ import { create } from 'zustand';
 import * as WebBrowser from 'expo-web-browser';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import { clearCache } from '../lib/cache';
+import { clearCache, invalidateCache } from '../lib/cache';
 import { useBrandingStore } from './brandingStore';
+import { useProgressStore } from './progressStore';
 import {
   applyPendingInviteLink,
   clearPendingInviteCode,
@@ -14,6 +15,8 @@ import {
 import { INVITE_REQUIRED_MESSAGE } from '../services/clientAccess';
 import { completeOAuthFromUrl, getOAuthRedirectUri, getOAuthReturnUri } from '../lib/oauthRedirect';
 import type { ProfileRow, UserProfileRow } from '../types/database';
+import { todayISO } from '../lib/dates';
+import type { OnboardingFormData } from '../screens/auth/onboardingTypes';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -26,6 +29,7 @@ interface AuthState {
   userProfile: UserProfileRow | null;
   initializing: boolean;
   loading: boolean;
+  oauthProvider: OAuthProvider | null;
   error: string | null;
   needsOnboarding: boolean;
 
@@ -35,7 +39,7 @@ interface AuthState {
   signInWithOAuth: (provider: OAuthProvider, trainerCode?: string, intent?: AuthIntent) => Promise<boolean>;
   linkTrainer: (code: string) => Promise<boolean>;
   resetPassword: (email: string) => Promise<boolean>;
-  completeOnboarding: (data: { goal: string; level: string }) => Promise<boolean>;
+  completeOnboarding: (data: OnboardingFormData) => Promise<boolean>;
   refreshProfile: () => Promise<void>;
   signOut: () => Promise<void>;
   clearError: () => void;
@@ -45,7 +49,10 @@ function messageFor(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
   if (raw.includes('código') || raw.includes('invitación') || raw.includes('entrenador')) return raw;
   if (raw.includes('Invalid login credentials')) {
-    return 'Email o contraseña incorrectos. Si te registraste con Google, usá el botón Google.';
+    return 'Email o contraseña incorrectos. Si te registraste con Google o Apple, usá esos botones.';
+  }
+  if (raw.includes('provider is not enabled') || raw.includes('Provider not enabled')) {
+    return 'Inicio con Apple todavía no está activado. Usá Google o email.';
   }
   if (raw.includes('Email not confirmed')) {
     return 'Confirmá tu email desde el link que te enviamos antes de iniciar sesión.';
@@ -53,7 +60,41 @@ function messageFor(error: unknown): string {
   if (raw.includes('already registered')) return 'Ese email ya está registrado.';
   if (raw.includes('Password should be')) return 'La contraseña debe tener al menos 6 caracteres.';
   if (raw.toLowerCase().includes('network')) return 'Sin conexión. Revisá tu internet e intentá de nuevo.';
+  if (raw.includes('row-level security') || raw.includes('permission denied')) {
+    return 'No tenés permiso para guardar estos datos. Contactá a tu entrenador.';
+  }
+  if (__DEV__) return raw;
   return 'Algo salió mal. Intentá de nuevo.';
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const anyClient = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> };
+
+async function refreshProgressMeasurements(userId: string): Promise<void> {
+  await invalidateCache(`progress:measurements:${userId}`);
+  await useProgressStore.getState().loadMeasurements(userId);
+}
+
+function buildOnboardingResponses(data: OnboardingFormData): Array<{ label: string; type: string; answer: string | string[] }> {
+  const entries: Array<{ label: string; type: string; answer: string | string[] }> = [
+    { label: 'Teléfono', type: 'textbox', answer: data.phone },
+    { label: 'Sexo', type: 'dropdown', answer: data.gender === 'male' ? 'Masculino' : data.gender === 'female' ? 'Femenino' : '' },
+    { label: 'Peso actual (kg)', type: 'textbox', answer: data.weightKg },
+    { label: 'Altura (cm)', type: 'textbox', answer: data.heightCm },
+    { label: 'Objetivos', type: 'listbox', answer: data.goals },
+    { label: 'Nivel de experiencia', type: 'dropdown', answer: data.level ?? '' },
+    { label: '¿Hacés ejercicio regularmente?', type: 'dropdown', answer: data.exerciseHabit ?? '' },
+    { label: 'Frecuencia semanal', type: 'dropdown', answer: data.weeklyFrequency ?? '' },
+    { label: 'Días disponibles para entrenar', type: 'listbox', answer: data.availableDays },
+    { label: 'Equipamiento disponible', type: 'listbox', answer: data.equipment },
+  ];
+  if (data.injuries.trim()) {
+    entries.push({ label: 'Lesiones o condiciones', type: 'textarea', answer: data.injuries.trim() });
+  }
+  if (data.comments.trim()) {
+    entries.push({ label: 'Comentarios adicionales', type: 'textarea', answer: data.comments.trim() });
+  }
+  return entries;
 }
 
 async function loadProfiles(userId: string): Promise<{ profile: ProfileRow | null; userProfile: UserProfileRow | null }> {
@@ -94,6 +135,7 @@ function setAuthState(
     userProfile,
     needsOnboarding,
     loading: false,
+    oauthProvider: null,
     initializing: false,
   });
 }
@@ -149,6 +191,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   userProfile: null,
   initializing: true,
   loading: false,
+  oauthProvider: null,
   error: null,
   needsOnboarding: false,
 
@@ -220,11 +263,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   signInWithOAuth: async (provider, trainerCode, intent = 'login') => {
-    set({ loading: true, error: null });
+    set({ loading: true, oauthProvider: provider, error: null });
     try {
       const pending = trainerCode?.trim() || (await readPendingInviteCode());
       if (intent === 'signup' && !pending) {
-        set({ loading: false, error: INVITE_REQUIRED_MESSAGE });
+        set({ loading: false, oauthProvider: null, error: INVITE_REQUIRED_MESSAGE });
         return false;
       }
       if (pending) await savePendingInviteCode(pending);
@@ -236,18 +279,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         options: {
           redirectTo,
           skipBrowserRedirect: true,
-          queryParams: { prompt: 'select_account' },
+          ...(provider === 'google' ? { queryParams: { prompt: 'select_account' } } : {}),
         },
       });
       if (error) throw error;
 
       const result = await WebBrowser.openAuthSessionAsync(data.url, returnUri);
       if (result.type !== 'success') {
-        set({ loading: false });
+        set({ loading: false, oauthProvider: null });
         return false;
       }
 
-      await completeOAuthFromUrl(result.url);
+      await completeOAuthFromUrl(result.url, provider);
 
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('No se pudo iniciar sesión.');
@@ -257,7 +300,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await commitSession(session, profile, userProfile, isNewSignup);
       return true;
     } catch (error) {
-      set({ loading: false, error: messageFor(error) });
+      set({ loading: false, oauthProvider: null, error: messageFor(error) });
       return false;
     }
   },
@@ -306,24 +349,93 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  completeOnboarding: async ({ goal, level }) => {
-    const { session } = get();
+  completeOnboarding: async (data) => {
+    const { session, profile } = get();
     if (!session) return false;
     set({ loading: true, error: null });
     try {
       const userId = session.user.id;
-      const [profileRes, userProfileRes] = await Promise.all([
-        supabase.from('profiles').update({ goal }).eq('id', userId).select().single(),
-        supabase.from('user_profiles').update({ level }).eq('user_id', userId).select().single(),
-      ]);
-      if (profileRes.error) throw profileRes.error;
-      if (userProfileRes.error) throw userProfileRes.error;
+      const goal = data.goals.join(', ');
+      const level = data.level ?? 'Principiante';
+      const weight = Number.parseFloat(data.weightKg.replace(',', '.'));
+      const responses = buildOnboardingResponses(data);
+
+      const { error: rpcError } = await supabase.rpc('save_client_onboarding_intake', {
+        p_phone: data.phone.trim(),
+        p_goal: goal,
+        p_level: level,
+        p_gender: data.gender,
+        p_weight_kg: Number.isFinite(weight) && weight > 0 ? weight : null,
+        p_responses: responses,
+      });
+
+      if (rpcError) {
+        const missingRpc =
+          rpcError.code === 'PGRST202'
+          || rpcError.message.includes('Could not find the function')
+          || rpcError.message.includes('save_client_onboarding_intake');
+
+        if (!missingRpc) throw rpcError;
+
+        if (__DEV__) console.warn('[onboarding] RPC unavailable, using direct writes:', rpcError.message);
+
+        const [profileRes, userProfileRes] = await Promise.all([
+          supabase
+            .from('profiles')
+            .update({ goal, phone: data.phone.trim() || null })
+            .eq('id', userId)
+            .select()
+            .single(),
+          supabase.from('user_profiles').update({ level }).eq('user_id', userId).select().single(),
+        ]);
+        if (profileRes.error) throw profileRes.error;
+        if (userProfileRes.error) throw userProfileRes.error;
+
+        if (data.gender && Number.isFinite(weight) && weight > 0) {
+          const { error: measureError } = await supabase.from('body_measurements').upsert(
+            {
+              user_id: userId,
+              date: todayISO(),
+              gender: data.gender,
+              weight_kg: weight,
+            },
+            { onConflict: 'user_id,date' },
+          );
+          if (measureError) throw measureError;
+        }
+
+        const trainerId = profileRes.data.trainer_id ?? profile?.trainer_id;
+        if (trainerId) {
+          const { error: intakeError } = await anyClient.from('consultation_responses').upsert(
+            {
+              client_id: userId,
+              trainer_id: trainerId,
+              responses,
+              submitted_at: new Date().toISOString(),
+            },
+            { onConflict: 'client_id,trainer_id' },
+          );
+          if (intakeError) throw intakeError;
+        }
+
+        set({
+          profile: profileRes.data,
+          userProfile: userProfileRes.data,
+          needsOnboarding: false,
+          loading: false,
+        });
+        await refreshProgressMeasurements(userId);
+        return true;
+      }
+
+      const { profile: nextProfile, userProfile: nextUserProfile } = await loadProfiles(userId);
       set({
-        profile: profileRes.data,
-        userProfile: userProfileRes.data,
+        profile: nextProfile,
+        userProfile: nextUserProfile,
         needsOnboarding: false,
         loading: false,
       });
+      await refreshProgressMeasurements(userId);
       return true;
     } catch (error) {
       set({ loading: false, error: messageFor(error) });

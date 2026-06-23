@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { Alert, Dimensions, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Dimensions, RefreshControl, ScrollView, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Device from 'expo-device';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,8 +17,8 @@ import {
   ErrorState,
   HeaderAvatar,
 } from '../../components/common';
-import { BarChart, LineChart } from '../../components/charts';
-import { MeasurementHistoryList, ProgressToolsMenu } from '../../components/progress';
+import { BarChart } from '../../components/charts';
+import { MeasurementHistoryList, ProgressToolsMenu, WeightTrendChart } from '../../components/progress';
 import { useAuthStore } from '../../stores/authStore';
 import { useProgressStore } from '../../stores/progressStore';
 import { useTrainingStore } from '../../stores/trainingStore';
@@ -33,6 +33,7 @@ import { useTabBarScrollPadding } from '../../hooks/useTabBarScrollPadding';
 type Props = NativeStackScreenProps<ProgressStackParamList, 'Dashboard'>;
 
 const CHART_WIDTH = Dimensions.get('window').width - layout.screenPadding * 2 - spacing.md * 2;
+const CARD_CHART_BLEED = spacing.md;
 
 interface StatCellProps {
   icon: keyof typeof Ionicons.glyphMap;
@@ -87,6 +88,11 @@ export function ProgressDashboardScreen({ navigation }: Props): React.JSX.Elemen
   const [refreshing, setRefreshing] = useState(false);
   const [snapshot, setSnapshot] = useState<HealthSnapshot | null>(null);
   const [connecting, setConnecting] = useState(false);
+  const [weightChartWidth, setWeightChartWidth] = useState(0);
+
+  const onWeightChartLayout = useCallback((event: LayoutChangeEvent) => {
+    setWeightChartWidth(event.nativeEvent.layout.width);
+  }, []);
 
   const goMeasurements = useCallback(() => navigation.navigate('Measurements'), [navigation]);
 
@@ -273,14 +279,10 @@ export function ProgressDashboardScreen({ navigation }: Props): React.JSX.Elemen
                 </AppText>
               ) : null}
 
-              <View style={styles.chartWrap}>
-                <LineChart
-                  data={chartData}
-                  width={CHART_WIDTH}
-                  height={140}
-                  soft
-                  curved
-                />
+              <View style={styles.chartWrap} onLayout={onWeightChartLayout}>
+                {weightChartWidth > 0 ? (
+                  <WeightTrendChart data={chartData} width={weightChartWidth} height={132} />
+                ) : null}
               </View>
 
               {measurements.length > 0 ? (
@@ -291,9 +293,10 @@ export function ProgressDashboardScreen({ navigation }: Props): React.JSX.Elemen
                   </AppText>
                   <MeasurementHistoryList
                     measurements={measurements}
+                    weightOnly
                     limit={3}
                     footerLabel={t.progress.see_full_history}
-                    onFooterPress={goMeasurements}
+                    onFooterPress={() => navigation.navigate('WeightDetail')}
                   />
                 </>
               ) : null}
@@ -401,7 +404,7 @@ export function ProgressDashboardScreen({ navigation }: Props): React.JSX.Elemen
               ) : Device.isDevice ? (
                 <Button
                   label={t.progress.connect}
-                  variant="secondary"
+                  variant="outline"
                   size="md"
                   loading={connecting}
                   onPress={() => void connectHealth()}
@@ -452,7 +455,11 @@ const createStyles = (colors: Colors) => StyleSheet.create({
   },
   weightRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.xxs },
   weightUnit: { marginBottom: spacing.xs },
-  chartWrap: { marginTop: spacing.sm, marginHorizontal: -spacing.xxs },
+  chartWrap: {
+    marginTop: spacing.sm,
+    marginHorizontal: -CARD_CHART_BLEED,
+    alignSelf: 'stretch',
+  },
   divider: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: colors.border.subtle,

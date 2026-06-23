@@ -17,13 +17,13 @@ import { useAuthStore } from '../../stores/authStore';
 import { readPendingInviteCode } from '../../services/invite';
 import type { AuthStackParamList } from '../../types/navigation';
 import { authColors } from './authScreenTheme';
-import { AuthButton, AuthErrorBox, AuthGoogleButton, AuthInput } from './authUi';
+import { AuthButton, AuthErrorBox, AuthInput, AuthSocialLoginCard } from './authUi';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 
 export function LoginScreen({ navigation, route }: Props): React.JSX.Element {
   const insets = useSafeAreaInsets();
-  const { signIn, signInWithOAuth, loading, error, clearError } = useAuthStore();
+  const { signIn, signInWithOAuth, loading, oauthProvider, error, clearError } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [emailError, setEmailError] = useState<string | null>(null);
@@ -119,13 +119,16 @@ export function LoginScreen({ navigation, route }: Props): React.JSX.Element {
           <View style={styles.dividerRow}>
             <View style={styles.divider} />
             <AppText variant="caps11" color={authColors.textDisabled}>
-              o continuar con
+              o
             </AppText>
             <View style={styles.divider} />
           </View>
 
-          <AuthGoogleButton
-            onPress={() => void signInWithOAuth('google', trainerCode, 'login')}
+          <AuthSocialLoginCard
+            onGoogle={() => void signInWithOAuth('google', trainerCode, 'login')}
+            onApple={() => void signInWithOAuth('apple', trainerCode, 'login')}
+            loadingProvider={oauthProvider}
+            disabled={loading && !oauthProvider}
           />
 
           <Pressable
@@ -189,7 +192,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    marginVertical: spacing.xl,
+    marginTop: spacing.xl,
+    marginBottom: spacing.sm,
   },
   divider: { flex: 1, height: 1, backgroundColor: authColors.border },
   footer: { alignItems: 'center', marginTop: spacing.xxl, minHeight: 44, justifyContent: 'center' },

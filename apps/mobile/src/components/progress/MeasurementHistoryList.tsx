@@ -9,6 +9,7 @@ import type { BodyMeasurementRow } from '../../types/database';
 interface MeasurementHistoryListProps {
   measurements: BodyMeasurementRow[];
   limit?: number;
+  weightOnly?: boolean;
   footerLabel?: string;
   onFooterPress?: () => void;
 }
@@ -16,11 +17,13 @@ interface MeasurementHistoryListProps {
 export function MeasurementHistoryList({
   measurements,
   limit = 5,
+  weightOnly = false,
   footerLabel,
   onFooterPress,
 }: MeasurementHistoryListProps): React.JSX.Element | null {
   const { colors } = useTheme();
-  const history = measurements.slice(0, limit);
+  const rows = weightOnly ? measurements.filter((m) => m.weight_kg !== null) : measurements;
+  const history = rows.slice(0, limit);
   if (history.length === 0) return null;
 
   return (

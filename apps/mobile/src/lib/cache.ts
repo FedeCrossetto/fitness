@@ -41,6 +41,14 @@ export async function clearCache(): Promise<void> {
   }
 }
 
+export async function invalidateCache(key: string): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(PREFIX + key);
+  } catch {
+    // best-effort
+  }
+}
+
 /**
  * Patrón SWR: devuelve primero el caché (si existe) vía onData, luego el dato fresco.
  * Si la red falla y hay caché, no propaga el error.

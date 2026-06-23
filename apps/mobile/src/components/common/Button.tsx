@@ -1,11 +1,12 @@
 import React from 'react';
 import { ActivityIndicator, Pressable, StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, radius, spacing, layout, useTheme, useThemedStyles } from '../../theme';
 import { hapticTap } from '../../lib/haptics';
 import { AppText } from './AppText';
 
-type ButtonVariant = 'primary' | 'secondary' | 'ghost';
+type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost';
 type ButtonSize = 'md' | 'lg';
 
 interface ButtonProps {
@@ -47,6 +48,19 @@ export function Button({
         ? colors.text.primary
         : colors.primary.default;
 
+  const inner = loading ? (
+    <ActivityIndicator color={textColor} />
+  ) : (
+    <View style={styles.content}>
+      {icon ? <Ionicons name={icon} size={18} color={textColor} /> : null}
+      <AppText variant={size === 'lg' ? 'body16SemiBold' : 'body14SemiBold'} color={textColor}>
+        {label}
+      </AppText>
+    </View>
+  );
+
+  const sizeStyle = size === 'lg' ? styles.lg : styles.md;
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -54,25 +68,33 @@ export function Button({
       onPress={handlePress}
       disabled={isDisabled}
       style={({ pressed }) => [
-        styles.base,
-        size === 'lg' ? styles.lg : styles.md,
-        variant === 'primary' && styles.primary,
-        variant === 'secondary' && styles.secondary,
-        variant === 'ghost' && styles.ghost,
+        styles.pressable,
         fullWidth && styles.fullWidth,
         pressed && !isDisabled && styles.pressed,
         isDisabled && styles.disabled,
         style,
       ]}
     >
-      {loading ? (
-        <ActivityIndicator color={textColor} />
+      {variant === 'primary' ? (
+        <LinearGradient
+          colors={colors.gradients.kinetic}
+          start={{ x: 0, y: 0.5 }}
+          end={{ x: 1, y: 0.5 }}
+          style={[styles.base, sizeStyle, styles.primaryShell]}
+        >
+          {inner}
+        </LinearGradient>
       ) : (
-        <View style={styles.content}>
-          {icon ? <Ionicons name={icon} size={18} color={textColor} /> : null}
-          <AppText variant={size === 'lg' ? 'body16SemiBold' : 'body14SemiBold'} color={textColor}>
-            {label}
-          </AppText>
+        <View
+          style={[
+            styles.base,
+            sizeStyle,
+            variant === 'secondary' && styles.secondary,
+            variant === 'outline' && styles.outline,
+            variant === 'ghost' && styles.ghost,
+          ]}
+        >
+          {inner}
         </View>
       )}
     </Pressable>
@@ -81,23 +103,33 @@ export function Button({
 
 const createStyles = (colors: Colors) =>
   StyleSheet.create({
+    pressable: { alignSelf: 'flex-start' },
     base: {
       borderRadius: radius.md,
       alignItems: 'center',
       justifyContent: 'center',
       minHeight: layout.minHitTarget,
+      overflow: 'hidden',
     },
     lg: { paddingVertical: spacing.md, paddingHorizontal: spacing.xl },
     md: { paddingVertical: spacing.sm, paddingHorizontal: spacing.lg },
-    primary: { backgroundColor: colors.primary.default },
-    secondary: {
-      backgroundColor: colors.surface.elevated,
+    primaryShell: {
       borderWidth: 1,
-      borderColor: colors.border.default,
+      borderColor: 'rgba(255,255,255,0.12)',
+    },
+    secondary: {
+      backgroundColor: colors.primary.muted,
+      borderWidth: 1,
+      borderColor: colors.border.strong,
+    },
+    outline: {
+      backgroundColor: 'transparent',
+      borderWidth: 1.5,
+      borderColor: colors.primary.default,
     },
     ghost: { backgroundColor: 'transparent' },
     fullWidth: { alignSelf: 'stretch' },
-    pressed: { opacity: 0.82, transform: [{ scale: 0.99 }] },
+    pressed: { opacity: 0.88, transform: [{ scale: 0.985 }] },
     disabled: { opacity: 0.45 },
     content: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   });

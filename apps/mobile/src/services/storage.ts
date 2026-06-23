@@ -1,4 +1,5 @@
 import { File } from 'expo-file-system';
+import * as LegacyFS from 'expo-file-system/legacy';
 import { supabase } from '../lib/supabase';
 
 /**
@@ -9,13 +10,46 @@ import { supabase } from '../lib/supabase';
 export type PrivateBucket = 'progress-photos' | 'meal-photos';
 export type PublicBucket = 'avatars' | 'exercise-media' | 'food-images' | 'brand-illustrations';
 
+function base64ToBytes(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
 /**
- * Lee un archivo local (file://) como bytes. En RN/Expo `fetch(uri).arrayBuffer()`
- * suele devolver un buffer vacío → subía archivos de 0 bytes. La API `File` de
- * expo-file-system lee el contenido real.
+ * Lee un archivo local como bytes. En RN/Expo `fetch(uri).arrayBuffer()`
+ * suele devolver un buffer vacío. La API `File` funciona con file://; URIs de
+ * galería (ph://, assets-library://) requieren la API legacy.
  */
 async function uriToBytes(uri: string): Promise<Uint8Array> {
-  return new File(uri).bytes();
+  try {
+    const file = new File(uri);
+    if (file.exists) {
+      const bytes = await file.bytes();
+      if (bytes.byteLength > 0) return bytes;
+    }
+  } catch {
+    // fallback below
+  }
+
+  const cacheDir = LegacyFS.cacheDirectory;
+  if (cacheDir) {
+    const dest = `${cacheDir}upload-${Date.now()}.jpg`;
+    try {
+      await LegacyFS.copyAsync({ from: uri, to: dest });
+      const bytes = await new File(dest).bytes();
+      if (bytes.byteLength > 0) return bytes;
+    } catch {
+      // fallback below
+    }
+  }
+
+  const base64 = await LegacyFS.readAsStringAsync(uri, { encoding: LegacyFS.EncodingType.Base64 });
+  if (!base64) throw new Error('empty_image');
+  const bytes = base64ToBytes(base64);
+  if (bytes.byteLength === 0) throw new Error('empty_image');
+  return bytes;
 }
 
 function extensionOf(uri: string): string {

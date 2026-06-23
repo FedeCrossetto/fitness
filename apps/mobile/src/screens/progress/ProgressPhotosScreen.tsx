@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Dimensions, FlatList, Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, Dimensions, FlatList, InteractionManager, Modal, Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,6 +22,7 @@ import {
 import { useAuthStore } from '../../stores/authStore';
 import { useProgressStore } from '../../stores/progressStore';
 import { useUiStore } from '../../stores/uiStore';
+import { useTranslation } from '../../stores/i18nStore';
 import { signedUrl, uploadPrivateImage } from '../../services/storage';
 import type { PhotoPosition, ProgressPhotoRow } from '../../types/database';
 import { useTabBarScrollPadding } from '../../hooks/useTabBarScrollPadding';
@@ -35,6 +36,15 @@ const GRID_GAP = spacing.sm;
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const ITEM_WIDTH = (SCREEN_WIDTH - layout.screenPadding * 2 - GRID_GAP) / 2;
 
+/** Espera a que el BottomSheet (Modal) termine de cerrarse antes de abrir otro picker nativo. */
+function afterSheetDismiss(): Promise<void> {
+  return new Promise((resolve) => {
+    InteractionManager.runAfterInteractions(() => {
+      setTimeout(resolve, 350);
+    });
+  });
+}
+
 /** Semanas transcurridas desde la primera foto registrada (mínimo 1). */
 function computeWeekNumber(photos: ProgressPhotoRow[]): number {
   if (photos.length === 0) return 1;
@@ -46,6 +56,7 @@ function computeWeekNumber(photos: ProgressPhotoRow[]): number {
 export function ProgressPhotosScreen({ navigation }: Props): React.JSX.Element {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
+  const { t } = useTranslation();
 
   const insets = useSafeAreaInsets();
   const scrollBottom = useTabBarScrollPadding();
@@ -105,6 +116,10 @@ export function ProgressPhotosScreen({ navigation }: Props): React.JSX.Element {
       setUploading(true);
       try {
         const path = await uploadPrivateImage('progress-photos', userId, uri, `${activePosition}-${Date.now()}`);
+        const url = await signedUrl('progress-photos', path);
+        if (url) {
+          setSignedUrls((prev) => ({ ...prev, [path]: url }));
+        }
         const weekNumber = computeWeekNumber(useProgressStore.getState().photos);
         const ok = await addPhoto(userId, activePosition, path, weekNumber);
         if (ok) {
@@ -113,8 +128,13 @@ export function ProgressPhotosScreen({ navigation }: Props): React.JSX.Element {
         } else {
           useUiStore.getState().showToast('error', 'No pudimos guardar la foto.');
         }
-      } catch {
-        useUiStore.getState().showToast('error', 'No pudimos subir la foto. Probá de nuevo.');
+      } catch (err) {
+        if (__DEV__) console.warn('[ProgressPhotos] upload failed', err);
+        const message =
+          err instanceof Error && err.message === 'empty_image'
+            ? 'No pudimos leer la imagen. Probá con otra foto.'
+            : 'No pudimos subir la foto. Probá de nuevo.';
+        useUiStore.getState().showToast('error', message);
       }
       setUploading(false);
     },
@@ -123,6 +143,7 @@ export function ProgressPhotosScreen({ navigation }: Props): React.JSX.Element {
 
   const takePhoto = useCallback(async () => {
     setPickerVisible(false);
+    await afterSheetDismiss();
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
       useUiStore.getState().showToast('error', 'Necesitamos permiso de cámara para tomar tu foto de progreso.');
@@ -140,12 +161,12 @@ export function ProgressPhotosScreen({ navigation }: Props): React.JSX.Element {
 
   const pickFromLibrary = useCallback(async () => {
     setPickerVisible(false);
-    // iOS/Android usan el selector del sistema (PHPicker / Photo Picker): no requiere
-    // permiso de librería. Pedirlo dispara el diálogo de "acceso limitado" innecesario.
+    await afterSheetDismiss();
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       quality: 0.7,
       allowsEditing: true,
+      copyToCacheDirectory: true,
     });
     if (!result.canceled && result.assets[0]) {
       await handlePicked(result.assets[0].uri);
@@ -211,6 +232,16 @@ export function ProgressPhotosScreen({ navigation }: Props): React.JSX.Element {
 
       <View style={styles.tabs}>
         <SegmentedTabs tabs={POSITION_LABELS} activeIndex={activeIndex} onChange={setActiveIndex} />
+        {positionPhotos.length >= 2 ? (
+          <Button
+            label={t.progress.photos_compare}
+            variant="outline"
+            icon="git-compare-outline"
+            onPress={() => navigation.navigate('ProgressPhotoCompare', { position: activePosition })}
+            fullWidth
+            style={styles.compareBtn}
+          />
+        ) : null}
       </View>
 
       {photosLoading && photos.length === 0 ? (
@@ -261,7 +292,7 @@ export function ProgressPhotosScreen({ navigation }: Props): React.JSX.Element {
         />
         <Button
           label="Elegir de la galería"
-          variant="secondary"
+          variant="outline"
           icon="images-outline"
           onPress={() => void pickFromLibrary()}
           fullWidth
@@ -318,7 +349,8 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     marginBottom: spacing.md,
   },
   headerSpacer: { width: layout.minHitTarget },
-  tabs: { paddingHorizontal: layout.screenPadding, marginBottom: spacing.md },
+  tabs: { paddingHorizontal: layout.screenPadding, marginBottom: spacing.md, gap: spacing.sm },
+  compareBtn: { marginTop: spacing.xs },
   content: { paddingHorizontal: layout.screenPadding },
   listContent: {
     paddingHorizontal: layout.screenPadding,

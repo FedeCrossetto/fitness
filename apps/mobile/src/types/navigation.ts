@@ -51,6 +51,7 @@ export type ProgressStackParamList = {
   Dashboard: undefined;
   WeightDetail: undefined;
   ProgressPhotos: undefined;
+  ProgressPhotoCompare: { position?: PhotoPosition };
   Measurements: undefined;
   Hydration: undefined;
 };

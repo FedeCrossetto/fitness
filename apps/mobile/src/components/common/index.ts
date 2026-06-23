@@ -20,3 +20,4 @@ export { ErrorState } from './ErrorState';
 export { Skeleton, CardSkeleton } from './Skeleton';
 export { ToastHost } from './Toast';
 export { AuthLoadingOverlay } from './AuthLoadingOverlay';
+export { FlowBackdrop, FlowCard, FlowGradientBanner, FlowHeroIcon, FlowStepDots, flowShadowStyle } from './FlowVisuals';
