@@ -6,7 +6,15 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { TrainingStackParamList } from '../../types/navigation';
 import { layout, radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
 import { hapticSuccess } from '../../lib/haptics';
-import { AppText, Button, Card, CardSkeleton, ErrorState, MetricCard } from '../../components/common';
+import { formatShortDate } from '../../lib/dates';
+import {
+  AppText,
+  Button,
+  Card,
+  CardSkeleton,
+  ErrorState,
+  IconButton,
+} from '../../components/common';
 import { NUTRITION_MACRO_COLORS } from '../../components/nutrition/nutritionTheme';
 import { useTranslation } from '../../stores/i18nStore';
 import { useTrainingStore } from '../../stores/trainingStore';
@@ -16,6 +24,9 @@ import {
   summarizeWorkoutForFeed,
 } from '@reset-fitness/shared';
 import type { WorkoutLogRow } from '../../types/database';
+import { WorkedBodyMap } from '../../components/training/WorkedBodyMap';
+import type { BodyGender } from '../../components/progress';
+import { useProgressStore } from '../../stores/progressStore';
 import { useTabBarScrollPadding } from '../../hooks/useTabBarScrollPadding';
 
 type Props = NativeStackScreenProps<TrainingStackParamList, 'SessionSummary'>;
@@ -25,10 +36,14 @@ export function SessionSummaryScreen({ navigation, route }: Props): React.JSX.El
   const { t, i18n } = useTranslation();
   const styles = useThemedStyles(createStyles);
 
-  const { logId } = route.params;
+  const { logId, celebrate = true } = route.params;
   const insets = useSafeAreaInsets();
   const scrollBottom = useTabBarScrollPadding();
   const loadLogById = useTrainingStore((s) => s.loadLogById);
+  const measurements = useProgressStore((s) => s.measurements);
+
+  const bodyGender: BodyGender =
+    measurements[0]?.gender === 'female' ? 'female' : 'male';
 
   const [log, setLog] = useState<WorkoutLogRow | null>(null);
   const [loading, setLoading] = useState(true);
@@ -40,7 +55,7 @@ export function SessionSummaryScreen({ navigation, route }: Props): React.JSX.El
   }, [logId, loadLogById]);
 
   useEffect(() => {
-    hapticSuccess();
+    if (celebrate) hapticSuccess();
     let cancelled = false;
     void (async () => {
       const result = await loadLogById(logId);
@@ -51,7 +66,7 @@ export function SessionSummaryScreen({ navigation, route }: Props): React.JSX.El
     return () => {
       cancelled = true;
     };
-  }, [logId, loadLogById]);
+  }, [celebrate, logId, loadLogById]);
 
   const renderContent = () => {
     if (loading) {
@@ -77,57 +92,82 @@ export function SessionSummaryScreen({ navigation, route }: Props): React.JSX.El
     const exerciseLines = summarizeWorkoutForFeed(log.session_detail);
     const durationLabel = formatWorkoutDuration(log.duration_min, log.elapsed_seconds);
     const volumeLabel = formatWorkoutVolume(log.total_volume_kg);
+    const completedSets =
+      log.completed_sets ?? exerciseLines.reduce((s, l) => s + l.completedSets, 0);
+    const isStrength = log.workout_type === 'fuerza';
 
     return (
       <View>
-        <View style={styles.celebration}>
-          <View style={styles.successIcon}>
-            <Ionicons name="checkmark-circle" size={56} color={NUTRITION_MACRO_COLORS.carbs} />
+        {celebrate ? (
+          <View style={styles.celebration}>
+            <View style={styles.successIcon}>
+              <Ionicons name="checkmark-circle" size={40} color={NUTRITION_MACRO_COLORS.carbs} />
+            </View>
+            <View style={styles.celebrationText}>
+              <AppText variant="h2" color={colors.text.primary}>
+                {t.training.done_title}
+              </AppText>
+              <AppText variant="body13" color={colors.text.secondary} numberOfLines={2}>
+                {i18n(t.training.done_subtitle, { name: log.workout_name })}
+              </AppText>
+            </View>
           </View>
-          <AppText variant="h1" color={colors.text.primary} align="center">
-            {t.training.done_title}
-          </AppText>
-          <AppText variant="body14" color={colors.text.secondary} align="center" style={styles.subtitle}>
-            {i18n(t.training.done_subtitle, { name: log.workout_name })}
-          </AppText>
-        </View>
+        ) : (
+          <View style={styles.detailHeader}>
+            <View style={styles.detailTitleBlock}>
+              <AppText variant="h2" color={colors.text.primary} numberOfLines={2}>
+                {log.workout_name}
+              </AppText>
+              <AppText variant="body12" color={colors.text.tertiary}>
+                {formatShortDate(log.date)} · {durationLabel}
+              </AppText>
+            </View>
+          </View>
+        )}
 
-        <View style={styles.grid}>
-          <MetricCard
-            label={t.training.duration}
-            value={durationLabel}
-            icon="time-outline"
-            style={styles.gridItem}
+        {isStrength ? (
+          <WorkedBodyMap
+            sessionDetail={log.session_detail}
+            gender={bodyGender}
+            variant="hero"
+            metrics={{
+              durationLabel,
+              volumeLabel,
+              completedSets,
+              exerciseCount: exerciseLines.length,
+              rpe: log.rpe,
+            }}
           />
-          <MetricCard
-            label={t.training.volume}
-            value={volumeLabel}
-            icon="barbell-outline"
-            style={styles.gridItem}
-          />
-          <MetricCard
-            label={t.training.sets_completed}
-            value={String(log.completed_sets ?? exerciseLines.reduce((s, l) => s + l.completedSets, 0))}
-            icon="layers-outline"
-            style={styles.gridItem}
-          />
-          <MetricCard
-            label="RPE"
-            value={log.rpe != null ? String(log.rpe) : '—'}
-            unit="/ 10"
-            icon="speedometer-outline"
-            style={styles.gridItem}
-          />
-        </View>
+        ) : (
+          <Card style={styles.cardioMetrics}>
+            <View style={styles.cardioGrid}>
+              <MetricInline label={t.training.duration} value={durationLabel} icon="time-outline" />
+              {log.distance != null && log.distance > 0 ? (
+                <MetricInline
+                  label={t.training.distance}
+                  value={`${log.distance}`}
+                  unit={log.distance_unit ?? 'km'}
+                  icon="navigate-outline"
+                />
+              ) : null}
+              {log.rpe != null ? (
+                <MetricInline label="RPE" value={String(log.rpe)} unit="/10" icon="speedometer-outline" />
+              ) : null}
+            </View>
+          </Card>
+        )}
 
         {exerciseLines.length > 0 ? (
           <Card style={styles.exerciseCard}>
-            <AppText variant="caps12" color={colors.text.tertiary} style={styles.commentsLabel}>
-              {t.training.session_exercises}
+            <AppText variant="caps12" color={colors.text.tertiary} style={styles.sectionLabel}>
+              {i18n(t.training.exercises_count, { n: exerciseLines.length })}
             </AppText>
-            {exerciseLines.map((line) => (
-              <View key={line.name} style={styles.exerciseLine}>
-                <AppText variant="body14SemiBold" color={colors.text.primary} style={styles.exerciseLineName}>
+            {exerciseLines.map((line, index) => (
+              <View
+                key={line.name}
+                style={[styles.exerciseLine, index < exerciseLines.length - 1 && styles.exerciseLineBorder]}
+              >
+                <AppText variant="body13Medium" color={colors.text.primary} style={styles.exerciseLineName}>
                   {line.name}
                 </AppText>
                 <AppText variant="body12" color={colors.text.secondary}>
@@ -140,7 +180,7 @@ export function SessionSummaryScreen({ navigation, route }: Props): React.JSX.El
 
         {log.comments ? (
           <Card style={styles.commentsCard}>
-            <AppText variant="caps12" color={colors.text.tertiary} style={styles.commentsLabel}>
+            <AppText variant="caps12" color={colors.text.tertiary} style={styles.sectionLabel}>
               {t.training.comments}
             </AppText>
             <AppText variant="body14" color={colors.text.secondary}>
@@ -150,13 +190,17 @@ export function SessionSummaryScreen({ navigation, route }: Props): React.JSX.El
         ) : null}
 
         <Button
-          label={t.training.back_to_program}
-          icon="arrow-back"
+          label={celebrate ? t.training.back_to_program : t.training.go_back}
+          icon={celebrate ? 'arrow-back' : 'chevron-back'}
           onPress={() => {
-            navigation.reset({
-              index: 0,
-              routes: [{ name: 'Program' }],
-            });
+            if (celebrate) {
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'Program' }],
+              });
+            } else {
+              navigation.goBack();
+            }
           }}
           fullWidth
           style={styles.cta}
@@ -169,46 +213,110 @@ export function SessionSummaryScreen({ navigation, route }: Props): React.JSX.El
     <ScrollView
       style={styles.flex}
       contentContainerStyle={{
-        paddingTop: insets.top + spacing.xl,
+        paddingTop: insets.top + (celebrate ? spacing.lg : spacing.sm),
         paddingBottom: scrollBottom,
         paddingHorizontal: layout.screenPadding,
       }}
       showsVerticalScrollIndicator={false}
     >
+      {!celebrate ? (
+        <View style={styles.navRow}>
+          <IconButton
+            icon="chevron-back"
+            onPress={() => navigation.goBack()}
+            accessibilityLabel={t.training.go_back}
+          />
+          <AppText variant="body14SemiBold" color={colors.text.secondary}>
+            {t.training.session_summary_title}
+          </AppText>
+          <View style={styles.navSpacer} />
+        </View>
+      ) : null}
       {renderContent()}
     </ScrollView>
   );
 }
 
+interface MetricInlineProps {
+  label: string;
+  value: string;
+  unit?: string;
+  icon: keyof typeof Ionicons.glyphMap;
+}
+
+function MetricInline({ label, value, unit, icon }: MetricInlineProps): React.JSX.Element {
+  const { colors } = useTheme();
+  return (
+    <View style={metricStyles.cell}>
+      <Ionicons name={icon} size={14} color={colors.text.tertiary} />
+      <AppText variant="caps11" color={colors.text.tertiary}>
+        {label}
+      </AppText>
+      <View style={metricStyles.valueRow}>
+        <AppText variant="body14SemiBold" color={colors.text.primary}>
+          {value}
+        </AppText>
+        {unit ? (
+          <AppText variant="body12" color={colors.text.tertiary}>
+            {unit}
+          </AppText>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+const metricStyles = StyleSheet.create({
+  cell: { gap: 2, minWidth: '30%' },
+  valueRow: { flexDirection: 'row', alignItems: 'baseline', gap: 3 },
+});
+
 const createStyles = (colors: Colors) => StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
-  celebration: { alignItems: 'center', marginBottom: spacing.xl },
+  navRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
+  },
+  navSpacer: { width: layout.minHitTarget },
+  celebration: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
   successIcon: {
-    width: 88,
-    height: 88,
+    width: 56,
+    height: 56,
     borderRadius: radius.pill,
     backgroundColor: colors.surface.elevated,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.md,
   },
-  subtitle: { marginTop: spacing.xs, maxWidth: 280 },
-  grid: {
+  celebrationText: { flex: 1, gap: 2 },
+  detailHeader: { marginBottom: spacing.md },
+  detailTitleBlock: { gap: spacing.xxs },
+  cardioMetrics: { marginTop: spacing.sm },
+  cardioGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.sm,
+    gap: spacing.md,
   },
-  gridItem: { flexBasis: '47%', flexGrow: 1 },
-  exerciseCard: { marginTop: spacing.md },
+  exerciseCard: { marginTop: spacing.sm },
   exerciseLine: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: spacing.xs,
+    paddingVertical: spacing.sm,
     gap: spacing.sm,
   },
+  exerciseLineBorder: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border.subtle,
+  },
   exerciseLineName: { flex: 1 },
-  commentsCard: { marginTop: spacing.md },
-  commentsLabel: { marginBottom: spacing.xs },
-  cta: { marginTop: spacing.xl },
+  commentsCard: { marginTop: spacing.sm },
+  sectionLabel: { marginBottom: spacing.xs },
+  cta: { marginTop: spacing.lg },
 });

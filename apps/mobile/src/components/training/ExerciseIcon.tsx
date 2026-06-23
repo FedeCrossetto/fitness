@@ -2,13 +2,15 @@ import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
-import { canShowExerciseImage } from '@reset-fitness/shared';
+import { canShowExerciseImage, resolveExerciseFallbackIcon, type ExerciseFallbackIcon } from '@reset-fitness/shared';
 import { radius, Colors, useThemedStyles, useTheme } from '../../theme';
 
 interface ExerciseIconProps {
   icon?: keyof typeof Ionicons.glyphMap;
   imageUrl?: string | null;
   externalSource?: string | null;
+  bodyPart?: string | null;
+  targetMuscle?: string | null;
   size?: number;
   muted?: boolean;
   contentFit?: 'cover' | 'contain';
@@ -20,6 +22,8 @@ export function ExerciseIcon({
   icon = 'barbell-outline',
   imageUrl,
   externalSource,
+  bodyPart,
+  targetMuscle,
   size = 44,
   muted = false,
   contentFit = 'cover',
@@ -30,7 +34,9 @@ export function ExerciseIcon({
   const glyph = Math.max(16, Math.round(size * 0.4));
   const borderRadius = size > 40 ? radius.md : radius.pill;
   const showImage = canShowExerciseImage(imageUrl, externalSource);
-  const pressable = Boolean(onPress && showImage);
+  const pressable = Boolean(onPress && (showImage || bodyPart || targetMuscle));
+  const fallbackIcon = resolveExerciseFallbackIcon(bodyPart, targetMuscle) as ExerciseFallbackIcon;
+  const resolvedIcon = (icon === 'barbell-outline' && (bodyPart || targetMuscle) ? fallbackIcon : icon) as keyof typeof Ionicons.glyphMap;
 
   const content = showImage ? (
     <Image
@@ -40,7 +46,7 @@ export function ExerciseIcon({
       autoplay
     />
   ) : (
-    <Ionicons name={icon} size={glyph} color={muted ? colors.text.tertiary : colors.text.secondary} />
+    <Ionicons name={resolvedIcon} size={glyph} color={muted ? colors.text.tertiary : colors.text.secondary} />
   );
 
   const wrapStyle = [

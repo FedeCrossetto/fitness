@@ -15,6 +15,9 @@ import { hapticTap } from '../../lib/haptics';
 import { useTranslation } from '../../stores/i18nStore';
 import type { WorkoutLogRow } from '../../types/database';
 import type { MainTabsParamList } from '../../types/navigation';
+import { WorkedBodyMap } from './WorkedBodyMap';
+import type { BodyGender } from '../progress';
+import { useProgressStore } from '../../stores/progressStore';
 
 interface RecentWorkoutFeedProps {
   logs: WorkoutLogRow[];
@@ -33,6 +36,9 @@ export function RecentWorkoutFeed({
   const { t, i18n } = useTranslation();
   const styles = useThemedStyles(createStyles);
   const navigation = useNavigation<NavigationProp<MainTabsParamList>>();
+  const measurements = useProgressStore((s) => s.measurements);
+  const bodyGender: BodyGender =
+    measurements[0]?.gender === 'female' ? 'female' : 'male';
 
   const entries = useMemo(
     () => logs.filter((log) => log.workout_type === 'fuerza' || log.workout_type === 'cardio').slice(0, limit),
@@ -96,6 +102,8 @@ export function RecentWorkoutFeed({
             .join(' · ');
           const topExercise = lines[0];
 
+          const hasBodyMap = !isCardio && log.session_detail != null;
+
           return (
             <Pressable
               key={log.id}
@@ -104,18 +112,28 @@ export function RecentWorkoutFeed({
                 hapticTap();
                 navigation.navigate('TrainingTab', {
                   screen: 'SessionSummary',
-                  params: { logId: log.id },
+                  params: { logId: log.id, celebrate: false },
                 });
               }}
               style={({ pressed }) => [styles.card, compact && styles.cardCompact, pressed && styles.pressed]}
             >
-              <View style={[styles.iconWrap, compact && styles.iconWrapCompact]}>
-                <Ionicons
-                  name={isCardio ? 'pulse-outline' : 'barbell-outline'}
-                  size={compact ? 14 : 18}
-                  color={colors.text.secondary}
-                />
-              </View>
+              {isCardio ? (
+                <View style={[styles.iconWrap, compact && styles.iconWrapCompact]}>
+                  <Ionicons name="pulse-outline" size={compact ? 14 : 18} color={colors.text.secondary} />
+                </View>
+              ) : (
+                <View style={[styles.miniMapWrap, compact && styles.miniMapWrapCompact]}>
+                  {hasBodyMap ? (
+                    <WorkedBodyMap
+                      sessionDetail={log.session_detail}
+                      gender={bodyGender}
+                      variant="mini"
+                    />
+                  ) : (
+                    <Ionicons name="barbell-outline" size={compact ? 14 : 18} color={colors.text.secondary} />
+                  )}
+                </View>
+              )}
               <View style={styles.cardBody}>
                 <View style={styles.cardTitleRow}>
                   <AppText
@@ -193,6 +211,21 @@ const createStyles = (colors: Colors) =>
     iconWrapCompact: {
       width: 28,
       height: 28,
+    },
+    miniMapWrap: {
+      width: 40,
+      height: 56,
+      borderRadius: radius.sm,
+      backgroundColor: colors.surface.elevated,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border.subtle,
+      overflow: 'hidden',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    miniMapWrapCompact: {
+      width: 34,
+      height: 48,
     },
     cardBody: { flex: 1, gap: 2, minWidth: 0 },
     cardTitleRow: {

@@ -25,7 +25,7 @@ export type TrainingStackParamList = {
   Program: undefined;
   WorkoutDetail: { workoutId: string; dayTitle?: string };
   LiveSession: { workoutId: string; workoutTitle: string };
-  SessionSummary: { logId: string };
+  SessionSummary: { logId: string; celebrate?: boolean };
   CardioLog: { activity?: string; durationMin?: number } | undefined;
 };
 

@@ -59,7 +59,7 @@ loadEnvFile(join(MOBILE_ROOT, '.env.local'));
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const limit = Number.parseInt(process.env.EXERCISEDB_LIMIT ?? '50', 10);
+const limit = Number.parseInt(process.env.EXERCISEDB_LIMIT ?? '150', 10);
 const pageSize = Number.parseInt(process.env.EXERCISEDB_PAGE_SIZE ?? '10', 10);
 const sourceMode = (process.env.EXERCISEDB_SOURCE ?? 'auto').toLowerCase();
 const dumpCache = process.env.EXERCISEDB_DUMP_CACHE === '1' || process.env.EXERCISEDB_DUMP_CACHE === 'true';

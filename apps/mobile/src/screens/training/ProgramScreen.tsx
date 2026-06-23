@@ -177,7 +177,12 @@ export function ProgramScreen({ navigation }: Props): React.JSX.Element {
 
     return (
       <View style={styles.dayRow}>
-        <ExerciseIcon icon={meta.icon} size={44} muted={rest} />
+        <ExerciseIcon
+          icon={meta.icon}
+          size={44}
+          muted={rest}
+          imageUrl={day.workout?.cover_image_url}
+        />
         <View style={styles.dayInfo}>
           <AppText variant="body14SemiBold" color={colors.text.primary} numberOfLines={1}>
             {i18n(t.training.day_label, { n: day.day_number })} · {day.title}
@@ -229,7 +234,11 @@ export function ProgramScreen({ navigation }: Props): React.JSX.Element {
     return (
       <Card elevated style={styles.nextCard}>
         <View style={styles.nextTop}>
-          <ExerciseIcon icon={meta.icon} size={52} />
+          <ExerciseIcon
+            icon={meta.icon}
+            size={56}
+            imageUrl={nextWorkoutDay.workout.cover_image_url}
+          />
           <View style={styles.nextInfo}>
             <AppText variant="caps11" color={colors.text.tertiary}>
               {t.training.next_workout}

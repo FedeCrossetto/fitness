@@ -263,9 +263,9 @@ export function LiveSessionScreen({ navigation }: Props): React.JSX.Element {
         <View style={styles.exerciseHeader}>
           <ExerciseIcon
             icon="barbell-outline"
-            size={44}
+            size={56}
             imageUrl={item.imageUrl}
-            muted
+            bodyPart={item.bodyPart}
             onPress={() => {
               hapticSelect();
               setPreviewExercise({

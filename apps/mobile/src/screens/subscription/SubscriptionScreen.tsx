@@ -7,7 +7,13 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { HomeStackParamList } from '../../types/navigation';
 import { layout, radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
 import { formatLongDate } from '../../lib/dates';
-import { fetchActiveSubscription, fetchPlans, hasActiveAccess } from '../../services/payments';
+import {
+  clearSubscriptionAccessCache,
+  fetchActiveSubscription,
+  fetchPlans,
+  hasActiveAccess,
+  isManualSubscription,
+} from '../../services/payments';
 import { useCheckout } from '../../hooks/useCheckout';
 import {
   AppText,
@@ -20,6 +26,7 @@ import {
 } from '../../components/common';
 import { useAuthStore } from '../../stores/authStore';
 import { useUiStore } from '../../stores/uiStore';
+import { useTranslation } from '../../stores/i18nStore';
 import type { PlanRow, SubscriptionRow } from '../../types/database';
 import { useTabBarScrollPadding } from '../../hooks/useTabBarScrollPadding';
 
@@ -32,6 +39,7 @@ function monthsOf(plan: PlanRow): number {
 export function SubscriptionScreen({ navigation }: Props): React.JSX.Element {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
+  const { t, i18n } = useTranslation();
 
   const insets = useSafeAreaInsets();
   const scrollBottom = useTabBarScrollPadding();
@@ -65,6 +73,7 @@ export function SubscriptionScreen({ navigation }: Props): React.JSX.Element {
   useFocusEffect(
     useCallback(() => {
       if (!userId) return;
+      clearSubscriptionAccessCache();
       setLoading(true);
       void load();
     }, [userId, load]),
@@ -118,15 +127,29 @@ export function SubscriptionScreen({ navigation }: Props): React.JSX.Element {
             <View style={styles.statusRow}>
               <View style={styles.statusInfo}>
                 <AppText variant="body16SemiBold" color={colors.text.primary}>
-                  {plans.find((p) => p.id === subscription.plan_id)?.name ?? 'Tu plan'}
+                  {plans.find((p) => p.id === subscription.plan_id)?.name ?? t.profile.plan_active}
                 </AppText>
+                {subscription.started_at ? (
+                  <AppText variant="body13" color={colors.text.secondary} style={styles.statusSub}>
+                    {i18n(t.profile.plan_started, {
+                      date: formatLongDate(subscription.started_at.slice(0, 10)),
+                    })}
+                  </AppText>
+                ) : null}
                 <AppText variant="body13" color={colors.text.secondary} style={styles.statusSub}>
                   {subscription.expires_at
-                    ? `Vence el ${formatLongDate(subscription.expires_at.slice(0, 10))}`
-                    : 'Sin fecha de vencimiento'}
+                    ? i18n(t.profile.plan_expires, {
+                        date: formatLongDate(subscription.expires_at.slice(0, 10)),
+                      })
+                    : t.profile.plan_full_access}
                 </AppText>
+                {isManualSubscription(subscription) ? (
+                  <AppText variant="body12" color={colors.text.tertiary} style={styles.statusSub}>
+                    {t.profile.plan_manual_payment}
+                  </AppText>
+                ) : null}
               </View>
-              <Chip label="Activa" active />
+              <Chip label={t.profile.plan_active} active />
             </View>
           </Card>
         ) : null}
@@ -153,11 +176,13 @@ export function SubscriptionScreen({ navigation }: Props): React.JSX.Element {
           </Card>
         ) : null}
 
-        <AppText variant="caps13" color={colors.text.tertiary} style={styles.plansTitle}>
-          Planes disponibles
-        </AppText>
+        {!active ? (
+          <>
+            <AppText variant="caps13" color={colors.text.tertiary} style={styles.plansTitle}>
+              Planes disponibles
+            </AppText>
 
-        {plans.map((plan) => {
+            {plans.map((plan) => {
           const months = monthsOf(plan);
           const selected = selectedId === plan.id;
           return (
@@ -203,18 +228,20 @@ export function SubscriptionScreen({ navigation }: Props): React.JSX.Element {
           );
         })}
 
-        <Button
-          label="Suscribirme"
-          onPress={() => void onSubscribe()}
-          loading={checkingOut}
-          disabled={!selectedId}
-          fullWidth
-          style={styles.cta}
-        />
+            <Button
+              label="Suscribirme"
+              onPress={() => void onSubscribe()}
+              loading={checkingOut}
+              disabled={!selectedId}
+              fullWidth
+              style={styles.cta}
+            />
 
-        <AppText variant="body12" color={colors.text.disabled} align="center" style={styles.legal}>
-          Pagos procesados por Mercado Pago. Podés cancelar cuando quieras.
-        </AppText>
+            <AppText variant="body12" color={colors.text.disabled} align="center" style={styles.legal}>
+              Pagos procesados por Mercado Pago. Podés cancelar cuando quieras.
+            </AppText>
+          </>
+        ) : null}
       </View>
     );
   }

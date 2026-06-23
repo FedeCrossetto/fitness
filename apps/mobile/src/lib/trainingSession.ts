@@ -103,6 +103,9 @@ export async function buildSessionExercises(
     exerciseId: item.exercise_id,
     exerciseName: item.exercise.name,
     imageUrl: item.exercise.image_url,
+    bodyPart: item.exercise.body_part,
+    targetMuscles: item.exercise.target_muscles,
+    secondaryMuscles: item.exercise.secondary_muscles,
     targetSets: item.sets,
     targetReps: item.reps,
     targetWeightKg: item.weight_kg,
@@ -158,7 +161,7 @@ export function addSetToExercise(session: ActiveSession, workoutExerciseId: stri
 
 export function addExerciseToSession(
   session: ActiveSession,
-  exercise: Pick<ExerciseRow, 'id' | 'name' | 'image_url'>,
+  exercise: Pick<ExerciseRow, 'id' | 'name' | 'image_url' | 'body_part' | 'target_muscles'> & Pick<Partial<ExerciseRow>, 'secondary_muscles'>,
   previousLogs: { session_detail: WorkoutSessionDetail | null }[],
   persistedWorkoutExerciseId?: string,
 ): ActiveSession {
@@ -168,6 +171,9 @@ export function addExerciseToSession(
     exerciseId: exercise.id,
     exerciseName: exercise.name,
     imageUrl: exercise.image_url,
+    bodyPart: exercise.body_part,
+    targetMuscles: exercise.target_muscles,
+    secondaryMuscles: exercise.secondary_muscles,
     targetSets: 3,
     targetReps: '10',
     targetWeightKg: null,
@@ -294,6 +300,9 @@ export function normalizeStoredSession(raw: unknown, detail: WorkoutDetailForSes
     exerciseId: item.exercise_id,
     exerciseName: item.exercise.name,
     imageUrl: item.exercise.image_url,
+    bodyPart: item.exercise.body_part,
+    targetMuscles: item.exercise.target_muscles,
+    secondaryMuscles: item.exercise.secondary_muscles,
     targetSets: item.sets,
     targetReps: item.reps,
     targetWeightKg: item.weight_kg,

@@ -18,6 +18,7 @@ import { WaiverBlockingGate } from '../components/waiver/WaiverBlockingGate';
 import { ImageConsentBlockingGate } from '../components/waiver/ImageConsentBlockingGate';
 import { useInviteDeepLink } from '../hooks/useInviteDeepLink';
 import { needsTrainerLink, isPendingActivation } from '../services/clientAccess';
+import { clearSubscriptionAccessCache } from '../services/payments';
 import { syncPushRegistration } from '../services/notifications';
 import { supabase } from '../lib/supabase';
 import { useInboxStore } from '../stores/inboxStore';
@@ -323,7 +324,11 @@ export function RootNavigator(): React.JSX.Element {
 
   useEffect(() => {
     const onChange = (state: AppStateStatus) => {
-      if (state === 'active') void checkWaiver();
+      if (state === 'active') {
+        void checkWaiver();
+        clearSubscriptionAccessCache();
+        void useAuthStore.getState().refreshProfile();
+      }
     };
     const sub = AppState.addEventListener('change', onChange);
     return () => sub.remove();

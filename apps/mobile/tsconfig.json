@@ -13,5 +13,5 @@
     }
   },
   "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules", "supabase/functions"]
+  "exclude": ["node_modules", "supabase/functions", "vendor", "scripts/muscle-map-embed", "src/generated/muscle-map-dist"]
 }

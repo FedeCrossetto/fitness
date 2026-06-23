@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { AppState, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { spacing, radius, Colors, useThemedStyles, useTheme } from '../../theme';
 import { AppText, Button, CardSkeleton, FlowBackdrop, FlowHeroIcon, flowShadowStyle } from '../../components/common';
 import { useAuthStore } from '../../stores/authStore';
 import { useUiStore } from '../../stores/uiStore';
-import { fetchPlans } from '../../services/payments';
+import { clearSubscriptionAccessCache, fetchPlans } from '../../services/payments';
 import { useCheckout } from '../../hooks/useCheckout';
 import type { PlanRow } from '../../types/database';
 
@@ -57,8 +57,19 @@ export function PendingActivationScreen(): React.JSX.Element {
     })();
   }, [userId]);
 
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        clearSubscriptionAccessCache();
+        void refreshProfile();
+      }
+    });
+    return () => sub.remove();
+  }, [refreshProfile]);
+
   const onCheck = useCallback(async () => {
     setChecking(true);
+    clearSubscriptionAccessCache();
     await refreshProfile();
     setChecking(false);
     if (useAuthStore.getState().profile?.client_status === 'pending') {

@@ -128,8 +128,8 @@ interface TrainingState {
   setExerciseNotes: (workoutExerciseId: string, notes: string) => void;
   toggleRestEnabled: () => void;
   skipRest: () => void;
-  searchExercises: (query: string) => Promise<Pick<ExerciseRow, 'id' | 'name' | 'image_url' | 'target_muscles'>[]>;
-  addExerciseToSession: (userId: string, exercise: Pick<ExerciseRow, 'id' | 'name' | 'image_url'>) => Promise<void>;
+  searchExercises: (query: string) => Promise<Pick<ExerciseRow, 'id' | 'name' | 'image_url' | 'body_part' | 'target_muscles' | 'external_source'>[]>;
+  addExerciseToSession: (userId: string, exercise: Pick<ExerciseRow, 'id' | 'name' | 'image_url' | 'body_part' | 'target_muscles'> & Pick<Partial<ExerciseRow>, 'secondary_muscles'>) => Promise<void>;
   updateSessionMeta: (data: Partial<Pick<ActiveSession, 'notes' | 'rpe' | 'heartRate' | 'calories'>>) => void;
   finishSession: (userId: string) => Promise<WorkoutLogRow | null>;
   discardSession: () => Promise<void>;
@@ -410,14 +410,14 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
   searchExercises: async (query) => {
     let request = supabase
       .from('exercises')
-      .select('id, name, image_url, target_muscles')
+      .select('id, name, image_url, body_part, target_muscles, external_source')
       .order('name')
       .limit(40);
     if (query.trim()) {
       request = request.ilike('name', `%${query.trim()}%`);
     }
     const { data } = await request;
-    return (data ?? []) as Pick<ExerciseRow, 'id' | 'name' | 'image_url' | 'target_muscles'>[];
+    return (data ?? []) as Pick<ExerciseRow, 'id' | 'name' | 'image_url' | 'body_part' | 'target_muscles' | 'external_source'>[];
   },
 
   addExerciseToSession: async (userId, exercise) => {

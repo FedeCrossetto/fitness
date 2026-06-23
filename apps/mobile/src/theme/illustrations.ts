@@ -19,9 +19,8 @@ export const illustrationSources = {
 } as const;
 
 /**
- * Modelos corporales para la pantalla de Medidas, según el sexo del usuario.
- * Archivos del cliente en assets/body/ (actualmente placeholders — reemplazar
- * por las imágenes reales manteniendo los nombres male.png / female.png).
+ * Modelos corporales 3D — pantalla de Medidas (BodyAvatar).
+ * El resumen post-entreno usa SVG (react-native-body-highlighter), no PNG por zona.
  */
 export const bodyModels = {
   male: require('../../assets/body/male.png') as ImageSourcePropType,

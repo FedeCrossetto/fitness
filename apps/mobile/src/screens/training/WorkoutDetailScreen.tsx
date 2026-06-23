@@ -131,9 +131,11 @@ export function WorkoutDetailScreen({ navigation, route }: Props): React.JSX.Ele
       </View>
       <ExerciseIcon
         icon="barbell-outline"
-        size={40}
+        size={48}
         imageUrl={item.exercise.image_url}
         externalSource={item.exercise.external_source}
+        bodyPart={item.exercise.body_part}
+        targetMuscle={item.exercise.target_muscles?.[0]}
         onPress={() => setSelectedExercise(item)}
       />
       <View style={styles.exerciseInfo}>

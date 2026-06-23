@@ -9,7 +9,7 @@ import { useTranslation } from '../../stores/i18nStore';
 import { useTrainingStore } from '../../stores/trainingStore';
 import type { ExerciseRow } from '../../types/database';
 
-type CatalogExercise = Pick<ExerciseRow, 'id' | 'name' | 'image_url' | 'target_muscles'>;
+type CatalogExercise = Pick<ExerciseRow, 'id' | 'name' | 'image_url' | 'body_part' | 'target_muscles' | 'external_source'>;
 
 interface ExerciseSearchSheetProps {
   visible: boolean;
@@ -80,8 +80,11 @@ export function ExerciseSearchSheet({ visible, onClose, onPick }: ExerciseSearch
               style={({ pressed }) => [styles.row, pressed && styles.pressed]}
             >
               <ExerciseIcon
-                size={44}
+                size={48}
                 imageUrl={item.image_url}
+                externalSource={item.external_source}
+                bodyPart={item.body_part}
+                targetMuscle={item.target_muscles?.[0]}
                 onPress={() => setPreviewExercise(item)}
               />
               <View style={styles.info}>

@@ -6,7 +6,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { spacing, radius, Colors, useThemedStyles, useTheme } from '../../theme';
 import { AppText } from '../common';
 import { useAuthStore } from '../../stores/authStore';
-import { getCachedSubscriptionAccess, resolveSubscriptionAccess } from '../../services/payments';
+import { clearSubscriptionAccessCache, resolveSubscriptionAccess } from '../../services/payments';
 import { isStaffProfile } from '../../services/clientAccess';
 
 /**
@@ -29,11 +29,7 @@ export function SubscriptionBanner({ onPress }: { onPress: () => void }): React.
         setHasAccess(true);
         return;
       }
-      const cached = getCachedSubscriptionAccess(userId);
-      if (cached !== null) {
-        setHasAccess(cached);
-        return;
-      }
+      clearSubscriptionAccessCache();
       let cancelled = false;
       void (async () => {
         try {

@@ -55,7 +55,8 @@
     "@types/react": "~19.1.10",
     "eslint": "^9.39.4",
     "eslint-config-expo": "~10.0.0",
-    "typescript": "~5.9.2"
+    "typescript": "~5.9.2",
+    "vite": "^5.4.21"
   },
   "scripts": {
     "start": "expo start --dev-client --lan",
@@ -68,7 +69,12 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "seed:food-icons": "node scripts/seed-food-icons.mjs",
-    "seed:exercisedb": "node scripts/seed-exercisedb.mjs"
+    "seed:exercisedb": "node scripts/seed-exercisedb.mjs",
+    "seed:wger": "node scripts/seed-wger.mjs",
+    "seed:link-demo-exercises": "node scripts/seed-link-demo-exercises.mjs",
+    "seed:training-media": "node scripts/seed-wger.mjs && node scripts/seed-exercisedb.mjs && node scripts/seed-link-demo-exercises.mjs",
+    "sync:body-zones": "node scripts/sync-body-zone-assets.mjs",
+    "build:muscle-map": "node scripts/build-muscle-map-embed.mjs"
   },
   "private": true
 }

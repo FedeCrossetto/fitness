@@ -153,6 +153,10 @@ export function hasActiveAccess(subscription: SubscriptionRow | null): boolean {
   );
 }
 
+export function isManualSubscription(subscription: SubscriptionRow | null | undefined): boolean {
+  return subscription?.mp_status === 'manual';
+}
+
 /** Crea la preferencia de pago y devuelve la URL de checkout de Mercado Pago. */
 export async function createCheckout(planId: string): Promise<{ checkoutUrl: string; subscriptionId: string }> {
   const { data, error } = await supabase.functions.invoke<{
