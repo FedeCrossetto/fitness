@@ -166,7 +166,6 @@ export function ProgressPhotosScreen({ navigation }: Props): React.JSX.Element {
       mediaTypes: ['images'],
       quality: 0.7,
       allowsEditing: true,
-      copyToCacheDirectory: true,
     });
     if (!result.canceled && result.assets[0]) {
       await handlePicked(result.assets[0].uri);
