@@ -8,6 +8,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { ProgressStackParamList } from '../../types/navigation';
 import { layout, radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
 import { formatShortDate } from '../../lib/dates';
+import { weightDeltaColor } from '../../lib/weightDeltaColor';
 import {
   AppText,
   Button,
@@ -273,7 +274,7 @@ export function ProgressDashboardScreen({ navigation }: Props): React.JSX.Elemen
               {weightDelta !== null ? (
                 <AppText
                   variant="body13SemiBold"
-                  color={weightDelta <= 0 ? colors.primary.default : colors.text.tertiary}
+                  color={weightDeltaColor(weightDelta, colors)}
                 >
                   {t.progress.vs_prev.replace('{{delta}}', `${weightDelta > 0 ? '+' : ''}${weightDelta.toFixed(1)}`)}
                 </AppText>

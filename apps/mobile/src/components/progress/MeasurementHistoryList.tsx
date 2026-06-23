@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { spacing, useTheme } from '../../theme';
 import { formatLongDate } from '../../lib/dates';
+import { weightDeltaColor } from '../../lib/weightDeltaColor';
 import { AppText } from '../common';
 import type { BodyMeasurementRow } from '../../types/database';
 
@@ -53,7 +54,7 @@ export function MeasurementHistoryList({
               {delta !== null ? (
                 <AppText
                   variant="body12Medium"
-                  color={delta <= 0 ? colors.primary.default : colors.text.tertiary}
+                  color={weightDeltaColor(delta, colors)}
                 >
                   {delta > 0 ? '+' : ''}
                   {delta.toFixed(1)} kg

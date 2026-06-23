@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { layout, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
 import { addDays, formatLongDate, formatShortDate, todayISO } from '../../lib/dates';
+import { weightDeltaColor } from '../../lib/weightDeltaColor';
 import { hapticSuccess } from '../../lib/haptics';
 import {
   AppText,
@@ -178,11 +179,11 @@ export function WeightDetailScreen({ navigation }: Props): React.JSX.Element {
                   <Ionicons
                     name={delta <= 0 ? 'arrow-down' : 'arrow-up'}
                     size={12}
-                    color={delta <= 0 ? colors.primary.default : colors.text.tertiary}
+                    color={weightDeltaColor(delta, colors)}
                   />
                   <AppText
                     variant="body12Medium"
-                    color={delta <= 0 ? colors.primary.default : colors.text.tertiary}
+                    color={weightDeltaColor(delta, colors)}
                   >
                     {delta > 0 ? '+' : ''}
                     {delta.toFixed(1)} kg
