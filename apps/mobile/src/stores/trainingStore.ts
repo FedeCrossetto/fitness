@@ -265,7 +265,7 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
     }
   },
 
-  addExerciseToCustomWorkout: async (userId, workoutId, exercise, sortOrder) => {
+  addExerciseToCustomWorkout: async (_userId, workoutId, exercise, sortOrder) => {
     try {
       const { data, error } = await supabase
         .from('workout_exercises')

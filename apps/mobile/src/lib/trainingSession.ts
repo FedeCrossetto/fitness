@@ -13,6 +13,7 @@ import type { ExerciseRow, WorkoutExerciseRow } from '../types/database';
 
 type WorkoutDetailForSession = {
   id: string;
+  client_id?: string | null;
   exercises: (WorkoutExerciseRow & { exercise: ExerciseRow })[];
 };
 

@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { canShowExerciseImage } from '@reset-fitness/shared';
-import { radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
+import { radius, Colors, useThemedStyles, useTheme } from '../../theme';
 
 interface ExerciseIconProps {
   icon?: keyof typeof Ionicons.glyphMap;
