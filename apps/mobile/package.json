@@ -67,7 +67,8 @@
     "web": "expo start --web",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "seed:food-icons": "node scripts/seed-food-icons.mjs"
+    "seed:food-icons": "node scripts/seed-food-icons.mjs",
+    "seed:exercisedb": "node scripts/seed-exercisedb.mjs"
   },
   "private": true
 }

@@ -24,23 +24,57 @@ final class ActivityDataException: GenericException<String> {
 
 // MARK: - Args (JSON desde JS)
 
-private struct StartArgs: Codable {
-  let workoutTitle: String
-  let startedAt: Double
+private struct LiveActivityPayload: Codable {
   let completed: Int
   let total: Int
+  let exerciseName: String
+  let currentSet: Int
+  let exerciseSetCount: Int
+  let weightKg: Double?
+  let reps: Int?
+
+  func asContentState() -> ResetFitnessWorkoutAttributes.ContentState {
+    ResetFitnessWorkoutAttributes.ContentState(
+      completed: completed,
+      total: total,
+      exerciseName: exerciseName,
+      currentSet: currentSet,
+      exerciseSetCount: exerciseSetCount,
+      weightKg: weightKg,
+      reps: reps
+    )
+  }
 
   static func fromJSON(_ raw: String) -> Self? {
     try? JSONDecoder().decode(Self.self, from: Data(raw.utf8))
   }
 }
 
-private struct UpdateArgs: Codable {
+private struct StartArgs: Codable {
+  let workoutTitle: String
+  let startedAt: Double
   let completed: Int
   let total: Int
+  let exerciseName: String
+  let currentSet: Int
+  let exerciseSetCount: Int
+  let weightKg: Double?
+  let reps: Int?
 
   static func fromJSON(_ raw: String) -> Self? {
     try? JSONDecoder().decode(Self.self, from: Data(raw.utf8))
+  }
+
+  var payload: LiveActivityPayload {
+    LiveActivityPayload(
+      completed: completed,
+      total: total,
+      exerciseName: exerciseName,
+      currentSet: currentSet,
+      exerciseSetCount: exerciseSetCount,
+      weightKg: weightKg,
+      reps: reps
+    )
   }
 }
 
@@ -66,12 +100,8 @@ public class ActivityControllerModule: Module {
         throw ActivityUnavailableException(())
       }
 
-      let state = ResetFitnessWorkoutAttributes.ContentState(
-        completed: args.completed,
-        total: args.total
-      )
+      let state = args.payload.asContentState()
 
-      // Si ya hay una corriendo, la actualizamos en lugar de duplicar.
       if let existing = Activity<ResetFitnessWorkoutAttributes>.activities.first {
         Task {
           await existing.update(ActivityContent(state: state, staleDate: nil))
@@ -96,17 +126,14 @@ public class ActivityControllerModule: Module {
     }
 
     AsyncFunction("updateLiveActivity") { (rawData: String, promise: Promise) in
-      guard let args = UpdateArgs.fromJSON(rawData) else {
+      guard let args = LiveActivityPayload.fromJSON(rawData) else {
         throw ActivityDataException(rawData)
       }
       guard let activity = Activity<ResetFitnessWorkoutAttributes>.activities.first else {
         promise.resolve()
         return
       }
-      let state = ResetFitnessWorkoutAttributes.ContentState(
-        completed: args.completed,
-        total: args.total
-      )
+      let state = args.asContentState()
       Task {
         await activity.update(ActivityContent(state: state, staleDate: nil))
         promise.resolve()

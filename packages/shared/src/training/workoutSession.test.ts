@@ -20,6 +20,7 @@ const sampleDetail: WorkoutSessionDetail = {
       targetWeightKg: 60,
       restSeconds: 90,
       previousLabel: null,
+      previousSets: [],
       notes: '',
       sets: [
         { id: 's1', setNumber: 1, weightKg: 60, reps: 8, completed: true },

@@ -59,14 +59,23 @@ export function ProgramScreen({ navigation }: Props): React.JSX.Element {
   const logsLoading = useTrainingStore((s) => s.logsLoading);
   const loadRecentLogs = useTrainingStore((s) => s.loadRecentLogs);
   const restoreActiveSession = useTrainingStore((s) => s.restoreActiveSession);
+  const customWorkouts = useTrainingStore((s) => s.customWorkouts);
+  const customLoading = useTrainingStore((s) => s.customLoading);
+  const loadCustomWorkouts = useTrainingStore((s) => s.loadCustomWorkouts);
+  const createCustomWorkout = useTrainingStore((s) => s.createCustomWorkout);
+  const activeSession = useTrainingStore((s) => s.activeSession);
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [creatingCustom, setCreatingCustom] = useState(false);
 
   const refresh = useCallback(() => {
     void loadProgram();
     void restoreActiveSession();
-    if (userId) void loadRecentLogs(userId);
-  }, [loadProgram, restoreActiveSession, loadRecentLogs, userId]);
+    if (userId) {
+      void loadRecentLogs(userId);
+      void loadCustomWorkouts(userId);
+    }
+  }, [loadProgram, restoreActiveSession, loadRecentLogs, loadCustomWorkouts, userId]);
 
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
 
@@ -107,6 +116,61 @@ export function ProgramScreen({ navigation }: Props): React.JSX.Element {
     openDay(nextWorkoutDay);
   }, [nextWorkoutDay, openDay]);
 
+  const handleCreateCustomWorkout = useCallback(async () => {
+    if (!userId || creatingCustom) return;
+    setCreatingCustom(true);
+    const workout = await createCustomWorkout(userId, t.training.custom_workout_default_name);
+    setCreatingCustom(false);
+    if (workout) {
+      navigation.navigate('WorkoutDetail', { workoutId: workout.id, dayTitle: t.training.custom_workout_badge });
+    }
+  }, [userId, creatingCustom, createCustomWorkout, navigation, t]);
+
+  const renderCustomWorkouts = () => (
+    <View style={styles.customSection}>
+      <AppText variant="caps12" color={colors.text.tertiary}>
+        {t.training.custom_workouts_section}
+      </AppText>
+
+      <Button
+        label={t.training.create_custom_workout}
+        icon="add"
+        variant="outline"
+        onPress={() => void handleCreateCustomWorkout()}
+        loading={creatingCustom}
+        fullWidth
+      />
+
+      {customLoading && customWorkouts.length === 0 ? (
+        <CardSkeleton />
+      ) : null}
+
+      {customWorkouts.map((workout) => (
+        <Pressable
+          key={workout.id}
+          accessibilityRole="button"
+          accessibilityLabel={workout.title}
+          onPress={() => navigation.navigate('WorkoutDetail', {
+            workoutId: workout.id,
+            dayTitle: t.training.custom_workout_badge,
+          })}
+          style={({ pressed }) => [styles.customCard, pressed && styles.pressed]}
+        >
+          <ExerciseIcon icon="barbell-outline" size={44} imageUrl={workout.cover_image_url} />
+          <View style={styles.dayInfo}>
+            <AppText variant="body14SemiBold" color={colors.text.primary} numberOfLines={1}>
+              {workout.title}
+            </AppText>
+            <AppText variant="body12" color={colors.text.tertiary} numberOfLines={1}>
+              {t.training.custom_workout_badge}
+            </AppText>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={colors.text.tertiary} />
+        </Pressable>
+      ))}
+    </View>
+  );
+
   const renderDayRow = (day: PhaseWithDays['days'][number], completed: boolean) => {
     const meta = DAY_TYPE_META[day.day_type];
     const rest = isRestDay(day);
@@ -131,7 +195,7 @@ export function ProgramScreen({ navigation }: Props): React.JSX.Element {
         </View>
         <View style={styles.dayTrail}>
           {completed ? (
-            <Ionicons name="checkmark-circle" size={18} color={colors.primary.default} />
+            <Ionicons name="checkmark-circle" size={18} color={colors.text.primary} />
           ) : (
             <Chip label={meta.label} />
           )}
@@ -145,10 +209,10 @@ export function ProgramScreen({ navigation }: Props): React.JSX.Element {
 
   const renderPrimaryCta = () => {
     if (!nextWorkoutDay?.workout) {
-      if (programStats.allCompleted && phases.length > 0) {
+      if (programStats.allCompleted && phases.length > 0 && !activeSession) {
         return (
           <Card elevated style={styles.doneCard}>
-            <Ionicons name="trophy-outline" size={22} color={colors.primary.default} />
+            <Ionicons name="trophy-outline" size={20} color={colors.text.secondary} />
             <AppText variant="body14Medium" color={colors.text.primary} style={styles.doneText}>
               {t.training.all_workouts_done}
             </AppText>
@@ -167,7 +231,7 @@ export function ProgramScreen({ navigation }: Props): React.JSX.Element {
         <View style={styles.nextTop}>
           <ExerciseIcon icon={meta.icon} size={52} />
           <View style={styles.nextInfo}>
-            <AppText variant="caps11" color={colors.primary.default}>
+            <AppText variant="caps11" color={colors.text.tertiary}>
               {t.training.next_workout}
             </AppText>
             <AppText variant="h3" color={colors.text.primary} numberOfLines={2}>
@@ -186,7 +250,7 @@ export function ProgramScreen({ navigation }: Props): React.JSX.Element {
             </AppText>
           ) : null}
         </View>
-        <Button label={ctaLabel} icon={isCardio ? 'pulse-outline' : 'play-outline'} onPress={openNextWorkout} fullWidth />
+        <Button label={ctaLabel} icon={isCardio ? 'pulse-outline' : 'play-outline'} variant="outline" onPress={openNextWorkout} fullWidth />
       </Card>
     );
   };
@@ -207,20 +271,23 @@ export function ProgramScreen({ navigation }: Props): React.JSX.Element {
 
     if (phases.length === 0) {
       return (
-        <EmptyState
-          pillar="training"
-          hideIllustration
-          title={t.training.no_program}
-          message={t.training.empty_program_message}
-          actionLabel={t.training.register_cardio}
-          onAction={() => navigation.navigate('CardioLog')}
-        />
+        <>
+          {renderCustomWorkouts()}
+          <EmptyState
+            pillar="training"
+            hideIllustration
+            title={t.training.no_program}
+            message={t.training.empty_program_message}
+            actionLabel={t.training.register_cardio}
+            onAction={() => navigation.navigate('CardioLog')}
+          />
+        </>
       );
     }
 
     return (
       <>
-        {programStats.trainableCount > 0 ? (
+        {programStats.trainableCount > 0 && !programStats.allCompleted ? (
           <View style={styles.progressBlock}>
             <View style={styles.progressHeader}>
               <AppText variant="body13Medium" color={colors.text.secondary}>
@@ -233,11 +300,13 @@ export function ProgramScreen({ navigation }: Props): React.JSX.Element {
                 {Math.round(programStats.progress * 100)}%
               </AppText>
             </View>
-            <ProgressBar progress={programStats.progress} height={6} />
+            <ProgressBar progress={programStats.progress} height={4} />
           </View>
         ) : null}
 
         {renderPrimaryCta()}
+
+        {renderCustomWorkouts()}
 
         <Pressable
           accessibilityRole="button"
@@ -245,22 +314,15 @@ export function ProgramScreen({ navigation }: Props): React.JSX.Element {
           onPress={() => navigation.navigate('CardioLog')}
           style={({ pressed }) => [styles.secondaryAction, pressed && styles.pressed]}
         >
-          <Ionicons name="pulse-outline" size={18} color={colors.primary.default} />
-          <View style={styles.secondaryActionText}>
-            <AppText variant="body14SemiBold" color={colors.text.primary}>
-              {t.training.register_cardio}
-            </AppText>
-            <AppText variant="body12" color={colors.text.tertiary}>
-              {t.training.register_cardio_hint}
-            </AppText>
-          </View>
+          <Ionicons name="pulse-outline" size={18} color={colors.text.secondary} />
+          <AppText variant="body14SemiBold" color={colors.text.primary} style={styles.secondaryActionLabel}>
+            {t.training.register_cardio}
+          </AppText>
           <Ionicons name="chevron-forward" size={16} color={colors.text.tertiary} />
         </Pressable>
 
-        <RecentWorkoutFeed logs={recentLogs} loading={logsLoading} limit={5} />
-
-        <AppText variant="caps12" color={colors.text.tertiary} style={styles.sectionLabel}>
-          {t.training.program_structure}
+        <AppText variant="caps12" color={colors.text.tertiary}>
+          {t.training.trainer_plan_section}
         </AppText>
 
         {phases.map((phase) => {
@@ -282,7 +344,7 @@ export function ProgramScreen({ navigation }: Props): React.JSX.Element {
               >
                 <View style={styles.phaseHeader}>
                   <View style={styles.phaseInfo}>
-                    <AppText variant="caps11" color={colors.primary.default}>
+                    <AppText variant="caps11" color={colors.text.tertiary}>
                       {t.training.program} {phase.phase_number}
                     </AppText>
                     <AppText variant="body16SemiBold" color={colors.text.primary}>
@@ -335,6 +397,8 @@ export function ProgramScreen({ navigation }: Props): React.JSX.Element {
             </Card>
           );
         })}
+
+        <RecentWorkoutFeed logs={recentLogs} loading={logsLoading} limit={5} compact />
       </>
     );
   };
@@ -350,14 +414,9 @@ export function ProgramScreen({ navigation }: Props): React.JSX.Element {
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.header}>
-        <View style={styles.headerText}>
-          <AppText variant="h1" color={colors.text.primary}>
-            {t.training.title}
-          </AppText>
-          <AppText variant="body13" color={colors.text.tertiary} style={styles.subtitle}>
-            {t.training.program_screen_hint}
-          </AppText>
-        </View>
+        <AppText variant="h1" color={colors.text.primary} style={styles.headerTitle}>
+          {t.training.title}
+        </AppText>
         <HeaderAvatar />
       </View>
 
@@ -372,14 +431,13 @@ const createStyles = (colors: Colors) => StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing.md,
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
   },
-  headerText: { flex: 1 },
-  subtitle: { marginTop: spacing.xxs, lineHeight: 18 },
-  body: { gap: spacing.md },
+  headerTitle: { flex: 1 },
+  body: { gap: spacing.sm },
   progressBlock: { gap: spacing.xs },
   progressHeader: {
     flexDirection: 'row',
@@ -398,21 +456,33 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    padding: spacing.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
   },
   doneText: { flex: 1 },
   secondaryAction: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    padding: spacing.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
     borderRadius: radius.lg,
     backgroundColor: colors.surface.base,
     borderWidth: 1,
     borderColor: colors.border.subtle,
   },
-  secondaryActionText: { flex: 1, gap: 2 },
-  sectionLabel: { marginTop: spacing.xs },
+  secondaryActionLabel: { flex: 1 },
+  customSection: { gap: spacing.sm },
+  customCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    padding: spacing.sm,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface.base,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+  },
   phaseCard: { marginBottom: 0 },
   phaseHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
   phaseInfo: { flex: 1 },

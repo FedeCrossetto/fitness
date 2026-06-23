@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import type { PlanRow, SubscriptionRow } from '../types/database';
+import type { PlanRow, ProfileRow, SubscriptionRow } from '../types/database';
 
 /**
  * Pagos con Mercado Pago.
@@ -50,6 +50,20 @@ export async function fetchPlans(userId?: string | null): Promise<PlanRow[]> {
 }
 
 export async function fetchActiveSubscription(userId: string): Promise<SubscriptionRow | null> {
+  const { data: activeRows, error: activeError } = await supabase
+    .from('subscriptions')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('status', 'active')
+    .order('created_at', { ascending: false });
+  if (activeError) throw activeError;
+
+  const now = Date.now();
+  const validActive = (activeRows ?? []).find(
+    (row) => !row.expires_at || new Date(row.expires_at).getTime() > now,
+  );
+  if (validActive) return validActive;
+
   const { data, error } = await supabase
     .from('subscriptions')
     .select('*')
@@ -60,9 +74,58 @@ export async function fetchActiveSubscription(userId: string): Promise<Subscript
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
-  if (data.status === 'active' && data.expires_at && new Date(data.expires_at) < new Date()) {
+  if (data.status === 'active' && data.expires_at && new Date(data.expires_at).getTime() <= now) {
     return { ...data, status: 'expired' };
   }
+  return data;
+}
+
+type SubscriptionAccessCache = {
+  userId: string;
+  subscription: SubscriptionRow | null;
+  hasAccess: boolean;
+  at: number;
+};
+
+let accessCache: SubscriptionAccessCache | null = null;
+const ACCESS_CACHE_MS = 90_000;
+
+export function clearSubscriptionAccessCache(): void {
+  accessCache = null;
+}
+
+export function getCachedSubscriptionAccess(userId: string): boolean | null {
+  if (!accessCache || accessCache.userId !== userId) return null;
+  if (Date.now() - accessCache.at > ACCESS_CACHE_MS) return null;
+  return accessCache.hasAccess;
+}
+
+export async function resolveSubscriptionAccess(
+  userId: string,
+): Promise<{ subscription: SubscriptionRow | null; hasAccess: boolean }> {
+  const subscription = await fetchActiveSubscription(userId);
+  const hasAccess = hasActiveAccess(subscription);
+  accessCache = { userId, subscription, hasAccess, at: Date.now() };
+  return { subscription, hasAccess };
+}
+
+/** Si hay suscripción activa pero el perfil sigue en pending, sincroniza client_status. */
+export async function syncClientActivationIfPaid(
+  userId: string,
+  profile: ProfileRow,
+): Promise<ProfileRow> {
+  if (profile.role !== 'client' || profile.client_status === 'active') return profile;
+
+  const { hasAccess } = await resolveSubscriptionAccess(userId);
+  if (!hasAccess) return profile;
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ client_status: 'active' })
+    .eq('id', userId)
+    .select()
+    .single();
+  if (error || !data) return profile;
   return data;
 }
 

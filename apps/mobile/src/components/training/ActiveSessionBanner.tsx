@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
-import { Colors, radius, spacing, shadows, useTheme, useThemedStyles } from '../../theme';
+import { Colors, radius, spacing, useTheme, useThemedStyles } from '../../theme';
 import { formatDuration } from '../../lib/dates';
 import { hapticTap } from '../../lib/haptics';
 import { AppText } from '../common';
@@ -44,17 +44,17 @@ export function ActiveSessionBanner(): React.JSX.Element | null {
       style={({ pressed }) => [styles.banner, pressed && styles.pressed]}
     >
       <View style={styles.pulse}>
-        <Ionicons name="barbell" size={18} color={colors.primary.onText} />
+        <Ionicons name="barbell" size={16} color={colors.text.primary} />
       </View>
       <View style={styles.info}>
-        <AppText variant="caps11" color={colors.primary.darkest}>
+        <AppText variant="caps11" color={colors.text.tertiary}>
           {t.training.active_session}
         </AppText>
-        <AppText variant="body14SemiBold" color={colors.primary.onText} numberOfLines={1}>
+        <AppText variant="body14SemiBold" color={colors.text.primary} numberOfLines={1}>
           {session.workoutTitle}
         </AppText>
       </View>
-      <AppText variant="metricSmall" color={colors.primary.onText}>
+      <AppText variant="body13Medium" color={colors.text.secondary}>
         {formatDuration(elapsed)}
       </AppText>
     </Pressable>
@@ -67,20 +67,23 @@ const createStyles = (colors: Colors) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: spacing.sm,
-      backgroundColor: colors.primary.default,
+      backgroundColor: colors.surface.base,
       borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: colors.border.default,
       padding: spacing.md,
       marginBottom: spacing.md,
-      ...shadows.glow,
     },
-    pressed: { opacity: 0.9 },
+    pressed: { opacity: 0.88 },
     pulse: {
-      width: 36,
-      height: 36,
+      width: 34,
+      height: 34,
       borderRadius: radius.pill,
-      backgroundColor: 'rgba(12,12,12,0.18)',
+      backgroundColor: colors.surface.elevated,
       alignItems: 'center',
       justifyContent: 'center',
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border.subtle,
     },
     info: { flex: 1 },
   });

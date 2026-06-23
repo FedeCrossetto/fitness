@@ -4,4 +4,7 @@ module.exports = () => ({
   name: 'ResetFitnessActivity',
   deploymentTarget: '16.4',
   frameworks: ['SwiftUI', 'WidgetKit', 'ActivityKit'],
+  images: {
+    AppLogo: '../../assets/brand/reset-logo.png',
+  },
 });

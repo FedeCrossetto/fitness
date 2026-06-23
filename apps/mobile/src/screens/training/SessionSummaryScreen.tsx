@@ -7,6 +7,7 @@ import type { TrainingStackParamList } from '../../types/navigation';
 import { layout, radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
 import { hapticSuccess } from '../../lib/haptics';
 import { AppText, Button, Card, CardSkeleton, ErrorState, MetricCard } from '../../components/common';
+import { NUTRITION_MACRO_COLORS } from '../../components/nutrition/nutritionTheme';
 import { useTranslation } from '../../stores/i18nStore';
 import { useTrainingStore } from '../../stores/trainingStore';
 import {
@@ -81,7 +82,7 @@ export function SessionSummaryScreen({ navigation, route }: Props): React.JSX.El
       <View>
         <View style={styles.celebration}>
           <View style={styles.successIcon}>
-            <Ionicons name="checkmark-circle" size={56} color={colors.primary.default} />
+            <Ionicons name="checkmark-circle" size={56} color={NUTRITION_MACRO_COLORS.carbs} />
           </View>
           <AppText variant="h1" color={colors.text.primary} align="center">
             {t.training.done_title}
@@ -186,7 +187,7 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     width: 88,
     height: 88,
     borderRadius: radius.pill,
-    backgroundColor: colors.primary.muted,
+    backgroundColor: colors.surface.elevated,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.md,

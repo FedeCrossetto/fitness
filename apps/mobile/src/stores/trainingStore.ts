@@ -14,8 +14,6 @@ import {
   buildFinishPayload,
   buildSessionExercises,
   clearActiveRest,
-  liveCompletedCount,
-  liveTotalSets,
   normalizeStoredSession,
   startRestAfterSet,
   toggleSessionRestEnabled,
@@ -27,7 +25,7 @@ import {
   startLiveWorkout,
   updateLiveWorkout,
   endLiveWorkout,
-  type LiveWorkoutState,
+  buildLiveWorkoutState,
 } from '../services/liveActivity';
 import { useGoalsStore } from './goalsStore';
 import type {
@@ -67,13 +65,8 @@ function resolveProgramKey(): string {
   return useBrandingStore.getState().branding?.default_program_key ?? defaultClientConfig.programKey;
 }
 
-function liveStateFrom(session: ActiveSession): LiveWorkoutState {
-  return {
-    workoutTitle: session.workoutTitle,
-    startedAt: session.startedAt,
-    completed: liveCompletedCount(session),
-    total: liveTotalSets(session),
-  };
+function liveStateFrom(session: ActiveSession) {
+  return buildLiveWorkoutState(session);
 }
 
 async function persistSession(session: ActiveSession | null): Promise<void> {
@@ -111,7 +104,18 @@ interface TrainingState {
   recentLogs: WorkoutLogRow[];
   logsLoading: boolean;
 
+  customWorkouts: WorkoutWithCover[];
+  customLoading: boolean;
+
   loadProgram: () => Promise<void>;
+  loadCustomWorkouts: (userId: string) => Promise<void>;
+  createCustomWorkout: (userId: string, title?: string) => Promise<WorkoutRow | null>;
+  addExerciseToCustomWorkout: (
+    userId: string,
+    workoutId: string,
+    exercise: Pick<ExerciseRow, 'id' | 'name' | 'image_url'>,
+    sortOrder: number,
+  ) => Promise<string | null>;
   loadWorkoutDetail: (workoutId: string) => Promise<void>;
   restoreActiveSession: () => Promise<void>;
   startSession: (userId: string, workoutId: string, workoutTitle: string) => Promise<void>;
@@ -148,6 +152,8 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
   lastSavedLog: null,
   recentLogs: [],
   logsLoading: false,
+  customWorkouts: [],
+  customLoading: false,
 
   loadProgram: async () => {
     const programKey = resolveProgramKey();
@@ -204,6 +210,80 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
     } catch {
       set({ phasesLoading: false, phasesError: 'No pudimos cargar tu programa.' });
       useUiStore.getState().showToast('error', 'No pudimos cargar tu programa.');
+    }
+  },
+
+  loadCustomWorkouts: async (userId) => {
+    set({ customLoading: true });
+    try {
+      const { data, error } = await supabase
+        .from('workouts')
+        .select('*, exercises:workout_exercises(sort_order, exercise:exercises(image_url))')
+        .eq('client_id', userId)
+        .order('updated_at', { ascending: false });
+      if (error) throw error;
+
+      type RawCoverEx = { sort_order: number; exercise: { image_url: string | null } | null };
+      type RawWorkout = WorkoutRow & { exercises: RawCoverEx[] };
+
+      const mapped = ((data ?? []) as unknown as RawWorkout[]).map((workout) => ({
+        ...workout,
+        cover_image_url:
+          [...(workout.exercises ?? [])]
+            .sort((a, b) => a.sort_order - b.sort_order)
+            .find((e) => e.exercise?.image_url)?.exercise?.image_url ?? null,
+      }));
+
+      set({ customWorkouts: mapped, customLoading: false });
+    } catch {
+      set({ customLoading: false });
+    }
+  },
+
+  createCustomWorkout: async (userId, title) => {
+    const workoutTitle = title?.trim();
+    if (!workoutTitle) return null;
+    try {
+      const { data, error } = await supabase
+        .from('workouts')
+        .insert({
+          client_id: userId,
+          title: workoutTitle,
+          workout_type: 'fuerza',
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      const created = data as WorkoutRow;
+      set((state) => ({
+        customWorkouts: [{ ...created, cover_image_url: null }, ...state.customWorkouts],
+      }));
+      return created;
+    } catch {
+      useUiStore.getState().showToast('error', 'No pudimos crear la rutina.');
+      return null;
+    }
+  },
+
+  addExerciseToCustomWorkout: async (userId, workoutId, exercise, sortOrder) => {
+    try {
+      const { data, error } = await supabase
+        .from('workout_exercises')
+        .insert({
+          workout_id: workoutId,
+          exercise_id: exercise.id,
+          sort_order: sortOrder,
+          sets: 3,
+          reps: '10',
+          rest_seconds: 90,
+        })
+        .select('id')
+        .single();
+      if (error) throw error;
+      return data.id as string;
+    } catch {
+      useUiStore.getState().showToast('error', 'No pudimos agregar el ejercicio.');
+      return null;
     }
   },
 
@@ -265,6 +345,7 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
     const session: ActiveSession = {
       workoutId,
       workoutTitle,
+      isCustomWorkout: detail.client_id === userId,
       startedAt: Date.now(),
       exercises,
       notes: '',
@@ -341,10 +422,21 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
 
   addExerciseToSession: async (userId, exercise) => {
     const session = get().activeSession;
-    if (!session) return;
+    if (!session || !session.isCustomWorkout) return;
     if (session.exercises.some((item) => item.exerciseId === exercise.id)) return;
+
+    let persistedId: string | undefined;
+    const workoutExerciseId = await get().addExerciseToCustomWorkout(
+      userId,
+      session.workoutId,
+      exercise,
+      session.exercises.length,
+    );
+    if (!workoutExerciseId) return;
+    persistedId = workoutExerciseId;
+
     const previousLogs = await fetchPreviousLogs(userId);
-    const updated = addExerciseToSession(session, exercise, previousLogs);
+    const updated = addExerciseToSession(session, exercise, previousLogs, persistedId);
     set({ activeSession: updated });
     await persistSession(updated);
     void updateLiveWorkout(liveStateFrom(updated));

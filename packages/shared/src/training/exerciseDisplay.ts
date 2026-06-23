@@ -9,8 +9,8 @@ export function canShowExerciseImage(
   externalSource: string | null | undefined,
 ): boolean {
   if (!imageUrl?.trim()) return false;
-  if (externalSource?.trim()) return false;
   if (imageUrl.includes('/storage/v1/object/')) return true;
+  if (externalSource?.trim()) return false;
   if (imageUrl.startsWith('asset:') || imageUrl.startsWith('/')) return true;
   return false;
 }

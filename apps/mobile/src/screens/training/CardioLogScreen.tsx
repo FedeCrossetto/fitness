@@ -176,7 +176,7 @@ export function CardioLogScreen({ navigation, route }: Props): React.JSX.Element
             {cardioLogs.map((log) => (
               <View key={log.id} style={styles.logRow}>
                 <View style={styles.logIcon}>
-                  <Ionicons name="pulse-outline" size={18} color={colors.primary.default} />
+                  <Ionicons name="pulse-outline" size={18} color={colors.text.secondary} />
                 </View>
                 <View style={styles.logInfo}>
                   <AppText variant="body14SemiBold" color={colors.text.primary} numberOfLines={1}>
@@ -241,7 +241,7 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: radius.pill,
-    backgroundColor: colors.primary.muted,
+    backgroundColor: colors.surface.elevated,
     alignItems: 'center',
     justifyContent: 'center',
   },

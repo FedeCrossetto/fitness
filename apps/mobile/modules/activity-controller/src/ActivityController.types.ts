@@ -1,4 +1,12 @@
-export type StartLiveActivityParams = {
+export type LiveActivitySetState = {
+  exerciseName: string;
+  currentSet: number;
+  exerciseSetCount: number;
+  weightKg: number | null;
+  reps: number | null;
+};
+
+export type StartLiveActivityParams = LiveActivitySetState & {
   workoutTitle: string;
   /** epoch en segundos */
   startedAt: number;
@@ -6,7 +14,7 @@ export type StartLiveActivityParams = {
   total: number;
 };
 
-export type UpdateLiveActivityParams = {
+export type UpdateLiveActivityParams = LiveActivitySetState & {
   completed: number;
   total: number;
 };

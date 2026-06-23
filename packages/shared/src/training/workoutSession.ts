@@ -6,6 +6,12 @@ export interface WorkoutSessionSet {
   completed: boolean;
 }
 
+export interface WorkoutSessionPreviousSet {
+  setNumber: number;
+  weightKg: number;
+  reps: number;
+}
+
 export interface WorkoutSessionExercise {
   workoutExerciseId: string;
   exerciseId: string;
@@ -15,7 +21,9 @@ export interface WorkoutSessionExercise {
   targetReps: string;
   targetWeightKg: number | null;
   restSeconds: number | null;
+  /** @deprecated Usar previousSets — resumen de la última serie completada */
   previousLabel: string | null;
+  previousSets: WorkoutSessionPreviousSet[];
   notes: string;
   sets: WorkoutSessionSet[];
 }
@@ -34,15 +42,14 @@ export function parseRepsNumber(reps: string | null | undefined): number | null 
 export function createDefaultSets(
   workoutExerciseId: string,
   count: number,
-  defaultWeightKg: number | null,
-  defaultReps: string,
+  _defaultWeightKg: number | null,
+  _defaultReps: string,
 ): WorkoutSessionSet[] {
-  const reps = parseRepsNumber(defaultReps);
   return Array.from({ length: Math.max(1, count) }, (_, index) => ({
     id: `${workoutExerciseId}-set-${index + 1}`,
     setNumber: index + 1,
-    weightKg: defaultWeightKg,
-    reps,
+    weightKg: null,
+    reps: null,
     completed: false,
   }));
 }
@@ -68,6 +75,31 @@ export function countCompletedSets(detail: Pick<WorkoutSessionDetail, 'exercises
 export function formatSetPreviousLabel(set: WorkoutSessionSet): string | null {
   if (set.weightKg == null || set.reps == null) return null;
   return `${set.weightKg}kg x ${set.reps}`;
+}
+
+export function findPreviousSetsForExercise(
+  logs: { session_detail: WorkoutSessionDetail | null }[],
+  exerciseId: string,
+): WorkoutSessionPreviousSet[] {
+  for (const log of logs) {
+    const detail = log.session_detail;
+    if (!detail) continue;
+    const exercise = detail.exercises.find((item) => item.exerciseId === exerciseId);
+    if (!exercise) continue;
+    const sets = exercise.sets
+      .filter((set) => set.completed && set.weightKg != null && set.reps != null)
+      .map((set) => ({
+        setNumber: set.setNumber,
+        weightKg: set.weightKg!,
+        reps: set.reps!,
+      }));
+    if (sets.length > 0) return sets;
+  }
+  return [];
+}
+
+export function formatPreviousSetLine(set: WorkoutSessionPreviousSet): string {
+  return `${set.weightKg} kg × ${set.reps}`;
 }
 
 export function findPreviousExerciseLabel(

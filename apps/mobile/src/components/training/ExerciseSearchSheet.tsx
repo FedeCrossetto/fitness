@@ -3,6 +3,7 @@ import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from 'react-
 import { Ionicons } from '@expo/vector-icons';
 import { BottomSheet, AppText, Input } from '../common';
 import { ExerciseIcon } from './ExerciseIcon';
+import { ExercisePreviewSheet } from './ExercisePreviewSheet';
 import { layout, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
 import { useTranslation } from '../../stores/i18nStore';
 import { useTrainingStore } from '../../stores/trainingStore';
@@ -25,6 +26,7 @@ export function ExerciseSearchSheet({ visible, onClose, onPick }: ExerciseSearch
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<CatalogExercise[]>([]);
   const [loading, setLoading] = useState(false);
+  const [previewExercise, setPreviewExercise] = useState<CatalogExercise | null>(null);
 
   useEffect(() => {
     if (!visible) {
@@ -77,7 +79,11 @@ export function ExerciseSearchSheet({ visible, onClose, onPick }: ExerciseSearch
               onPress={() => onPick(item)}
               style={({ pressed }) => [styles.row, pressed && styles.pressed]}
             >
-              <ExerciseIcon size={44} />
+              <ExerciseIcon
+                size={44}
+                imageUrl={item.image_url}
+                onPress={() => setPreviewExercise(item)}
+              />
               <View style={styles.info}>
                 <AppText variant="body14SemiBold" color={colors.text.primary} numberOfLines={2}>
                   {item.name}
@@ -93,6 +99,16 @@ export function ExerciseSearchSheet({ visible, onClose, onPick }: ExerciseSearch
           )}
         />
       )}
+      <ExercisePreviewSheet
+        visible={previewExercise !== null}
+        onClose={() => setPreviewExercise(null)}
+        exerciseId={previewExercise?.id ?? null}
+        fallback={
+          previewExercise
+            ? { name: previewExercise.name, image_url: previewExercise.image_url }
+            : undefined
+        }
+      />
     </BottomSheet>
   );
 }

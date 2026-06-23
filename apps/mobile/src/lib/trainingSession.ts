@@ -3,6 +3,7 @@ import {
   countCompletedSets,
   createDefaultSets,
   findPreviousExerciseLabel,
+  findPreviousSetsForExercise,
   type WorkoutSessionDetail,
   type WorkoutSessionExercise,
   type WorkoutSessionSet,
@@ -24,6 +25,8 @@ export type SessionRestState = {
 export type ActiveSession = {
   workoutId: string;
   workoutTitle: string;
+  /** true = rutina personalizada del alumno; puede agregar ejercicios. */
+  isCustomWorkout: boolean;
   startedAt: number;
   exercises: WorkoutSessionExercise[];
   notes: string;
@@ -55,6 +58,41 @@ export function liveTotalSets(session: ActiveSession): number {
   return session.exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0);
 }
 
+/** Ejercicio y serie activos para la Live Activity (estilo Hevy). */
+export function resolveLiveActivityFocus(session: ActiveSession): {
+  exerciseName: string;
+  currentSet: number;
+  exerciseSetCount: number;
+  weightKg: number | null;
+  reps: number | null;
+} {
+  const fallback = {
+    exerciseName: session.workoutTitle,
+    currentSet: 0,
+    exerciseSetCount: 0,
+    weightKg: null as number | null,
+    reps: null as number | null,
+  };
+  if (session.exercises.length === 0) return fallback;
+
+  const exercise =
+    session.exercises.find((item) => item.sets.some((set) => !set.completed))
+    ?? session.exercises[session.exercises.length - 1];
+  const set =
+    exercise.sets.find((item) => !item.completed)
+    ?? exercise.sets[exercise.sets.length - 1];
+
+  if (!set) return { ...fallback, exerciseName: exercise.exerciseName, exerciseSetCount: exercise.sets.length };
+
+  return {
+    exerciseName: exercise.exerciseName,
+    currentSet: set.setNumber,
+    exerciseSetCount: exercise.sets.length,
+    weightKg: set.weightKg ?? exercise.targetWeightKg,
+    reps: set.reps,
+  };
+}
+
 export async function buildSessionExercises(
   detail: WorkoutDetailForSession,
   previousLogs: { session_detail: WorkoutSessionDetail | null }[],
@@ -69,6 +107,7 @@ export async function buildSessionExercises(
     targetWeightKg: item.weight_kg,
     restSeconds: item.rest_seconds,
     previousLabel: findPreviousExerciseLabel(previousLogs, item.exercise_id),
+    previousSets: findPreviousSetsForExercise(previousLogs, item.exercise_id),
     notes: '',
     sets: createDefaultSets(item.id, item.sets, item.weight_kg, item.reps),
   }));
@@ -120,8 +159,9 @@ export function addExerciseToSession(
   session: ActiveSession,
   exercise: Pick<ExerciseRow, 'id' | 'name' | 'image_url'>,
   previousLogs: { session_detail: WorkoutSessionDetail | null }[],
+  persistedWorkoutExerciseId?: string,
 ): ActiveSession {
-  const workoutExerciseId = `adhoc-${exercise.id}-${Date.now()}`;
+  const workoutExerciseId = persistedWorkoutExerciseId ?? `adhoc-${exercise.id}-${Date.now()}`;
   const entry: WorkoutSessionExercise = {
     workoutExerciseId,
     exerciseId: exercise.id,
@@ -132,6 +172,7 @@ export function addExerciseToSession(
     targetWeightKg: null,
     restSeconds: 90,
     previousLabel: findPreviousExerciseLabel(previousLogs, exercise.id),
+    previousSets: findPreviousSetsForExercise(previousLogs, exercise.id),
     notes: '',
     sets: createDefaultSets(workoutExerciseId, 3, null, '10'),
   };
@@ -223,12 +264,19 @@ export function normalizeStoredSession(raw: unknown, detail: WorkoutDetailForSes
   const value = raw as Partial<ActiveSession> & { completedExerciseIds?: string[] };
   if (!value.workoutId || !value.workoutTitle || !value.startedAt) return null;
 
+  const migrateExercise = (exercise: WorkoutSessionExercise): WorkoutSessionExercise => ({
+    ...exercise,
+    previousSets: exercise.previousSets ?? [],
+    previousLabel: exercise.previousLabel ?? null,
+  });
+
   if (Array.isArray(value.exercises) && value.exercises.length > 0) {
     return {
       workoutId: value.workoutId,
       workoutTitle: value.workoutTitle,
+      isCustomWorkout: value.isCustomWorkout ?? false,
       startedAt: value.startedAt,
-      exercises: value.exercises,
+      exercises: value.exercises.map((exercise) => migrateExercise(exercise as WorkoutSessionExercise)),
       notes: value.notes ?? '',
       rpe: value.rpe ?? null,
       heartRate: value.heartRate ?? null,
@@ -250,6 +298,7 @@ export function normalizeStoredSession(raw: unknown, detail: WorkoutDetailForSes
     targetWeightKg: item.weight_kg,
     restSeconds: item.rest_seconds,
     previousLabel: null,
+    previousSets: [],
     notes: '',
     sets: createDefaultSets(item.id, item.sets, item.weight_kg, item.reps).map((set) => ({
       ...set,
@@ -260,6 +309,7 @@ export function normalizeStoredSession(raw: unknown, detail: WorkoutDetailForSes
   return {
     workoutId: value.workoutId,
     workoutTitle: value.workoutTitle,
+    isCustomWorkout: value.isCustomWorkout ?? detail.client_id != null,
     startedAt: value.startedAt,
     exercises,
     ...defaultSessionMeta(),

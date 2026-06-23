@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 70;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -46,7 +46,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		13B07F961A680F5B00A75B9A /* ResetFitness.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; fileEncoding = 4; includeInIndex = 0; path = ResetFitness.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		13B07F961A680F5B00A75B9A /* ResetFit.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; fileEncoding = 4; includeInIndex = 0; path = ResetFit.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = ResetFitness/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = text.plist.xml; name = Info.plist; path = ResetFitness/Info.plist; sourceTree = "<group>"; };
 		533FC9504028904D8F42F375 /* Pods-ResetFitness.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ResetFitness.release.xcconfig"; path = "Target Support Files/Pods-ResetFitness/Pods-ResetFitness.release.xcconfig"; sourceTree = "<group>"; };
@@ -67,7 +67,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		XX254D4E78FAB480FA53F0XX /* Exceptions for "widget" folder in "ResetFitnessActivity" target */ = {
+		XX254D4E78FAB480FA53F0XX /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				"expo-target.config.js",
@@ -78,18 +78,7 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		XX620818C821215397EA3DXX /* widget */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				XX254D4E78FAB480FA53F0XX /* Exceptions for "widget" folder in "ResetFitnessActivity" target */,
-			);
-			explicitFileTypes = {
-			};
-			explicitFolders = (
-			);
-			path = widget;
-			sourceTree = "<group>";
-		};
+		XX620818C821215397EA3DXX /* widget */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (XX254D4E78FAB480FA53F0XX /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = widget; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -184,7 +173,7 @@
 		83CBBA001A601CBA00E9B192 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				13B07F961A680F5B00A75B9A /* ResetFitness.app */,
+				13B07F961A680F5B00A75B9A /* ResetFit.app */,
 				XX32135D24D3D28F985DC9XX /* ResetFitnessActivity.appex */,
 			);
 			name = Products;
@@ -241,7 +230,7 @@
 			);
 			name = ResetFitness;
 			productName = ResetFitness;
-			productReference = 13B07F961A680F5B00A75B9A /* ResetFitness.app */;
+			productReference = 13B07F961A680F5B00A75B9A /* ResetFit.app */;
 			productType = "com.apple.product-type.application";
 		};
 		XXD0022852324D9901BB41XX /* ResetFitnessActivity */ = {

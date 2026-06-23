@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
   computeSessionVolumeKg,
+  formatPreviousSetLine,
   type WorkoutSessionExercise,
   type WorkoutSessionSet,
 } from '@reset-fitness/shared';
@@ -22,6 +23,7 @@ import { sessionDetailFromActive, formatRestCountdown, getRestRemainingSeconds }
 import { hapticSelect, hapticSuccess } from '../../lib/haptics';
 import { AppText, Button, EmptyState, IconButton } from '../../components/common';
 import { ExerciseSearchSheet } from '../../components/training/ExerciseSearchSheet';
+import { ExercisePreviewSheet } from '../../components/training/ExercisePreviewSheet';
 import { ExerciseIcon } from '../../components/training/ExerciseIcon';
 import { NUTRITION_MACRO_COLORS } from '../../components/nutrition/nutritionTheme';
 import { useAuthStore } from '../../stores/authStore';
@@ -45,6 +47,17 @@ function parseIntInput(text: string): number | null {
   if (!normalized) return null;
   const value = Number.parseInt(normalized, 10);
   return Number.isFinite(value) ? value : null;
+}
+
+const SET_DONE_GREEN = `${NUTRITION_MACRO_COLORS.carbs}28`;
+
+function getPreviousLabelForSet(exercise: WorkoutSessionExercise, setNumber: number): string {
+  const match = exercise.previousSets?.find((s) => s.setNumber === setNumber);
+  if (match) return formatPreviousSetLine(match);
+  if (setNumber === 1 && exercise.previousLabel && !exercise.previousSets?.length) {
+    return exercise.previousLabel;
+  }
+  return '—';
 }
 
 export function LiveSessionScreen({ navigation }: Props): React.JSX.Element {
@@ -71,6 +84,11 @@ export function LiveSessionScreen({ navigation }: Props): React.JSX.Element {
   const [now, setNow] = useState(() => Date.now());
   const [finishing, setFinishing] = useState(false);
   const [exerciseSheetVisible, setExerciseSheetVisible] = useState(false);
+  const [previewExercise, setPreviewExercise] = useState<{
+    id: string;
+    name: string;
+    imageUrl: string | null;
+  } | null>(null);
 
   useEffect(() => {
     if (!activeSession) return;
@@ -128,18 +146,22 @@ export function LiveSessionScreen({ navigation }: Props): React.JSX.Element {
   );
 
   const renderSetRow = useCallback(
-    (exercise: WorkoutSessionExercise, set: WorkoutSessionSet, rowIndex: number) => {
-      const alt = rowIndex % 2 === 1;
+    (exercise: WorkoutSessionExercise, set: WorkoutSessionSet) => {
+      const previousLabel = getPreviousLabelForSet(exercise, set.setNumber);
       return (
-        <View key={set.id} style={[styles.setRow, alt && styles.setRowAlt, set.completed && styles.setRowDone]}>
-          <AppText variant="body13Medium" color={colors.text.secondary} style={styles.colSet}>
+        <View key={set.id} style={[styles.setRow, set.completed && styles.setRowDone]}>
+          <AppText
+            variant="body14SemiBold"
+            color={set.completed ? colors.text.primary : colors.text.secondary}
+            style={styles.colSet}
+          >
             {set.setNumber}
           </AppText>
-          <AppText variant="body12" color={colors.text.tertiary} style={styles.colPrev} numberOfLines={1}>
-            {exercise.previousLabel ?? '—'}
+          <AppText variant="body13" color={colors.text.tertiary} style={styles.colPrevious} numberOfLines={1}>
+            {previousLabel}
           </AppText>
           <TextInput
-            style={[styles.cellInput, styles.colKg]}
+            style={[styles.cellInput, styles.colKg, set.completed && styles.cellInputDone]}
             keyboardType="decimal-pad"
             placeholder="—"
             placeholderTextColor={colors.text.tertiary}
@@ -149,7 +171,7 @@ export function LiveSessionScreen({ navigation }: Props): React.JSX.Element {
             }
           />
           <TextInput
-            style={[styles.cellInput, styles.colReps]}
+            style={[styles.cellInput, styles.colReps, set.completed && styles.cellInputDone]}
             keyboardType="number-pad"
             placeholder="—"
             placeholderTextColor={colors.text.tertiary}
@@ -165,7 +187,7 @@ export function LiveSessionScreen({ navigation }: Props): React.JSX.Element {
             style={[styles.checkBtn, set.completed && styles.checkBtnDone]}
           >
             {set.completed ? (
-              <Ionicons name="checkmark" size={13} color="#111111" />
+              <Ionicons name="checkmark" size={14} color={colors.text.primary} />
             ) : null}
           </Pressable>
         </View>
@@ -200,16 +222,16 @@ export function LiveSessionScreen({ navigation }: Props): React.JSX.Element {
             hapticSelect();
             toggleRestEnabled();
           }}
-          style={({ pressed }) => [styles.restRow, isActiveRest && styles.restRowActive, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.restRow, pressed && styles.pressed]}
         >
           <Ionicons
             name="timer-outline"
-            size={16}
-            color={isActiveRest ? colors.primary.onText : colors.primary.default}
+            size={14}
+            color={isActiveRest ? NUTRITION_MACRO_COLORS.carbs : colors.text.tertiary}
           />
           <AppText
             variant="body12Medium"
-            color={isActiveRest ? colors.primary.onText : colors.text.secondary}
+            color={isActiveRest ? NUTRITION_MACRO_COLORS.carbs : colors.text.tertiary}
             style={styles.restLabel}
           >
             {label}
@@ -224,7 +246,7 @@ export function LiveSessionScreen({ navigation }: Props): React.JSX.Element {
               }}
               hitSlop={8}
             >
-              <AppText variant="body12SemiBold" color={colors.primary.onText}>
+              <AppText variant="body12Medium" color={NUTRITION_MACRO_COLORS.carbs}>
                 {t.training.rest_skip}
               </AppText>
             </Pressable>
@@ -239,10 +261,37 @@ export function LiveSessionScreen({ navigation }: Props): React.JSX.Element {
     ({ item }: { item: WorkoutSessionExercise }) => (
       <View style={styles.exerciseBlock}>
         <View style={styles.exerciseHeader}>
-          <ExerciseIcon icon="barbell-outline" size={36} />
-          <AppText variant="body14SemiBold" color={colors.primary.default} style={styles.exerciseTitle} numberOfLines={2}>
-            {item.exerciseName}
-          </AppText>
+          <ExerciseIcon
+            icon="barbell-outline"
+            size={44}
+            imageUrl={item.imageUrl}
+            muted
+            onPress={() => {
+              hapticSelect();
+              setPreviewExercise({
+                id: item.exerciseId,
+                name: item.exerciseName,
+                imageUrl: item.imageUrl,
+              });
+            }}
+          />
+          <View style={styles.exerciseHeaderText}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                hapticSelect();
+                setPreviewExercise({
+                  id: item.exerciseId,
+                  name: item.exerciseName,
+                  imageUrl: item.imageUrl,
+                });
+              }}
+            >
+              <AppText variant="body16SemiBold" color={colors.text.primary} numberOfLines={2}>
+                {item.exerciseName}
+              </AppText>
+            </Pressable>
+          </View>
         </View>
 
         <TextInput
@@ -259,7 +308,7 @@ export function LiveSessionScreen({ navigation }: Props): React.JSX.Element {
           <AppText variant="caps11" color={colors.text.tertiary} style={styles.colSet}>
             {t.training.set_column}
           </AppText>
-          <AppText variant="caps11" color={colors.text.tertiary} style={styles.colPrev}>
+          <AppText variant="caps11" color={colors.text.tertiary} style={styles.colPrevious}>
             {t.training.previous_column}
           </AppText>
           <AppText variant="caps11" color={colors.text.tertiary} style={styles.colKg}>
@@ -271,7 +320,7 @@ export function LiveSessionScreen({ navigation }: Props): React.JSX.Element {
           <View style={styles.colCheck} />
         </View>
 
-        {item.sets.map((set, index) => renderSetRow(item, set, index))}
+        {item.sets.map((set) => renderSetRow(item, set))}
 
         <Pressable
           accessibilityRole="button"
@@ -282,7 +331,7 @@ export function LiveSessionScreen({ navigation }: Props): React.JSX.Element {
           style={({ pressed }) => [styles.addSetBtn, pressed && styles.pressed]}
         >
           <Ionicons name="add" size={16} color={colors.text.secondary} />
-          <AppText variant="body13Medium" color={colors.text.secondary}>
+          <AppText variant="body14Medium" color={colors.text.secondary}>
             {t.training.add_set}
           </AppText>
         </Pressable>
@@ -295,7 +344,7 @@ export function LiveSessionScreen({ navigation }: Props): React.JSX.Element {
     if (finishing) {
       return (
         <View style={[styles.flex, styles.center]}>
-          <ActivityIndicator color={colors.primary.default} />
+          <ActivityIndicator color={colors.text.secondary} />
         </View>
       );
     }
@@ -322,36 +371,32 @@ export function LiveSessionScreen({ navigation }: Props): React.JSX.Element {
         <AppText variant="body16SemiBold" color={colors.text.primary} numberOfLines={1} style={styles.topTitle}>
           {activeSession.workoutTitle}
         </AppText>
-        <Pressable
-          accessibilityRole="button"
+        <Button
+          label={t.training.finish_short}
           onPress={() => void onFinish()}
+          variant="primary"
+          size="md"
+          loading={finishing}
           disabled={finishing}
-          style={({ pressed }) => [styles.finishBtn, pressed && styles.pressed, finishing && styles.disabled]}
-        >
-          {finishing ? (
-            <ActivityIndicator size="small" color={colors.primary.onText} />
-          ) : (
-            <AppText variant="body14SemiBold" color={colors.primary.onText}>
-              {t.training.finish_short}
-            </AppText>
-          )}
-        </Pressable>
+        />
       </View>
 
       <View style={styles.statsBar}>
         <View style={styles.stat}>
           <AppText variant="caps11" color={colors.text.tertiary}>{t.training.duration}</AppText>
-          <AppText variant="body14SemiBold" color={colors.primary.default}>{formatDuration(stats.elapsed)}</AppText>
+          <AppText variant="body16SemiBold" color={colors.text.primary}>{formatDuration(stats.elapsed)}</AppText>
         </View>
+        <View style={styles.statDivider} />
         <View style={styles.stat}>
           <AppText variant="caps11" color={colors.text.tertiary}>{t.training.volume}</AppText>
-          <AppText variant="body14SemiBold" color={colors.text.primary}>
+          <AppText variant="body16SemiBold" color={colors.text.primary}>
             {i18n(t.training.weight_kg, { n: stats.volume.toLocaleString('es-AR') })}
           </AppText>
         </View>
+        <View style={styles.statDivider} />
         <View style={styles.stat}>
           <AppText variant="caps11" color={colors.text.tertiary}>{t.training.sets_completed}</AppText>
-          <AppText variant="body14SemiBold" color={colors.text.primary}>
+          <AppText variant="body16SemiBold" color={colors.text.primary}>
             {stats.completedSets}
           </AppText>
         </View>
@@ -375,16 +420,22 @@ export function LiveSessionScreen({ navigation }: Props): React.JSX.Element {
           />
         }
         ListFooterComponent={
-          <View style={styles.footer}>
-            <Button
-              label={t.training.add_exercise}
-              icon="add"
-              variant="secondary"
-              onPress={() => setExerciseSheetVisible(true)}
-              fullWidth
-            />
-            <Button label={t.training.discard_session} variant="ghost" size="md" onPress={onDiscard} fullWidth />
-          </View>
+          activeSession?.isCustomWorkout ? (
+            <View style={styles.footer}>
+              <Button
+                label={t.training.add_exercise}
+                icon="add"
+                variant="outline"
+                onPress={() => setExerciseSheetVisible(true)}
+                fullWidth
+              />
+              <Button label={t.training.discard_session} variant="ghost" size="md" onPress={onDiscard} fullWidth />
+            </View>
+          ) : (
+            <View style={styles.footer}>
+              <Button label={t.training.discard_session} variant="ghost" size="md" onPress={onDiscard} fullWidth />
+            </View>
+          )
         }
       />
 
@@ -396,6 +447,17 @@ export function LiveSessionScreen({ navigation }: Props): React.JSX.Element {
           void addExerciseToSession(userId, exercise);
           setExerciseSheetVisible(false);
         }}
+      />
+
+      <ExercisePreviewSheet
+        visible={previewExercise !== null}
+        onClose={() => setPreviewExercise(null)}
+        exerciseId={previewExercise?.id ?? null}
+        fallback={
+          previewExercise
+            ? { name: previewExercise.name, image_url: previewExercise.imageUrl }
+            : undefined
+        }
       />
     </View>
   );
@@ -413,106 +475,88 @@ const createStyles = (colors: Colors) =>
       paddingBottom: spacing.sm,
     },
     topTitle: { flex: 1 },
-    finishBtn: {
-      backgroundColor: colors.primary.default,
-      borderRadius: radius.md,
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.sm,
-      minWidth: 88,
-      alignItems: 'center',
-      justifyContent: 'center',
-      minHeight: 36,
-    },
     statsBar: {
       flexDirection: 'row',
+      alignItems: 'center',
       paddingHorizontal: layout.screenPadding,
       paddingBottom: spacing.md,
-      gap: spacing.md,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: colors.border.subtle,
     },
-    stat: { flex: 1, gap: 2 },
+    stat: { flex: 1, alignItems: 'center', gap: 2 },
+    statDivider: {
+      width: StyleSheet.hairlineWidth,
+      height: 28,
+      backgroundColor: colors.border.subtle,
+    },
     listContent: {
       paddingHorizontal: layout.screenPadding,
-      paddingTop: spacing.md,
+      paddingTop: spacing.sm,
     },
-    blockGap: { height: spacing.md },
+    blockGap: { height: spacing.lg },
     exerciseBlock: {
       backgroundColor: colors.surface.base,
       borderRadius: radius.lg,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.border.default,
       overflow: 'hidden',
     },
     exerciseHeader: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: spacing.sm,
-      paddingHorizontal: spacing.sm,
-      paddingTop: spacing.sm,
+      paddingHorizontal: spacing.md,
+      paddingTop: spacing.md,
       paddingBottom: spacing.xs,
     },
-    exerciseTitle: { flex: 1 },
+    exerciseHeaderText: { flex: 1 },
     exerciseNotes: {
-      marginHorizontal: spacing.sm,
+      marginHorizontal: spacing.md,
       marginBottom: spacing.xs,
-      paddingVertical: spacing.xs,
-      paddingHorizontal: spacing.sm,
-      borderRadius: radius.md,
-      backgroundColor: colors.surface.elevated,
+      paddingVertical: spacing.xxs,
       color: colors.text.primary,
       fontSize: 13,
-      minHeight: 34,
     },
     restRow: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: spacing.xs,
-      paddingHorizontal: spacing.sm,
-      paddingBottom: spacing.xs,
-    },
-    restRowActive: {
-      marginHorizontal: spacing.xs,
-      marginBottom: spacing.xs,
-      paddingHorizontal: spacing.sm,
-      paddingVertical: spacing.xs,
-      borderRadius: radius.md,
-      backgroundColor: colors.primary.default,
+      paddingHorizontal: spacing.md,
+      paddingBottom: spacing.sm,
     },
     restLabel: { flex: 1 },
     tableHeader: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: spacing.xs,
-      paddingVertical: 6,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.xs,
       backgroundColor: colors.surface.elevated,
     },
     setRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: spacing.xs,
+      paddingHorizontal: spacing.md,
       paddingVertical: 4,
-      minHeight: 38,
+      minHeight: 46,
     },
-    setRowAlt: { backgroundColor: colors.surface.elevated },
-    setRowDone: { backgroundColor: 'rgba(49, 243, 123, 0.07)' },
-    colSet: { width: 30, textAlign: 'center' },
-    colPrev: { flex: 1, paddingHorizontal: 4 },
-    colKg: { width: 56, textAlign: 'center' },
-    colReps: { width: 46, textAlign: 'center' },
-    colCheck: { width: 30 },
+    setRowDone: {
+      backgroundColor: SET_DONE_GREEN,
+      marginHorizontal: spacing.xs,
+      borderRadius: radius.md,
+    },
+    colSet: { width: 28, textAlign: 'center' },
+    colPrevious: { flex: 1.15, textAlign: 'center' },
+    colKg: { flex: 0.75 },
+    colReps: { flex: 0.75 },
+    colCheck: { width: 32, alignItems: 'center' },
     cellInput: {
       color: colors.text.primary,
-      fontSize: 14,
+      fontSize: 16,
       fontWeight: '600',
       textAlign: 'center',
-      paddingVertical: 5,
+      paddingVertical: 8,
       paddingHorizontal: 4,
-      borderRadius: radius.sm,
-      backgroundColor: colors.background,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.border.subtle,
+      backgroundColor: 'transparent',
     },
+    cellInputDone: {},
     checkBtn: {
       width: 26,
       height: 26,
@@ -521,7 +565,7 @@ const createStyles = (colors: Colors) =>
       borderColor: colors.border.strong,
       alignItems: 'center',
       justifyContent: 'center',
-      marginLeft: 4,
+      backgroundColor: colors.surface.base,
     },
     checkBtnDone: {
       backgroundColor: NUTRITION_MACRO_COLORS.carbs,
@@ -532,10 +576,12 @@ const createStyles = (colors: Colors) =>
       alignItems: 'center',
       justifyContent: 'center',
       gap: spacing.xs,
-      marginHorizontal: spacing.xs,
-      marginVertical: spacing.xs,
-      paddingVertical: spacing.sm,
-      borderRadius: radius.md,
+      marginHorizontal: spacing.md,
+      marginVertical: spacing.sm,
+      paddingVertical: spacing.md,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: colors.border.default,
       backgroundColor: colors.surface.elevated,
     },
     footer: { marginTop: spacing.lg, gap: spacing.sm },

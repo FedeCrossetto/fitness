@@ -12,6 +12,11 @@ import {
   readPendingInviteCode,
   savePendingInviteCode,
 } from '../services/invite';
+import {
+  clearSubscriptionAccessCache,
+  resolveSubscriptionAccess,
+  syncClientActivationIfPaid,
+} from '../services/payments';
 import { INVITE_REQUIRED_MESSAGE } from '../services/clientAccess';
 import { completeOAuthFromUrl, getOAuthRedirectUri, getOAuthReturnUri } from '../lib/oauthRedirect';
 import type { ProfileRow, UserProfileRow } from '../types/database';
@@ -102,8 +107,13 @@ async function loadProfiles(userId: string): Promise<{ profile: ProfileRow | nul
     supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
     supabase.from('user_profiles').select('*').eq('user_id', userId).maybeSingle(),
   ]);
+  let profile = profileRes.data ?? null;
+  if (profile) {
+    profile = await syncClientActivationIfPaid(userId, profile);
+    await resolveSubscriptionAccess(userId);
+  }
   return {
-    profile: profileRes.data ?? null,
+    profile,
     userProfile: userProfileRes.data ?? null,
   };
 }
@@ -457,6 +467,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await supabase.auth.signOut();
       await clearCache();
       await clearPendingInviteCode();
+      clearSubscriptionAccessCache();
       useBrandingStore.getState().clear();
     } finally {
       set({

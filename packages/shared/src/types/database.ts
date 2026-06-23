@@ -161,6 +161,8 @@ export interface TrainingPhaseRow {
 export interface WorkoutRow {
   id: string;
   trainer_id: string | null;
+  /** Rutina personalizada del alumno (no forma parte del plan del entrenador). */
+  client_id: string | null;
   title: string;
   workout_type: WorkoutType;
   duration_min: number | null;

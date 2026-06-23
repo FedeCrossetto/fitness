@@ -17,12 +17,35 @@ import {
  *   sesión y se actualiza con el progreso.
  */
 
+import {
+  liveCompletedCount,
+  liveTotalSets,
+  resolveLiveActivityFocus,
+  type ActiveSession,
+} from '../lib/trainingSession';
+
 export interface LiveWorkoutState {
   workoutTitle: string;
   /** epoch ms de inicio */
   startedAt: number;
   completed: number;
   total: number;
+  exerciseName: string;
+  currentSet: number;
+  exerciseSetCount: number;
+  weightKg: number | null;
+  reps: number | null;
+}
+
+export function buildLiveWorkoutState(session: ActiveSession): LiveWorkoutState {
+  const focus = resolveLiveActivityFocus(session);
+  return {
+    workoutTitle: session.workoutTitle,
+    startedAt: session.startedAt,
+    completed: liveCompletedCount(session),
+    total: liveTotalSets(session),
+    ...focus,
+  };
 }
 
 const WORKOUT_NOTIFICATION_ID = 'reset-fitness:live-workout';
@@ -48,7 +71,10 @@ async function ensureChannel(): Promise<void> {
 function describe(state: LiveWorkoutState): string {
   const minutes = Math.max(0, Math.floor((Date.now() - state.startedAt) / 60000));
   const time = minutes >= 1 ? `${minutes} min` : 'Recién empezó';
-  return state.total > 0 ? `${time} · ${state.completed}/${state.total} ejercicios` : time;
+  const setLine = state.weightKg != null && state.reps != null
+    ? `${state.weightKg} kg x ${state.reps}`
+    : state.exerciseName;
+  return `${time} · ${setLine}`;
 }
 
 async function present(state: LiveWorkoutState): Promise<void> {
@@ -76,6 +102,11 @@ export async function startLiveWorkout(state: LiveWorkoutState): Promise<void> {
         startedAt: Math.floor(state.startedAt / 1000),
         completed: state.completed,
         total: state.total,
+        exerciseName: state.exerciseName,
+        currentSet: state.currentSet,
+        exerciseSetCount: state.exerciseSetCount,
+        weightKg: state.weightKg,
+        reps: state.reps,
       });
     } else if (Platform.OS === 'android') {
       await present(state);
@@ -89,7 +120,15 @@ export async function updateLiveWorkout(state: LiveWorkoutState): Promise<void> 
   if (!active) return;
   try {
     if (Platform.OS === 'ios') {
-      await updateLiveActivity({ completed: state.completed, total: state.total });
+      await updateLiveActivity({
+        completed: state.completed,
+        total: state.total,
+        exerciseName: state.exerciseName,
+        currentSet: state.currentSet,
+        exerciseSetCount: state.exerciseSetCount,
+        weightKg: state.weightKg,
+        reps: state.reps,
+      });
     } else if (Platform.OS === 'android') {
       await present(state);
     }

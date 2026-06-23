@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
-import { createCheckout, fetchActiveSubscription } from '../services/payments';
+import { createCheckout, fetchActiveSubscription, clearSubscriptionAccessCache, resolveSubscriptionAccess } from '../services/payments';
 import { useUiStore } from '../stores/uiStore';
 import type { SubscriptionRow } from '../types/database';
 
@@ -40,6 +40,8 @@ export function useCheckout(
     pollingRef.current = false;
     setCheckingOut(false);
     if (updated?.status === 'active') {
+      clearSubscriptionAccessCache();
+      await resolveSubscriptionAccess(uid);
       useUiStore.getState().showToast('success', '¡Bienvenido! Tu suscripción ya está activa.');
       onActivatedRef.current(updated);
     }

@@ -1,5 +1,10 @@
-import type { WorkoutLogRow } from '../types/database';
+import type { WorkoutLogRow, WorkoutRow } from '../types/database';
 import type { PhaseWithDays } from '../stores/trainingStore';
+
+/** Rutina personalizada del alumno (no forma parte del plan del entrenador). */
+export function isCustomWorkout(workout: Pick<WorkoutRow, 'client_id'>, userId?: string | null): boolean {
+  return userId != null && workout.client_id === userId;
+}
 
 export type DayWithPhase = PhaseWithDays['days'][number] & { phase: PhaseWithDays };
 
