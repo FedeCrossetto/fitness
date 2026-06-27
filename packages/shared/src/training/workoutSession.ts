@@ -17,6 +17,11 @@ export interface WorkoutSessionExercise {
   exerciseId: string;
   exerciseName: string;
   imageUrl: string | null;
+  /** Zona corporal para fallback visual cuando no hay GIF. */
+  bodyPart?: string | null;
+  /** Músculos principales del catálogo — usados en el mapa corporal post-entreno. */
+  targetMuscles?: string[] | null;
+  secondaryMuscles?: string[] | null;
   targetSets: number;
   targetReps: string;
   targetWeightKg: number | null;

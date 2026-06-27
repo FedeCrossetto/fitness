@@ -9,4 +9,5 @@ export * from './nutrition/defaults';
 export * from './trophies';
 export * from './training/workoutSession';
 export * from './training/exerciseDisplay';
+export * from './training/bodyZones';
 export * from './progress/bodyMeasurementValidation';

@@ -640,7 +640,7 @@ export interface Database {
         Returns: undefined;
       };
       register_manual_payment: {
-        Args: { p_client_id: string; p_plan_id: string };
+        Args: { p_client_id: string; p_plan_id: string; p_started_at?: string };
         Returns: string;
       };
       trainer_mp_connected: {
