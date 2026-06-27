@@ -47,3 +47,10 @@ supabase/.temp/
 /ios
 /android
 packages/shared/src/types/database.generated.ts
+
+# Cosas locales de Sebas
+files.zip
+levantar-habito.bat
+levantar-mobile.bat
+levantar-web.bat
+recuerdo/
