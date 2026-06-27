@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/useToast';
 import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
 import { CreditCardIcon } from '@/components/icons';
 import { ErrorState, LoadingRows } from '@/components/ui';
+import { ManualPaymentModal } from '@/components/ManualPaymentModal';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -123,11 +124,7 @@ export function PaymentsPage(): React.JSX.Element {
   const [students, setStudents] = useState<StudentMin[]>([]);
   const [savingPlanId, setSavingPlanId] = useState<string | null>(null);
 
-  // Registro de pago manual
   const [regOpen, setRegOpen] = useState(false);
-  const [regStudent, setRegStudent] = useState('');
-  const [regPlan, setRegPlan] = useState('');
-  const [regSubmitting, setRegSubmitting] = useState(false);
 
   // Conexión MercadoPago (OAuth)
   const [mpConnected, setMpConnected] = useState(false);
@@ -182,8 +179,7 @@ export function PaymentsPage(): React.JSX.Element {
         supabase
           .from('profiles')
           .select('id, full_name')
-          .eq('trainer_id', userId!)
-          .eq('client_status', 'active'),
+          .eq('trainer_id', userId!),
       ]);
 
       if (plansError) throw plansError;
@@ -244,27 +240,8 @@ export function PaymentsPage(): React.JSX.Element {
   }, [data]);
 
   const openRegister = () => {
-    setRegStudent(students[0]?.id ?? '');
-    setRegPlan(plans[0]?.id ?? '');
     setRegOpen(true);
   };
-
-  const submitRegisterPayment = useCallback(async () => {
-    if (!regStudent || !regPlan || regSubmitting) return;
-    setRegSubmitting(true);
-    const { error: rpcError } = await supabase.rpc('register_manual_payment', {
-      p_client_id: regStudent,
-      p_plan_id: regPlan,
-    });
-    setRegSubmitting(false);
-    if (rpcError) {
-      showToast('error', t.payments.register_error);
-      return;
-    }
-    showToast('success', t.payments.register_success);
-    setRegOpen(false);
-    refetch();
-  }, [regStudent, regPlan, regSubmitting, showToast, t.payments.register_error, t.payments.register_success, refetch]);
 
   const stats = useMemo(() => {
     const collected = payments
@@ -501,50 +478,13 @@ export function PaymentsPage(): React.JSX.Element {
         </div>
       )}
 
-      {regOpen && (
-        <div className="pay-modal-backdrop" onClick={() => setRegOpen(false)} role="dialog" aria-modal="true">
-          <div className="pay-modal card" onClick={(e) => e.stopPropagation()}>
-            <h2 className="payments-panel-title">{t.payments.register_title}</h2>
-            <p className="payments-panel-sub" style={{ marginBottom: 18 }}>{t.payments.register_sub}</p>
-            {students.length === 0 ? (
-              <p className="muted" style={{ margin: '8px 0 18px' }}>{t.payments.register_no_students}</p>
-            ) : (
-              <>
-                <label className="pay-modal-field">
-                  <span>{t.payments.register_student}</span>
-                  <select value={regStudent} onChange={(e) => setRegStudent(e.target.value)}>
-                    {students.map((s) => (
-                      <option key={s.id} value={s.id}>{s.full_name ?? '—'}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="pay-modal-field">
-                  <span>{t.payments.register_plan}</span>
-                  <select value={regPlan} onChange={(e) => setRegPlan(e.target.value)}>
-                    {plans.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} — {formatMoney(p.effectivePrice, language)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </>
-            )}
-            <div className="pay-modal-actions">
-              <button className="btn secondary" onClick={() => setRegOpen(false)}>
-                {t.ui.cancel}
-              </button>
-              <button
-                className="btn"
-                onClick={() => void submitRegisterPayment()}
-                disabled={regSubmitting || !regStudent || !regPlan || students.length === 0}
-              >
-                {regSubmitting ? '…' : t.payments.register_confirm}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ManualPaymentModal
+        open={regOpen}
+        onClose={() => setRegOpen(false)}
+        students={students}
+        plans={plans.map((p) => ({ ...p, price_ars: p.effectivePrice }))}
+        onSuccess={() => void refetch()}
+      />
     </div>
   );
 }

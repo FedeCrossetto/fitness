@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useTranslation } from '@/hooks/useTranslation';
-import { useToast } from '@/hooks/useToast';
 import { MessageIcon, PlusIcon, DumbbellIcon, ChevronRightIcon } from '@/components/icons';
 import { UserAvatar } from '@/components/UserAvatar';
 import type {
@@ -14,12 +13,14 @@ import type {
   SubscriptionRow,
   UserProfileRow,
   WorkoutLogRow,
+  PlanRow,
 } from '@reset-fitness/shared/types/database';
 import { supabase } from '@/lib/supabase';
 import { formatWorkoutVolume, summarizeWorkoutForFeed } from '@reset-fitness/shared';
 import { RoutineManager } from '@/components/RoutineManager';
 import { StudentCoachPanel } from '@/components/StudentCoachPanel';
 import { Lightbox, Spinner } from '@/components/ui';
+import { ManualPaymentModal } from '@/components/ManualPaymentModal';
 
 const anyClient = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> };
 
@@ -116,7 +117,6 @@ export function StudentDetailPage(): React.JSX.Element {
   const { id: studentId } = useParams<{ id: string }>();
   const { profile: trainerProfile } = useAuth();
   const { t } = useTranslation();
-  const { showToast } = useToast();
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>('resumen');
   const [defaultProgramKey, setDefaultProgramKey] = useState('default');
@@ -135,17 +135,22 @@ export function StudentDetailPage(): React.JSX.Element {
   const [subscription, setSubscription] = useState<StudentSubscription | null>(null);
   const [lightbox, setLightbox]       = useState<{ src: string; caption: string } | null>(null);
   const [loading, setLoading]         = useState(true);
-  const [activating, setActivating]   = useState(false);
+  const [manualPayOpen, setManualPayOpen] = useState(false);
+  const [plans, setPlans]             = useState<PlanRow[]>([]);
 
   useEffect(() => {
     if (!trainerProfile?.id) return;
     void (async () => {
-      const { data } = await supabase
-        .from('trainer_branding')
-        .select('default_program_key')
-        .eq('trainer_id', trainerProfile.id)
-        .maybeSingle();
-      setDefaultProgramKey((data as { default_program_key?: string } | null)?.default_program_key ?? 'default');
+      const [{ data: branding }, { data: planRows }] = await Promise.all([
+        supabase
+          .from('trainer_branding')
+          .select('default_program_key')
+          .eq('trainer_id', trainerProfile.id)
+          .maybeSingle(),
+        supabase.from('plans').select('*').eq('active', true).order('duration_days'),
+      ]);
+      setDefaultProgramKey((branding as { default_program_key?: string } | null)?.default_program_key ?? 'default');
+      setPlans((planRows as PlanRow[] | null) ?? []);
     })();
   }, [trainerProfile?.id]);
 
@@ -251,22 +256,38 @@ export function StudentDetailPage(): React.JSX.Element {
     return { totalMin, avgRpe, completionRate, unreadMsgs };
   }, [workouts, completedW, messages]);
 
-  const activate = async () => {
-    if (!studentId || activating) return;
-    setActivating(true);
-    const { data, error } = await supabase
-      .from('profiles')
-      .update({ client_status: 'active' })
-      .eq('id', studentId)
-      .select('id');
-    if (error || !data || data.length === 0) {
-      showToast('error', 'No pudimos activar al cliente.');
-    } else {
-      setProfile((prev) => prev ? { ...prev, client_status: 'active' } : prev);
-      showToast('success', 'Cliente activado');
+  const reloadSubscription = useCallback(async () => {
+    if (!studentId) return;
+    const { data: sub } = await supabase
+      .from('subscriptions')
+      .select('status, expires_at, started_at, plan_id, mp_status')
+      .eq('user_id', studentId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!sub) {
+      setSubscription(null);
+      return;
     }
-    setActivating(false);
-  };
+    const row = sub as Pick<SubscriptionRow, 'status' | 'expires_at' | 'started_at' | 'plan_id' | 'mp_status'>;
+    let status = row.status;
+    if (status === 'active' && row.expires_at && new Date(row.expires_at) < new Date()) {
+      status = 'expired';
+    }
+    const { data: plan } = await supabase.from('plans').select('name').eq('id', row.plan_id).maybeSingle();
+    setSubscription({
+      status,
+      expires_at: row.expires_at,
+      started_at: row.started_at,
+      plan_name: (plan as { name: string } | null)?.name ?? null,
+    });
+  }, [studentId]);
+
+  const onManualPaymentSuccess = useCallback(async () => {
+    if (!studentId) return;
+    setProfile((prev) => (prev ? { ...prev, client_status: 'active' } : prev));
+    await reloadSubscription();
+  }, [studentId, reloadSubscription]);
 
   if (loading) return (
     <div style={{ display: 'flex', justifyContent: 'center', padding: 64 }}>
@@ -348,8 +369,8 @@ export function StudentDetailPage(): React.JSX.Element {
 
           <div className="sd-header-actions">
             {isPending ? (
-              <button className="btn primary" onClick={() => void activate()} disabled={activating}>
-                {activating ? 'Activando…' : 'Activar cliente'}
+              <button className="btn primary" onClick={() => setManualPayOpen(true)}>
+                Activar con pago manual
               </button>
             ) : (
               <>
@@ -956,6 +977,17 @@ export function StudentDetailPage(): React.JSX.Element {
         .photo-gallery-skeleton { width: 100%; aspect-ratio: 3 / 4; border-radius: var(--radius-sm); }
         .photo-gallery-cap { font-size: 12px; color: var(--text-tertiary); text-transform: capitalize; }
       `}</style>
+
+      {profile ? (
+        <ManualPaymentModal
+          open={manualPayOpen}
+          onClose={() => setManualPayOpen(false)}
+          students={[{ id: profile.id, full_name: profile.full_name }]}
+          plans={plans}
+          initialStudentId={profile.id}
+          onSuccess={() => void onManualPaymentSuccess()}
+        />
+      ) : null}
 
       <Lightbox src={lightbox?.src ?? null} caption={lightbox?.caption} onClose={() => setLightbox(null)} />
     </div>

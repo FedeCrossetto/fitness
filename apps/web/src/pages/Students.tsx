@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
-import type { ProfileRow } from '@reset-fitness/shared/types/database';
+import type { PlanRow, ProfileRow } from '@reset-fitness/shared/types/database';
+import { ManualPaymentModal } from '@/components/ManualPaymentModal';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -70,7 +71,9 @@ export function StudentsPage(): React.JSX.Element {
   const [tab, setTab] = useState<'active' | 'pending'>(() =>
     searchParams.get('tab') === 'pending' ? 'pending' : 'active',
   );
-  const [activating, setActivating] = useState<string | null>(null);
+  const [manualPayOpen, setManualPayOpen] = useState(false);
+  const [manualPayStudentId, setManualPayStudentId] = useState<string | null>(null);
+  const [plans, setPlans] = useState<PlanRow[]>([]);
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [showQR, setShowQR] = useState(false);
@@ -101,16 +104,17 @@ export function StudentsPage(): React.JSX.Element {
 
   useEffect(() => { if (studentsData) setStudents(studentsData); }, [studentsData]);
 
-  // Load invite code from trainer_branding
   useEffect(() => {
     if (!userId) return;
     void (async () => {
-      const { data } = await supabase
-        .from('trainer_branding')
-        .select('invite_code')
-        .eq('trainer_id', userId)
-        .maybeSingle();
-      if (data && 'invite_code' in data) setInviteCode((data as { invite_code: string }).invite_code);
+      const [{ data: branding }, { data: planRows }] = await Promise.all([
+        supabase.from('trainer_branding').select('invite_code').eq('trainer_id', userId).maybeSingle(),
+        supabase.from('plans').select('*').eq('active', true).order('duration_days'),
+      ]);
+      if (branding && 'invite_code' in branding) {
+        setInviteCode((branding as { invite_code: string }).invite_code);
+      }
+      setPlans((planRows as PlanRow[] | null) ?? []);
     })();
   }, [userId]);
 
@@ -121,22 +125,17 @@ export function StudentsPage(): React.JSX.Element {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const activate = async (id: string) => {
-    setActivating(id);
-    // .select() para confirmar que realmente se actualizó una fila (RLS podría
-    // bloquear el UPDATE sin devolver error).
-    const { data, error } = await supabase
-      .from('profiles')
-      .update({ client_status: 'active' })
-      .eq('id', id)
-      .select('id');
-    if (error || !data || data.length === 0) {
-      showToast('error', 'No pudimos activar al cliente. Probá de nuevo.');
-    } else {
-      setStudents((prev) => prev.map((s) => s.id === id ? { ...s, client_status: 'active' } : s));
-      showToast('success', 'Cliente activado');
-    }
-    setActivating(null);
+  const openManualPayment = (id: string) => {
+    setManualPayStudentId(id);
+    setManualPayOpen(true);
+  };
+
+  const onManualPaymentSuccess = () => {
+    if (!manualPayStudentId) return;
+    setStudents((prev) => prev.map((s) => (
+      s.id === manualPayStudentId ? { ...s, client_status: 'active' } : s
+    )));
+    void refetch();
   };
 
   const removeClient = async (id: string) => {
@@ -345,10 +344,9 @@ export function StudentsPage(): React.JSX.Element {
                     <div className="client-pending-actions">
                       <button
                         className="btn primary sm"
-                        onClick={() => void activate(s.id)}
-                        disabled={activating === s.id}
+                        onClick={() => openManualPayment(s.id)}
                       >
-                        {activating === s.id ? '…' : 'Activar'}
+                        Activar
                       </button>
                       <ClientRowActions
                         onOpen={() => navigate(`/students/${s.id}`)}
@@ -474,6 +472,15 @@ export function StudentsPage(): React.JSX.Element {
         }
         .btn.danger:hover { background: #fee2e2; opacity: 1; }
       `}</style>
+
+      <ManualPaymentModal
+        open={manualPayOpen}
+        onClose={() => setManualPayOpen(false)}
+        students={students.map((s) => ({ id: s.id, full_name: s.full_name }))}
+        plans={plans}
+        initialStudentId={manualPayStudentId ?? undefined}
+        onSuccess={onManualPaymentSuccess}
+      />
     </div>
   );
 }
