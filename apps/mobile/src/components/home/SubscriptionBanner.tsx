@@ -48,7 +48,7 @@ export function SubscriptionBanner({ onPress }: { onPress: () => void }): React.
   if (hasAccess !== false) return null;
 
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" style={styles.wrap}>
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel="Activá tu plan de entrenamiento" style={styles.wrap}>
       <LinearGradient
         colors={[colors.primary.default, colors.primary.dark ?? colors.primary.default]}
         start={{ x: 0, y: 0 }}

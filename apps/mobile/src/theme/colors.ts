@@ -34,12 +34,12 @@ export const paletteLight = {
 } as const;
 
 export const darkColors = {
-  background: palette.scale1000,
+  background: '#0C161F',
 
   surface: {
-    base: '#141414',
-    elevated: '#1C1C1C',
-    overlay: 'rgba(12,12,12,0.85)',
+    base: '#242A34',
+    elevated: '#2C3240',
+    overlay: 'rgba(12,13,16,0.88)',
   },
 
   primary: {
@@ -83,7 +83,7 @@ export const darkColors = {
   gradients: {
     kinetic: ['#D4FD7F', '#BEFC50'] as readonly [string, string],
     deep: ['#BEFC50', '#3A4E15'] as readonly [string, string],
-    darkFade: ['rgba(12,12,12,0)', '#0C0C0C'] as readonly [string, string],
+    darkFade: ['rgba(12,22,31,0)', '#0C161F'] as readonly [string, string],
   },
 
   pillars: {

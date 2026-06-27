@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -67,6 +67,7 @@ export function ProgramScreen({ navigation }: Props): React.JSX.Element {
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [creatingCustom, setCreatingCustom] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const refresh = useCallback(() => {
     void loadProgram();
@@ -75,6 +76,15 @@ export function ProgramScreen({ navigation }: Props): React.JSX.Element {
       void loadRecentLogs(userId);
       void loadCustomWorkouts(userId);
     }
+  }, [loadProgram, restoreActiveSession, loadRecentLogs, loadCustomWorkouts, userId]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try { await Promise.all([
+      loadProgram(),
+      restoreActiveSession(),
+      ...(userId ? [loadRecentLogs(userId), loadCustomWorkouts(userId)] : []),
+    ]); } finally { setRefreshing(false); }
   }, [loadProgram, restoreActiveSession, loadRecentLogs, loadCustomWorkouts, userId]);
 
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
@@ -421,6 +431,9 @@ export function ProgramScreen({ navigation }: Props): React.JSX.Element {
         paddingHorizontal: layout.screenPadding,
       }}
       showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={() => void onRefresh()} tintColor={colors.primary.default} />
+      }
     >
       <View style={styles.header}>
         <AppText variant="h1" color={colors.text.primary} style={styles.headerTitle}>

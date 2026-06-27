@@ -37,6 +37,7 @@ interface ProgressState {
   loadHydration: (userId: string) => Promise<void>;
   addWater: (userId: string, ml: number) => Promise<number | null>;
   setHydrationGoal: (userId: string, goalMl: number) => Promise<void>;
+  reset: () => void;
 }
 
 export const useProgressStore = create<ProgressState>()(
@@ -193,9 +194,14 @@ export const useProgressStore = create<ProgressState>()(
   },
 
   addWater: async (userId, ml) => {
-    const current = get().hydrationToday;
-    const totalMl = Math.max(0, (current?.total_ml ?? 0) + ml);
-    const goalMl = current?.goal_ml ?? clientConfig.defaultHydrationGoalMl;
+    const prev = get().hydrationToday;
+    const totalMl = Math.max(0, (prev?.total_ml ?? 0) + ml);
+    const goalMl = prev?.goal_ml ?? clientConfig.defaultHydrationGoalMl;
+    // Optimistic: update UI immediately before the server round-trip
+    const optimistic = prev
+      ? { ...prev, total_ml: totalMl }
+      : ({ id: 'optimistic', user_id: userId, date: todayISO(), total_ml: totalMl, goal_ml: goalMl } as HydrationLogRow);
+    set({ hydrationToday: optimistic });
     try {
       const { data, error } = await supabase
         .from('hydration_logs')
@@ -209,6 +215,7 @@ export const useProgressStore = create<ProgressState>()(
       set({ hydrationToday: data });
       return data.total_ml;
     } catch {
+      set({ hydrationToday: prev }); // revert on failure
       return null;
     }
   },
@@ -225,11 +232,21 @@ export const useProgressStore = create<ProgressState>()(
       .single();
     if (data) set({ hydrationToday: data });
   },
+
+  reset: () => set({
+    measurements: [],
+    measurementsLoading: false,
+    measurementsError: null,
+    photos: [],
+    photosLoading: false,
+    hydrationToday: null,
+    hydrationLoading: false,
+    steps: 0,
+  }),
     }),
     {
       name: 'reset-fitness-progress',
       storage: createJSONStorage(() => AsyncStorage),
-      // Solo persistimos la conexión a Salud; los pasos se re-leen frescos al abrir.
       partialize: (state) => ({
         healthConnected: state.healthConnected,
         homePhotosHidden: state.homePhotosHidden,

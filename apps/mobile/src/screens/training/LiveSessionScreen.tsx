@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -21,7 +21,7 @@ import { layout, radius, spacing, Colors, useThemedStyles, useTheme } from '../.
 import { formatDuration } from '../../lib/dates';
 import { sessionDetailFromActive, formatRestCountdown, getRestRemainingSeconds } from '../../lib/trainingSession';
 import { hapticSelect, hapticSuccess } from '../../lib/haptics';
-import { AppText, Button, EmptyState, IconButton } from '../../components/common';
+import { AppText, Button, EmptyState, IconButton, ProgressRing } from '../../components/common';
 import { ExerciseSearchSheet } from '../../components/training/ExerciseSearchSheet';
 import { ExercisePreviewSheet } from '../../components/training/ExercisePreviewSheet';
 import { ExerciseIcon } from '../../components/training/ExerciseIcon';
@@ -83,6 +83,7 @@ export function LiveSessionScreen({ navigation }: Props): React.JSX.Element {
 
   const [now, setNow] = useState(() => Date.now());
   const [finishing, setFinishing] = useState(false);
+  const lastRestEndKey = useRef<string | null>(null);
   const [exerciseSheetVisible, setExerciseSheetVisible] = useState(false);
   const [previewExercise, setPreviewExercise] = useState<{
     id: string;
@@ -95,6 +96,21 @@ export function LiveSessionScreen({ navigation }: Props): React.JSX.Element {
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
   }, [activeSession]);
+
+  // Haptic + toast cuando el descanso llega a 0
+  useEffect(() => {
+    if (!activeSession?.activeRest) {
+      lastRestEndKey.current = null;
+      return;
+    }
+    const remaining = getRestRemainingSeconds(activeSession, now);
+    const key = activeSession.activeRest.workoutExerciseId;
+    if (remaining === 0 && lastRestEndKey.current !== key) {
+      lastRestEndKey.current = key;
+      hapticSuccess();
+      useUiStore.getState().showToast('success', '¡Listo! Siguiente serie');
+    }
+  }, [now, activeSession]);
 
   const stats = useMemo(() => {
     if (!activeSession) return { elapsed: 0, volume: 0, completedSets: 0, totalSets: 0 };
@@ -138,9 +154,22 @@ export function LiveSessionScreen({ navigation }: Props): React.JSX.Element {
   }, [discardSession, navigation, t]);
 
   const toggleSetComplete = useCallback(
-    (workoutExerciseId: string, set: WorkoutSessionSet) => {
+    (workoutExerciseId: string, set: WorkoutSessionSet, exercise: WorkoutSessionExercise) => {
+      const completing = !set.completed;
       hapticSelect();
-      updateSet(workoutExerciseId, set.id, { completed: !set.completed });
+      updateSet(workoutExerciseId, set.id, { completed: completing });
+
+      // Detectar PR: completando una serie con peso mayor al histórico
+      if (completing && set.weightKg != null && set.reps != null) {
+        const bestPrevious = exercise.previousSets?.reduce<number>(
+          (max, s) => (s.weightKg > max ? s.weightKg : max),
+          0,
+        ) ?? 0;
+        if (set.weightKg > bestPrevious && bestPrevious > 0) {
+          hapticSuccess();
+          useUiStore.getState().showToast('success', `¡Nuevo récord! ${set.weightKg} kg × ${set.reps}`);
+        }
+      }
     },
     [updateSet],
   );
@@ -183,7 +212,7 @@ export function LiveSessionScreen({ navigation }: Props): React.JSX.Element {
           <Pressable
             accessibilityRole="checkbox"
             accessibilityState={{ checked: set.completed }}
-            onPress={() => toggleSetComplete(exercise.workoutExerciseId, set)}
+            onPress={() => toggleSetComplete(exercise.workoutExerciseId, set, exercise)}
             style={[styles.checkBtn, set.completed && styles.checkBtnDone]}
           >
             {set.completed ? (
@@ -215,6 +244,9 @@ export function LiveSessionScreen({ navigation }: Props): React.JSX.Element {
         }
       }
 
+      const totalSec = activeSession?.activeRest?.totalSeconds ?? exercise.restSeconds ?? 0;
+      const ringProgress = isActiveRest && totalSec > 0 ? remaining / totalSec : 0;
+
       return (
         <Pressable
           accessibilityRole="button"
@@ -224,11 +256,25 @@ export function LiveSessionScreen({ navigation }: Props): React.JSX.Element {
           }}
           style={({ pressed }) => [styles.restRow, pressed && styles.pressed]}
         >
-          <Ionicons
-            name="timer-outline"
-            size={14}
-            color={isActiveRest ? NUTRITION_MACRO_COLORS.carbs : colors.text.tertiary}
-          />
+          {isActiveRest ? (
+            <ProgressRing
+              size={36}
+              strokeWidth={3}
+              progress={ringProgress}
+              color={NUTRITION_MACRO_COLORS.carbs}
+              glow={false}
+            >
+              <AppText variant="caps11" color={NUTRITION_MACRO_COLORS.carbs}>
+                {remaining}
+              </AppText>
+            </ProgressRing>
+          ) : (
+            <Ionicons
+              name="timer-outline"
+              size={14}
+              color={colors.text.tertiary}
+            />
+          )}
           <AppText
             variant="body12Medium"
             color={isActiveRest ? NUTRITION_MACRO_COLORS.carbs : colors.text.tertiary}

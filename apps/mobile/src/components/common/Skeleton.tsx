@@ -1,13 +1,14 @@
 import React, { useEffect } from 'react';
-import { StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
+import { StyleProp, StyleSheet, View, ViewStyle, useWindowDimensions } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
-  withSequence,
   withTiming,
+  Easing,
 } from 'react-native-reanimated';
-import { Colors, radius, spacing, useThemedStyles } from '../../theme';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Colors, radius, spacing, useThemedStyles, useTheme } from '../../theme';
 
 interface SkeletonProps {
   width?: number | `${number}%`;
@@ -22,22 +23,36 @@ export function Skeleton({
   borderRadius = radius.sm,
   style,
 }: SkeletonProps): React.JSX.Element {
-  const opacity = useSharedValue(0.4);
+  const { width: screenW } = useWindowDimensions();
+  const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
+  const translateX = useSharedValue(-screenW);
 
   useEffect(() => {
-    opacity.value = withRepeat(
-      withSequence(withTiming(0.9, { duration: 700 }), withTiming(0.4, { duration: 700 })),
-      -1
+    translateX.value = withRepeat(
+      withTiming(screenW, { duration: 1200, easing: Easing.linear }),
+      -1,
     );
-  }, [opacity]);
+  }, [translateX, screenW]);
 
-  const animatedStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
+  const shimmerStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
+
+  const base = colors.surface.elevated;
+  const highlight = colors.surface.base + 'CC';
 
   return (
-    <Animated.View
-      style={[styles.base, { width, height, borderRadius }, animatedStyle, style]}
-    />
+    <View style={[styles.base, { width, height, borderRadius }, style]}>
+      <Animated.View style={[StyleSheet.absoluteFill, shimmerStyle]}>
+        <LinearGradient
+          colors={[base, highlight, base]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={{ flex: 1, width: screenW * 0.6 }}
+        />
+      </Animated.View>
+    </View>
   );
 }
 
@@ -55,7 +70,10 @@ export function CardSkeleton(): React.JSX.Element {
 
 const createStyles = (colors: Colors) =>
   StyleSheet.create({
-    base: { backgroundColor: colors.surface.elevated },
+    base: {
+      backgroundColor: colors.surface.elevated,
+      overflow: 'hidden',
+    },
     card: {
       backgroundColor: colors.surface.base,
       borderRadius: radius.lg,

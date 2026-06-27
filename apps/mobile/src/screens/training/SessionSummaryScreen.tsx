@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { TrainingStackParamList } from '../../types/navigation';
-import { layout, radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
+import { layout, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
 import { hapticSuccess } from '../../lib/haptics';
 import { formatShortDate } from '../../lib/dates';
 import {
@@ -12,7 +12,9 @@ import {
   Button,
   Card,
   CardSkeleton,
+  Confetti,
   ErrorState,
+  FadeInView,
   IconButton,
 } from '../../components/common';
 import { NUTRITION_MACRO_COLORS } from '../../components/nutrition/nutritionTheme';
@@ -98,32 +100,19 @@ export function SessionSummaryScreen({ navigation, route }: Props): React.JSX.El
 
     return (
       <View>
-        {celebrate ? (
-          <View style={styles.celebration}>
-            <View style={styles.successIcon}>
-              <Ionicons name="checkmark-circle" size={40} color={NUTRITION_MACRO_COLORS.carbs} />
-            </View>
-            <View style={styles.celebrationText}>
-              <AppText variant="h2" color={colors.text.primary}>
-                {t.training.done_title}
-              </AppText>
-              <AppText variant="body13" color={colors.text.secondary} numberOfLines={2}>
-                {i18n(t.training.done_subtitle, { name: log.workout_name })}
-              </AppText>
-            </View>
+        <View style={celebrate ? styles.celebration : styles.detailHeader}>
+          {celebrate ? (
+            <Ionicons name="checkmark-circle" size={32} color={NUTRITION_MACRO_COLORS.carbs} />
+          ) : null}
+          <View style={styles.headerText}>
+            <AppText variant="h3" color={colors.text.primary} numberOfLines={2}>
+              {log.workout_name}
+            </AppText>
+            <AppText variant="body12" color={colors.text.tertiary}>
+              {formatShortDate(log.date)} · {durationLabel}
+            </AppText>
           </View>
-        ) : (
-          <View style={styles.detailHeader}>
-            <View style={styles.detailTitleBlock}>
-              <AppText variant="h2" color={colors.text.primary} numberOfLines={2}>
-                {log.workout_name}
-              </AppText>
-              <AppText variant="body12" color={colors.text.tertiary}>
-                {formatShortDate(log.date)} · {durationLabel}
-              </AppText>
-            </View>
-          </View>
-        )}
+        </View>
 
         {isStrength ? (
           <WorkedBodyMap
@@ -158,7 +147,7 @@ export function SessionSummaryScreen({ navigation, route }: Props): React.JSX.El
         )}
 
         {exerciseLines.length > 0 ? (
-          <Card style={styles.exerciseCard}>
+          <Card elevated style={styles.exerciseCard}>
             <AppText variant="caps12" color={colors.text.tertiary} style={styles.sectionLabel}>
               {i18n(t.training.exercises_count, { n: exerciseLines.length })}
             </AppText>
@@ -210,6 +199,8 @@ export function SessionSummaryScreen({ navigation, route }: Props): React.JSX.El
   };
 
   return (
+    <View style={styles.flex}>
+      {celebrate ? <Confetti active /> : null}
     <ScrollView
       style={styles.flex}
       contentContainerStyle={{
@@ -232,8 +223,11 @@ export function SessionSummaryScreen({ navigation, route }: Props): React.JSX.El
           <View style={styles.navSpacer} />
         </View>
       ) : null}
-      {renderContent()}
+      <FadeInView delay={120}>
+        {renderContent()}
+      </FadeInView>
     </ScrollView>
+    </View>
   );
 }
 
@@ -284,19 +278,12 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
   },
-  successIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surface.elevated,
-    alignItems: 'center',
-    justifyContent: 'center',
+  detailHeader: {
+    marginBottom: spacing.sm,
   },
-  celebrationText: { flex: 1, gap: 2 },
-  detailHeader: { marginBottom: spacing.md },
-  detailTitleBlock: { gap: spacing.xxs },
+  headerText: { flex: 1, gap: 2 },
   cardioMetrics: { marginTop: spacing.sm },
   cardioGrid: {
     flexDirection: 'row',

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Pressable, StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { Colors, radius, spacing, shadows, useThemedStyles } from '../../theme';
 import { hapticSelect } from '../../lib/haptics';
 
@@ -11,8 +12,16 @@ interface CardProps {
   accessibilityLabel?: string;
 }
 
+const SPRING = { damping: 18, stiffness: 280, mass: 0.7 };
+
 export function Card({ children, onPress, elevated = false, style, accessibilityLabel }: CardProps): React.JSX.Element {
   const styles = useThemedStyles(createStyles);
+  const scale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
   const baseStyle = [styles.base, elevated && styles.elevated, style];
 
   if (onPress) {
@@ -20,13 +29,13 @@ export function Card({ children, onPress, elevated = false, style, accessibility
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel}
-        onPress={() => {
-          hapticSelect();
-          onPress();
-        }}
-        style={({ pressed }) => [...baseStyle, pressed && styles.pressed]}
+        onPressIn={() => { scale.value = withSpring(0.963, SPRING); }}
+        onPressOut={() => { scale.value = withSpring(1, SPRING); }}
+        onPress={() => { hapticSelect(); onPress(); }}
       >
-        {children}
+        <Animated.View style={[...baseStyle, animatedStyle]}>
+          {children}
+        </Animated.View>
       </Pressable>
     );
   }
@@ -47,5 +56,4 @@ const createStyles = (colors: Colors) =>
       backgroundColor: colors.surface.elevated,
       ...shadows.soft,
     },
-    pressed: { opacity: 0.85 },
   });

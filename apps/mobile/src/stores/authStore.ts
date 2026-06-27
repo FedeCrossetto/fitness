@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { clearCache, invalidateCache } from '../lib/cache';
 import { useBrandingStore } from './brandingStore';
 import { useProgressStore } from './progressStore';
+import { resetAllStores } from './resetAllStores';
 import {
   applyPendingInviteLink,
   clearPendingInviteCode,
@@ -156,7 +157,7 @@ function ensureAuthListener(): void {
   if (authListenerRegistered) return;
   authListenerRegistered = true;
 
-  supabase.auth.onAuthStateChange((_event, session) => {
+  supabase.auth.onAuthStateChange((event, session) => {
     if (!session) {
       useAuthStore.setState({
         session: null,
@@ -166,6 +167,12 @@ function ensureAuthListener(): void {
         loading: false,
       });
       useBrandingStore.getState().clear();
+      return;
+    }
+
+    // Token renovado silenciosamente por Supabase — solo actualizamos la sesión.
+    if (event === 'TOKEN_REFRESHED') {
+      useAuthStore.setState({ session });
       return;
     }
 
@@ -456,14 +463,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   refreshProfile: async () => {
     const { session } = get();
     if (!session) return;
-    const { profile, userProfile } = await loadProfiles(session.user.id);
-    set({ profile, userProfile });
-    await useBrandingStore.getState().load();
+    try {
+      const { profile, userProfile } = await loadProfiles(session.user.id);
+      set({ profile, userProfile });
+      await useBrandingStore.getState().load();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      // Si el JWT expiró, intentamos refrescarlo en lugar de quedar en loop.
+      if (msg.includes('JWT') || msg.includes('token')) {
+        const { data } = await supabase.auth.refreshSession();
+        if (data.session) {
+          const { profile, userProfile } = await loadProfiles(data.session.user.id);
+          set({ session: data.session, profile, userProfile });
+        }
+      }
+    }
   },
 
   signOut: async () => {
     set({ loading: true });
     try {
+      resetAllStores();
       await supabase.auth.signOut();
       await clearCache();
       await clearPendingInviteCode();

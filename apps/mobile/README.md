@@ -75,10 +75,104 @@ Habilitar los providers en Supabase Auth y agregar el redirect `reset-fitness://
 
 ### 6. Correr la app
 
+> La app usa módulos nativos propios (`expo-dev-client`, HealthKit, reconocimiento de voz) y **no corre en Expo Go**. Siempre se necesita un *development build*.
+
+#### Opción A — Simulador iOS (sin cable, solo Mac)
+
+Requisito: Xcode instalado con al menos un simulador descargado.
+
 ```bash
-npx expo start          # Expo Go (sin HealthKit ni voz)
-npx expo run:ios        # development build completa
+# Desde la raíz del monorepo:
+npm run dev
+
+# O desde apps/mobile:
+npm run dev
 ```
+
+La primera vez compila el nativo (~3-5 min) e instala la app en el simulador automáticamente. Las siguientes veces, si el simulador ya tiene la app instalada, podés arrancar solo el servidor JS:
+
+```bash
+npm run metro
+```
+
+Los cambios en código JS/TS se reflejan solos al guardar (Fast Refresh). No hace falta reiniciar.
+
+---
+
+#### Opción B — iPhone físico (con cable USB)
+
+**Requisitos previos (una sola vez):**
+
+1. **Conectar el iPhone por cable USB** a la Mac.
+2. En el iPhone: desbloquearlo y tocar **"Confiar en este ordenador"** cuando aparezca el diálogo.
+3. En la Mac, abrir **Xcode → Settings → Accounts** y verificar que tu Apple ID esté agregado (no hace falta cuenta paga, sirve una gratuita).
+4. En el iPhone: ir a **Ajustes → General → VPN y gestión de dispositivos** y confiar en el certificado de tu Apple ID (aparece después del primer build).
+
+**Correr:**
+
+```bash
+# Desde la raíz del monorepo:
+npm run dev:device
+
+# O desde apps/mobile:
+npm run dev:device
+```
+
+Seleccioná tu iPhone de la lista que aparece en la terminal. Expo compila, firma e instala la app por cable. Una vez instalada, las próximas veces podés conectarte por WiFi (misma red) sin cable:
+
+```bash
+npm run metro    # solo el servidor JS, el iPhone se conecta por WiFi
+```
+
+**Si el iPhone no aparece en la lista:**
+- Asegurate de que el cable transmita datos (no solo carga).
+- En Xcode → Window → Devices and Simulators verificá que aparezca el dispositivo.
+- Destrabá el iPhone antes de correr el comando.
+
+---
+
+#### Opción C — iPhone físico ya instalado (sin cable, uso diario)
+
+Una vez que la app está instalada en el iPhone (via Opción B), el flujo diario es:
+
+**Requisito:** Mac e iPhone en la **misma red WiFi**.
+
+```bash
+# Desde la raíz del monorepo:
+npm run metro
+```
+
+Abrís la app Reset Fit en el iPhone → se conecta sola al servidor Metro de la Mac → carga el JS. Si ves "No development servers found":
+- Verificá que Mac e iPhone estén en la misma WiFi.
+- Asegurate de que `npm run metro` esté corriendo en la terminal.
+- Agitá el iPhone o cerrá y volvé a abrir la app.
+
+---
+
+#### Checklist de inicio rápido (uso diario)
+
+Cada vez que querés trabajar en la app:
+
+```
+1. Abrir terminal en la raíz del monorepo (/Desktop/Repos/habito)
+2. npm run metro
+3. Abrir Reset Fit en el iPhone o en el simulador
+4. Listo — los cambios en código se reflejan solos al guardar
+```
+
+Si el simulador está cerrado → lo abre Expo solo cuando corrés `npm run dev`.
+Si la app no está instalada en el iPhone → `npm run dev:device` con el cable.
+
+---
+
+#### Resumen de comandos
+
+| Comando | Cuándo usarlo |
+|---|---|
+| `npm run dev` | Primera vez o después de cambiar deps nativas — simulador |
+| `npm run dev:device` | Primera vez en iPhone físico (requiere cable USB) |
+| `npm run metro` | **Uso diario**: arranca el servidor JS, app ya instalada |
+| `npm run dev:android` | Emulador o dispositivo Android conectado |
 
 ---
 

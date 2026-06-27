@@ -72,7 +72,7 @@ export function LineChart({
   const stroke = color ?? colors.primary.default;
   const useSoft = soft || curved;
   const lineWidth = soft ? 2 : 2.5;
-  const areaOpacityTop = soft ? 0.14 : 0.25;
+  const areaOpacityTop = soft ? 0.18 : 0.38;
   const areaOpacityBottom = 0;
 
   if (data.length === 0) {

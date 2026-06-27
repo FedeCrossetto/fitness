@@ -13,6 +13,7 @@ import {
   Button,
   Card,
   CardSkeleton,
+  CountUp,
   IconButton,
   Input,
   WaterLevelBox,
@@ -155,9 +156,12 @@ export function HydrationScreen(): React.JSX.Element {
               surfaceColor={colors.surface.base}
             >
               <View style={styles.valueRow}>
-                <AppText variant="metricLarge" color={colors.text.primary} style={styles.bigValue}>
-                  {(totalMl / 1000).toFixed(1)}
-                </AppText>
+                <CountUp
+                  value={totalMl / 1000}
+                  decimals={1}
+                  duration={600}
+                  style={{ fontFamily: 'Inter_700Bold', fontSize: 48, lineHeight: 52, letterSpacing: -1.2, color: colors.text.primary }}
+                />
                 <AppText variant="h3" color={colors.text.tertiary}>
                   / {(goalMl / 1000).toFixed(1)}
                 </AppText>

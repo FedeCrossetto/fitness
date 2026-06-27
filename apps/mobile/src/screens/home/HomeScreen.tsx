@@ -19,13 +19,14 @@ import {
   CardSkeleton,
   ProgressBar,
   ProgressiveBlurHeader,
-  SectionHeader,
+  FadeInView,
   WeekStrip,
 } from '../../components/common';
 import { HomeMacroProgressCard } from '../../components/home/HomeMacroProgressCard';
 import { HomeProgressMetricCard } from '../../components/home/HomeProgressMetricCard';
 import { NUTRITION_MACRO_COLORS } from '../../components/nutrition/nutritionTheme';
 import { SubscriptionBanner } from '../../components/home/SubscriptionBanner';
+import { ExpiryWarningBanner } from '../../components/home/ExpiryWarningBanner';
 import { ActiveSessionBanner } from '../../components/training/ActiveSessionBanner';
 import { useAuthStore } from '../../stores/authStore';
 import { useGoalsStore } from '../../stores/goalsStore';
@@ -251,8 +252,14 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
 
   const firstName = profile?.full_name?.split(' ')[0] ?? 'Atleta';
 
+  const greetingText = useMemo(() => {
+    const h = new Date().getHours();
+    if (h >= 5 && h < 13) return 'Buenos días';
+    if (h < 20) return 'Buenas tardes';
+    return 'Buenas noches';
+  }, []);
+
   const loadInbox = useInboxStore((s) => s.loadInbox);
-  const unreadMsgs = useInboxStore((s) => s.totalUnread);
 
   useFocusEffect(
     useCallback(() => {
@@ -277,55 +284,55 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
         showsVerticalScrollIndicator={false}
       >
         {/* Encabezado con saludo + avatar */}
+        <FadeInView delay={0}>
         <View style={styles.header}>
-          <View style={styles.headerText}>
-            <AppText variant="h1" color={colors.text.primary} style={styles.greeting}>
-              {t.greeting.morning}, {firstName}
-            </AppText>
-          </View>
-          <View style={styles.headerActions}>
-            <Pressable
-              onPress={() => navigation.navigate('Achievements')}
-              accessibilityLabel={`${trophyTotal} trofeos. Ver logros`}
-              style={styles.headerIconBtn}
-              hitSlop={8}
-            >
-              <Image source={illustrations.trophy} style={styles.headerTrophyIcon} contentFit="contain" />
-              {trophyTotal > 0 ? (
-                <View style={styles.headerBadge}>
-                  <AppText variant="caps11" color={colors.primary.onText}>
-                    {trophyTotal > 9 ? '9+' : trophyTotal}
-                  </AppText>
-                </View>
-              ) : null}
-            </Pressable>
-            <Pressable
-              onPress={() => navigation.navigate('Messages')}
-              accessibilityLabel={unreadMsgs > 0 ? `Mensajes, ${unreadMsgs} sin leer` : 'Mensajes'}
-              style={styles.headerIconBtn}
-              hitSlop={8}
-            >
-              <Ionicons name="chatbubble-ellipses-outline" size={22} color={colors.text.primary} />
-              {unreadMsgs > 0 ? (
-                <View style={styles.headerBadge}>
-                  <AppText variant="caps11" color={colors.primary.onText}>
-                    {unreadMsgs > 9 ? '9+' : unreadMsgs}
-                  </AppText>
-                </View>
-              ) : null}
-            </Pressable>
-            <Pressable onPress={() => navigation.navigate('Profile')} accessibilityLabel="Ir a mi perfil">
-              <Avatar name={profile?.full_name} imageUrl={profile?.avatar_url} size={48} />
-            </Pressable>
-          </View>
+          {/* Izquierda: avatar + saludo */}
+          <Pressable
+            onPress={() => navigation.navigate('Profile')}
+            accessibilityLabel="Ir a mi perfil"
+            style={styles.headerLeft}
+          >
+            <View style={styles.headerAvatarRing}>
+              <Avatar name={profile?.full_name} imageUrl={profile?.avatar_url} size={44} />
+            </View>
+            <View style={styles.headerGreeting}>
+              <AppText variant="body12" color={colors.text.tertiary}>
+                {greetingText}
+              </AppText>
+              <AppText variant="h1" color={colors.text.primary} style={styles.headerName}>
+                {firstName}
+              </AppText>
+            </View>
+          </Pressable>
+
+          {/* Derecha: trofeo */}
+          <Pressable
+            onPress={() => navigation.navigate('Achievements')}
+            accessibilityLabel={`${trophyTotal} trofeos. Ver logros`}
+            style={styles.headerTrophyBtn}
+            hitSlop={8}
+          >
+            <Image source={illustrations.trophy} style={styles.headerTrophyIcon} contentFit="contain" />
+            <View style={styles.headerBadge}>
+              <AppText variant="caps11" color={colors.primary.onText}>
+                {trophyTotal > 9 ? '9+' : trophyTotal}
+              </AppText>
+            </View>
+          </Pressable>
         </View>
+        </FadeInView>
 
         {/* Strip de días */}
+        <FadeInView delay={80}>
         <WeekStrip />
 
+        </FadeInView>
+
+        <FadeInView delay={160}>
         <ActiveSessionBanner />
 
         <SubscriptionBanner onPress={() => navigation.navigate('Subscription')} />
+        <ExpiryWarningBanner onPress={() => navigation.navigate('Subscription')} />
 
         {/* Resumen del día */}
         <Card
@@ -411,6 +418,9 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
           </View>
         </Card>
 
+        </FadeInView>
+
+        <FadeInView delay={240}>
         {goalsLoading && goals.length === 0 ? <CardSkeleton /> : null}
 
         {nutritionLoading && dayMeals.length === 0 ? (
@@ -425,7 +435,10 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
           />
         )}
 
+        </FadeInView>
+
         {/* Mi Progreso */}
+        <FadeInView delay={320}>
         <View style={styles.sectionHeaderRow}>
           <AppText variant="h3" color={colors.text.primary}>
             {t.home.my_progress}
@@ -507,19 +520,9 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
         {/* Fotos de progreso */}
         <Card style={[styles.photosCard, !isDark && styles.photosCardLight]}>
           <View style={styles.photosHeader}>
-            <View style={styles.photosTitleBlock}>
-              <View style={styles.photosTitleRow}>
-                <View style={styles.photosIconWrap}>
-                  <Ionicons name="images" size={15} color={colors.text.primary} />
-                </View>
-                <AppText variant="body14SemiBold" color={colors.text.primary}>
-                  {t.home.photos}
-                </AppText>
-              </View>
-              <AppText variant="body12" color={colors.text.tertiary} style={styles.photosSubtitle}>
-                {t.home.photos_sub}
-              </AppText>
-            </View>
+            <AppText variant="caps12" color={colors.text.tertiary}>
+              {t.home.photos}
+            </AppText>
             <View style={styles.photosActions}>
               <Pressable
                 onPress={() => {
@@ -532,7 +535,7 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
               >
                 <Ionicons
                   name={homePhotosHidden ? 'eye-off-outline' : 'eye-outline'}
-                  size={18}
+                  size={17}
                   color={colors.text.secondary}
                 />
               </Pressable>
@@ -542,7 +545,7 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
                 accessibilityRole="button"
                 accessibilityLabel={t.ui.see_all}
               >
-                <Ionicons name="chevron-forward" size={16} color={colors.text.tertiary} />
+                <Ionicons name="chevron-forward" size={15} color={colors.text.tertiary} />
               </Pressable>
             </View>
           </View>
@@ -600,13 +603,12 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
         </Card>
 
         {/* Accesos rápidos */}
-        <SectionHeader title={t.home.quick_access} />
         <View style={styles.quickGrid}>
           {(
             [
               { key: 'messages', label: t.home.messages, icon: 'chatbubbles-outline' as const, adminOnly: false },
-              { key: 'community', label: t.home.community, icon: 'people-outline' as const, adminOnly: false },
               { key: 'achievements', label: t.home.achievements, icon: 'trophy-outline' as const, adminOnly: false },
+              { key: 'progress', label: t.home.my_progress, icon: 'stats-chart-outline' as const, adminOnly: false },
               { key: 'plan', label: t.home.my_plan, icon: 'card-outline' as const, adminOnly: false },
               { key: 'trainer', label: t.home.trainer, icon: 'people-circle-outline' as const, adminOnly: true },
             ]
@@ -628,6 +630,9 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
                     case 'achievements':
                       navigation.navigate('Achievements');
                       break;
+                    case 'progress':
+                      navigateToProgress('Dashboard');
+                      break;
                     case 'plan':
                       navigation.navigate('Subscription');
                       break;
@@ -638,15 +643,10 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
                 }}
                 style={({ pressed }) => [styles.quickItem, pressed && styles.quickPressed]}
               >
-                <View style={[
-                  styles.quickIcon,
-                  item.adminOnly && { backgroundColor: colors.primary.muted },
-                ]}>
-                  <Ionicons name={item.icon} size={16} color={colors.primary.default} />
-                </View>
+                <Ionicons name={item.icon} size={22} color={colors.text.primary} />
                 <AppText
                   variant="body12Medium"
-                  color={colors.text.secondary}
+                  color={colors.text.primary}
                   numberOfLines={1}
                   adjustsFontSizeToFit
                   minimumFontScale={0.8}
@@ -658,6 +658,7 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
               </Pressable>
             ))}
         </View>
+        </FadeInView>
 
       </Animated.ScrollView>
     </View>
@@ -672,23 +673,42 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: spacing.lg,
   },
-  headerText: { flex: 1 },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flex: 1,
+  },
+  headerAvatarRing: {
+    borderRadius: radius.pill,
+    borderWidth: 2,
+    borderColor: colors.primary.default,
+    padding: 2,
+  },
+  headerGreeting: { gap: 0 },
+  headerName: { fontFamily: 'Inter_700Bold' },
   headerIconBtn: {
-    width: 40,
-    height: 40,
+    width: 42,
+    height: 42,
     borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surface.elevated,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
   },
-  headerTrophyIcon: { width: 26, height: 26 },
+  headerTrophyBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 4,
+  },
+  headerTrophyIcon: { width: 40, height: 40 },
   headerBadge: {
     position: 'absolute',
-    top: 2,
-    right: 2,
-    minWidth: 16,
-    height: 16,
+    top: 0,
+    right: 0,
+    minWidth: 17,
+    height: 17,
     paddingHorizontal: 4,
     borderRadius: radius.pill,
     backgroundColor: colors.primary.default,
@@ -697,7 +717,6 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     borderWidth: 1.5,
     borderColor: colors.background,
   },
-  greeting: { marginTop: 2 },
   dayCard: {
     marginBottom: spacing.md,
     overflow: 'hidden',
@@ -775,33 +794,25 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'stretch',
     width: '100%',
-    gap: spacing.xxs,
+    gap: spacing.xs,
   },
   quickItem: {
     flex: 1,
     flexBasis: 0,
     minWidth: 0,
     alignItems: 'center',
-    gap: spacing.xxs,
-    backgroundColor: colors.surface.base,
+    gap: spacing.sm,
+    backgroundColor: colors.surface.elevated,
     borderWidth: 1,
-    borderColor: colors.border.subtle,
+    borderColor: colors.border.default,
     borderRadius: radius.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: 2,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: 4,
   },
-  quickPressed: { opacity: 0.8 },
+  quickPressed: { opacity: 0.7, transform: [{ scale: 0.96 }] },
   quickLabel: {
     width: '100%',
     paddingHorizontal: 2,
-  },
-  quickIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primary.muted,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 
   // Mi Progreso section
@@ -837,28 +848,10 @@ const createStyles = (colors: Colors) => StyleSheet.create({
   },
   photosHeader: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    gap: spacing.sm,
     marginBottom: spacing.sm,
   },
-  photosTitleBlock: { flex: 1, gap: 2 },
-  photosTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  photosIconWrap: {
-    width: 28,
-    height: 28,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surface.elevated,
-    borderWidth: 1,
-    borderColor: colors.border.subtle,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  photosSubtitle: { marginLeft: 28 + spacing.xs },
   photosActions: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -884,8 +877,8 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     gap: spacing.sm,
   },
   photoThumbWrap: {
-    width: 80,
-    height: 80,
+    flex: 1,
+    height: 100,
     borderRadius: radius.md,
     overflow: 'hidden',
     borderWidth: 1,
@@ -900,8 +893,8 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
   },
   photoMore: {
-    width: 80,
-    height: 80,
+    flex: 1,
+    height: 100,
     borderRadius: radius.md,
     backgroundColor: colors.primary.muted,
     alignItems: 'center',

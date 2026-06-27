@@ -10,6 +10,7 @@ import type {
 } from '../types/navigation';
 import { authColors } from '../screens/auth/authScreenTheme';
 import { useTheme } from '../theme';
+import { ErrorBoundary } from '../components/common';
 
 import { LoginScreen } from '../screens/auth/LoginScreen';
 import { SignUpScreen } from '../screens/auth/SignUpScreen';
@@ -70,6 +71,7 @@ const Home = createNativeStackNavigator<HomeStackParamList>();
 export function HomeStack(): React.JSX.Element {
   const defaultOptions = useStackOptions();
   return (
+    <ErrorBoundary>
     <Home.Navigator screenOptions={defaultOptions}>
       <Home.Screen name="HomeMain" component={HomeScreen} />
       <Home.Screen name="Goals" component={GoalsScreen} />
@@ -83,6 +85,7 @@ export function HomeStack(): React.JSX.Element {
       <Home.Screen name="Hydration" component={HydrationScreen} />
       <Home.Screen name="TrainerPanel" component={TrainerPanelScreen} />
     </Home.Navigator>
+    </ErrorBoundary>
   );
 }
 
@@ -90,6 +93,7 @@ const Training = createNativeStackNavigator<TrainingStackParamList>();
 export function TrainingStack(): React.JSX.Element {
   const defaultOptions = useStackOptions();
   return (
+    <ErrorBoundary>
     <Training.Navigator screenOptions={defaultOptions}>
       <Training.Screen name="Program" component={ProgramScreen} />
       <Training.Screen name="WorkoutDetail" component={WorkoutDetailScreen} />
@@ -97,6 +101,7 @@ export function TrainingStack(): React.JSX.Element {
       <Training.Screen name="SessionSummary" component={SessionSummaryScreen} />
       <Training.Screen name="CardioLog" component={CardioLogScreen} />
     </Training.Navigator>
+    </ErrorBoundary>
   );
 }
 
@@ -104,12 +109,14 @@ const Nutrition = createNativeStackNavigator<NutritionStackParamList>();
 export function NutritionStack(): React.JSX.Element {
   const defaultOptions = useStackOptions();
   return (
+    <ErrorBoundary>
     <Nutrition.Navigator screenOptions={defaultOptions}>
       <Nutrition.Screen name="MealsDay" component={MealsDayScreen} />
       <Nutrition.Screen name="FoodDetail" component={FoodDetailScreen} options={{ presentation: 'modal' }} />
       <Nutrition.Screen name="BarcodeScanner" component={BarcodeScannerScreen} options={{ presentation: 'fullScreenModal' }} />
       <Nutrition.Screen name="VoiceLog" component={VoiceLogScreen} options={{ presentation: 'modal' }} />
     </Nutrition.Navigator>
+    </ErrorBoundary>
   );
 }
 
@@ -117,6 +124,7 @@ const Progress = createNativeStackNavigator<ProgressStackParamList>();
 export function ProgressStack(): React.JSX.Element {
   const defaultOptions = useStackOptions();
   return (
+    <ErrorBoundary>
     <Progress.Navigator screenOptions={defaultOptions}>
       <Progress.Screen name="Dashboard" component={ProgressDashboardScreen} />
       <Progress.Screen name="WeightDetail" component={WeightDetailScreen} />
@@ -125,5 +133,6 @@ export function ProgressStack(): React.JSX.Element {
       <Progress.Screen name="Measurements" component={MeasurementsScreen} />
       <Progress.Screen name="Hydration" component={HydrationScreen} />
     </Progress.Navigator>
+    </ErrorBoundary>
   );
 }

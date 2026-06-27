@@ -18,6 +18,7 @@ import { useProgressStore } from '../../stores/progressStore';
 import { useGoalsStore } from '../../stores/goalsStore';
 import { useTabBarScrollPadding } from '../../hooks/useTabBarScrollPadding';
 import { useStepsAutoSync } from '../../hooks/useStepsAutoSync';
+import { useBiometricLock } from '../../hooks/useBiometricLock';
 import { GarminSyncCard } from '../../components/health/GarminSyncCard';
 import { NUTRITION_MACRO_COLORS } from '../../components/nutrition/nutritionTheme';
 import * as Device from 'expo-device';
@@ -95,6 +96,7 @@ function SettingsRow({ icon, label, onPress, last = false }: SettingsRowProps): 
 export function ProfileScreen({ navigation, route }: Props): React.JSX.Element {
   const { colors, mode, setMode } = useTheme();
   const switchTrackColor = { false: colors.surface.elevated, true: NUTRITION_MACRO_COLORS.carbs };
+  const { supported: biometricSupported, enabled: biometricEnabled, toggle: toggleBiometric } = useBiometricLock();
   const { t, i18n, language, setLanguage } = useTranslation();
 
   const THEME_MODES: { mode: ThemeMode; label: string }[] = [
@@ -620,6 +622,36 @@ export function ProfileScreen({ navigation, route }: Props): React.JSX.Element {
             </View>
           ))}
         </Card>
+
+        {/* Seguridad */}
+        {biometricSupported ? (
+          <>
+            <SectionHeader title="Seguridad" />
+            <Card style={styles.settingsCard}>
+              <View style={styles.row}>
+                <View style={styles.rowIcon}>
+                  <Ionicons name="finger-print" size={18} color={colors.primary.default} />
+                </View>
+                <View style={styles.rowLabel}>
+                  <AppText variant="body16Medium" color={colors.text.primary}>
+                    Bloqueo biométrico
+                  </AppText>
+                  <AppText variant="body12" color={colors.text.tertiary}>
+                    Face ID / huella al reabrir la app
+                  </AppText>
+                </View>
+                <Switch
+                  value={biometricEnabled}
+                  onValueChange={() => void toggleBiometric()}
+                  trackColor={switchTrackColor}
+                  thumbColor={colors.text.primary}
+                  ios_backgroundColor={colors.surface.elevated}
+                  accessibilityLabel="Activar bloqueo biométrico"
+                />
+              </View>
+            </Card>
+          </>
+        ) : null}
 
         <Button label={t.profile.sign_out} variant="secondary" onPress={onSignOut} fullWidth style={styles.signOut} />
 

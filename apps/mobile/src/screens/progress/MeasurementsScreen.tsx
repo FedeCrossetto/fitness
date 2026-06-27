@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { layout, radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
@@ -193,22 +193,47 @@ export function MeasurementsScreen({ navigation }: Props): React.JSX.Element {
       return;
     }
 
-    setFieldErrors({});
-    setSaving(true);
-    const ok = await saveMeasurement(userId, data);
-    setSaving(false);
-    if (ok) {
-      hapticSuccess();
-      useUiStore.getState().showToast('success', t.progress.measurements_saved);
-    } else {
-      useUiStore.getState().showToast('error', t.progress.measurements_db_range);
+    const doSave = async (): Promise<void> => {
+      setFieldErrors({});
+      setSaving(true);
+      const ok = await saveMeasurement(userId, data);
+      setSaving(false);
+      if (ok) {
+        hapticSuccess();
+        useUiStore.getState().showToast('success', t.progress.measurements_saved);
+      } else {
+        useUiStore.getState().showToast('error', t.progress.measurements_db_range);
+      }
+    };
+
+    const newWeight = data.weight_kg;
+    const prevWeight = measurements[0]?.weight_kg;
+    if (newWeight !== null && newWeight !== undefined && prevWeight !== null && prevWeight !== undefined) {
+      const diff = Math.abs(newWeight - prevWeight);
+      if (diff > 10) {
+        Alert.alert(
+          '¿Seguro?',
+          `Tu peso anterior era ${prevWeight} kg. Estás registrando ${newWeight} kg (${diff.toFixed(1)} kg de diferencia). ¿Es correcto?`,
+          [
+            { text: 'Cancelar', style: 'cancel' },
+            { text: 'Sí, guardar', onPress: () => void doSave() },
+          ],
+        );
+        return;
+      }
     }
-  }, [userId, form, gender, saveMeasurement, t]);
+
+    await doSave();
+  }, [userId, form, gender, saveMeasurement, measurements, t]);
 
   const isLoading = measurementsLoading && measurements.length === 0;
   const hasError = measurementsError !== null && measurements.length === 0;
 
   return (
+    <KeyboardAvoidingView
+      style={styles.flex}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
     <View style={[styles.flex, { paddingTop: insets.top + spacing.md }]}>
       <View style={styles.header}>
         <IconButton icon="chevron-back" onPress={() => navigation.goBack()} accessibilityLabel="Volver" />
@@ -277,6 +302,7 @@ export function MeasurementsScreen({ navigation }: Props): React.JSX.Element {
         </ScrollView>
       )}
     </View>
+    </KeyboardAvoidingView>
   );
 }
 

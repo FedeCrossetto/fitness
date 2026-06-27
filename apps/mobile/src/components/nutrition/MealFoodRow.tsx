@@ -23,7 +23,7 @@ interface MealFoodRowProps {
   onDelete: () => void;
 }
 
-export function MealFoodRow({
+export const MealFoodRow = React.memo(function MealFoodRow({
   meal,
   brand,
   iconKey,
@@ -144,7 +144,7 @@ export function MealFoodRow({
       {rowContent}
     </Swipeable>
   );
-}
+});
 
 const createStyles = (colors: Colors) =>
   StyleSheet.create({

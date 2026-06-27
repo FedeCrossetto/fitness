@@ -1,68 +1,59 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState } from 'react-native';
+import { useCallback, useRef, useState } from 'react';
 import * as WebBrowser from 'expo-web-browser';
 import { createCheckout, fetchActiveSubscription, clearSubscriptionAccessCache, resolveSubscriptionAccess } from '../services/payments';
 import { useUiStore } from '../stores/uiStore';
+import { useAppActive } from './useAppActive';
 import type { SubscriptionRow } from '../types/database';
 
-/**
- * Encapsula el flujo de pago con MercadoPago:
- *   1. Crea la preferencia (Edge Function) y abre el checkout en un in-app browser.
- *   2. Cuando la app vuelve al frente (AppState) o el browser se cierra, hace polling
- *      esperando que el webhook active la suscripción.
- *   3. Al activarse, llama onActivated y muestra el toast de bienvenida.
- *
- * Lo usan tanto SubscriptionScreen (alumno ya activo) como PendingActivationScreen
- * (alumno bloqueado que paga para desbloquearse).
- */
+// Intervalos de polling: 2s → 4s → 8s → 15s → 30s (total ~59s max)
+const POLL_INTERVALS = [2000, 4000, 8000, 15000, 30000];
+
 export function useCheckout(
   userId: string | undefined,
   onActivated: (sub: SubscriptionRow) => void,
 ): { checkingOut: boolean; startCheckout: (planId: string) => Promise<void> } {
   const [checkingOut, setCheckingOut] = useState(false);
   const pollingRef = useRef(false);
-  const appStateRef = useRef(AppState.currentState);
   const waitingReturnRef = useRef(false);
-  // Guardamos el callback en un ref para no recrear el listener en cada render.
   const onActivatedRef = useRef(onActivated);
   onActivatedRef.current = onActivated;
 
   const pollSubscription = useCallback(async (uid: string) => {
     if (pollingRef.current) return;
     pollingRef.current = true;
-    const attempts = [2000, 3000, 5000];
+
     let updated = await fetchActiveSubscription(uid);
-    for (const delay of attempts) {
+
+    for (const delay of POLL_INTERVALS) {
       if (updated?.status === 'active') break;
       await new Promise((r) => setTimeout(r, delay));
       updated = await fetchActiveSubscription(uid);
     }
+
     pollingRef.current = false;
     setCheckingOut(false);
+
     if (updated?.status === 'active') {
       clearSubscriptionAccessCache();
       await resolveSubscriptionAccess(uid);
       useUiStore.getState().showToast('success', '¡Bienvenido! Tu suscripción ya está activa.');
       onActivatedRef.current(updated);
+    } else {
+      // Timeout agotado — el webhook puede haber tardado más de lo esperado
+      useUiStore.getState().showToast(
+        'info',
+        'El pago puede demorar unos minutos en acreditarse. Volvé a abrir la app para verificar.',
+      );
     }
   }, []);
 
-  // Cuando la app vuelve al frente después del checkout, arrancamos el polling.
-  useEffect(() => {
-    const sub = AppState.addEventListener('change', (next) => {
-      if (
-        waitingReturnRef.current &&
-        appStateRef.current.match(/inactive|background/) &&
-        next === 'active' &&
-        userId
-      ) {
-        waitingReturnRef.current = false;
-        void pollSubscription(userId);
-      }
-      appStateRef.current = next;
-    });
-    return () => sub.remove();
-  }, [userId, pollSubscription]);
+  // Cuando la app vuelve al frente después del checkout, disparamos polling.
+  useAppActive(() => {
+    if (waitingReturnRef.current && userId) {
+      waitingReturnRef.current = false;
+      void pollSubscription(userId);
+    }
+  });
 
   const startCheckout = useCallback(
     async (planId: string) => {
@@ -72,8 +63,7 @@ export function useCheckout(
         const { checkoutUrl } = await createCheckout(planId);
         waitingReturnRef.current = true;
         await WebBrowser.openAuthSessionAsync(checkoutUrl, 'reset-fitness://pago');
-        // Si openAuthSessionAsync resuelve por el deep link (sin pasar por background),
-        // disparamos el polling acá.
+        // Si el browser se cierra por deep link (sin pasar por background) también polling.
         if (waitingReturnRef.current) {
           waitingReturnRef.current = false;
           void pollSubscription(userId);

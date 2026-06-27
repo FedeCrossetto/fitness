@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { memo, useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -10,6 +10,8 @@ import {
 } from '@reset-fitness/shared';
 import { AppText, CardSkeleton, EmptyState } from '../common';
 import { radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
+import { useTrainingStore } from '../../stores/trainingStore';
+import { useAuthStore } from '../../stores/authStore';
 import { formatShortDate } from '../../lib/dates';
 import { hapticTap } from '../../lib/haptics';
 import { useTranslation } from '../../stores/i18nStore';
@@ -19,11 +21,93 @@ import { WorkedBodyMap } from './WorkedBodyMap';
 import type { BodyGender } from '../progress';
 import { useProgressStore } from '../../stores/progressStore';
 
+interface FeedItemProps {
+  log: WorkoutLogRow;
+  compact: boolean;
+  bodyGender: BodyGender;
+  onPress: (logId: string) => void;
+}
+
+const FeedItem = memo(function FeedItem({ log, compact, bodyGender, onPress }: FeedItemProps): React.JSX.Element {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+  const { t, i18n } = useTranslation();
+
+  const isCardio = log.workout_type === 'cardio';
+  const lines = summarizeWorkoutForFeed(log.session_detail);
+  const duration = formatWorkoutDuration(log.duration_min, log.elapsed_seconds ?? log.duration_seconds);
+  const volume = !isCardio ? formatWorkoutVolume(log.total_volume_kg) : null;
+  const stats = [
+    duration,
+    volume,
+    isCardio && log.distance != null && log.distance > 0
+      ? `${log.distance} ${log.distance_unit ?? 'km'}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  const topExercise = lines[0];
+  const hasBodyMap = !isCardio && log.session_detail != null;
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${log.workout_name}, ${formatShortDate(log.date)}`}
+      onPress={() => onPress(log.id)}
+      style={({ pressed }) => [styles.card, compact && styles.cardCompact, pressed && styles.pressed]}
+    >
+      {isCardio ? (
+        <View style={[styles.iconWrap, compact && styles.iconWrapCompact]}>
+          <Ionicons name="pulse-outline" size={compact ? 14 : 18} color={colors.text.secondary} />
+        </View>
+      ) : (
+        <View style={[styles.miniMapWrap, compact && styles.miniMapWrapCompact]}>
+          {hasBodyMap ? (
+            <WorkedBodyMap sessionDetail={log.session_detail} gender={bodyGender} variant="mini" />
+          ) : (
+            <Ionicons name="barbell-outline" size={compact ? 14 : 18} color={colors.text.secondary} />
+          )}
+        </View>
+      )}
+      <View style={styles.cardBody}>
+        <View style={styles.cardTitleRow}>
+          <AppText
+            variant={compact ? 'body13Medium' : 'body14SemiBold'}
+            color={colors.text.primary}
+            numberOfLines={1}
+            style={styles.cardTitle}
+          >
+            {log.workout_name}
+          </AppText>
+          <AppText variant="body12" color={colors.text.tertiary}>
+            {formatShortDate(log.date)}
+          </AppText>
+        </View>
+        {stats ? (
+          <AppText variant="body12" color={colors.text.secondary} numberOfLines={1}>
+            {stats}
+          </AppText>
+        ) : null}
+        {!compact && topExercise ? (
+          <AppText variant="body12" color={colors.text.tertiary} numberOfLines={1}>
+            {i18n(t.training.sets_count_line, { n: topExercise.completedSets })} · {topExercise.name}
+            {lines.length > 1
+              ? ` · ${i18n(t.training.see_more_exercises, { n: lines.length - 1 })}`
+              : ''}
+          </AppText>
+        ) : null}
+      </View>
+      <Ionicons name="chevron-forward" size={14} color={colors.text.tertiary} />
+    </Pressable>
+  );
+});
+
 interface RecentWorkoutFeedProps {
   logs: WorkoutLogRow[];
   loading?: boolean;
   limit?: number;
   compact?: boolean;
+  showLoadMore?: boolean;
 }
 
 export function RecentWorkoutFeed({
@@ -31,18 +115,31 @@ export function RecentWorkoutFeed({
   loading = false,
   limit = 6,
   compact = false,
+  showLoadMore = false,
 }: RecentWorkoutFeedProps): React.JSX.Element {
   const { colors } = useTheme();
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const styles = useThemedStyles(createStyles);
   const navigation = useNavigation<NavigationProp<MainTabsParamList>>();
   const measurements = useProgressStore((s) => s.measurements);
+  const logsHasMore = useTrainingStore((s) => s.logsHasMore);
+  const logsLoadingMore = useTrainingStore((s) => s.logsLoadingMore);
+  const loadMoreLogs = useTrainingStore((s) => s.loadMoreLogs);
+  const userId = useAuthStore((s) => s.session?.user.id);
   const bodyGender: BodyGender =
     measurements[0]?.gender === 'female' ? 'female' : 'male';
 
+  const handlePress = useCallback((logId: string) => {
+    hapticTap();
+    navigation.navigate('TrainingTab', {
+      screen: 'SessionSummary',
+      params: { logId, celebrate: false },
+    });
+  }, [navigation]);
+
   const entries = useMemo(
-    () => logs.filter((log) => log.workout_type === 'fuerza' || log.workout_type === 'cardio').slice(0, limit),
-    [logs, limit],
+    () => logs.filter((log) => log.workout_type === 'fuerza' || log.workout_type === 'cardio').slice(0, showLoadMore ? undefined : limit),
+    [logs, limit, showLoadMore],
   );
 
   const heading = (
@@ -86,87 +183,28 @@ export function RecentWorkoutFeed({
     <View style={[styles.wrap, compact && styles.wrapCompact]}>
       {heading}
       <View style={styles.list}>
-        {entries.map((log) => {
-          const isCardio = log.workout_type === 'cardio';
-          const lines = summarizeWorkoutForFeed(log.session_detail);
-          const duration = formatWorkoutDuration(log.duration_min, log.elapsed_seconds ?? log.duration_seconds);
-          const volume = !isCardio ? formatWorkoutVolume(log.total_volume_kg) : null;
-          const stats = [
-            duration,
-            volume,
-            isCardio && log.distance != null && log.distance > 0
-              ? `${log.distance} ${log.distance_unit ?? 'km'}`
-              : null,
-          ]
-            .filter(Boolean)
-            .join(' · ');
-          const topExercise = lines[0];
-
-          const hasBodyMap = !isCardio && log.session_detail != null;
-
-          return (
-            <Pressable
-              key={log.id}
-              accessibilityRole="button"
-              onPress={() => {
-                hapticTap();
-                navigation.navigate('TrainingTab', {
-                  screen: 'SessionSummary',
-                  params: { logId: log.id, celebrate: false },
-                });
-              }}
-              style={({ pressed }) => [styles.card, compact && styles.cardCompact, pressed && styles.pressed]}
-            >
-              {isCardio ? (
-                <View style={[styles.iconWrap, compact && styles.iconWrapCompact]}>
-                  <Ionicons name="pulse-outline" size={compact ? 14 : 18} color={colors.text.secondary} />
-                </View>
-              ) : (
-                <View style={[styles.miniMapWrap, compact && styles.miniMapWrapCompact]}>
-                  {hasBodyMap ? (
-                    <WorkedBodyMap
-                      sessionDetail={log.session_detail}
-                      gender={bodyGender}
-                      variant="mini"
-                    />
-                  ) : (
-                    <Ionicons name="barbell-outline" size={compact ? 14 : 18} color={colors.text.secondary} />
-                  )}
-                </View>
-              )}
-              <View style={styles.cardBody}>
-                <View style={styles.cardTitleRow}>
-                  <AppText
-                    variant={compact ? 'body13Medium' : 'body14SemiBold'}
-                    color={colors.text.primary}
-                    numberOfLines={1}
-                    style={styles.cardTitle}
-                  >
-                    {log.workout_name}
-                  </AppText>
-                  <AppText variant="body12" color={colors.text.tertiary}>
-                    {formatShortDate(log.date)}
-                  </AppText>
-                </View>
-                {stats ? (
-                  <AppText variant="body12" color={colors.text.secondary} numberOfLines={1}>
-                    {stats}
-                  </AppText>
-                ) : null}
-                {!compact && topExercise ? (
-                  <AppText variant="body12" color={colors.text.tertiary} numberOfLines={1}>
-                    {i18n(t.training.sets_count_line, { n: topExercise.completedSets })} · {topExercise.name}
-                    {lines.length > 1
-                      ? ` · ${i18n(t.training.see_more_exercises, { n: lines.length - 1 })}`
-                      : ''}
-                  </AppText>
-                ) : null}
-              </View>
-              <Ionicons name="chevron-forward" size={14} color={colors.text.tertiary} />
-            </Pressable>
-          );
-        })}
+        {entries.map((log) => (
+          <FeedItem
+            key={log.id}
+            log={log}
+            compact={compact}
+            bodyGender={bodyGender}
+            onPress={handlePress}
+          />
+        ))}
       </View>
+
+      {showLoadMore && logsHasMore ? (
+        <Pressable
+          onPress={() => userId && void loadMoreLogs(userId)}
+          disabled={logsLoadingMore}
+          style={({ pressed }) => [styles.loadMore, pressed && styles.pressed]}
+        >
+          <AppText variant="body13Medium" color={colors.primary.default}>
+            {logsLoadingMore ? 'Cargando…' : 'Ver más entrenamientos'}
+          </AppText>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -213,8 +251,8 @@ const createStyles = (colors: Colors) =>
       height: 28,
     },
     miniMapWrap: {
-      width: 40,
-      height: 56,
+      width: 52,
+      height: 72,
       borderRadius: radius.sm,
       backgroundColor: colors.surface.elevated,
       borderWidth: StyleSheet.hairlineWidth,
@@ -224,8 +262,8 @@ const createStyles = (colors: Colors) =>
       justifyContent: 'center',
     },
     miniMapWrapCompact: {
-      width: 34,
-      height: 48,
+      width: 44,
+      height: 62,
     },
     cardBody: { flex: 1, gap: 2, minWidth: 0 },
     cardTitleRow: {
@@ -235,4 +273,8 @@ const createStyles = (colors: Colors) =>
       gap: spacing.sm,
     },
     cardTitle: { flex: 1 },
+    loadMore: {
+      alignItems: 'center',
+      paddingVertical: spacing.md,
+    },
   });

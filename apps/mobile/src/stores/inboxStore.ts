@@ -22,6 +22,7 @@ interface InboxState {
   totalUnread: number;
   loadInbox: (userId: string, trainerId?: string | null) => Promise<void>;
   subscribeInbox: (userId: string, trainerId?: string | null) => () => void;
+  reset: () => void;
 }
 
 let inboxChannel: RealtimeChannel | null = null;
@@ -166,5 +167,13 @@ export const useInboxStore = create<InboxState>((set, get) => ({
         inboxChannel = null;
       }
     };
+  },
+
+  reset: () => {
+    if (inboxChannel) {
+      void supabase.removeChannel(inboxChannel);
+      inboxChannel = null;
+    }
+    set({ threads: [], loading: false, error: null, totalUnread: 0 });
   },
 }));

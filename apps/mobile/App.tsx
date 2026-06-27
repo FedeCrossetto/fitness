@@ -14,9 +14,17 @@ import {
 import { StyleSheet } from 'react-native';
 import { useTheme } from './src/theme';
 import { RootNavigator } from './src/navigation/RootNavigator';
-import { navigationRef, navigateToCoachChat } from './src/navigation/navigationRef';
-import { listenToMessageTaps } from './src/services/notifications';
-import { AuthLoadingOverlay, ToastHost } from './src/components/common';
+import {
+  navigationRef,
+  navigateToCoachChat,
+  navigateToTraining,
+  navigateToSubscription,
+  navigateToAchievements,
+  navigateToProgress,
+} from './src/navigation/navigationRef';
+import { listenToNotificationTaps } from './src/services/notifications';
+import { AuthLoadingOverlay, BiometricLockScreen, NetworkBanner, ToastHost } from './src/components/common';
+import { useBiometricLock } from './src/hooks/useBiometricLock';
 import { useAuthStore } from './src/stores/authStore';
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
@@ -24,9 +32,15 @@ void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 export default function App(): React.JSX.Element {
   const { colors, isDark } = useTheme();
   const authReady = useAuthStore((s) => !s.initializing);
+  const { locked, authenticate } = useBiometricLock();
 
-  // Tap en una notificación de mensaje → abre el chat del coach.
-  useEffect(() => listenToMessageTaps(() => navigateToCoachChat()), []);
+  useEffect(() => listenToNotificationTaps({
+    onMessage:     () => navigateToCoachChat(),
+    onPlan:        () => navigateToTraining(),
+    onPayment:     () => navigateToSubscription(),
+    onAchievement: () => navigateToAchievements(),
+    onProgress:    () => navigateToProgress(),
+  }), []);
 
   useEffect(() => {
     void useAuthStore.getState().checkSession();
@@ -64,6 +78,10 @@ export default function App(): React.JSX.Element {
     return <AuthLoadingOverlay />;
   }
 
+  if (locked) {
+    return <BiometricLockScreen onAuthenticate={authenticate} />;
+  }
+
   return (
     <GestureHandlerRootView style={[styles.root, { backgroundColor: colors.background }]}>
       <SafeAreaProvider>
@@ -71,6 +89,7 @@ export default function App(): React.JSX.Element {
           <StatusBar style={isDark ? 'light' : 'dark'} />
           <RootNavigator />
           <ToastHost />
+          <NetworkBanner />
         </NavigationContainer>
       </SafeAreaProvider>
     </GestureHandlerRootView>

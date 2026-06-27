@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Reset Fit",
-    "slug": "reset-fitness",
+    "slug": "habito",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",

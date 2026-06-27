@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,7 +13,6 @@ import {
   Chip,
   IconButton,
   Input,
-  SegmentedTabs,
   Skeleton,
 } from '../../components/common';
 import { FoodIconPicker, DEFAULT_FOOD_ICON_KEY } from '../../components/nutrition/FoodIconPicker';
@@ -134,6 +133,63 @@ function applyOffProduct(
   setters.setOffStatus('done');
 }
 
+// Segmented control auto-contenido para selector de comida
+function MealSegmented({
+  tabs,
+  activeIndex,
+  onChange,
+}: {
+  tabs: string[];
+  activeIndex: number;
+  onChange: (idx: number) => void;
+}): React.JSX.Element {
+  const { colors } = useTheme();
+  return (
+    <View style={mealSegStyles.container}>
+      {tabs.map((label, idx) => {
+        const active = idx === activeIndex;
+        return (
+          <Pressable
+            key={idx}
+            onPress={() => { onChange(idx); }}
+            accessibilityRole="button"
+            accessibilityState={{ selected: active }}
+            style={[
+              mealSegStyles.item,
+              active && { backgroundColor: colors.primary.default },
+            ]}
+          >
+            <AppText
+              variant="body12SemiBold"
+              color={active ? colors.primary.onText : colors.text.secondary}
+              numberOfLines={1}
+            >
+              {label}
+            </AppText>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+const mealSegStyles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+    borderRadius: 10,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  item: {
+    flex: 1,
+    paddingVertical: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
+
 export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Element {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
@@ -222,7 +278,7 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
   });
 
   const remotePhoto = offProduct?.imageUrl ?? null;
-  const showIconPicker = true;
+  const showIconPicker = isCatalogCreate || isCatalogEdit;
 
   const scanAgain = useCallback(() => {
     navigation.replace('BarcodeScanner', {
@@ -633,6 +689,7 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
   const offFailed = offStatus === 'error' || offStatus === 'notfound';
 
   return (
+    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
     <View style={styles.flex}>
       <ScrollView
         contentContainerStyle={{
@@ -765,7 +822,11 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
                 <AppText variant="caps12" color={colors.text.tertiary} style={styles.sectionTitle}>
                   Comida
                 </AppText>
-                <SegmentedTabs tabs={mealTabs} activeIndex={mealTypeIdx} onChange={setMealTypeIdx} />
+                <MealSegmented
+                  tabs={mealTabs}
+                  activeIndex={mealTypeIdx}
+                  onChange={setMealTypeIdx}
+                />
               </Card>
             ) : null}
 
@@ -926,7 +987,7 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
                   ? t.nutrition.save_food
                   : isEdit
                     ? 'Guardar cambios'
-                    : i18n(t.nutrition.add_to_meal, { meal: t.nutrition[mealLabelKey(MEAL_TYPES[mealTypeIdx])] })
+                    : i18n(t.nutrition.add_to_meal, { meal: t.nutrition[mealLabelKey(MEAL_TYPES[Math.min(mealTypeIdx, MEAL_TYPES.length - 1)] ?? MEAL_TYPES[0]!)] })
               }
               onPress={() => void onSave()}
               loading={saving}
@@ -956,6 +1017,7 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
         )}
       </ScrollView>
     </View>
+    </KeyboardAvoidingView>
   );
 }
 

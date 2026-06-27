@@ -16,18 +16,43 @@ Notifications.setNotificationHandler({
   }),
 });
 
-export function listenToMessageTaps(onMessage: () => void): () => void {
-  const isMessage = (resp: Notifications.NotificationResponse | null): boolean =>
-    resp?.notification.request.content.data?.type === 'message';
+type NotifType = 'message' | 'plan' | 'payment' | 'achievement' | 'progress' | string;
+
+function getNotifType(resp: Notifications.NotificationResponse | null): NotifType | null {
+  return (resp?.notification.request.content.data?.type as NotifType) ?? null;
+}
+
+/** Escucha taps de notificación y despacha al destino correcto. */
+export function listenToNotificationTaps(handlers: {
+  onMessage: () => void;
+  onPlan?: () => void;
+  onPayment?: () => void;
+  onAchievement?: () => void;
+  onProgress?: () => void;
+}): () => void {
+  function dispatch(type: NotifType | null): void {
+    switch (type) {
+      case 'message': handlers.onMessage(); break;
+      case 'plan': handlers.onPlan?.(); break;
+      case 'payment': handlers.onPayment?.(); break;
+      case 'achievement': handlers.onAchievement?.(); break;
+      case 'progress': handlers.onProgress?.(); break;
+    }
+  }
 
   void Notifications.getLastNotificationResponseAsync().then((resp) => {
-    if (isMessage(resp)) onMessage();
+    dispatch(getNotifType(resp));
   });
 
   const sub = Notifications.addNotificationResponseReceivedListener((resp) => {
-    if (isMessage(resp)) onMessage();
+    dispatch(getNotifType(resp));
   });
   return () => sub.remove();
+}
+
+/** @deprecated Usar listenToNotificationTaps */
+export function listenToMessageTaps(onMessage: () => void): () => void {
+  return listenToNotificationTaps({ onMessage });
 }
 
 export async function isPushMessagesEnabled(): Promise<boolean> {

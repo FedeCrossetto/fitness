@@ -14,12 +14,13 @@ import {
   Button,
   Card,
   CardSkeleton,
+  CountUp,
   EmptyState,
   ErrorState,
   HeaderAvatar,
 } from '../../components/common';
 import { BarChart } from '../../components/charts';
-import { MeasurementHistoryList, ProgressToolsMenu, WeightTrendChart } from '../../components/progress';
+import { MeasurementHistoryList, ProgressToolsMenu, WeeklyNutritionCard, WeightTrendChart } from '../../components/progress';
 import { useAuthStore } from '../../stores/authStore';
 import { useProgressStore } from '../../stores/progressStore';
 import { useTrainingStore } from '../../stores/trainingStore';
@@ -264,9 +265,12 @@ export function ProgressDashboardScreen({ navigation }: Props): React.JSX.Elemen
                 <Ionicons name="chevron-forward" size={16} color={colors.text.tertiary} />
               </View>
               <View style={styles.weightRow}>
-                <AppText variant="metricLarge" color={colors.text.primary}>
-                  {currentWeight!.toFixed(1)}
-                </AppText>
+                <CountUp
+                  value={currentWeight!}
+                  decimals={1}
+                  duration={800}
+                  style={{ fontFamily: 'Inter_700Bold', fontSize: 48, lineHeight: 52, letterSpacing: -1.2, color: colors.text.primary }}
+                />
                 <AppText variant="body14Medium" color={colors.text.tertiary} style={styles.weightUnit}>
                   kg
                 </AppText>
@@ -423,6 +427,8 @@ export function ProgressDashboardScreen({ navigation }: Props): React.JSX.Elemen
               />
             ) : null}
           </Card>
+
+          {userId ? <WeeklyNutritionCard userId={userId} /> : null}
         </>
       )}
     </ScrollView>

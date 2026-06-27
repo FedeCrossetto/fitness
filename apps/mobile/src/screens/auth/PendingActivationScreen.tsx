@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { AppState, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { spacing, radius, Colors, useThemedStyles, useTheme } from '../../theme';
@@ -8,6 +8,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { useUiStore } from '../../stores/uiStore';
 import { clearSubscriptionAccessCache, fetchPlans } from '../../services/payments';
 import { useCheckout } from '../../hooks/useCheckout';
+import { useAppActive } from '../../hooks/useAppActive';
 import type { PlanRow } from '../../types/database';
 
 function monthsOf(plan: PlanRow): number {
@@ -57,15 +58,10 @@ export function PendingActivationScreen(): React.JSX.Element {
     })();
   }, [userId]);
 
-  useEffect(() => {
-    const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') {
-        clearSubscriptionAccessCache();
-        void refreshProfile();
-      }
-    });
-    return () => sub.remove();
-  }, [refreshProfile]);
+  useAppActive(() => {
+    clearSubscriptionAccessCache();
+    void refreshProfile();
+  });
 
   const onCheck = useCallback(async () => {
     setChecking(true);

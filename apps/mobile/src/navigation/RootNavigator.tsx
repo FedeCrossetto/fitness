@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, type AppStateStatus } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useTheme, useThemeHydrated } from '../theme';
 import { useAuthStore } from '../stores/authStore';
@@ -17,6 +16,7 @@ import { ConsultationFormScreen } from '../screens/consultation/ConsultationForm
 import { WaiverBlockingGate } from '../components/waiver/WaiverBlockingGate';
 import { ImageConsentBlockingGate } from '../components/waiver/ImageConsentBlockingGate';
 import { useInviteDeepLink } from '../hooks/useInviteDeepLink';
+import { useAppActive } from '../hooks/useAppActive';
 import { needsTrainerLink, isPendingActivation } from '../services/clientAccess';
 import { clearSubscriptionAccessCache } from '../services/payments';
 import { syncPushRegistration } from '../services/notifications';
@@ -322,17 +322,11 @@ export function RootNavigator(): React.JSX.Element {
     void checkWaiver();
   }, [checkWaiver]);
 
-  useEffect(() => {
-    const onChange = (state: AppStateStatus) => {
-      if (state === 'active') {
-        void checkWaiver();
-        clearSubscriptionAccessCache();
-        void useAuthStore.getState().refreshProfile();
-      }
-    };
-    const sub = AppState.addEventListener('change', onChange);
-    return () => sub.remove();
-  }, [checkWaiver]);
+  useAppActive(() => {
+    void checkWaiver();
+    clearSubscriptionAccessCache();
+    void useAuthStore.getState().refreshProfile();
+  });
 
   useEffect(() => {
     if (!waiverChecked || waiverRequired || imageConsentRequired) return;

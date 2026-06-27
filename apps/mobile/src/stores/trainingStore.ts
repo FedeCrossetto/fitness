@@ -103,6 +103,8 @@ interface TrainingState {
 
   recentLogs: WorkoutLogRow[];
   logsLoading: boolean;
+  logsHasMore: boolean;
+  logsLoadingMore: boolean;
 
   customWorkouts: WorkoutWithCover[];
   customLoading: boolean;
@@ -138,7 +140,9 @@ interface TrainingState {
     data: { activity: string; distance: number; distanceUnit: string; durationSeconds: number },
   ) => Promise<boolean>;
   loadRecentLogs: (userId: string) => Promise<void>;
+  loadMoreLogs: (userId: string) => Promise<void>;
   loadLogById: (logId: string) => Promise<WorkoutLogRow | null>;
+  reset: () => void;
 }
 
 export const useTrainingStore = create<TrainingState>((set, get) => ({
@@ -152,6 +156,8 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
   lastSavedLog: null,
   recentLogs: [],
   logsLoading: false,
+  logsHasMore: false,
+  logsLoadingMore: false,
   customWorkouts: [],
   customLoading: false,
 
@@ -505,6 +511,7 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
   },
 
   loadRecentLogs: async (userId) => {
+    const PAGE = 20;
     set({ logsLoading: true });
     try {
       await staleWhileRevalidate<WorkoutLogRow[]>(
@@ -515,14 +522,39 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
             .select('*')
             .eq('user_id', userId)
             .order('created_at', { ascending: false })
-            .limit(20);
+            .limit(PAGE);
           if (error) throw error;
           return data;
         },
-        (data) => set({ recentLogs: data, logsLoading: false }),
+        (data) => set({ recentLogs: data, logsLoading: false, logsHasMore: data.length === PAGE }),
       );
     } catch {
       set({ logsLoading: false });
+    }
+  },
+
+  loadMoreLogs: async (userId) => {
+    const { recentLogs, logsLoadingMore, logsHasMore } = useTrainingStore.getState();
+    if (logsLoadingMore || !logsHasMore) return;
+    const PAGE = 20;
+    set({ logsLoadingMore: true });
+    try {
+      const oldest = recentLogs[recentLogs.length - 1]?.created_at;
+      const { data, error } = await supabase
+        .from('workout_logs')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .lt('created_at', oldest ?? new Date().toISOString())
+        .limit(PAGE);
+      if (error) throw error;
+      set({
+        recentLogs: [...recentLogs, ...(data ?? [])],
+        logsHasMore: (data?.length ?? 0) === PAGE,
+        logsLoadingMore: false,
+      });
+    } catch {
+      set({ logsLoadingMore: false });
     }
   },
 
@@ -532,4 +564,21 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
     const { data } = await supabase.from('workout_logs').select('*').eq('id', logId).maybeSingle();
     return data ?? null;
   },
+
+  reset: () => set({
+    phases: [],
+    phasesLoading: false,
+    phasesError: null,
+    workoutDetail: null,
+    detailLoading: false,
+    detailError: null,
+    activeSession: null,
+    lastSavedLog: null,
+    recentLogs: [],
+    logsLoading: false,
+    logsHasMore: false,
+    logsLoadingMore: false,
+    customWorkouts: [],
+    customLoading: false,
+  }),
 }));

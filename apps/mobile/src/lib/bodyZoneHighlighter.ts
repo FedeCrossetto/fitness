@@ -1,5 +1,6 @@
-import type { ExtendedBodyPart } from 'react-native-body-highlighter';
 import type { BodyZoneId, WorkedZoneEntry } from '@reset-fitness/shared';
+
+type ExtendedBodyPart = { slug: string; color: string };
 
 /** Verde de marca — mismo tono que macros / entreno completado. */
 export const BODY_HIGHLIGHT_COLOR = '#31F37B';

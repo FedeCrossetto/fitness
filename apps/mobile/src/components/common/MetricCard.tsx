@@ -39,8 +39,18 @@ export function MetricCard({
   style,
 }: MetricCardProps): React.JSX.Element {
   const { colors } = useTheme();
+  const glowStyle = accent
+    ? {
+        shadowColor: accent,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.28,
+        shadowRadius: 12,
+        elevation: 6,
+      }
+    : undefined;
+
   return (
-    <Card onPress={onPress} style={style} accessibilityLabel={`${label}: ${value} ${unit ?? ''}`}>
+    <Card onPress={onPress} style={[glowStyle, style]} accessibilityLabel={`${label}: ${value} ${unit ?? ''}`}>
       <View style={styles.header}>
         <View style={styles.labelCol}>
           <AppText variant="caps12" color={colors.text.tertiary}>

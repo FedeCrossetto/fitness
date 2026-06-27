@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { layout, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
-import { AppText, CardSkeleton, ErrorState, WeekStrip } from '../../components/common';
+import { AppText, CardSkeleton, ErrorState, HeaderAvatar, WeekStrip } from '../../components/common';
 import { FoodSearchBar } from '../../components/nutrition/FoodSearchBar';
 import { FoodSearchSheet } from '../../components/nutrition/FoodSearchSheet';
 import { MacroDaySummary } from '../../components/nutrition/MacroDaySummary';
@@ -160,9 +160,10 @@ export function MealsDayScreen({ navigation }: Props): React.JSX.Element {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <AppText variant="h1" color={colors.text.primary}>
+          <AppText variant="h1" color={colors.text.primary} style={styles.headerTitle}>
             {t.nutrition.title}
           </AppText>
+          <HeaderAvatar />
         </View>
 
         <WeekStrip
@@ -264,8 +265,12 @@ const createStyles = (colors: Colors) =>
   StyleSheet.create({
     flex: { flex: 1, backgroundColor: colors.background },
     header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
       marginBottom: spacing.lg,
     },
+    headerTitle: { flex: 1 },
     readonlyHint: {
       marginBottom: spacing.md,
     },

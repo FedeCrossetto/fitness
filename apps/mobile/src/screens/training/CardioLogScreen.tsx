@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -86,6 +86,7 @@ export function CardioLogScreen({ navigation, route }: Props): React.JSX.Element
   };
 
   return (
+    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
     <View style={[styles.flex, { paddingTop: insets.top + spacing.md }]}>
       <View style={styles.header}>
         <IconButton icon="chevron-back" onPress={() => navigation.goBack()} accessibilityLabel={t.training.go_back} />
@@ -200,6 +201,7 @@ export function CardioLogScreen({ navigation, route }: Props): React.JSX.Element
         )}
       </ScrollView>
     </View>
+    </KeyboardAvoidingView>
   );
 }
 

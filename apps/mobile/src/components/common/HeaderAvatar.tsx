@@ -1,19 +1,20 @@
 import React from 'react';
-import { Pressable } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useNavigation, type NavigationProp } from '@react-navigation/native';
 import { Avatar } from './Avatar';
 import { useAuthStore } from '../../stores/authStore';
+import { radius, useTheme } from '../../theme';
 import type { MainTabsParamList } from '../../types/navigation';
 
 interface HeaderAvatarProps {
   size?: number;
 }
 
-/** Avatar del usuario logueado para el margen superior derecho de los headers.
- * Lleva al perfil cruzando al HomeTab desde cualquier tab. */
-export function HeaderAvatar({ size = 48 }: HeaderAvatarProps): React.JSX.Element {
+/** Avatar del usuario logueado con anillo de marca para headers de pantallas principales. */
+export function HeaderAvatar({ size = 44 }: HeaderAvatarProps): React.JSX.Element {
   const navigation = useNavigation<NavigationProp<MainTabsParamList>>();
   const profile = useAuthStore((s) => s.profile);
+  const { colors } = useTheme();
 
   return (
     <Pressable
@@ -21,7 +22,17 @@ export function HeaderAvatar({ size = 48 }: HeaderAvatarProps): React.JSX.Elemen
       accessibilityRole="button"
       accessibilityLabel="Ir a mi perfil"
     >
-      <Avatar name={profile?.full_name} imageUrl={profile?.avatar_url} size={size} />
+      <View style={[styles.ring, { borderColor: colors.primary.default }]}>
+        <Avatar name={profile?.full_name} imageUrl={profile?.avatar_url} size={size} />
+      </View>
     </Pressable>
   );
 }
+
+const styles = StyleSheet.create({
+  ring: {
+    borderRadius: radius.pill,
+    borderWidth: 2,
+    padding: 2,
+  },
+});
