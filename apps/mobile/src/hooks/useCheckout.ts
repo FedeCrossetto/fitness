@@ -64,13 +64,16 @@ export function useCheckout(
       if (!userId || checkingOut) return;
       setCheckingOut(true);
       try {
-        // Deep link de retorno con el scheme correcto según el entorno:
-        // Expo Go → exp://…/--/pago, build standalone → reset-fitness://pago.
+        // returnUrl solo se usa en el ?return= de la página web intermedia para
+        // el botón "Volver a la app". El browser se cierra con dismissBrowser()
+        // desde useAppActive, por eso usamos openBrowserAsync (SFSafariViewController)
+        // que sí responde a dismissBrowser, a diferencia de openAuthSessionAsync
+        // (ASWebAuthenticationSession) que no puede cerrarse programáticamente.
         const returnUrl = AuthSession.makeRedirectUri({ path: 'pago' });
         const { checkoutUrl } = await createCheckout(planId, returnUrl);
         waitingReturnRef.current = true;
-        await WebBrowser.openAuthSessionAsync(checkoutUrl, returnUrl);
-        // Si el browser se cierra por deep link (sin pasar por background) también polling.
+        await WebBrowser.openBrowserAsync(checkoutUrl, { dismissButtonStyle: 'close' });
+        // openBrowserAsync resuelve cuando el usuario cierra manualmente el browser.
         if (waitingReturnRef.current) {
           waitingReturnRef.current = false;
           void pollSubscription(userId);
