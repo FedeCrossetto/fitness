@@ -1,11 +1,13 @@
 import React from 'react';
-import { Modal, StatusBar, StyleSheet } from 'react-native';
+import { Modal, StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../../theme';
-import { FlowBackdrop, FlowGradientBanner } from '../common';
+import { FlowGradientBanner } from '../common';
 import { WaiverScreen } from '../../screens/waiver/WaiverScreen';
 import { useTranslation } from '../../stores/i18nStore';
+import { authColors } from '../../screens/auth/authScreenTheme';
+
+const LIMA = '#C1ED00';
 
 interface WaiverConfig {
   title: string;
@@ -20,14 +22,13 @@ interface Props {
 }
 
 function WaiverGateContent({ config, trainerId, onSigned }: Props): React.JSX.Element {
-  const { colors } = useTheme();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
 
   return (
-    <FlowBackdrop style={[styles.root, { paddingTop: insets.top }]}>
+    <View style={[styles.root, { paddingTop: insets.top }]}>
       <FlowGradientBanner
-        icon={<Ionicons name="document-text" size={20} color={colors.primary.default} />}
+        icon={<Ionicons name="document-text" size={20} color={LIMA} />}
         title={t.waiver.banner_title}
         body={t.waiver.banner_body}
       />
@@ -38,13 +39,11 @@ function WaiverGateContent({ config, trainerId, onSigned }: Props): React.JSX.El
         embedded
         bottomInset={insets.bottom}
       />
-    </FlowBackdrop>
+    </View>
   );
 }
 
 export function WaiverBlockingGate({ config, trainerId, onSigned }: Props): React.JSX.Element {
-  const { colors } = useTheme();
-
   return (
     <Modal
       visible
@@ -53,7 +52,7 @@ export function WaiverBlockingGate({ config, trainerId, onSigned }: Props): Reac
       onRequestClose={() => undefined}
       statusBarTranslucent
     >
-      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+      <StatusBar barStyle="light-content" backgroundColor={authColors.background} />
       <SafeAreaProvider>
         <WaiverGateContent config={config} trainerId={trainerId} onSigned={onSigned} />
       </SafeAreaProvider>
@@ -62,5 +61,5 @@ export function WaiverBlockingGate({ config, trainerId, onSigned }: Props): Reac
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
+  root: { flex: 1, backgroundColor: authColors.background },
 });

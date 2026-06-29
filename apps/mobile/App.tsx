@@ -32,6 +32,7 @@ void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 export default function App(): React.JSX.Element {
   const { colors, isDark } = useTheme();
   const authReady = useAuthStore((s) => !s.initializing);
+  const hasSession = useAuthStore((s) => !!s.session);
   const { locked, authenticate } = useBiometricLock();
 
   useEffect(() => listenToNotificationTaps({
@@ -81,7 +82,7 @@ export default function App(): React.JSX.Element {
   return (
     <GestureHandlerRootView style={[styles.root, { backgroundColor: colors.background }]}>
       <SafeAreaProvider>
-        {locked ? (
+        {locked && hasSession ? (
           <BiometricLockScreen onAuthenticate={authenticate} />
         ) : (
           <NavigationContainer ref={navigationRef} theme={navigationTheme}>

@@ -12,7 +12,7 @@ import { AuthStack, HomeStack, NutritionStack, ProgressStack, TrainingStack } fr
 import { OnboardingScreen } from '../screens/auth/OnboardingScreen';
 import { UpdatePasswordScreen } from '../screens/auth/UpdatePasswordScreen';
 import { LinkTrainerScreen } from '../screens/auth/LinkTrainerScreen';
-import { PendingActivationScreen } from '../screens/auth/PendingActivationScreen';
+import { SubscriptionPlansScreen } from '../screens/auth/SubscriptionPlansScreen';
 import { ConsultationFormScreen } from '../screens/consultation/ConsultationFormScreen';
 import { WaiverBlockingGate } from '../components/waiver/WaiverBlockingGate';
 import { ImageConsentBlockingGate } from '../components/waiver/ImageConsentBlockingGate';
@@ -210,6 +210,7 @@ export function RootNavigator(): React.JSX.Element {
   const profile              = useAuthStore((s) => s.profile);
   const needsOnboarding      = useAuthStore((s) => s.needsOnboarding);
   const needsPasswordReset   = useAuthStore((s) => s.needsPasswordReset);
+  const forcedSignOut        = useAuthStore((s) => s.forcedSignOut);
   const restoreActiveSession = useTrainingStore((s) => s.restoreActiveSession);
 
   const [waiverChecked, setWaiverChecked] = useState(false);
@@ -413,14 +414,15 @@ export function RootNavigator(): React.JSX.Element {
   if (showLoading || sliderDone === null || storedProfile === undefined) return <AuthLoadingOverlay />;
   if (!session) {
     if (!sliderDone) return <MarketingSliderScreen onDone={handleSliderDone} />;
-    const showEasyLogin = !!storedProfile && !sliderJustFinished;
+    const showEasyLogin = !!storedProfile && !sliderJustFinished && !forcedSignOut;
     return <AuthStack key={showEasyLogin ? 'easy' : 'login'} hasStoredProfile={showEasyLogin} />;
   }
   if (needsPasswordReset) return <UpdatePasswordScreen />;
   if (needsTrainerLink(profile)) return <LinkTrainerScreen />;
+  if (isPendingActivation(profile)) return <SubscriptionPlansScreen />;
   if (needsOnboarding) return <OnboardingScreen />;
 
-  // Deslinde antes que consulta o pantalla de pendiente
+  // Deslinde antes que consulta o pantalla principal
   if (waiverRequired && waiverConfig && profile?.trainer_id) {
     return (
       <WaiverBlockingGate
@@ -463,8 +465,6 @@ export function RootNavigator(): React.JSX.Element {
       />
     );
   }
-
-  if (isPendingActivation(profile)) return <PendingActivationScreen />;
 
   return <MainTabs />;
 }

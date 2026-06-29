@@ -296,7 +296,7 @@ function ProfileStep({ form, setForm, fieldErrors }: StepProps): React.JSX.Eleme
         />
       </View>
 
-      <SectionLabel>SEXO BIOLÓGICO</SectionLabel>
+      <SectionLabel>SEXO</SectionLabel>
       <View style={styles.optionGroup}>
         {ONBOARDING_GENDERS.map(({ label, value }) => (
           <OptionRow
@@ -430,7 +430,7 @@ function TrainingStep({ form, setForm, fieldErrors }: StepProps): React.JSX.Elem
   );
 }
 
-function DetailsStep({ form, setForm }: StepProps): React.JSX.Element {
+function DetailsStep({ form, setForm, fieldErrors }: StepProps): React.JSX.Element {
   return (
     <>
       <SectionLabel>DÍAS DISPONIBLES</SectionLabel>
@@ -444,6 +444,7 @@ function DetailsStep({ form, setForm }: StepProps): React.JSX.Element {
           />
         ))}
       </View>
+      <FieldError message={fieldErrors.availableDays} />
 
       <SectionLabel>EQUIPAMIENTO DISPONIBLE</SectionLabel>
       <View style={styles.chips}>
@@ -456,6 +457,7 @@ function DetailsStep({ form, setForm }: StepProps): React.JSX.Element {
           />
         ))}
       </View>
+      <FieldError message={fieldErrors.equipment} />
 
       <AuthInput
         label="LESIONES O CONDICIONES (OPCIONAL)"
@@ -537,6 +539,11 @@ export function OnboardingScreen(): React.JSX.Element {
       if (!form.level) errors.level = 'Seleccioná tu nivel.';
       if (!form.exerciseHabit) errors.exerciseHabit = 'Seleccioná una opción.';
       if (!form.weeklyFrequency) errors.weeklyFrequency = 'Seleccioná una frecuencia.';
+    }
+
+    if (step === 3) {
+      if (form.availableDays.length === 0) errors.availableDays = 'Elegí al menos un día.';
+      if (form.equipment.length === 0) errors.equipment = 'Elegí al menos una opción.';
     }
 
     setFieldErrors(errors);

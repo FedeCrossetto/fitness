@@ -1,11 +1,13 @@
 import React from 'react';
-import { Modal, StatusBar, StyleSheet } from 'react-native';
+import { Modal, StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../../theme';
-import { FlowBackdrop, FlowGradientBanner } from '../common';
+import { FlowGradientBanner } from '../common';
 import { ImageConsentScreen } from '../../screens/waiver/ImageConsentScreen';
 import { useTranslation } from '../../stores/i18nStore';
+import { authColors } from '../../screens/auth/authScreenTheme';
+
+const LIMA = '#C1ED00';
 
 interface ImageConsentConfig {
   title: string;
@@ -20,14 +22,13 @@ interface Props {
 }
 
 function ImageConsentGateContent({ config, trainerId, onAccepted, onSkip }: Props): React.JSX.Element {
-  const { colors } = useTheme();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
 
   return (
-    <FlowBackdrop style={[styles.root, { paddingTop: insets.top }]}>
+    <View style={[styles.root, { paddingTop: insets.top }]}>
       <FlowGradientBanner
-        icon={<Ionicons name="images" size={20} color={colors.primary.default} />}
+        icon={<Ionicons name="images" size={20} color={LIMA} />}
         title={t.image_consent.banner_title}
         body={t.image_consent.banner_body}
       />
@@ -39,13 +40,11 @@ function ImageConsentGateContent({ config, trainerId, onAccepted, onSkip }: Prop
         embedded
         bottomInset={insets.bottom}
       />
-    </FlowBackdrop>
+    </View>
   );
 }
 
 export function ImageConsentBlockingGate({ config, trainerId, onAccepted, onSkip }: Props): React.JSX.Element {
-  const { colors } = useTheme();
-
   return (
     <Modal
       visible
@@ -54,7 +53,7 @@ export function ImageConsentBlockingGate({ config, trainerId, onAccepted, onSkip
       onRequestClose={() => undefined}
       statusBarTranslucent
     >
-      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+      <StatusBar barStyle="light-content" backgroundColor={authColors.background} />
       <SafeAreaProvider>
         <ImageConsentGateContent config={config} trainerId={trainerId} onAccepted={onAccepted} onSkip={onSkip} />
       </SafeAreaProvider>
@@ -63,5 +62,5 @@ export function ImageConsentBlockingGate({ config, trainerId, onAccepted, onSkip
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
+  root: { flex: 1, backgroundColor: authColors.background },
 });

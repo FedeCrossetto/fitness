@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAppActive } from './useAppActive';
+import { useAuthStore } from '../stores/authStore';
 
 // Lazy import — el módulo nativo solo existe en dev builds que incluyan expo-local-authentication.
 // Si no está disponible (Expo Go o build sin rebuild), se degrada silenciosamente.
@@ -39,7 +40,8 @@ export function useBiometricLock(): BiometricLockState {
       const pref = await AsyncStorage.getItem(PREF_KEY);
       if (pref === 'true' && hasHW && enrolled) {
         setEnabled(true);
-        setLocked(true);
+        // No bloqueamos al inicio: el lock solo se activa al volver del background
+        // con sesión activa (ver useAppActive). Así no interfiere con login/marketing.
       }
     })();
   }, []);
@@ -78,9 +80,11 @@ export function useBiometricLock(): BiometricLockState {
     return () => sub.remove();
   }, []);
 
-  // Al volver al foreground, bloquea si pasó el tiempo de gracia
+  // Al volver al foreground, bloquea si hay sesión activa y pasó el tiempo de gracia
   useAppActive(() => {
     if (!enabled) return;
+    const hasSession = !!useAuthStore.getState().session;
+    if (!hasSession) return; // sin sesión no tiene sentido pedir biometría
     const since = backgroundAt.current;
     if (since !== null && Date.now() - since >= GRACE_MS) {
       setLocked(true);

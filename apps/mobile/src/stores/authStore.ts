@@ -9,6 +9,7 @@ import { clearCache, invalidateCache } from '../lib/cache';
 import { useBrandingStore } from './brandingStore';
 import { useProgressStore } from './progressStore';
 import { resetAllStores } from './resetAllStores';
+import { clearStoredProfile, saveStoredProfile } from '../hooks/useStoredProfile';
 import {
   applyPendingInviteLink,
   clearPendingInviteCode,
@@ -57,8 +58,9 @@ interface AuthState {
   updatePassword: (newPassword: string) => Promise<boolean>;
   completeOnboarding: (data: OnboardingFormData) => Promise<boolean>;
   refreshProfile: () => Promise<void>;
-  signOut: () => Promise<void>;
+  signOut: (forced?: boolean) => Promise<void>;
   clearError: () => void;
+  forcedSignOut: boolean;
 }
 
 function messageFor(error: unknown): string {
@@ -199,11 +201,11 @@ async function commitSession(
   setAuthState(session, profile, userProfile, resolvedNeedsOnboarding);
   void AsyncStorage.setItem('onboarding_marketing_shown', 'true');
   if (profile?.full_name) {
-    void AsyncStorage.setItem('easy_login_profile', JSON.stringify({
+    void saveStoredProfile({
       fullName: profile.full_name,
       email: session.user.email ?? '',
       avatarUrl: profile.avatar_url ?? null,
-    }));
+    });
   }
   await useBrandingStore.getState().load();
 }
@@ -222,6 +224,7 @@ function setAuthState(
     loading: false,
     oauthProvider: null,
     initializing: false,
+    forcedSignOut: false,
   });
   // Persist profile for easy login — covers all auth paths (login, session restore, OAuth)
   void AsyncStorage.setItem('easy_login_profile', JSON.stringify({
@@ -239,13 +242,14 @@ function setAuthState(
 
 async function clearEasyLoginData(): Promise<void> {
   await Promise.all([
-    AsyncStorage.removeItem('easy_login_profile'),
+    clearStoredProfile(), // limpia AsyncStorage + actualiza el store global reactivamente
     SecureStore.deleteItemAsync('easy_login_credentials').catch(() => {}),
   ]);
 }
 
 let authListenerRegistered = false;
 let profileChannel: ReturnType<typeof supabase.channel> | null = null;
+let voluntarySignOut = false; // true cuando el usuario cierra sesión a propósito
 
 function subscribeProfileDeletion(userId: string): void {
   profileChannel?.unsubscribe();
@@ -254,9 +258,7 @@ function subscribeProfileDeletion(userId: string): void {
     .on(
       'postgres_changes',
       { event: 'DELETE', schema: 'public', table: 'profiles', filter: `id=eq.${userId}` },
-      () => {
-        void clearEasyLoginData().then(() => useAuthStore.getState().signOut());
-      },
+      () => { void useAuthStore.getState().signOut(true); },
     )
     .subscribe();
 }
@@ -278,6 +280,11 @@ function ensureAuthListener(): void {
 
   supabase.auth.onAuthStateChange((event, session) => {
     if (!session) {
+      // voluntarySignOut=true → el usuario cerró sesión a propósito (perfil guardado para EasyLogin).
+      // voluntarySignOut=false + wasSignedIn → logout externo (token inválido, cuenta eliminada).
+      const wasSignedIn = useAuthStore.getState().session !== null;
+      const isForced = wasSignedIn && !voluntarySignOut;
+      voluntarySignOut = false; // reset para el próximo ciclo
       unsubscribeProfileDeletion();
       useAuthStore.setState({
         session: null,
@@ -285,7 +292,9 @@ function ensureAuthListener(): void {
         userProfile: null,
         needsOnboarding: false,
         loading: false,
+        forcedSignOut: isForced,
       });
+      if (isForced) void clearEasyLoginData();
       useBrandingStore.getState().clear();
       return;
     }
@@ -335,6 +344,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   error: null,
   needsOnboarding: false,
   needsPasswordReset: false,
+  forcedSignOut: false,
 
   checkSession: async () => {
     ensureAuthListener();
@@ -344,12 +354,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (session) {
         const { profile, userProfile } = await finishAuthSession(session);
         if (!profile) {
-          // La cuenta fue eliminada. Limpiamos easy login ANTES de signOut para
-          // que cuando onAuthStateChange dispare y el navigator transite, ya no
-          // exista el perfil guardado en AsyncStorage.
           await clearEasyLoginData();
           await supabase.auth.signOut();
-          set({ session: null, profile: null, userProfile: null, needsOnboarding: false, initializing: false });
+          set({ session: null, profile: null, userProfile: null, needsOnboarding: false, initializing: false, forcedSignOut: true });
           return;
         }
         const onboardingDone = await readOnboardingDone(session.user.id, profile);
@@ -667,11 +674,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  signOut: async () => {
+  signOut: async (forced = false) => {
     set({ loading: true });
     try {
+      if (forced) await clearEasyLoginData();
       unsubscribeProfileDeletion();
       resetAllStores();
+      if (forced) {
+        useAuthStore.setState({ forcedSignOut: true });
+      } else {
+        voluntarySignOut = true; // indica a onAuthStateChange que no borre el perfil guardado
+      }
       await supabase.auth.signOut();
       await clearCache();
       await clearPendingInviteCode();
