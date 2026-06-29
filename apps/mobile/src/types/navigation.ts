@@ -3,7 +3,7 @@ import type { MealType, PhotoPosition } from './database';
 
 export type AuthStackParamList = {
   EasyLogin: undefined;
-  Login: { code?: string; prefillEmail?: string } | undefined;
+  Login: { code?: string; prefillEmail?: string; prefillError?: string } | undefined;
   SignUp: { code?: string } | undefined;
   VerifyEmail: { email: string; password?: string };
   ForgotPassword: undefined;

@@ -86,10 +86,12 @@ export function EasyLoginScreen({ navigation }: Props): React.JSX.Element {
         const { email, password } = JSON.parse(raw) as { email: string; password: string };
         const ok = await signIn(email, password);
         if (ok) return;
+        setLoggingIn(false);
+        navigation.navigate('Login', { prefillEmail: email, prefillError: 'Email o contraseña incorrectos.' });
+        return;
       }
-      setLoginError('No pudimos iniciar sesión. Ingresá tu contraseña.');
     } catch {
-      setLoginError('Error inesperado. Intentá de nuevo.');
+      // fall through
     }
     setLoggingIn(false);
     navigation.navigate('Login', { prefillEmail: profile?.email });

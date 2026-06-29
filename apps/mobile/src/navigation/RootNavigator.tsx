@@ -223,7 +223,7 @@ export function RootNavigator(): React.JSX.Element {
   const [consultationFormCode, setConsultationFormCode] = useState<string | null>(null);
 
   const { sliderDone, markSliderDone } = useMarketingSlider();
-  const { profile: storedProfile, clearProfile } = useStoredProfile();
+  const { profile: storedProfile } = useStoredProfile();
   const [sliderJustFinished, setSliderJustFinished] = useState(false);
 
   // Reset el flag cuando el usuario inicia sesión, así el próximo logout muestra EasyLogin

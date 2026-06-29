@@ -25,9 +25,10 @@ export function LoginScreen({ navigation, route }: Props): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { signIn, signInWithOAuth, loading, oauthProvider, error, clearError } = useAuthStore();
   const logoSource = useLogoSource();
-  const [email, setEmail]       = useState('');
+  const [email, setEmail]       = useState(route.params?.prefillEmail ?? '');
   const [password, setPassword] = useState('');
   const [emailError, setEmailError] = useState<string | null>(null);
+  const [prefillError] = useState(route.params?.prefillError ?? null);
   const [trainerCode, setTrainerCode] = useState(route.params?.code ?? '');
 
   useEffect(() => {
@@ -130,6 +131,7 @@ export function LoginScreen({ navigation, route }: Props): React.JSX.Element {
             </Pressable>
           </View>
 
+          {(prefillError && !error) ? <AuthErrorBox message={prefillError} /> : null}
           {error ? <AuthErrorBox message={error} /> : null}
 
           <AuthButton
