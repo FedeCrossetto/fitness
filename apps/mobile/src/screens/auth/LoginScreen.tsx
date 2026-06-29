@@ -110,7 +110,8 @@ export function LoginScreen({ navigation, route }: Props): React.JSX.Element {
             icon="lock-closed-outline"
             placeholder="••••••••"
             secureTextEntry
-            autoComplete="password"
+            autoComplete="off"
+            textContentType="none"
             value={password}
             onChangeText={(v) => {
               setPassword(v);
