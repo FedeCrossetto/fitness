@@ -237,6 +237,13 @@ function setAuthState(
   }
 }
 
+async function clearEasyLoginData(): Promise<void> {
+  await Promise.all([
+    AsyncStorage.removeItem('easy_login_profile'),
+    SecureStore.deleteItemAsync('easy_login_credentials').catch(() => {}),
+  ]);
+}
+
 let authListenerRegistered = false;
 let profileChannel: ReturnType<typeof supabase.channel> | null = null;
 
@@ -247,7 +254,9 @@ function subscribeProfileDeletion(userId: string): void {
     .on(
       'postgres_changes',
       { event: 'DELETE', schema: 'public', table: 'profiles', filter: `id=eq.${userId}` },
-      () => { void useAuthStore.getState().signOut(); },
+      () => {
+        void clearEasyLoginData().then(() => useAuthStore.getState().signOut());
+      },
     )
     .subscribe();
 }
@@ -335,8 +344,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (session) {
         const { profile, userProfile } = await finishAuthSession(session);
         if (!profile) {
-          // La cuenta fue eliminada en el servidor; limpiamos la sesión local.
-          await supabase.auth.signOut();
+          // La cuenta fue eliminada en el servidor; limpiamos sesión y easy login.
+          await Promise.all([supabase.auth.signOut(), clearEasyLoginData()]);
           set({ session: null, profile: null, userProfile: null, needsOnboarding: false, initializing: false });
           return;
         }
@@ -635,7 +644,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { profile, userProfile } = await loadProfiles(session.user.id);
       if (!profile) {
         // Cuenta eliminada mientras la app estaba activa.
-        await supabase.auth.signOut();
+        await Promise.all([supabase.auth.signOut(), clearEasyLoginData()]);
         return; // onAuthStateChange limpia el estado
       }
       set({ profile, userProfile });
