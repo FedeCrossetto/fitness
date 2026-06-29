@@ -344,8 +344,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (session) {
         const { profile, userProfile } = await finishAuthSession(session);
         if (!profile) {
-          // La cuenta fue eliminada en el servidor; limpiamos sesión y easy login.
-          await Promise.all([supabase.auth.signOut(), clearEasyLoginData()]);
+          // La cuenta fue eliminada. Limpiamos easy login ANTES de signOut para
+          // que cuando onAuthStateChange dispare y el navigator transite, ya no
+          // exista el perfil guardado en AsyncStorage.
+          await clearEasyLoginData();
+          await supabase.auth.signOut();
           set({ session: null, profile: null, userProfile: null, needsOnboarding: false, initializing: false });
           return;
         }
@@ -643,8 +646,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const { profile, userProfile } = await loadProfiles(session.user.id);
       if (!profile) {
-        // Cuenta eliminada mientras la app estaba activa.
-        await Promise.all([supabase.auth.signOut(), clearEasyLoginData()]);
+        // Cuenta eliminada mientras la app estaba activa. Easy login primero,
+        // luego signOut para que el navigator no lea el perfil viejo.
+        await clearEasyLoginData();
+        await supabase.auth.signOut();
         return; // onAuthStateChange limpia el estado
       }
       set({ profile, userProfile });
