@@ -53,7 +53,10 @@ export function SubscriptionScreen({ navigation }: Props): React.JSX.Element {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [refreshingSub, setRefreshingSub] = useState(false);
 
-  const { checkingOut, startCheckout } = useCheckout(userId, (sub) => setSubscription(sub));
+  const { checkingOut, startCheckout } = useCheckout(userId, (sub) => {
+    setSubscription(sub);
+    navigation.goBack();
+  });
 
   const load = useCallback(async () => {
     if (!userId) return;
