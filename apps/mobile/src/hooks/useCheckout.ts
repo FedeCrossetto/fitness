@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import * as WebBrowser from 'expo-web-browser';
+import { Linking } from 'react-native';
 import * as AuthSession from 'expo-auth-session';
 import { createCheckout, fetchActiveSubscription, clearSubscriptionAccessCache, resolveSubscriptionAccess } from '../services/payments';
 import { useUiStore } from '../stores/uiStore';
@@ -48,13 +48,11 @@ export function useCheckout(
     }
   }, []);
 
-  // Cuando la app vuelve al frente después del checkout, cerramos el browser
-  // de MP que pudo haber quedado abierto (si el pago fue vía app de MP) y
-  // disparamos polling para detectar la suscripción.
+  // Cuando la app vuelve al frente (AppState: background → active), el usuario
+  // terminó con Safari y hay que detectar el resultado del pago.
   useAppActive(() => {
     if (waitingReturnRef.current && userId) {
       waitingReturnRef.current = false;
-      void WebBrowser.dismissBrowser();
       void pollSubscription(userId);
     }
   });
@@ -64,26 +62,20 @@ export function useCheckout(
       if (!userId || checkingOut) return;
       setCheckingOut(true);
       try {
-        // returnUrl solo se usa en el ?return= de la página web intermedia para
-        // el botón "Volver a la app". El browser se cierra con dismissBrowser()
-        // desde useAppActive, por eso usamos openBrowserAsync (SFSafariViewController)
-        // que sí responde a dismissBrowser, a diferencia de openAuthSessionAsync
-        // (ASWebAuthenticationSession) que no puede cerrarse programáticamente.
+        // Abrimos el checkout en Safari del sistema (Linking.openURL) en lugar de
+        // un modal in-app. Así cuando el usuario vuelve a la app no queda ningún
+        // popup flotando, y AppState hace la transición background→active que
+        // dispara useAppActive + polling.
         const returnUrl = AuthSession.makeRedirectUri({ path: 'pago' });
         const { checkoutUrl } = await createCheckout(planId, returnUrl);
         waitingReturnRef.current = true;
-        await WebBrowser.openBrowserAsync(checkoutUrl, { dismissButtonStyle: 'close' });
-        // openBrowserAsync resuelve cuando el usuario cierra manualmente el browser.
-        if (waitingReturnRef.current) {
-          waitingReturnRef.current = false;
-          void pollSubscription(userId);
-        }
+        await Linking.openURL(checkoutUrl);
+        // Linking.openURL resuelve inmediatamente; el polling lo dispara useAppActive
+        // cuando el usuario vuelve a la app tras completar (o cancelar) el pago.
       } catch (err) {
         waitingReturnRef.current = false;
         setCheckingOut(false);
-        useUiStore
-          .getState()
-          .showToast('error', err instanceof Error ? err.message : 'No pudimos iniciar el pago. Intentá de nuevo.');
+        useUiStore.getState().showToast('error', err instanceof Error ? err.message : 'No pudimos iniciar el pago. Intentá de nuevo.');
       }
     },
     [userId, checkingOut, pollSubscription],
