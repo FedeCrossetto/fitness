@@ -238,6 +238,24 @@ function setAuthState(
 }
 
 let authListenerRegistered = false;
+let profileChannel: ReturnType<typeof supabase.channel> | null = null;
+
+function subscribeProfileDeletion(userId: string): void {
+  profileChannel?.unsubscribe();
+  profileChannel = supabase
+    .channel(`profile-del:${userId}`)
+    .on(
+      'postgres_changes',
+      { event: 'DELETE', schema: 'public', table: 'profiles', filter: `id=eq.${userId}` },
+      () => { void useAuthStore.getState().signOut(); },
+    )
+    .subscribe();
+}
+
+function unsubscribeProfileDeletion(): void {
+  profileChannel?.unsubscribe();
+  profileChannel = null;
+}
 
 function ensureAuthListener(): void {
   if (authListenerRegistered) return;
@@ -251,6 +269,7 @@ function ensureAuthListener(): void {
 
   supabase.auth.onAuthStateChange((event, session) => {
     if (!session) {
+      unsubscribeProfileDeletion();
       useAuthStore.setState({
         session: null,
         profile: null,
@@ -261,6 +280,7 @@ function ensureAuthListener(): void {
       useBrandingStore.getState().clear();
       return;
     }
+    subscribeProfileDeletion(session.user.id);
 
     // Token renovado silenciosamente por Supabase — solo actualizamos la sesión.
     if (event === 'TOKEN_REFRESHED') {
@@ -636,6 +656,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   signOut: async () => {
     set({ loading: true });
     try {
+      unsubscribeProfileDeletion();
       resetAllStores();
       await supabase.auth.signOut();
       await clearCache();
