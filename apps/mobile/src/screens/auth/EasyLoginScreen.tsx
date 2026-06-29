@@ -59,7 +59,7 @@ type Props = NativeStackScreenProps<AuthStackParamList, 'EasyLogin'>;
 export function EasyLoginScreen({ navigation }: Props): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { profile, clearProfile } = useStoredProfile();
-  const { signIn } = useAuthStore();
+  const { signIn, signInWithOAuth } = useAuthStore();
   const logoSource = useLogoSource();
   const flatRef = useRef<FlatList>(null);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -83,12 +83,21 @@ export function EasyLoginScreen({ navigation }: Props): React.JSX.Element {
     try {
       const raw = await SecureStore.getItemAsync('easy_login_credentials');
       if (raw) {
-        const { email, password } = JSON.parse(raw) as { email: string; password: string };
-        const ok = await signIn(email, password);
-        if (ok) return;
-        setLoggingIn(false);
-        navigation.navigate('Login', { prefillEmail: email, prefillError: 'Email o contraseña incorrectos.' });
-        return;
+        const creds = JSON.parse(raw) as { method?: string; email?: string; password?: string };
+        // OAuth login (Google, Apple, etc.)
+        if (creds.method && creds.method !== 'email') {
+          await signInWithOAuth(creds.method as 'google' | 'apple');
+          setLoggingIn(false);
+          return;
+        }
+        // Email/password login
+        if (creds.email && creds.password) {
+          const ok = await signIn(creds.email, creds.password);
+          if (ok) return;
+          setLoggingIn(false);
+          navigation.navigate('Login', { prefillEmail: creds.email, prefillError: 'Email o contraseña incorrectos.' });
+          return;
+        }
       }
     } catch {
       // fall through

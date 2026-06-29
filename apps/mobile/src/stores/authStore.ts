@@ -217,6 +217,12 @@ function setAuthState(
     email:    session.user.email ?? '',
     avatarUrl: profile?.avatar_url ?? null,
   }));
+  // If provider is OAuth (Google, Apple, etc.), update easy_login_credentials so EasyLogin
+  // knows to re-authenticate via OAuth instead of email/password.
+  const provider = session.user.app_metadata?.provider ?? 'email';
+  if (provider !== 'email') {
+    void SecureStore.setItemAsync('easy_login_credentials', JSON.stringify({ method: provider }));
+  }
 }
 
 let authListenerRegistered = false;

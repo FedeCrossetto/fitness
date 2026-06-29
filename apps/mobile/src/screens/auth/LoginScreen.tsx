@@ -30,6 +30,8 @@ export function LoginScreen({ navigation, route }: Props): React.JSX.Element {
   const [emailError, setEmailError] = useState<string | null>(null);
   const [prefillError] = useState(route.params?.prefillError ?? null);
   const [trainerCode, setTrainerCode] = useState(route.params?.code ?? '');
+  const emailRef = React.useRef(route.params?.prefillEmail ?? '');
+  const prevPasswordLenRef = React.useRef(0);
 
   useEffect(() => {
     void (async () => {
@@ -39,15 +41,17 @@ export function LoginScreen({ navigation, route }: Props): React.JSX.Element {
     })();
   }, [route.params?.code]);
 
-  const handleLogin = async () => {
-    if (!email.includes('@')) {
+  const doLogin = async (emailVal: string, passwordVal: string) => {
+    if (!emailVal.includes('@')) {
       setEmailError('Ingresá un email válido.');
       return;
     }
     setEmailError(null);
-    const ok = await signIn(email, password);
-    if (!ok) setPassword('');
+    await signIn(emailVal, passwordVal);
+    prevPasswordLenRef.current = 0;
   };
+
+  const handleLogin = () => void doLogin(email, password);
 
 
   return (
@@ -95,8 +99,10 @@ export function LoginScreen({ navigation, route }: Props): React.JSX.Element {
             autoCapitalize="none"
             keyboardType="email-address"
             autoComplete="email"
+            textContentType="emailAddress"
             value={email}
             onChangeText={(v) => {
+              emailRef.current = v;
               setEmail(v);
               if (error) clearError();
               if (emailError) setEmailError(null);
@@ -110,12 +116,15 @@ export function LoginScreen({ navigation, route }: Props): React.JSX.Element {
             icon="lock-closed-outline"
             placeholder="••••••••"
             secureTextEntry
-            autoComplete="off"
-            textContentType="none"
+            autoComplete="password"
+            textContentType="password"
             value={password}
             onChangeText={(v) => {
+              const wasAutofill = prevPasswordLenRef.current === 0 && v.length >= 6 && emailRef.current.includes('@');
+              prevPasswordLenRef.current = v.length;
               setPassword(v);
               if (error) clearError();
+              if (wasAutofill) void doLogin(emailRef.current, v);
             }}
             containerStyle={styles.field}
           />

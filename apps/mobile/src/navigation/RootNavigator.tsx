@@ -404,7 +404,10 @@ export function RootNavigator(): React.JSX.Element {
     !needsTrainerLink(profile) &&
     !waiverChecked;
 
-  const showLoading = initializing || loading || gatesPending;
+  // Only block rendering with the loading overlay during initialization or when a session
+  // exists and gates are pending. While the user is unauthenticated, keep the AuthStack
+  // mounted so in-progress navigation (e.g. LoginScreen) is not reset on auth operations.
+  const showLoading = initializing || (!!session && (loading || gatesPending));
 
   if (!themeHydrated) return <AuthLoadingOverlay />;
   if (showLoading || sliderDone === null || storedProfile === undefined) return <AuthLoadingOverlay />;
