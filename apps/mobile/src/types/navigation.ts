@@ -2,8 +2,12 @@ import type { NavigatorScreenParams } from '@react-navigation/native';
 import type { MealType, PhotoPosition } from './database';
 
 export type AuthStackParamList = {
-  Login: { code?: string } | undefined;
+  EasyLogin: undefined;
+  Login: { code?: string; prefillEmail?: string } | undefined;
   SignUp: { code?: string } | undefined;
+  VerifyEmail: { email: string; password?: string };
+  ForgotPassword: undefined;
+  PasswordResetSent: { email: string };
   Onboarding: undefined;
 };
 

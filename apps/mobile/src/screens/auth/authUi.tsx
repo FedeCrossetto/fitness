@@ -31,7 +31,7 @@ export function GoogleBrandIcon({ size = 18 }: { size?: number }): React.JSX.Ele
   );
 }
 
-export function AppleBrandIcon({ size = 18, color = '#FFFFFF' }: { size?: number; color?: string }): React.JSX.Element {
+export function AppleBrandIcon({ size = 18, color = '#000000' }: { size?: number; color?: string }): React.JSX.Element {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       <Path
@@ -61,6 +61,7 @@ export function AuthInput({
 }: AuthInputProps): React.JSX.Element {
   const [focused, setFocused] = useState(false);
   const [hidden, setHidden] = useState(Boolean(secureTextEntry));
+  const { onFocus: onFocusProp, onBlur: onBlurProp, ...textInputRest } = rest;
 
   return (
     <View style={containerStyle}>
@@ -82,9 +83,9 @@ export function AuthInput({
           selectionColor={authColors.textPrimary}
           style={styles.input}
           secureTextEntry={hidden}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          {...rest}
+          onFocus={(e) => { setFocused(true); onFocusProp?.(e); }}
+          onBlur={(e) => { setFocused(false); onBlurProp?.(e); }}
+          {...textInputRest}
         />
         {secureTextEntry ? (
           <Pressable
@@ -181,7 +182,7 @@ function AuthSocialButton({
   const isApple = provider === 'apple';
   const isDisabled = disabled || loading;
   const label = isApple ? 'Apple' : 'Google';
-  const textColor = isApple ? '#FFFFFF' : authColors.textPrimary;
+  const textColor = isApple ? '#000000' : authColors.textPrimary;
 
   return (
     <Pressable
@@ -229,13 +230,15 @@ export function AuthSocialLoginCard({
   disabled = false,
   style,
 }: AuthSocialLoginCardProps): React.JSX.Element {
+  // Apple: visible en iOS siempre que el flag esté activo, pero funcional solo en prod
   const showApple = isAppleSignInEnabled && (Platform.OS === 'ios' || Platform.OS === 'web');
+  const appleReady = showApple && process.env.EXPO_PUBLIC_APPLE_SIGN_IN_READY === 'true';
   const anyLoading = loadingProvider !== null;
 
   return (
     <View style={[styles.socialCard, style]}>
       <AppText variant="caps12" color={authColors.textTertiary} style={styles.socialCardLabel}>
-        Acceso rápido
+        ACCESO RÁPIDO
       </AppText>
       <View style={[styles.socialRow, !showApple && styles.socialRowSingle]}>
         <AuthSocialButton
@@ -249,15 +252,15 @@ export function AuthSocialLoginCard({
         {showApple ? (
           <AuthSocialButton
             provider="apple"
-            onPress={onApple}
+            onPress={appleReady ? onApple : () => undefined}
             loading={loadingProvider === 'apple'}
-            disabled={disabled || (anyLoading && loadingProvider !== 'apple')}
+            disabled={!appleReady || disabled || (anyLoading && loadingProvider !== 'apple')}
             style={styles.socialBtnHalf}
           />
         ) : null}
       </View>
-      <AppText variant="body12" color={authColors.textDisabled} align="center" style={styles.socialHint}>
-        Sin contraseña · mismo email que uses en {showApple ? 'Google o Apple' : 'Google'}
+      <AppText variant="caps11" color={authColors.textDisabled} align="center" style={styles.socialHint}>
+        CONTINUÁ CON GOOGLE{showApple ? ' O APPLE' : ''}
       </AppText>
     </View>
   );
@@ -287,7 +290,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
-    backgroundColor: authColors.background,
+    backgroundColor: authColors.surface,
     borderWidth: 1,
     borderColor: authColors.border,
     borderRadius: radius.md,
@@ -354,7 +357,7 @@ const styles = StyleSheet.create({
     borderColor: authColors.border,
   },
   socialBtnApple: {
-    backgroundColor: authColors.textPrimary,
+    backgroundColor: '#FFFFFF',
   },
   socialHint: {
     lineHeight: 18,

@@ -16,9 +16,10 @@ interface Props {
   config: ImageConsentConfig;
   trainerId: string;
   onAccepted: () => void;
+  onSkip?: () => void;
 }
 
-function ImageConsentGateContent({ config, trainerId, onAccepted }: Props): React.JSX.Element {
+function ImageConsentGateContent({ config, trainerId, onAccepted, onSkip }: Props): React.JSX.Element {
   const { colors } = useTheme();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -26,7 +27,7 @@ function ImageConsentGateContent({ config, trainerId, onAccepted }: Props): Reac
   return (
     <FlowBackdrop style={[styles.root, { paddingTop: insets.top }]}>
       <FlowGradientBanner
-        icon={<Ionicons name="images" size={20} color={colors.primary.onText} />}
+        icon={<Ionicons name="images" size={20} color={colors.primary.default} />}
         title={t.image_consent.banner_title}
         body={t.image_consent.banner_body}
       />
@@ -34,6 +35,7 @@ function ImageConsentGateContent({ config, trainerId, onAccepted }: Props): Reac
         config={config}
         trainerId={trainerId}
         onAccepted={onAccepted}
+        onSkip={onSkip}
         embedded
         bottomInset={insets.bottom}
       />
@@ -41,7 +43,7 @@ function ImageConsentGateContent({ config, trainerId, onAccepted }: Props): Reac
   );
 }
 
-export function ImageConsentBlockingGate({ config, trainerId, onAccepted }: Props): React.JSX.Element {
+export function ImageConsentBlockingGate({ config, trainerId, onAccepted, onSkip }: Props): React.JSX.Element {
   const { colors } = useTheme();
 
   return (
@@ -54,7 +56,7 @@ export function ImageConsentBlockingGate({ config, trainerId, onAccepted }: Prop
     >
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
       <SafeAreaProvider>
-        <ImageConsentGateContent config={config} trainerId={trainerId} onAccepted={onAccepted} />
+        <ImageConsentGateContent config={config} trainerId={trainerId} onAccepted={onAccepted} onSkip={onSkip} />
       </SafeAreaProvider>
     </Modal>
   );

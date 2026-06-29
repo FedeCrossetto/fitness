@@ -15,6 +15,26 @@ export const ONBOARDING_LEVELS = ['Principiante', 'Intermedio', 'Avanzado'] as c
 export const ONBOARDING_GENDERS = [
   { label: 'Masculino', value: 'male' as const },
   { label: 'Femenino', value: 'female' as const },
+  { label: 'Otro', value: 'other' as const },
+] as const;
+
+/** Códigos de país para el dropdown de teléfono (LATAM primero). */
+export const COUNTRY_CODES = [
+  { code: '+54',  flag: '🇦🇷', name: 'Argentina' },
+  { code: '+598', flag: '🇺🇾', name: 'Uruguay' },
+  { code: '+56',  flag: '🇨🇱', name: 'Chile' },
+  { code: '+595', flag: '🇵🇾', name: 'Paraguay' },
+  { code: '+591', flag: '🇧🇴', name: 'Bolivia' },
+  { code: '+51',  flag: '🇵🇪', name: 'Perú' },
+  { code: '+593', flag: '🇪🇨', name: 'Ecuador' },
+  { code: '+57',  flag: '🇨🇴', name: 'Colombia' },
+  { code: '+58',  flag: '🇻🇪', name: 'Venezuela' },
+  { code: '+55',  flag: '🇧🇷', name: 'Brasil' },
+  { code: '+52',  flag: '🇲🇽', name: 'México' },
+  { code: '+1',   flag: '🇺🇸', name: 'EE.UU. / Canadá' },
+  { code: '+34',  flag: '🇪🇸', name: 'España' },
+  { code: '+39',  flag: '🇮🇹', name: 'Italia' },
+  { code: '+44',  flag: '🇬🇧', name: 'Reino Unido' },
 ] as const;
 
 export const EXERCISE_HABITS = [
@@ -50,8 +70,8 @@ export const EQUIPMENT_OPTIONS = [
 ] as const;
 
 export const ONBOARDING_STEPS = [
-  { key: 'profile', title: 'Sobre vos', subtitle: 'Datos de contacto y perfil.' },
-  { key: 'body', title: 'Tu cuerpo', subtitle: 'Tu entrenador usa esto para armar tu plan.' },
-  { key: 'training', title: 'Tu entrenamiento', subtitle: 'Objetivos, nivel y hábitos actuales.' },
-  { key: 'details', title: 'Detalles', subtitle: 'Disponibilidad, equipamiento y salud.' },
+  { key: 'profile',  title: 'SOBRE VOS',          subtitle: 'DATOS DE CONTACTO Y UBICACIÓN' },
+  { key: 'body',     title: 'TU CUERPO',          subtitle: 'TU ENTRENADOR USA ESTO PARA ARMAR TU PLAN' },
+  { key: 'training', title: 'TU ENTRENAMIENTO',   subtitle: 'OBJETIVOS, NIVEL Y HÁBITOS ACTUALES' },
+  { key: 'details',  title: 'DETALLES',           subtitle: 'DISPONIBILIDAD, EQUIPAMIENTO Y SALUD' },
 ] as const;

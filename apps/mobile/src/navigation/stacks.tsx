@@ -14,6 +14,10 @@ import { ErrorBoundary } from '../components/common';
 
 import { LoginScreen } from '../screens/auth/LoginScreen';
 import { SignUpScreen } from '../screens/auth/SignUpScreen';
+import { VerifyEmailScreen } from '../screens/auth/VerifyEmailScreen';
+import { ForgotPasswordScreen } from '../screens/auth/ForgotPasswordScreen';
+import { PasswordResetSentScreen } from '../screens/auth/PasswordResetSentScreen';
+import { EasyLoginScreen } from '../screens/auth/EasyLoginScreen';
 
 import { HomeScreen } from '../screens/home/HomeScreen';
 import { GoalsScreen } from '../screens/goals/GoalsScreen';
@@ -48,21 +52,28 @@ function useStackOptions(): NativeStackNavigationOptions {
   const { colors } = useTheme();
   return {
     headerShown: false,
+    gestureEnabled: true,
     contentStyle: { backgroundColor: colors.background },
   };
 }
 
 const Auth = createNativeStackNavigator<AuthStackParamList>();
-export function AuthStack(): React.JSX.Element {
+export function AuthStack({ hasStoredProfile = false }: { hasStoredProfile?: boolean }): React.JSX.Element {
   return (
     <Auth.Navigator
+      initialRouteName={hasStoredProfile ? 'EasyLogin' : 'Login'}
       screenOptions={{
         headerShown: false,
+        gestureEnabled: true,
         contentStyle: { backgroundColor: authColors.background },
       }}
     >
+      <Auth.Screen name="EasyLogin" component={EasyLoginScreen} />
       <Auth.Screen name="Login" component={LoginScreen} />
       <Auth.Screen name="SignUp" component={SignUpScreen} />
+      <Auth.Screen name="VerifyEmail" component={VerifyEmailScreen} />
+      <Auth.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+      <Auth.Screen name="PasswordResetSent" component={PasswordResetSentScreen} />
     </Auth.Navigator>
   );
 }
@@ -79,7 +90,7 @@ export function HomeStack(): React.JSX.Element {
       <Home.Screen name="Community" component={CommunityScreen} />
       <Home.Screen name="Messages" component={MessagesScreen} />
       <Home.Screen name="CommunityChat" component={CommunityChatScreen} />
-      <Home.Screen name="Subscription" component={SubscriptionScreen} />
+      <Home.Screen name="Subscription" component={SubscriptionScreen} options={{ gestureEnabled: false }} />
       <Home.Screen name="CoachChat" component={CoachChatScreen} />
       <Home.Screen name="Achievements" component={AchievementsScreen} />
       <Home.Screen name="Hydration" component={HydrationScreen} />

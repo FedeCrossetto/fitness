@@ -10,6 +10,7 @@ import { TabBar } from './TabBar';
 import { AddMenuOverlay } from './AddMenuOverlay';
 import { AuthStack, HomeStack, NutritionStack, ProgressStack, TrainingStack } from './stacks';
 import { OnboardingScreen } from '../screens/auth/OnboardingScreen';
+import { UpdatePasswordScreen } from '../screens/auth/UpdatePasswordScreen';
 import { LinkTrainerScreen } from '../screens/auth/LinkTrainerScreen';
 import { PendingActivationScreen } from '../screens/auth/PendingActivationScreen';
 import { ConsultationFormScreen } from '../screens/consultation/ConsultationFormScreen';
@@ -17,6 +18,9 @@ import { WaiverBlockingGate } from '../components/waiver/WaiverBlockingGate';
 import { ImageConsentBlockingGate } from '../components/waiver/ImageConsentBlockingGate';
 import { useInviteDeepLink } from '../hooks/useInviteDeepLink';
 import { useAppActive } from '../hooks/useAppActive';
+import { useMarketingSlider } from '../hooks/useMarketingSlider';
+import { MarketingSliderScreen } from '../screens/auth/MarketingSliderScreen';
+import { useStoredProfile } from '../hooks/useStoredProfile';
 import { needsTrainerLink, isPendingActivation } from '../services/clientAccess';
 import { clearSubscriptionAccessCache } from '../services/payments';
 import { syncPushRegistration } from '../services/notifications';
@@ -205,6 +209,7 @@ export function RootNavigator(): React.JSX.Element {
   const session              = useAuthStore((s) => s.session);
   const profile              = useAuthStore((s) => s.profile);
   const needsOnboarding      = useAuthStore((s) => s.needsOnboarding);
+  const needsPasswordReset   = useAuthStore((s) => s.needsPasswordReset);
   const restoreActiveSession = useTrainingStore((s) => s.restoreActiveSession);
 
   const [waiverChecked, setWaiverChecked] = useState(false);
@@ -216,6 +221,20 @@ export function RootNavigator(): React.JSX.Element {
 
   const [consultationRequired, setConsultationRequired] = useState(false);
   const [consultationFormCode, setConsultationFormCode] = useState<string | null>(null);
+
+  const { sliderDone, markSliderDone } = useMarketingSlider();
+  const { profile: storedProfile, clearProfile } = useStoredProfile();
+  const [sliderJustFinished, setSliderJustFinished] = useState(false);
+
+  // Reset el flag cuando el usuario inicia sesión, así el próximo logout muestra EasyLogin
+  useEffect(() => {
+    if (session) setSliderJustFinished(false);
+  }, [session]);
+
+  const handleSliderDone = async () => {
+    setSliderJustFinished(true);
+    await markSliderDone();
+  };
 
   /** Evita pantalla negra al re-chequear gates (p. ej. refreshProfile al firmar deslinde). */
   const gatesInitializedRef = useRef(false);
@@ -388,8 +407,13 @@ export function RootNavigator(): React.JSX.Element {
   const showLoading = initializing || loading || gatesPending;
 
   if (!themeHydrated) return <AuthLoadingOverlay />;
-  if (showLoading) return <AuthLoadingOverlay />;
-  if (!session) return <AuthStack />;
+  if (showLoading || sliderDone === null || storedProfile === undefined) return <AuthLoadingOverlay />;
+  if (!session) {
+    if (!sliderDone) return <MarketingSliderScreen onDone={handleSliderDone} />;
+    const showEasyLogin = !!storedProfile && !sliderJustFinished;
+    return <AuthStack key={showEasyLogin ? 'easy' : 'login'} hasStoredProfile={showEasyLogin} />;
+  }
+  if (needsPasswordReset) return <UpdatePasswordScreen />;
   if (needsTrainerLink(profile)) return <LinkTrainerScreen />;
   if (needsOnboarding) return <OnboardingScreen />;
 
@@ -414,6 +438,11 @@ export function RootNavigator(): React.JSX.Element {
         config={imageConsentConfig}
         trainerId={profile.trainer_id}
         onAccepted={() => {
+          setImageConsentRequired(false);
+          setImageConsentConfig(null);
+        }}
+        onSkip={() => {
+          // Consentimiento opcional: se omite por esta sesión.
           setImageConsentRequired(false);
           setImageConsentConfig(null);
         }}

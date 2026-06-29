@@ -1,6 +1,9 @@
 import { create } from 'zustand';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 import type { ProfileRow, TrainerBrandingRow } from '../types/database';
+
+const LOGO_CACHE_KEY = 'branding_logo_url';
 
 interface BrandingState {
   branding: TrainerBrandingRow | null;
@@ -43,7 +46,15 @@ export const useBrandingStore = create<BrandingState>((set) => ({
       .eq('trainer_id', trainerId)
       .maybeSingle();
 
-    set({ branding: (data as TrainerBrandingRow | null) ?? null, loaded: true });
+    const branding = (data as TrainerBrandingRow | null) ?? null;
+    set({ branding, loaded: true });
+
+    // Persistir logo_url para que esté disponible en pantallas pre-login
+    if (branding?.logo_url) {
+      void AsyncStorage.setItem(LOGO_CACHE_KEY, branding.logo_url);
+    } else {
+      void AsyncStorage.removeItem(LOGO_CACHE_KEY);
+    }
   },
   clear: () => set({ branding: null, loaded: false }),
 }));

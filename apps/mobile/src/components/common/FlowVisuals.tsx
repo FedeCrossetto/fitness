@@ -97,27 +97,22 @@ interface FlowGradientBannerProps {
   body: string;
 }
 
-/** Banner superior con degradé de marca (deslinde, consentimiento, etc.). */
+/** Banner superior sobrio con acento de marca (deslinde, consentimiento, etc.). */
 export function FlowGradientBanner({ icon, title, body }: FlowGradientBannerProps): React.JSX.Element {
   const { colors } = useTheme();
 
   return (
-    <LinearGradient
-      colors={[colors.primary.light, colors.primary.default, colors.primary.dark]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.banner}
-    >
-      <View style={styles.bannerIcon}>{icon}</View>
+    <View style={[styles.banner, { backgroundColor: colors.surface.elevated, borderColor: colors.border.subtle }]}>
+      <View style={[styles.bannerIcon, { backgroundColor: colors.primary.muted }]}>{icon}</View>
       <View style={styles.bannerText}>
-        <AppText variant="body14SemiBold" color={colors.primary.onText}>
+        <AppText variant="caps11" color={colors.primary.default} style={styles.bannerEyebrow}>
           {title}
         </AppText>
-        <AppText variant="body13" color={colors.primary.onText} style={styles.bannerSub}>
+        <AppText variant="body13" color={colors.text.secondary} style={styles.bannerSub}>
           {body}
         </AppText>
       </View>
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -199,19 +194,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: 16,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 14,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.sm,
+    borderRadius: radius.lg,
+    borderWidth: 1,
   },
   bannerIcon: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.28)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   bannerText: { flex: 1 },
-  bannerSub: { marginTop: 2, opacity: 0.92, lineHeight: 18 },
+  bannerEyebrow: { letterSpacing: 1, marginBottom: 3 },
+  bannerSub: { lineHeight: 18 },
   heroOuter: {
     alignSelf: 'flex-start',
     borderRadius: radius.lg + 4,

@@ -11,9 +11,9 @@ import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { spacing } from '../../theme';
-import { brandAssets } from '../../theme/brand';
 import { AppText } from '../../components/common';
 import { useAuthStore } from '../../stores/authStore';
+import { useLogoSource } from '../../hooks/useLogoSource';
 import { readPendingInviteCode } from '../../services/invite';
 import type { AuthStackParamList } from '../../types/navigation';
 import { authColors } from './authScreenTheme';
@@ -24,7 +24,8 @@ type Props = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 export function LoginScreen({ navigation, route }: Props): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { signIn, signInWithOAuth, loading, oauthProvider, error, clearError } = useAuthStore();
-  const [email, setEmail] = useState('');
+  const logoSource = useLogoSource();
+  const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
   const [emailError, setEmailError] = useState<string | null>(null);
   const [trainerCode, setTrainerCode] = useState(route.params?.code ?? '');
@@ -46,38 +47,47 @@ export function LoginScreen({ navigation, route }: Props): React.JSX.Element {
     void signIn(email, password);
   };
 
+
   return (
-    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView
+      style={styles.flex}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
       <ScrollView
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.xl, paddingBottom: insets.bottom + spacing.xl }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={[styles.hero, { paddingTop: insets.top + spacing.xl }]}>
-          <View style={styles.logoShell}>
-            <Image
-              source={brandAssets.logo}
-              style={styles.logo}
-              contentFit="cover"
-              accessibilityLabel="Reset Fit"
-              priority="high"
-            />
+        {/* Header */}
+        <View style={styles.header}>
+          {/* Brand row: logo + MÉTODO R3SET */}
+          <View style={styles.brandRow}>
+            <View style={styles.logoShell}>
+              <Image
+                source={logoSource}
+                style={styles.logo}
+                contentFit="cover"
+                accessibilityLabel="Reset Fit"
+                priority="high"
+              />
+            </View>
+            <AppText variant="caps11" color="#C1ED00" style={styles.brandName}>
+              MÉTODO R3SET
+            </AppText>
           </View>
-          <AppText
-            variant="body12"
-            color={authColors.textSecondary}
-            style={styles.heroTagline}
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.85}
-          >
-            Entrenamiento · nutrición · progreso
+
+          <AppText variant="body14SemiBold" color={authColors.textPrimary} style={styles.welcome}>
+            BIENVENIDO
+          </AppText>
+          <AppText variant="caps11" color={authColors.textTertiary} style={styles.tagline}>
+            INGRESÁ TUS CREDENCIALES PARA CONTINUAR
           </AppText>
         </View>
 
-        <View style={[styles.form, { paddingBottom: insets.bottom + spacing.xl }]}>
+        {/* Form */}
+        <View style={styles.form}>
           <AuthInput
-            label="Email"
+            label="EMAIL"
             icon="mail-outline"
             placeholder="tu@email.com"
             autoCapitalize="none"
@@ -87,12 +97,14 @@ export function LoginScreen({ navigation, route }: Props): React.JSX.Element {
             onChangeText={(v) => {
               setEmail(v);
               if (error) clearError();
+              if (emailError) setEmailError(null);
             }}
             error={emailError}
             containerStyle={styles.field}
           />
+
           <AuthInput
-            label="Contraseña"
+            label="CONTRASEÑA"
             icon="lock-closed-outline"
             placeholder="••••••••"
             secureTextEntry
@@ -105,10 +117,23 @@ export function LoginScreen({ navigation, route }: Props): React.JSX.Element {
             containerStyle={styles.field}
           />
 
+          {/* Forgot password */}
+          <View style={styles.forgotRow}>
+            <Pressable
+              onPress={() => navigation.navigate('ForgotPassword')}
+              accessibilityRole="button"
+              hitSlop={8}
+            >
+              <AppText variant="caps11" color={authColors.textTertiary}>
+                ¿OLVIDASTE TU CONTRASEÑA?
+              </AppText>
+            </Pressable>
+          </View>
+
           {error ? <AuthErrorBox message={error} /> : null}
 
           <AuthButton
-            label="Iniciar sesión"
+            label="INICIAR SESIÓN"
             onPress={handleLogin}
             loading={loading}
             disabled={!email || !password}
@@ -119,7 +144,7 @@ export function LoginScreen({ navigation, route }: Props): React.JSX.Element {
           <View style={styles.dividerRow}>
             <View style={styles.divider} />
             <AppText variant="caps11" color={authColors.textDisabled}>
-              o
+              O
             </AppText>
             <View style={styles.divider} />
           </View>
@@ -136,10 +161,10 @@ export function LoginScreen({ navigation, route }: Props): React.JSX.Element {
             style={styles.footer}
             accessibilityRole="button"
           >
-            <AppText variant="body14" color={authColors.textSecondary}>
-              ¿No tenés cuenta?{' '}
-              <AppText variant="body14SemiBold" color={authColors.textPrimary}>
-                Registrate
+            <AppText variant="caps11" color={authColors.textSecondary}>
+              ¿NO TENÉS CUENTA?{' '}
+              <AppText variant="caps11" color="#C1ED00">
+                REGISTRATE
               </AppText>
             </AppText>
           </Pressable>
@@ -151,42 +176,55 @@ export function LoginScreen({ navigation, route }: Props): React.JSX.Element {
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: authColors.background },
-  scroll: { flexGrow: 1 },
-  hero: {
-    alignItems: 'center',
-    backgroundColor: authColors.surface,
+  scroll: {
+    flexGrow: 1,
     paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.xl,
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
+  },
+
+  // Header
+  header: {
+    marginBottom: spacing.xxl,
+    gap: spacing.xs,
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
   },
   logoShell: {
-    width: 128,
-    height: 128,
-    borderRadius: 32,
+    width: 28,
+    height: 28,
+    borderRadius: 6,
     overflow: 'hidden',
-    backgroundColor: authColors.textPrimary,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.14,
-    shadowRadius: 14,
-    elevation: 6,
   },
   logo: {
-    width: 128,
-    height: 128,
+    width: 28,
+    height: 28,
   },
-  heroTagline: {
-    textAlign: 'center',
-    marginTop: spacing.md,
-    maxWidth: '100%',
-    letterSpacing: 0.2,
+  brandName: {
+    letterSpacing: 2,
+    fontStyle: 'italic',
   },
+  welcome: {
+    fontSize: 36,
+    lineHeight: 42,
+    letterSpacing: -0.5,
+  },
+  tagline: {
+    letterSpacing: 1.2,
+  },
+
+  // Form
   form: {
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.xl,
+    gap: 0,
   },
   field: { marginBottom: spacing.md },
+  forgotRow: {
+    alignItems: 'flex-end',
+    marginTop: -spacing.xs,
+    marginBottom: spacing.lg,
+  },
   cta: { marginTop: spacing.xs },
   dividerRow: {
     flexDirection: 'row',
@@ -196,5 +234,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   divider: { flex: 1, height: 1, backgroundColor: authColors.border },
-  footer: { alignItems: 'center', marginTop: spacing.xxl, minHeight: 44, justifyContent: 'center' },
+  footer: {
+    alignItems: 'center',
+    marginTop: spacing.xxl,
+    minHeight: 44,
+    justifyContent: 'center',
+  },
 });

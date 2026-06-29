@@ -334,6 +334,18 @@ a { color: inherit; text-decoration: none; }
   flex-shrink: 0;
 }
 
+/* Subtítulo dentro de una sección del nav (ej: Entrenamiento / Nutrición en Librería) */
+.nav-subheading {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  padding: 10px 10px 2px;
+  opacity: .7;
+}
+
 /* Etiqueta para módulos con datos simulados (no conectados a Supabase aún) */
 .nav-mock {
   margin-left: auto;

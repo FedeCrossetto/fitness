@@ -1,6 +1,12 @@
 export interface OnboardingFormData {
+  country: string;
+  city: string;
+  address: string;
+  phoneCode: string;
   phone: string;
-  gender: 'male' | 'female' | null;
+  gender: 'male' | 'female' | 'other' | null;
+  genderOther: string;
+  shareBodyLater: boolean;
   weightKg: string;
   heightCm: string;
   goals: string[];
@@ -14,8 +20,14 @@ export interface OnboardingFormData {
 }
 
 export const EMPTY_ONBOARDING: OnboardingFormData = {
+  country: '',
+  city: '',
+  address: '',
+  phoneCode: '+54',
   phone: '',
   gender: null,
+  genderOther: '',
+  shareBodyLater: false,
   weightKg: '',
   heightCm: '',
   goals: [],

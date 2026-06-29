@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -8,8 +8,6 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
-import { Image } from 'expo-image';
-import { resolveAvatarUrl } from '../../lib/avatarUrl';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -23,92 +21,87 @@ import { authColors } from './authScreenTheme';
 import { AuthButton, AuthErrorBox, AuthInput, AuthSocialLoginCard } from './authUi';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'SignUp'>;
-
 type CodeStatus = 'idle' | 'loading' | 'valid' | 'invalid';
 
-function trainerInitials(name: string | null | undefined): string {
-  if (!name?.trim()) return '?';
-  const parts = name.trim().split(/\s+/);
-  const first = parts[0]?.[0] ?? '';
-  const last = parts.length > 1 ? parts[parts.length - 1]?.[0] ?? '' : '';
-  return (first + last).toUpperCase() || '?';
-}
+const HARDCODED_CODE = 'RESETINV';
 
 export function SignUpScreen({ navigation, route }: Props): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { signUp, signInWithOAuth, loading, oauthProvider, error, clearError } = useAuthStore();
+
   const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
+  const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
-  const [trainerCode, setTrainerCode] = useState(route.params?.code ?? '');
+  const [trainerCode, setTrainerCode] = useState(
+    route.params?.code ?? HARDCODED_CODE,
+  );
   const [codeStatus, setCodeStatus] = useState<CodeStatus>('idle');
-  const [codeError, setCodeError] = useState<string | null>(null);
-  const [preview, setPreview] = useState<InvitePreview | null>(null);
+  const [preview, setPreview]       = useState<InvitePreview | null>(null);
   const [fieldError, setFieldError] = useState<{ name?: string; email?: string; password?: string }>({});
 
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [codeSelection, setCodeSelection] = useState<{ start: number; end: number } | undefined>();
+
+  const handleCodeFocus = () => {
+    const end = trainerCode.length;
+    setCodeSelection({ start: end, end });
+    setTimeout(() => setCodeSelection(undefined), 100);
+  };
+
   const validateCode = useCallback(async (rawCode: string) => {
-    const code = rawCode.trim();
-    if (!code) {
-      setCodeStatus('idle');
-      setCodeError('Ingresá el código de invitación.');
-      setPreview(null);
-      return false;
-    }
+    const code = rawCode.trim().toUpperCase();
+    if (!code) { setCodeStatus('idle'); setPreview(null); return; }
 
     setCodeStatus('loading');
-    setCodeError(null);
     setPreview(null);
 
     const data = await fetchInvitePreview(code);
-    if (!data) {
-      setCodeStatus('invalid');
-      setCodeError('El código no existe o no es válido.');
-      return false;
-    }
+    if (!data) { setCodeStatus('invalid'); return; }
 
     setPreview(data);
     setCodeStatus('valid');
     setTrainerCode(data.invite_code);
-    return true;
   }, []);
 
+  // Auto-validate on mount using hardcoded code or deeplink code
   useEffect(() => {
     void (async () => {
-      if (route.params?.code) {
-        await validateCode(route.params.code);
-        return;
-      }
-      const pending = await readPendingInviteCode();
-      if (pending) {
-        setTrainerCode(pending);
-        await validateCode(pending);
-      }
+      const initial = route.params?.code ?? (await readPendingInviteCode()) ?? HARDCODED_CODE;
+      setTrainerCode(initial);
+      await validateCode(initial);
     })();
-  }, [route.params?.code, validateCode]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
+  // Live validation on every keystroke (debounced 400 ms)
   const handleCodeChange = (value: string) => {
-    setTrainerCode(value);
-    if (codeStatus !== 'idle') {
-      setCodeStatus('idle');
-      setPreview(null);
-      setCodeError(null);
-    }
+    const upper = value.toUpperCase();
+    setTrainerCode(upper);
+    setCodeStatus('idle');
+    setPreview(null);
     if (error) clearError();
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      void validateCode(upper);
+    }, 400);
   };
 
-  const handleSignUp = () => {
-    if (codeStatus !== 'valid' || !preview) {
-      void validateCode(trainerCode);
-      return;
-    }
+  const handleSignUp = async () => {
+    if (codeStatus !== 'valid' || !preview) return;
 
     const errors: typeof fieldError = {};
     if (fullName.trim().length < 2) errors.name = 'Ingresá tu nombre.';
-    if (!email.includes('@')) errors.email = 'Ingresá un email válido.';
-    if (password.length < 6) errors.password = 'Mínimo 6 caracteres.';
+    if (!email.includes('@'))       errors.email = 'Ingresá un email válido.';
+    if (password.length < 6)        errors.password = 'Mínimo 6 caracteres.';
     setFieldError(errors);
     if (Object.keys(errors).length > 0) return;
-    void signUp(email, password, fullName, preview.invite_code);
+
+    const result = await signUp(email, password, fullName, preview.invite_code);
+    if (result === 'verify') {
+      navigation.navigate('VerifyEmail', { email: email.trim(), password });
+    }
+    // 'session' → RootNavigator navega solo · 'error' → se muestra en AuthErrorBox
   };
 
   const codeValidated = codeStatus === 'valid' && preview != null;
@@ -118,122 +111,103 @@ export function SignUpScreen({ navigation, route }: Props): React.JSX.Element {
       <ScrollView
         contentContainerStyle={[
           styles.content,
-          { paddingTop: insets.top + spacing.md, paddingBottom: insets.bottom + spacing.xl },
+          { paddingTop: insets.top + spacing.md, paddingBottom: insets.bottom + spacing.xl, flexGrow: 1, justifyContent: 'center' },
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <IconButton
-          icon="chevron-back"
-          onPress={() => navigation.goBack()}
-          accessibilityLabel="Volver"
-          color={authColors.textPrimary}
-          backgroundColor={authColors.surface}
-          style={styles.backBtn}
-        />
-
-        <AppText variant="h1" color={authColors.textPrimary} style={styles.title}>
-          Creá tu cuenta
+        <View style={styles.headerRow}>
+          <IconButton
+            icon="chevron-back"
+            onPress={() => navigation.goBack()}
+            accessibilityLabel="Volver"
+            color={authColors.textPrimary}
+            backgroundColor={authColors.surface}
+            style={styles.backBtn}
+          />
+          <AppText variant="h2" color={authColors.textPrimary} style={styles.title}>
+            CREÁ TU CUENTA
+          </AppText>
+        </View>
+        <AppText variant="caps11" color={authColors.textTertiary} style={styles.subtitle}>
+          COMPLETÁ TUS DATOS PARA COMENZAR
         </AppText>
-        <AppText variant="body14" color={authColors.textSecondary} style={styles.subtitle}>
-          {codeValidated
-            ? 'Completá tus datos para unirte a tu entrenador.'
-            : 'Primero validá el código que te compartió tu entrenador.'}
-        </AppText>
 
+        {/* Code input — always visible, auto-filled */}
         <View style={styles.codeBlock}>
           <AuthInput
-            label="Código de entrenador"
+            label="CÓDIGO DE INVITACIÓN"
             icon="key-outline"
-            placeholder="Tu código"
+            placeholder="RESETINV"
             autoCapitalize="characters"
             autoCorrect={false}
             value={trainerCode}
+            selection={codeSelection}
+            onFocus={handleCodeFocus}
             onChangeText={handleCodeChange}
-            error={codeError}
             containerStyle={styles.codeField}
           />
-          <AuthButton
-            label={codeStatus === 'loading' ? 'Validando…' : 'Validar código'}
-            onPress={() => void validateCode(trainerCode)}
-            loading={codeStatus === 'loading'}
-            disabled={!trainerCode.trim() || codeStatus === 'loading'}
-            fullWidth
-          />
+
+          {/* Tooltip */}
+          {codeStatus === 'loading' && (
+            <View style={styles.tooltipRow}>
+              <ActivityIndicator size="small" color={authColors.textTertiary} />
+              <AppText variant="caps11" color={authColors.textTertiary}>
+                VERIFICANDO…
+              </AppText>
+            </View>
+          )}
+          {codeStatus === 'valid' && (
+            <View style={styles.tooltipRow}>
+              <Ionicons name="checkmark-circle" size={16} color="#C1ED00" />
+              <AppText variant="caps11" color="#C1ED00">
+                TE ESTÁS SUMANDO AL TEAM DE ALE GEREZ
+              </AppText>
+            </View>
+          )}
+          {codeStatus === 'invalid' && (
+            <View style={styles.tooltipRow}>
+              <Ionicons name="close-circle" size={16} color={authColors.errorText} />
+              <AppText variant="caps11" color={authColors.errorText}>
+                CÓDIGO INVÁLIDO
+              </AppText>
+            </View>
+          )}
         </View>
 
-        {preview && codeValidated ? (
-          <View style={styles.trainerCard}>
-            <View style={styles.trainerAvatarWrap}>
-              {resolveAvatarUrl(preview.trainer_avatar_url) ? (
-                <Image
-                  source={{ uri: resolveAvatarUrl(preview.trainer_avatar_url)! }}
-                  style={styles.trainerAvatar}
-                  contentFit="cover"
-                />
-              ) : (
-                <View style={styles.trainerAvatarFallback}>
-                  <AppText variant="body16SemiBold" color={authColors.textPrimary}>
-                    {trainerInitials(preview.trainer_name)}
-                  </AppText>
-                </View>
-              )}
-              <View style={styles.checkBadge}>
-                <Ionicons name="checkmark" size={14} color={authColors.background} />
-              </View>
-            </View>
-            <View style={styles.trainerInfo}>
-              <AppText variant="body16SemiBold" color={authColors.textPrimary} numberOfLines={1}>
-                {preview.trainer_name ?? 'Tu entrenador'}
-              </AppText>
-              <AppText variant="body12" color={authColors.textTertiary} numberOfLines={1}>
-                {preview.app_name}
-              </AppText>
-            </View>
-          </View>
-        ) : null}
-
+        {/* Fields — only when code is valid */}
         {codeValidated ? (
           <>
             <AuthInput
-              label="Nombre completo"
+              label="NOMBRE COMPLETO"
               icon="person-outline"
               placeholder="Ej: Martina López"
               autoComplete="name"
               value={fullName}
-              onChangeText={(v) => {
-                setFullName(v);
-                if (error) clearError();
-              }}
+              onChangeText={(v) => { setFullName(v); if (error) clearError(); }}
               error={fieldError.name}
               containerStyle={styles.field}
             />
             <AuthInput
-              label="Email"
+              label="EMAIL"
               icon="mail-outline"
               placeholder="tu@email.com"
               autoCapitalize="none"
               keyboardType="email-address"
               autoComplete="email"
               value={email}
-              onChangeText={(v) => {
-                setEmail(v);
-                if (error) clearError();
-              }}
+              onChangeText={(v) => { setEmail(v); if (error) clearError(); }}
               error={fieldError.email}
               containerStyle={styles.field}
             />
             <AuthInput
-              label="Contraseña"
+              label="CONTRASEÑA"
               icon="lock-closed-outline"
               placeholder="Mínimo 6 caracteres"
               secureTextEntry
               autoComplete="new-password"
               value={password}
-              onChangeText={(v) => {
-                setPassword(v);
-                if (error) clearError();
-              }}
+              onChangeText={(v) => { setPassword(v); if (error) clearError(); }}
               error={fieldError.password}
               containerStyle={styles.field}
             />
@@ -241,8 +215,8 @@ export function SignUpScreen({ navigation, route }: Props): React.JSX.Element {
             {error ? <AuthErrorBox message={error} /> : null}
 
             <AuthButton
-              label="Crear cuenta"
-              onPress={handleSignUp}
+              label="CREAR CUENTA"
+              onPress={() => void handleSignUp()}
               loading={loading}
               disabled={!fullName || !email || !password}
               fullWidth
@@ -251,9 +225,7 @@ export function SignUpScreen({ navigation, route }: Props): React.JSX.Element {
 
             <View style={styles.dividerRow}>
               <View style={styles.divider} />
-              <AppText variant="caps11" color={authColors.textDisabled}>
-                o
-              </AppText>
+              <AppText variant="caps11" color={authColors.textDisabled}>O</AppText>
               <View style={styles.divider} />
             </View>
 
@@ -275,10 +247,10 @@ export function SignUpScreen({ navigation, route }: Props): React.JSX.Element {
           style={styles.footer}
           accessibilityRole="button"
         >
-          <AppText variant="body14" color={authColors.textSecondary}>
-            ¿Ya tenés cuenta?{' '}
-            <AppText variant="body14SemiBold" color={authColors.textPrimary}>
-              Iniciá sesión
+          <AppText variant="caps11" color={authColors.textSecondary}>
+            ¿YA TENÉS CUENTA?{' '}
+            <AppText variant="caps11" color="#C1ED00">
+              INICIÁ SESIÓN
             </AppText>
           </AppText>
         </Pressable>
@@ -287,63 +259,32 @@ export function SignUpScreen({ navigation, route }: Props): React.JSX.Element {
   );
 }
 
-const AVATAR_SIZE = 52;
-
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: authColors.background },
+  flex:    { flex: 1, backgroundColor: authColors.background },
   content: { paddingHorizontal: spacing.xl },
-  backBtn: { borderColor: authColors.border },
-  title: { marginTop: spacing.xl },
-  subtitle: { marginTop: spacing.xs, marginBottom: spacing.lg },
-  codeBlock: { marginBottom: spacing.md },
-  codeField: { marginBottom: spacing.sm },
-  trainerCard: {
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    padding: spacing.md,
-    marginBottom: spacing.lg,
-    backgroundColor: authColors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: authColors.border,
+    marginBottom: spacing.xs,
   },
-  trainerAvatarWrap: {
-    width: AVATAR_SIZE,
-    height: AVATAR_SIZE,
-  },
-  trainerAvatar: {
-    width: AVATAR_SIZE,
-    height: AVATAR_SIZE,
-    borderRadius: AVATAR_SIZE / 2,
-    backgroundColor: authColors.border,
-  },
-  trainerAvatarFallback: {
-    width: AVATAR_SIZE,
-    height: AVATAR_SIZE,
-    borderRadius: AVATAR_SIZE / 2,
-    backgroundColor: authColors.background,
-    borderWidth: 1,
-    borderColor: authColors.border,
+  backBtn: { borderColor: authColors.border, flexShrink: 0 },
+  title:   { flex: 1, letterSpacing: -0.5 },
+  subtitle:{ marginBottom: spacing.xl, letterSpacing: 1.2 },
+
+  codeBlock: { marginBottom: spacing.md },
+  codeField: { marginBottom: spacing.xs },
+
+  tooltipRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.xs,
+    marginBottom: spacing.sm,
   },
-  checkBadge: {
-    position: 'absolute',
-    right: -2,
-    bottom: -2,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: '#22A06B',
-    borderWidth: 2,
-    borderColor: authColors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  trainerInfo: { flex: 1, minWidth: 0 },
-  field: { marginBottom: spacing.md },
-  cta: { marginTop: spacing.xs },
+
+  field:  { marginBottom: spacing.md },
+  cta:    { marginTop: spacing.xs },
   dividerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -351,7 +292,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.xl,
     marginBottom: spacing.sm,
   },
-  divider: { flex: 1, height: 1, backgroundColor: authColors.border },
+  divider:     { flex: 1, height: 1, backgroundColor: authColors.border },
   loadingHint: { alignItems: 'center', paddingVertical: spacing.xl },
-  footer: { alignItems: 'center', marginTop: spacing.xl, minHeight: 44, justifyContent: 'center' },
+  footer:      { alignItems: 'center', marginTop: spacing.xl, minHeight: 44, justifyContent: 'center' },
 });

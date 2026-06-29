@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -11,13 +11,13 @@ import {
   GridIcon, BrushIcon, UsersIcon, LogOutIcon,
   MessageIcon, GroupsIcon, CreditCardIcon,
   DumbbellIcon, NutritionIcon, SettingsIcon, ChevronDownIcon, ChevronRightIcon,
-  MegaphoneIcon,
+  MegaphoneIcon, TrophyIcon,
 } from '@/components/icons';
 import { resolveAvatarUrl, initials } from '@/lib/avatarUrl';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type NavItem  = { to: string; label: string; end?: boolean; icon: () => React.JSX.Element; badge?: number; mock?: boolean };
+type NavItem  = { to: string; label: string; end?: boolean; icon: () => React.JSX.Element; badge?: number; mock?: boolean; subheading?: string };
 type NavGroup = { section: string; items: NavItem[] };
 
 // ── Collapse toggle icon ───────────────────────────────────────────────────────
@@ -82,20 +82,26 @@ export function Layout(): React.JSX.Element {
     {
       section: t.web.nav_main,
       items: [
-        { to: '/',          label: t.web.overview,      end: true, icon: () => <GridIcon />      },
-        { to: '/messages',  label: t.web.messages,                 icon: () => <MessageIcon />,  badge: unreadMessages || undefined },
-        { to: '/groups',    label: t.web.groups,                   icon: () => <GroupsIcon />    },
-        { to: '/students',  label: t.web.clients,                  icon: () => <UsersIcon />     },
-        { to: '/payments',  label: t.web.payments,                 icon: () => <CreditCardIcon /> },
+        { to: '/',           label: t.web.overview,    end: true, icon: () => <GridIcon />       },
+        { to: '/messages',   label: t.web.messages,              icon: () => <MessageIcon />,   badge: unreadMessages || undefined },
+        { to: '/challenges', label: t.web.challenges,            icon: () => <TrophyIcon />     },
+        { to: '/groups',     label: t.web.groups,                icon: () => <GroupsIcon />     },
+        { to: '/students',   label: t.web.clients,               icon: () => <UsersIcon />      },
+        { to: '/payments',   label: t.web.payments,              icon: () => <CreditCardIcon /> },
+      ],
+    },
+    {
+      section: t.web.nav_library,
+      items: [
+        { to: '/routines', label: t.web.program, icon: () => <DumbbellIcon />,  subheading: t.web.nav_training  },
+        { to: '/foods',    label: t.web.foods,   icon: () => <NutritionIcon />, subheading: t.web.nav_nutrition, badge: pendingFoodCount || undefined },
       ],
     },
     {
       section: t.web.nav_content,
       items: [
-        { to: '/routines',      label: t.web.program,        icon: () => <DumbbellIcon /> },
-        { to: '/foods',         label: t.web.foods,          icon: () => <NutritionIcon />, badge: pendingFoodCount || undefined },
-        { to: '/branding',      label: t.web.branding,       icon: () => <BrushIcon />   },
-        { to: '/announcements', label: t.web.announcements,  icon: () => <MegaphoneIcon /> },
+        { to: '/branding',      label: t.web.branding,      icon: () => <BrushIcon />    },
+        { to: '/announcements', label: t.web.announcements, icon: () => <MegaphoneIcon /> },
       ],
     },
     {
@@ -177,6 +183,10 @@ export function Layout(): React.JSX.Element {
                   </button>
                 )}
                 {!isCollapsed && group.items.map((item) => (
+                  <React.Fragment key={item.to}>
+                  {item.subheading && !sc && (
+                    <span className="nav-subheading">{item.subheading}</span>
+                  )}
                   <NavLink
                     key={item.to}
                     to={item.to}
@@ -193,6 +203,7 @@ export function Layout(): React.JSX.Element {
                       <span className="nav-mock" title="Datos simulados — aún no conectado">mock</span>
                     ) : null}
                   </NavLink>
+                  </React.Fragment>
                 ))}
               </div>
             );

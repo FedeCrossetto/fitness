@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import * as WebBrowser from 'expo-web-browser';
 import type { Session } from '@supabase/supabase-js';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import { supabase } from '../lib/supabase';
 import { clearCache, invalidateCache } from '../lib/cache';
 import { useBrandingStore } from './brandingStore';
@@ -28,6 +30,8 @@ WebBrowser.maybeCompleteAuthSession();
 
 export type OAuthProvider = 'apple' | 'google';
 export type AuthIntent = 'login' | 'signup';
+/** Resultado de signUp: sesión inmediata, requiere verificar email, o error. */
+export type SignUpOutcome = 'session' | 'verify' | 'error';
 
 interface AuthState {
   session: Session | null;
@@ -38,13 +42,17 @@ interface AuthState {
   oauthProvider: OAuthProvider | null;
   error: string | null;
   needsOnboarding: boolean;
+  needsPasswordReset: boolean;
 
   checkSession: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<boolean>;
-  signUp: (email: string, password: string, fullName: string, trainerCode?: string) => Promise<boolean>;
+  signUp: (email: string, password: string, fullName: string, trainerCode?: string) => Promise<SignUpOutcome>;
+  verifyEmailOtp: (email: string, token: string, password?: string) => Promise<boolean>;
+  resendEmailOtp: (email: string) => Promise<boolean>;
   signInWithOAuth: (provider: OAuthProvider, trainerCode?: string, intent?: AuthIntent) => Promise<boolean>;
   linkTrainer: (code: string) => Promise<boolean>;
   resetPassword: (email: string) => Promise<boolean>;
+  updatePassword: (newPassword: string) => Promise<boolean>;
   completeOnboarding: (data: OnboardingFormData) => Promise<boolean>;
   refreshProfile: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -65,6 +73,15 @@ function messageFor(error: unknown): string {
   }
   if (raw.includes('already registered')) return 'Ese email ya está registrado.';
   if (raw.includes('Password should be')) return 'La contraseña debe tener al menos 6 caracteres.';
+  if (raw.includes('Token has expired') || raw.includes('otp_expired') || raw.includes('expired or is invalid')) {
+    return 'El código es incorrecto o expiró. Pedí uno nuevo.';
+  }
+  if (raw.includes('Invalid token') || raw.includes('otp_disabled') || raw.includes('Token not found')) {
+    return 'El código ingresado no es válido. Revisalo e intentá de nuevo.';
+  }
+  if (raw.includes('For security purposes') || raw.includes('rate limit') || raw.includes('after')) {
+    return 'Esperá unos segundos antes de pedir otro código.';
+  }
   if (raw.toLowerCase().includes('network')) return 'Sin conexión. Revisá tu internet e intentá de nuevo.';
   if (raw.includes('row-level security') || raw.includes('permission denied')) {
     return 'No tenés permiso para guardar estos datos. Contactá a tu entrenador.';
@@ -81,12 +98,24 @@ async function refreshProgressMeasurements(userId: string): Promise<void> {
   await useProgressStore.getState().loadMeasurements(userId);
 }
 
+function genderLabel(data: OnboardingFormData): string {
+  if (data.gender === 'male') return 'Masculino';
+  if (data.gender === 'female') return 'Femenino';
+  if (data.gender === 'other') return data.genderOther.trim() ? `Otro: ${data.genderOther.trim()}` : 'Otro';
+  return '';
+}
+
 function buildOnboardingResponses(data: OnboardingFormData): Array<{ label: string; type: string; answer: string | string[] }> {
+  const fullPhone = `${data.phoneCode} ${data.phone}`.trim();
+  const sharedBody = !data.shareBodyLater;
   const entries: Array<{ label: string; type: string; answer: string | string[] }> = [
-    { label: 'Teléfono', type: 'textbox', answer: data.phone },
-    { label: 'Sexo', type: 'dropdown', answer: data.gender === 'male' ? 'Masculino' : data.gender === 'female' ? 'Femenino' : '' },
-    { label: 'Peso actual (kg)', type: 'textbox', answer: data.weightKg },
-    { label: 'Altura (cm)', type: 'textbox', answer: data.heightCm },
+    { label: 'País', type: 'textbox', answer: data.country.trim() },
+    { label: 'Ciudad', type: 'textbox', answer: data.city.trim() },
+    { label: 'Dirección', type: 'textbox', answer: data.address.trim() },
+    { label: 'Teléfono', type: 'textbox', answer: fullPhone },
+    { label: 'Sexo', type: 'dropdown', answer: genderLabel(data) },
+    { label: 'Peso actual (kg)', type: 'textbox', answer: sharedBody ? data.weightKg : 'A definir con el coach' },
+    { label: 'Altura (cm)', type: 'textbox', answer: sharedBody ? data.heightCm : 'A definir con el coach' },
     { label: 'Objetivos', type: 'listbox', answer: data.goals },
     { label: 'Nivel de experiencia', type: 'dropdown', answer: data.level ?? '' },
     { label: '¿Hacés ejercicio regularmente?', type: 'dropdown', answer: data.exerciseHabit ?? '' },
@@ -124,13 +153,46 @@ async function finishAuthSession(session: Session): Promise<{ profile: ProfileRo
   return loadProfiles(session.user.id);
 }
 
+const ONBOARDING_DONE_PREFIX = 'onboarding_completed_';
+
+/**
+ * Flag explícito "completó la encuesta de onboarding" (por usuario).
+ * El flag es la única fuente de verdad: si está en falso, se re-pide la encuesta
+ * desde el primer paso (aunque la cuenta tenga datos de una encuesta anterior).
+ */
+async function readOnboardingDone(userId: string, _profile: ProfileRow | null): Promise<boolean> {
+  try {
+    const stored = await AsyncStorage.getItem(ONBOARDING_DONE_PREFIX + userId);
+    return stored === 'true';
+  } catch {
+    return false;
+  }
+}
+
+async function markOnboardingDone(userId: string): Promise<void> {
+  try {
+    await AsyncStorage.setItem(ONBOARDING_DONE_PREFIX + userId, 'true');
+  } catch {
+    // ignore
+  }
+}
+
 async function commitSession(
   session: Session,
   profile: ProfileRow | null,
   userProfile: UserProfileRow | null,
   needsOnboarding?: boolean,
 ): Promise<void> {
-  setAuthState(session, profile, userProfile, needsOnboarding ?? !profile?.goal);
+  const resolvedNeedsOnboarding = needsOnboarding ?? !(await readOnboardingDone(session.user.id, profile));
+  setAuthState(session, profile, userProfile, resolvedNeedsOnboarding);
+  void AsyncStorage.setItem('onboarding_marketing_shown', 'true');
+  if (profile?.full_name) {
+    void AsyncStorage.setItem('easy_login_profile', JSON.stringify({
+      fullName: profile.full_name,
+      email: session.user.email ?? '',
+      avatarUrl: profile.avatar_url ?? null,
+    }));
+  }
   await useBrandingStore.getState().load();
 }
 
@@ -149,6 +211,12 @@ function setAuthState(
     oauthProvider: null,
     initializing: false,
   });
+  // Persist profile for easy login — covers all auth paths (login, session restore, OAuth)
+  void AsyncStorage.setItem('easy_login_profile', JSON.stringify({
+    fullName: profile?.full_name ?? session.user.email?.split('@')[0] ?? '',
+    email:    session.user.email ?? '',
+    avatarUrl: profile?.avatar_url ?? null,
+  }));
 }
 
 let authListenerRegistered = false;
@@ -176,6 +244,12 @@ function ensureAuthListener(): void {
       return;
     }
 
+    // El usuario abrió el link de recuperación de contraseña.
+    if (event === 'PASSWORD_RECOVERY') {
+      useAuthStore.setState({ session, needsPasswordReset: true });
+      return;
+    }
+
     const { loading, session: current } = useAuthStore.getState();
     if (loading) return;
 
@@ -188,12 +262,8 @@ function ensureAuthListener(): void {
     void (async () => {
       try {
         const { profile, userProfile } = await finishAuthSession(session);
-        useAuthStore.setState({
-          profile,
-          userProfile,
-          needsOnboarding: !profile?.goal,
-          loading: false,
-        });
+        const onboardingDone = await readOnboardingDone(session.user.id, profile);
+        setAuthState(session, profile, userProfile, !onboardingDone);
         await useBrandingStore.getState().load();
       } catch {
         useAuthStore.setState({ loading: false });
@@ -211,6 +281,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   oauthProvider: null,
   error: null,
   needsOnboarding: false,
+  needsPasswordReset: false,
 
   checkSession: async () => {
     ensureAuthListener();
@@ -219,11 +290,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const session = data.session;
       if (session) {
         const { profile, userProfile } = await finishAuthSession(session);
+        const onboardingDone = await readOnboardingDone(session.user.id, profile);
         set({
           session,
           profile,
           userProfile,
-          needsOnboarding: !profile?.goal,
+          needsOnboarding: !onboardingDone,
           initializing: false,
         });
         await useBrandingStore.getState().load();
@@ -242,6 +314,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (error) throw error;
       const { profile, userProfile } = await finishAuthSession(data.session!);
       await commitSession(data.session!, profile, userProfile);
+      void SecureStore.setItemAsync('easy_login_credentials', JSON.stringify({ email: email.trim(), password }));
       return true;
     } catch (error) {
       set({ loading: false, error: messageFor(error) });
@@ -255,7 +328,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const code = trainerCode?.trim();
       if (!code) {
         set({ loading: false, error: INVITE_REQUIRED_MESSAGE });
-        return false;
+        return 'error';
       }
       await savePendingInviteCode(code);
       const { data, error } = await supabase.auth.signUp({
@@ -266,15 +339,50 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         },
       });
       if (error) throw error;
+      // Sin sesión = Supabase requiere confirmar el email con un código (OTP).
       if (!data.session) {
-        set({ loading: false, error: 'Revisá tu email para confirmar la cuenta y luego iniciá sesión.' });
-        return false;
+        set({ loading: false });
+        return 'verify';
       }
       const { profile, userProfile } = await finishAuthSession(data.session);
       await commitSession(data.session, profile, userProfile, true);
+      return 'session';
+    } catch (error) {
+      set({ loading: false, error: messageFor(error) });
+      return 'error';
+    }
+  },
+
+  verifyEmailOtp: async (email, token, password) => {
+    set({ loading: true, error: null });
+    try {
+      const { data, error } = await supabase.auth.verifyOtp({
+        email: email.trim(),
+        token: token.trim(),
+        type: 'signup',
+      });
+      if (error) throw error;
+      if (!data.session) throw new Error('No se pudo confirmar la cuenta.');
+      const { profile, userProfile } = await finishAuthSession(data.session);
+      await commitSession(data.session, profile, userProfile, true);
+      if (password) {
+        void SecureStore.setItemAsync('easy_login_credentials', JSON.stringify({ email: email.trim(), password }));
+      }
       return true;
     } catch (error) {
       set({ loading: false, error: messageFor(error) });
+      return false;
+    }
+  },
+
+  resendEmailOtp: async (email) => {
+    set({ error: null });
+    try {
+      const { error } = await supabase.auth.resend({ type: 'signup', email: email.trim() });
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      set({ error: messageFor(error) });
       return false;
     }
   },
@@ -352,16 +460,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
+  updatePassword: async (newPassword) => {
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      set({ needsPasswordReset: false });
+      return true;
+    } catch (err) {
+      if (__DEV__) console.warn('[updatePassword]', err);
+      return false;
+    }
+  },
+
   resetPassword: async (email) => {
-    set({ loading: true, error: null });
     try {
       const redirectTo = getOAuthRedirectUri();
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo });
       if (error) throw error;
-      set({ loading: false });
       return true;
-    } catch (error) {
-      set({ loading: false, error: messageFor(error) });
+    } catch {
       return false;
     }
   },
@@ -374,14 +491,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const userId = session.user.id;
       const goal = data.goals.join(', ');
       const level = data.level ?? 'Principiante';
-      const weight = Number.parseFloat(data.weightKg.replace(',', '.'));
+      const fullPhone = `${data.phoneCode} ${data.phone}`.trim();
+      const weight = data.shareBodyLater ? NaN : Number.parseFloat(data.weightKg.replace(',', '.'));
+      // Columnas de sexo biológico solo aceptan male/female; "other" se guarda en responses.
+      const dbGender = data.gender === 'male' || data.gender === 'female' ? data.gender : null;
       const responses = buildOnboardingResponses(data);
 
       const { error: rpcError } = await supabase.rpc('save_client_onboarding_intake', {
-        p_phone: data.phone.trim(),
+        p_phone: fullPhone,
         p_goal: goal,
         p_level: level,
-        p_gender: data.gender,
+        p_gender: dbGender,
         p_weight_kg: Number.isFinite(weight) && weight > 0 ? weight : null,
         p_responses: responses,
       });
@@ -399,7 +519,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const [profileRes, userProfileRes] = await Promise.all([
           supabase
             .from('profiles')
-            .update({ goal, phone: data.phone.trim() || null })
+            .update({ goal, phone: fullPhone || null })
             .eq('id', userId)
             .select()
             .single(),
@@ -408,12 +528,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         if (profileRes.error) throw profileRes.error;
         if (userProfileRes.error) throw userProfileRes.error;
 
-        if (data.gender && Number.isFinite(weight) && weight > 0) {
+        if (dbGender && Number.isFinite(weight) && weight > 0) {
           const { error: measureError } = await supabase.from('body_measurements').upsert(
             {
               user_id: userId,
               date: todayISO(),
-              gender: data.gender,
+              gender: dbGender,
               weight_kg: weight,
             },
             { onConflict: 'user_id,date' },
@@ -435,6 +555,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           if (intakeError) throw intakeError;
         }
 
+        await markOnboardingDone(userId);
         set({
           profile: profileRes.data,
           userProfile: userProfileRes.data,
@@ -445,6 +566,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return true;
       }
 
+      await markOnboardingDone(userId);
       const { profile: nextProfile, userProfile: nextUserProfile } = await loadProfiles(userId);
       set({
         profile: nextProfile,

@@ -27,7 +27,7 @@ function WaiverGateContent({ config, trainerId, onSigned }: Props): React.JSX.El
   return (
     <FlowBackdrop style={[styles.root, { paddingTop: insets.top }]}>
       <FlowGradientBanner
-        icon={<Ionicons name="document-text" size={20} color={colors.primary.onText} />}
+        icon={<Ionicons name="document-text" size={20} color={colors.primary.default} />}
         title={t.waiver.banner_title}
         body={t.waiver.banner_body}
       />

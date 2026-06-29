@@ -31,6 +31,7 @@ const AutoMessagesPage     = lazy(() => import('@/pages/AutoMessages').then((m) 
 const ConsultationFormPage = lazy(() => import('@/pages/ConsultationForm').then((m) => ({ default: m.ConsultationFormPage })));
 const WaiverSettingsPage   = lazy(() => import('@/pages/WaiverSettings').then((m) => ({ default: m.WaiverSettingsPage })));
 const AnnouncementsPage    = lazy(() => import('@/pages/Announcements').then((m) => ({ default: m.AnnouncementsPage })));
+const ChallengesPage       = lazy(() => import('@/pages/Challenges').then((m) => ({ default: m.ChallengesPage })));
 
 function Protected(): React.JSX.Element {
   const { session, canManage, loading, signOut, role } = useAuth();
@@ -80,7 +81,7 @@ function App(): React.JSX.Element {
             <Route path="/messages" element={<MessagesPage />} />
             <Route path="/groups" element={<GroupsPage />} />
             <Route path="/groups/:id" element={<GroupDetailPage />} />
-            <Route path="/challenges" element={<Navigate to="/groups" replace />} />
+            <Route path="/challenges" element={<ChallengesPage />} />
             <Route path="/students" element={<StudentsPage />} />
             <Route path="/students/:id" element={<StudentDetailPage />} />
             <Route path="/payments" element={<PaymentsPage />} />

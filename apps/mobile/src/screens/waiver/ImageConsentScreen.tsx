@@ -27,6 +27,7 @@ interface ImageConsentScreenProps {
   config: ImageConsentConfig;
   trainerId: string;
   onAccepted: () => void;
+  onSkip?: () => void;
   embedded?: boolean;
   bottomInset?: number;
 }
@@ -38,6 +39,7 @@ export function ImageConsentScreen({
   config,
   trainerId,
   onAccepted,
+  onSkip,
   embedded = false,
   bottomInset = 0,
 }: ImageConsentScreenProps): React.JSX.Element {
@@ -220,6 +222,19 @@ export function ImageConsentScreen({
             </AppText>
           )}
         </TouchableOpacity>
+
+        {onSkip ? (
+          <TouchableOpacity
+            style={styles.skipBtn}
+            onPress={onSkip}
+            disabled={saving}
+            activeOpacity={0.7}
+          >
+            <AppText variant="body14" color={colors.text.tertiary}>
+              Ahora no
+            </AppText>
+          </TouchableOpacity>
+        ) : null}
       </View>
     </KeyboardAvoidingView>
   );
@@ -292,5 +307,11 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  skipBtn: {
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
   },
 });
