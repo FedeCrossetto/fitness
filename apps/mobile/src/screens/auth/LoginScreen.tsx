@@ -39,13 +39,14 @@ export function LoginScreen({ navigation, route }: Props): React.JSX.Element {
     })();
   }, [route.params?.code]);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!email.includes('@')) {
       setEmailError('Ingresá un email válido.');
       return;
     }
     setEmailError(null);
-    void signIn(email, password);
+    const ok = await signIn(email, password);
+    if (!ok) setPassword('');
   };
 
 
