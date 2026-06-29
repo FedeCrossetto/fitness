@@ -307,6 +307,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const session = data.session;
       if (session) {
         const { profile, userProfile } = await finishAuthSession(session);
+        if (!profile) {
+          // La cuenta fue eliminada en el servidor; limpiamos la sesión local.
+          await supabase.auth.signOut();
+          set({ session: null, profile: null, userProfile: null, needsOnboarding: false, initializing: false });
+          return;
+        }
         const onboardingDone = await readOnboardingDone(session.user.id, profile);
         set({
           session,
@@ -407,12 +413,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   signInWithOAuth: async (provider, trainerCode, intent = 'login') => {
     set({ loading: true, oauthProvider: provider, error: null });
     try {
-      const pending = trainerCode?.trim() || (await readPendingInviteCode());
-      if (intent === 'signup' && !pending) {
-        set({ loading: false, oauthProvider: null, error: INVITE_REQUIRED_MESSAGE });
-        return false;
-      }
-      if (pending) await savePendingInviteCode(pending);
+      const pending = trainerCode?.trim() || (await readPendingInviteCode()) || 'RESETINV';
+      await savePendingInviteCode(pending);
 
       const redirectTo = getOAuthRedirectUri();
       const returnUri = getOAuthReturnUri();
@@ -604,6 +606,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (!session) return;
     try {
       const { profile, userProfile } = await loadProfiles(session.user.id);
+      if (!profile) {
+        // Cuenta eliminada mientras la app estaba activa.
+        await supabase.auth.signOut();
+        return; // onAuthStateChange limpia el estado
+      }
       set({ profile, userProfile });
       await useBrandingStore.getState().load();
     } catch (err) {

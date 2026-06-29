@@ -1,31 +1,21 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useParams } from 'react-router-dom';
 
 // Página intermedia a la que redirige MercadoPago tras el pago.
-// Como MP no acepta deep links (reset-fitness://) en back_urls, usamos esta
-// página https:// que inmediatamente reenvía a la app mobile vía deep link.
-// El cliente NO tiene acceso al panel web, así que esta pantalla es neutral
-// y nunca lo manda a rutas del entrenador.
+// MP no acepta deep links en back_urls, por lo que esta página HTTPS recibe el
+// resultado y le muestra al usuario cómo volver a la app.
+// La app detecta el retorno via useAppActive + polling → no necesita deep link.
 export function PaymentReturnPage(): React.JSX.Element {
   const { result } = useParams<{ result: string }>();
   const isError = result === 'error';
-  // La app mobile manda su deep link de retorno en ?return= (scheme correcto según
-  // Expo Go o build standalone). Si no viene, usamos el scheme nativo por defecto.
   const returnParam = new URLSearchParams(window.location.search).get('return');
   const deepLink = returnParam ?? `reset-fitness://pago/${result ?? 'exito'}`;
-  const [showManual, setShowManual] = useState(false);
+  const [tried, setTried] = useState(false);
 
   const goToApp = useCallback(() => {
+    setTried(true);
     window.location.href = deepLink;
   }, [deepLink]);
-
-  useEffect(() => {
-    // Intento inmediato de volver a la app.
-    goToApp();
-    // Si en 1.5s seguimos acá (el deep link no abrió la app), mostramos el botón.
-    const t = setTimeout(() => setShowManual(true), 1500);
-    return () => clearTimeout(t);
-  }, [goToApp]);
 
   return (
     <div style={styles.wrap}>
@@ -33,13 +23,16 @@ export function PaymentReturnPage(): React.JSX.Element {
       <h1 style={styles.title}>{isError ? 'No se completó el pago' : '¡Pago confirmado!'}</h1>
       <p style={styles.sub}>
         {isError
-          ? 'Podés volver a la app e intentarlo de nuevo.'
-          : 'Estamos volviendo a la app…'}
+          ? 'Podés cerrar esta ventana y volver a intentarlo desde la app.'
+          : 'Cerrá esta ventana o tocá el botón para volver a la app.'}
       </p>
-      {showManual && (
-        <button style={styles.btn} onClick={goToApp}>
-          Volver a la app
-        </button>
+      <button style={styles.btn} onClick={goToApp}>
+        Volver a la app
+      </button>
+      {tried && (
+        <p style={styles.hint}>
+          Si no se abrió la app, cerrá esta ventana manualmente.
+        </p>
       )}
     </div>
   );
@@ -73,4 +66,5 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 999,
     cursor: 'pointer',
   },
+  hint: { fontSize: 13, color: '#6b7280', margin: 0, maxWidth: 280, lineHeight: 1.5 },
 };
