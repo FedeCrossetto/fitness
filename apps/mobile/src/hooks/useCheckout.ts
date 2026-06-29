@@ -48,10 +48,13 @@ export function useCheckout(
     }
   }, []);
 
-  // Cuando la app vuelve al frente después del checkout, disparamos polling.
+  // Cuando la app vuelve al frente después del checkout, cerramos el browser
+  // de MP que pudo haber quedado abierto (si el pago fue vía app de MP) y
+  // disparamos polling para detectar la suscripción.
   useAppActive(() => {
     if (waitingReturnRef.current && userId) {
       waitingReturnRef.current = false;
+      void WebBrowser.dismissBrowser();
       void pollSubscription(userId);
     }
   });
