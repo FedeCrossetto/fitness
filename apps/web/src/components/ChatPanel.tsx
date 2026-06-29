@@ -24,10 +24,11 @@ function CheckMark({ read }: { read: boolean }): React.JSX.Element {
 
 function ChatAvatar({ name, url }: { name?: string | null; url?: string | null }): React.JSX.Element {
   const resolved = resolveAvatarUrl(url);
+  const [imgError, setImgError] = useState(false);
   return (
     <div className="chat-avatar" title={name ?? ''}>
-      {resolved
-        ? <img src={resolved} alt={name ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
+      {resolved && !imgError
+        ? <img src={resolved} alt={name ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} onError={() => setImgError(true)} />
         : initials(name)}
     </div>
   );

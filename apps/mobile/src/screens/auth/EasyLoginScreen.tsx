@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { spacing } from '../../theme';
 import { AppText } from '../../components/common';
+import { resolveAvatarUrl } from '../../lib/avatarUrl';
 import { useStoredProfile } from '../../hooks/useStoredProfile';
 import { useAuthStore } from '../../stores/authStore';
 import type { AuthStackParamList } from '../../types/navigation';
@@ -65,6 +66,7 @@ export function EasyLoginScreen({ navigation }: Props): React.JSX.Element {
   const [activeIndex, setActiveIndex] = useState(0);
   const [loggingIn, setLoggingIn]     = useState(false);
   const [loginError, setLoginError]   = useState<string | null>(null);
+  const [avatarFailed, setAvatarFailed] = useState(false);
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -113,6 +115,11 @@ export function EasyLoginScreen({ navigation }: Props): React.JSX.Element {
 
   const initials = (profile?.fullName ?? '')
     .split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+
+  const resolvedAvatar = resolveAvatarUrl(profile?.avatarUrl);
+  useEffect(() => {
+    setAvatarFailed(false);
+  }, [resolvedAvatar]);
 
   return (
     <View style={styles.flex}>
@@ -202,8 +209,13 @@ export function EasyLoginScreen({ navigation }: Props): React.JSX.Element {
           disabled={loggingIn}
         >
           <View style={styles.avatarShell}>
-            {profile?.avatarUrl ? (
-              <Image source={{ uri: profile.avatarUrl }} style={styles.avatar} contentFit="cover" />
+            {resolvedAvatar && !avatarFailed ? (
+              <Image
+                source={{ uri: resolvedAvatar }}
+                style={styles.avatar}
+                contentFit="cover"
+                onError={() => setAvatarFailed(true)}
+              />
             ) : (
               <View style={[styles.avatar, styles.avatarFallback]}>
                 <AppText variant="body14SemiBold" color={authColors.background}>{initials}</AppText>

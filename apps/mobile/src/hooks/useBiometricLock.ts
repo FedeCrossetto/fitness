@@ -13,7 +13,7 @@ try {
 }
 
 const PREF_KEY = 'reset-fitness:biometric-lock';
-const GRACE_MS = 30_000; // 30s en background antes de pedir auth de nuevo
+const GRACE_MS = 5 * 60_000; // 5 min en background antes de pedir auth de nuevo
 
 export interface BiometricLockState {
   enabled: boolean;

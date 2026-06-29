@@ -12,7 +12,8 @@
     "./nutrition/foodIconAssets": {
       "react-native": "./src/nutrition/foodIconAssets.native.ts",
       "default": "./src/nutrition/foodIconAssets.web.ts"
-    }
+    },
+    "./auth/mirrorOAuthAvatar": "./src/auth/mirrorOAuthAvatar.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

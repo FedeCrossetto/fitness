@@ -9,7 +9,10 @@ import { useParams } from 'react-router-dom';
 export function PaymentReturnPage(): React.JSX.Element {
   const { result } = useParams<{ result: string }>();
   const isError = result === 'error';
-  const deepLink = `reset-fitness://pago/${result ?? 'exito'}`;
+  // La app mobile manda su deep link de retorno en ?return= (scheme correcto según
+  // Expo Go o build standalone). Si no viene, usamos el scheme nativo por defecto.
+  const returnParam = new URLSearchParams(window.location.search).get('return');
+  const deepLink = returnParam ?? `reset-fitness://pago/${result ?? 'exito'}`;
   const [showManual, setShowManual] = useState(false);
 
   const goToApp = useCallback(() => {

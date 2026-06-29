@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import type { Session } from '@supabase/supabase-js';
 import type { ProfileRow } from '@reset-fitness/shared/types/database';
 import { supabase } from '@/lib/supabase';
+import { mirrorOAuthAvatar } from '@reset-fitness/shared/auth/mirrorOAuthAvatar';
 
 interface AuthState {
   session: Session | null;
@@ -29,23 +30,38 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
   useEffect(() => {
     let active = true;
 
-    const loadProfile = async (uid: string) => {
+    const loadProfile = async (uid: string, userMeta?: Record<string, unknown>) => {
       const { data } = await supabase.from('profiles').select('*').eq('id', uid).maybeSingle();
-      if (active) setProfile((data as ProfileRow | null) ?? null);
+      let profile = (data as ProfileRow | null) ?? null;
+      const mirroredUrl = await mirrorOAuthAvatar(supabase, uid, {
+        stored: profile?.avatar_url,
+        userMetadata: userMeta,
+      });
+      if (mirroredUrl && mirroredUrl !== profile?.avatar_url) {
+        profile = profile ? { ...profile, avatar_url: mirroredUrl } : profile;
+      }
+      if (active) setProfile(profile);
     };
 
     void (async () => {
       const { data } = await supabase.auth.getSession();
       if (!active) return;
       setSession(data.session);
-      if (data.session) await loadProfile(data.session.user.id);
+      if (data.session) {
+        const meta = data.session.user.user_metadata as Record<string, unknown> | undefined;
+        await loadProfile(data.session.user.id, meta);
+      }
       setBooting(false);
     })();
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
       setSession(next);
-      if (next) void loadProfile(next.user.id);
-      else setProfile(null);
+      if (next) {
+        const meta = next.user.user_metadata as Record<string, unknown> | undefined;
+        void loadProfile(next.user.id, meta);
+      } else {
+        setProfile(null);
+      }
     });
 
     return () => {

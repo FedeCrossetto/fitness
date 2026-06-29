@@ -8,6 +8,16 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
+/**
+ * back_url para MP. Si el cliente envía `return_url` (deep link de la app, p. ej.
+ * `exp://…/--/pago` en Expo Go o `reset-fitness://pago` en build standalone), lo
+ * adjunta como query param para que la página /pago/* redirija al lugar correcto.
+ */
+function buildBackUrl(appBaseUrl: string, result: string, returnUrl?: string): string {
+  const base = `${appBaseUrl}/pago/${result}`;
+  return returnUrl ? `${base}?return=${encodeURIComponent(returnUrl)}` : base;
+}
+
 Deno.serve(async (req) => {
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Método no permitido' }), { status: 405 });
@@ -35,7 +45,7 @@ Deno.serve(async (req) => {
   }
   const userId = userData.user.id;
 
-  const { plan_id } = (await req.json()) as { plan_id?: string };
+  const { plan_id, return_url } = (await req.json()) as { plan_id?: string; return_url?: string };
   if (!plan_id) {
     return new Response(JSON.stringify({ error: 'plan_id requerido' }), { status: 400 });
   }
@@ -162,9 +172,9 @@ Deno.serve(async (req) => {
     external_reference: subscription.id,
     metadata: { subscription_id: subscription.id, user_id: userId, plan_id },
     back_urls: {
-      success: `${appBaseUrl}/pago/exito`,
-      failure: `${appBaseUrl}/pago/error`,
-      pending: `${appBaseUrl}/pago/pendiente`,
+      success: buildBackUrl(appBaseUrl, 'exito', return_url),
+      failure: buildBackUrl(appBaseUrl, 'error', return_url),
+      pending: buildBackUrl(appBaseUrl, 'pendiente', return_url),
     },
     auto_return: 'approved',
     // El webhook necesita saber a qué entrenador (token) consultar el pago.

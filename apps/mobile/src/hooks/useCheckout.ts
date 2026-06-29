@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import * as WebBrowser from 'expo-web-browser';
+import * as AuthSession from 'expo-auth-session';
 import { createCheckout, fetchActiveSubscription, clearSubscriptionAccessCache, resolveSubscriptionAccess } from '../services/payments';
 import { useUiStore } from '../stores/uiStore';
 import { useAppActive } from './useAppActive';
@@ -60,9 +61,12 @@ export function useCheckout(
       if (!userId || checkingOut) return;
       setCheckingOut(true);
       try {
-        const { checkoutUrl } = await createCheckout(planId);
+        // Deep link de retorno con el scheme correcto según el entorno:
+        // Expo Go → exp://…/--/pago, build standalone → reset-fitness://pago.
+        const returnUrl = AuthSession.makeRedirectUri({ path: 'pago' });
+        const { checkoutUrl } = await createCheckout(planId, returnUrl);
         waitingReturnRef.current = true;
-        await WebBrowser.openAuthSessionAsync(checkoutUrl, 'reset-fitness://pago');
+        await WebBrowser.openAuthSessionAsync(checkoutUrl, returnUrl);
         // Si el browser se cierra por deep link (sin pasar por background) también polling.
         if (waitingReturnRef.current) {
           waitingReturnRef.current = false;

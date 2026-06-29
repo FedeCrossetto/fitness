@@ -158,11 +158,14 @@ export function isManualSubscription(subscription: SubscriptionRow | null | unde
 }
 
 /** Crea la preferencia de pago y devuelve la URL de checkout de Mercado Pago. */
-export async function createCheckout(planId: string): Promise<{ checkoutUrl: string; subscriptionId: string }> {
+export async function createCheckout(
+  planId: string,
+  returnUrl?: string,
+): Promise<{ checkoutUrl: string; subscriptionId: string }> {
   const { data, error } = await supabase.functions.invoke<{
     init_point: string;
     subscription_id: string;
-  }>('mp-create-preference', { body: { plan_id: planId } });
+  }>('mp-create-preference', { body: { plan_id: planId, return_url: returnUrl } });
   if (error || !data) {
     throw new Error('No pudimos iniciar el pago. Intentá de nuevo.');
   }

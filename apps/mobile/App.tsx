@@ -78,19 +78,19 @@ export default function App(): React.JSX.Element {
     return <AuthLoadingOverlay />;
   }
 
-  if (locked) {
-    return <BiometricLockScreen onAuthenticate={authenticate} />;
-  }
-
   return (
     <GestureHandlerRootView style={[styles.root, { backgroundColor: colors.background }]}>
       <SafeAreaProvider>
-        <NavigationContainer ref={navigationRef} theme={navigationTheme}>
-          <StatusBar style={isDark ? 'light' : 'dark'} />
-          <RootNavigator />
-          <ToastHost />
-          <NetworkBanner />
-        </NavigationContainer>
+        {locked ? (
+          <BiometricLockScreen onAuthenticate={authenticate} />
+        ) : (
+          <NavigationContainer ref={navigationRef} theme={navigationTheme}>
+            <StatusBar style={isDark ? 'light' : 'dark'} />
+            <RootNavigator />
+            <ToastHost />
+            <NetworkBanner />
+          </NavigationContainer>
+        )}
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

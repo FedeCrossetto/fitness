@@ -23,6 +23,7 @@ import {
 import { INVITE_REQUIRED_MESSAGE } from '../services/clientAccess';
 import { completeOAuthFromUrl, getOAuthRedirectUri, getOAuthReturnUri } from '../lib/oauthRedirect';
 import type { ProfileRow, UserProfileRow } from '../types/database';
+import { mirrorOAuthAvatar } from '@reset-fitness/shared/auth/mirrorOAuthAvatar';
 import { todayISO } from '../lib/dates';
 import type { OnboardingFormData } from '../screens/auth/onboardingTypes';
 
@@ -150,7 +151,17 @@ async function loadProfiles(userId: string): Promise<{ profile: ProfileRow | nul
 
 async function finishAuthSession(session: Session): Promise<{ profile: ProfileRow | null; userProfile: UserProfileRow | null }> {
   await applyPendingInviteLink();
-  return loadProfiles(session.user.id);
+  const result = await loadProfiles(session.user.id);
+
+  const mirroredUrl = await mirrorOAuthAvatar(supabase, session.user.id, {
+    stored: result.profile?.avatar_url,
+    userMetadata: session.user.user_metadata as Record<string, unknown> | undefined,
+  });
+  if (mirroredUrl && mirroredUrl !== result.profile?.avatar_url && result.profile) {
+    result.profile = { ...result.profile, avatar_url: mirroredUrl };
+  }
+
+  return result;
 }
 
 const ONBOARDING_DONE_PREFIX = 'onboarding_completed_';
