@@ -160,10 +160,10 @@ export function MealsDayScreen({ navigation }: Props): React.JSX.Element {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
+          <HeaderAvatar />
           <AppText variant="h1" color={colors.text.primary} style={styles.headerTitle}>
             {t.nutrition.title}
           </AppText>
-          <HeaderAvatar />
         </View>
 
         <WeekStrip
@@ -268,6 +268,7 @@ const createStyles = (colors: Colors) =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
+      gap: spacing.sm,
       marginBottom: spacing.lg,
     },
     headerTitle: { flex: 1 },

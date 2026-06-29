@@ -1,12 +1,16 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Path } from 'react-native-svg';
+import Animated, { useSharedValue, withTiming, useAnimatedProps, Easing } from 'react-native-reanimated';
 import { Colors, radius, spacing, useThemedStyles, useTheme } from '../../theme';
 import { useTranslation } from '../../stores/i18nStore';
 import { AppText } from '../common/AppText';
 import { formatMacroDisplay } from '@reset-fitness/shared';
 import { NUTRITION_MACRO_COLORS } from '../nutrition/nutritionTheme';
+import { CountUp } from '../common/CountUp';
+
+const AnimatedPath = Animated.createAnimatedComponent(Path);
 
 const CALORIES_ICON_COLOR = '#F97316';
 
@@ -36,12 +40,17 @@ const GAUGE_VIEW_WIDTH = 260 + GAUGE_PAD_H * 2;
 const GAUGE_VIEW_HEIGHT = GAUGE_PAD_TOP + GAUGE_RADIUS + GAUGE_STROKE / 2 + GAUGE_PAD_BOTTOM;
 const GAUGE_ASPECT = GAUGE_VIEW_WIDTH / GAUGE_VIEW_HEIGHT;
 
+const GAUGE_CX = GAUGE_VIEW_WIDTH / 2;
+const GAUGE_CY = GAUGE_PAD_TOP + GAUGE_RADIUS;
+
 function polar(cx: number, cy: number, r: number, angleDeg: number) {
+  'worklet';
   const rad = (angleDeg * Math.PI) / 180;
   return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
 }
 
 function upperSemiArcPath(cx: number, cy: number, r: number, progress = 1): string {
+  'worklet';
   const start = polar(cx, cy, r, 180);
   if (progress <= 0) return '';
   const endAngle = 180 + 180 * Math.min(progress, 1);
@@ -63,14 +72,22 @@ export function HomeMacroProgressCard({
   const kcalProgress = kcalGoal > 0 ? Math.min(totals.kcal / kcalGoal, 1) : 0;
   const percent = Math.round(kcalProgress * 100);
 
-  const gauge = useMemo(() => {
-    const cx = GAUGE_VIEW_WIDTH / 2;
-    const cy = GAUGE_PAD_TOP + GAUGE_RADIUS;
-    return {
-      trackPath: upperSemiArcPath(cx, cy, GAUGE_RADIUS, 1),
-      progressPath: upperSemiArcPath(cx, cy, GAUGE_RADIUS, kcalProgress),
-    };
+  const animProgress = useSharedValue(0);
+
+  useEffect(() => {
+    animProgress.value = withTiming(kcalProgress, {
+      duration: 900,
+      easing: Easing.out(Easing.cubic),
+    });
   }, [kcalProgress]);
+
+  const animPathProps = useAnimatedProps(() => ({
+    d: upperSemiArcPath(GAUGE_CX, GAUGE_CY, GAUGE_RADIUS, animProgress.value),
+  }));
+
+  const gauge = useMemo(() => ({
+    trackPath: upperSemiArcPath(GAUGE_CX, GAUGE_CY, GAUGE_RADIUS, 1),
+  }), []);
 
   const trackColor = isDark ? colors.surface.elevated : colors.border.default;
 
@@ -129,8 +146,8 @@ export function HomeMacroProgressCard({
             strokeLinecap="round"
           />
           {kcalProgress > 0 ? (
-            <Path
-              d={gauge.progressPath}
+            <AnimatedPath
+              animatedProps={animPathProps}
               stroke={colors.primary.default}
               strokeWidth={GAUGE_STROKE}
               fill="none"
@@ -139,9 +156,12 @@ export function HomeMacroProgressCard({
           ) : null}
         </Svg>
         <View style={styles.gaugeCenter} pointerEvents="none">
-          <AppText variant="body16SemiBold" color={colors.text.primary}>
-            {percent}%
-          </AppText>
+          <CountUp
+            value={percent}
+            suffix="%"
+            duration={900}
+            style={{ fontFamily: 'Inter_600SemiBold', fontSize: 16, lineHeight: 22, color: colors.text.primary }}
+          />
           <AppText variant="body12" color={colors.text.secondary}>
             {t.home.macro_progress_completed}
           </AppText>

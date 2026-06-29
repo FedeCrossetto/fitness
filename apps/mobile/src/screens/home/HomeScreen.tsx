@@ -5,7 +5,7 @@ import { Image } from 'expo-image';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
+import Animated, { useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withDelay, withSpring, interpolate, Extrapolation } from 'react-native-reanimated';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { layout, radius, spacing, Colors, useThemedStyles, useTheme, illustrations } from '../../theme';
@@ -23,6 +23,7 @@ import {
   WeekStrip,
 } from '../../components/common';
 import { HomeMacroProgressCard } from '../../components/home/HomeMacroProgressCard';
+import { HomeStreakCard } from '../../components/home/HomeStreakCard';
 import { HomeProgressMetricCard } from '../../components/home/HomeProgressMetricCard';
 import { NUTRITION_MACRO_COLORS } from '../../components/nutrition/nutritionTheme';
 import { SubscriptionBanner } from '../../components/home/SubscriptionBanner';
@@ -36,6 +37,7 @@ import { getCompletedWorkoutNames, getNextWorkoutDay, getProgramStats } from '..
 import { useTrainingStore } from '../../stores/trainingStore';
 import { useInboxStore } from '../../stores/inboxStore';
 import { getTrophyStats } from '../../services/trophies';
+import { computeStreak, type StreakInfo } from '../../services/streaks';
 import { signedUrl } from '../../services/storage';
 import { fetchTodaySteps } from '../../services/steps';
 import { useStepsAutoSync } from '../../hooks/useStepsAutoSync';
@@ -60,6 +62,28 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
   const onScroll = useAnimatedScrollHandler((event) => {
     scrollY.value = event.contentOffset.y;
   });
+
+  const badgePulse = useSharedValue(1);
+  useEffect(() => {
+    badgePulse.value = withRepeat(
+      withSequence(
+        withDelay(4000, withSpring(1.35, { damping: 5, stiffness: 300 })),
+        withSpring(1, { damping: 8, stiffness: 280 }),
+      ),
+      -1,
+    );
+  }, [badgePulse]);
+  const badgeAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: badgePulse.value }],
+  }));
+
+  const headerShrink = useAnimatedStyle(() => ({
+    opacity: interpolate(scrollY.value, [0, 90], [1, 0], Extrapolation.CLAMP),
+    transform: [
+      { scale: interpolate(scrollY.value, [0, 90], [1, 0.94], Extrapolation.CLAMP) },
+      { translateY: interpolate(scrollY.value, [0, 90], [0, -8], Extrapolation.CLAMP) },
+    ],
+  }));
 
   const session = useAuthStore((s) => s.session);
   const profile = useAuthStore((s) => s.profile);
@@ -95,6 +119,7 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
   const loadRecentLogs = useTrainingStore((s) => s.loadRecentLogs);
 
   const [trophyTotal, setTrophyTotal] = useState(0);
+  const [streak, setStreak] = useState<StreakInfo>({ current: 0, lastWeek: [false, false, false, false, false, false, false] });
   const [refreshing, setRefreshing] = useState(false);
 
   const activeDate = useUiStore((s) => s.activeDate);
@@ -123,8 +148,12 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
       loadMeasurements(userId),
       loadPhotos(userId),
     ]);
-    const trophyStats = await getTrophyStats(userId);
+    const [trophyStats, streakInfo] = await Promise.all([
+      getTrophyStats(userId),
+      computeStreak(userId),
+    ]);
     setTrophyTotal(trophyStats.total);
+    setStreak(streakInfo);
     // Solo refrescar pasos si el usuario ya conectó explícitamente
     if (useProgressStore.getState().healthConnected) {
       const todaySteps = await fetchTodaySteps(true);
@@ -285,7 +314,7 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
       >
         {/* Encabezado con saludo + avatar */}
         <FadeInView delay={0}>
-        <View style={styles.header}>
+        <Animated.View style={[styles.header, headerShrink]}>
           {/* Izquierda: avatar + saludo */}
           <Pressable
             onPress={() => navigation.navigate('Profile')}
@@ -313,13 +342,13 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
             hitSlop={8}
           >
             <Image source={illustrations.trophy} style={styles.headerTrophyIcon} contentFit="contain" />
-            <View style={styles.headerBadge}>
+            <Animated.View style={[styles.headerBadge, badgeAnimStyle]}>
               <AppText variant="caps11" color={colors.primary.onText}>
                 {trophyTotal > 9 ? '9+' : trophyTotal}
               </AppText>
-            </View>
+            </Animated.View>
           </Pressable>
-        </View>
+        </Animated.View>
         </FadeInView>
 
         {/* Strip de días */}
@@ -327,6 +356,18 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
         <WeekStrip />
 
         </FadeInView>
+
+        {isToday ? (
+          <FadeInView delay={120}>
+            <View style={styles.streakBlock}>
+              <HomeStreakCard
+                current={streak.current}
+                lastWeek={streak.lastWeek}
+                onPress={() => navigation.navigate('Achievements')}
+              />
+            </View>
+          </FadeInView>
+        ) : null}
 
         <FadeInView delay={160}>
         <ActiveSessionBanner />
@@ -716,6 +757,9 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1.5,
     borderColor: colors.background,
+  },
+  streakBlock: {
+    marginBottom: spacing.md,
   },
   dayCard: {
     marginBottom: spacing.md,

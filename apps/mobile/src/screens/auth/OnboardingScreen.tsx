@@ -178,6 +178,78 @@ function PhoneField({ code, phone, onChangeCode, onChangePhone, error }: PhoneFi
   );
 }
 
+// ── Country selector (reusa COUNTRY_CODES y el patrón del modal de teléfono) ──
+
+interface CountryFieldProps {
+  value: string;
+  onChange: (country: string) => void;
+  error?: string;
+}
+
+function CountryField({ value, onChange, error }: CountryFieldProps): React.JSX.Element {
+  const [open, setOpen] = useState(false);
+  const selected = COUNTRY_CODES.find((c) => c.name === value) ?? null;
+
+  return (
+    <View style={styles.field}>
+      <AppText variant="caps12" color={authColors.textTertiary} style={styles.inputLabel}>
+        PAÍS
+      </AppText>
+      <Pressable
+        onPress={() => setOpen(true)}
+        style={({ pressed }) => [
+          styles.codeBtn,
+          styles.countryBtn,
+          error ? styles.codeBtnError : null,
+          pressed && styles.pressed,
+        ]}
+        accessibilityRole="button"
+        accessibilityLabel="Elegir país"
+      >
+        <View style={styles.countryBtnLabel}>
+          <Ionicons name="earth-outline" size={18} color={authColors.textTertiary} />
+          <AppText
+            variant="body16"
+            color={selected ? authColors.textPrimary : authColors.textTertiary}
+          >
+            {selected ? `${selected.flag}  ${selected.name}` : 'Seleccioná tu país'}
+          </AppText>
+        </View>
+        <Ionicons name="chevron-down" size={14} color={authColors.textTertiary} />
+      </Pressable>
+      <FieldError message={error} />
+
+      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setOpen(false)}>
+          <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
+            <AppText variant="caps12" color={authColors.textTertiary} style={styles.modalTitle}>
+              ELEGÍ TU PAÍS
+            </AppText>
+            <FlatList
+              data={COUNTRY_CODES}
+              keyExtractor={(item) => item.code + item.name}
+              keyboardShouldPersistTaps="handled"
+              style={styles.modalList}
+              renderItem={({ item }) => {
+                const active = item.name === value;
+                return (
+                  <Pressable
+                    onPress={() => { onChange(item.name); setOpen(false); }}
+                    style={({ pressed }) => [styles.codeOption, active && styles.codeOptionActive, pressed && styles.pressed]}
+                  >
+                    <AppText variant="body16" color={authColors.textPrimary}>{item.flag}  {item.name}</AppText>
+                    {active ? <Ionicons name="checkmark" size={18} color={LIMA} /> : null}
+                  </Pressable>
+                );
+              }}
+            />
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </View>
+  );
+}
+
 // ── Steps ────────────────────────────────────────────────────────────────────
 
 interface StepProps {
@@ -189,15 +261,10 @@ interface StepProps {
 function ProfileStep({ form, setForm, fieldErrors }: StepProps): React.JSX.Element {
   return (
     <>
-      <AuthInput
-        label="PAÍS"
-        icon="earth-outline"
-        placeholder="Ej: Argentina"
-        autoCapitalize="words"
+      <CountryField
         value={form.country}
-        onChangeText={(country) => setForm((p) => ({ ...p, country }))}
+        onChange={(country) => setForm((p) => ({ ...p, country }))}
         error={fieldErrors.country}
-        containerStyle={styles.field}
       />
       <AuthInput
         label="CIUDAD"
@@ -658,6 +725,8 @@ const styles = StyleSheet.create({
   },
   codeBtnError: { borderColor: authColors.errorText },
   phoneInput: { flex: 1 },
+  countryBtn: { justifyContent: 'space-between' },
+  countryBtnLabel: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flex: 1 },
 
   // Body step
   bodyRow:   { flexDirection: 'row', gap: spacing.md },

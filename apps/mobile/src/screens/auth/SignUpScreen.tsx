@@ -12,7 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { InvitePreview } from '@reset-fitness/shared';
-import { radius, spacing } from '../../theme';
+import { spacing } from '../../theme';
 import { AppText, IconButton } from '../../components/common';
 import { useAuthStore } from '../../stores/authStore';
 import { fetchInvitePreview, readPendingInviteCode } from '../../services/invite';

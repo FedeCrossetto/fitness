@@ -1,3 +1,4 @@
+import React from 'react';
 import type { TrophyRankPeriod } from '@reset-fitness/shared';
 import { UserAvatar } from '@/components/UserAvatar';
 
@@ -8,6 +9,8 @@ export interface StudentListEntry {
   total: number;
   currentStreak: number;
   rank: number;
+  /** Info uniforme bajo el nombre (ej: objetivo del alumno). */
+  subtitle?: string | null;
 }
 
 interface PeriodOption {
@@ -23,8 +26,8 @@ interface StudentListCardProps {
   period: TrophyRankPeriod;
   periodOptions: PeriodOption[];
   onPeriodChange: (period: TrophyRankPeriod) => void;
-  formatCount: (n: number) => string;
-  formatStreak: (n: number) => string;
+  formatCount?: (n: number) => string;
+  formatStreak?: (n: number) => string;
   onStudentClick: (userId: string) => void;
   onSeeAll?: () => void;
 }
@@ -50,8 +53,6 @@ export function StudentListCard({
   period,
   periodOptions,
   onPeriodChange,
-  formatCount,
-  formatStreak,
   onStudentClick,
   onSeeAll,
 }: StudentListCardProps): React.JSX.Element {
@@ -83,46 +84,38 @@ export function StudentListCard({
 
       {/* Body */}
       {loading ? (
-        <>
+        <div className="stl-list">
           <SkeletonRow />
           <SkeletonRow />
           <SkeletonRow />
           <SkeletonRow />
-        </>
+        </div>
       ) : entries.length === 0 ? (
         <p className="muted stl-empty">{emptyMessage}</p>
       ) : (
-        entries.slice(0, 8).map((entry) => (
-          <button
-            key={entry.userId}
-            type="button"
-            className="stl-row"
-            onClick={() => onStudentClick(entry.userId)}
-          >
-            <span className="stl-rank">#{entry.rank}</span>
-            <UserAvatar name={entry.name} url={entry.avatarUrl} size="md" />
-            <div className="stl-info">
-              <span className="stl-name">{entry.name}</span>
-              {entry.currentStreak >= 2 ? (
-                <span className="stl-streak">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-                    <path d="M12 23c-3.9-1.5-6.5-4.4-7.8-8.6C2.4 10.2 4.2 5.6 8.2 4c1.1 3.1 3.3 5.2 6.3 6.3-1.5-4.2.3-8.8 4.5-10.5 4.5 2.8 5.8 8.2 3.1 12.5C20.2 15.8 16.8 20.2 12 23z" />
-                  </svg>
-                  {formatStreak(entry.currentStreak)}
+        <div className="stl-list">
+          {entries.slice(0, 8).map((entry) => (
+            <button
+              key={entry.userId}
+              type="button"
+              className="stl-row"
+              onClick={() => onStudentClick(entry.userId)}
+            >
+              <UserAvatar name={entry.name} url={entry.avatarUrl} size="md" />
+              <div className="stl-info">
+                <span className="stl-name">{entry.name}</span>
+                <span className="stl-sub">{entry.subtitle || '—'}</span>
+              </div>
+              <div className="stl-meta">
+                <span className="stl-count">
+                  <img src="/trophy.png" alt="" className="stl-count-icon" />
+                  {entry.total}
                 </span>
-              ) : (
-                <span className="stl-sub">—</span>
-              )}
-            </div>
-            <div className="stl-meta">
-              <span className="stl-count">
-                <img src="/trophy.png" alt="" className="stl-count-icon" />
-                {formatCount(entry.total)}
-              </span>
-              <span className="stl-label">trofeos</span>
-            </div>
-          </button>
-        ))
+                <span className="stl-label">{entry.total === 1 ? 'trofeo' : 'trofeos'}</span>
+              </div>
+            </button>
+          ))}
+        </div>
       )}
     </div>
   );

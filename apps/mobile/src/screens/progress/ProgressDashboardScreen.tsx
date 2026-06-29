@@ -226,6 +226,7 @@ export function ProgressDashboardScreen({ navigation }: Props): React.JSX.Elemen
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.header}>
+        <HeaderAvatar />
         <View style={styles.headerText}>
           <AppText variant="caps12" color={colors.text.tertiary}>
             {t.progress.evolution}
@@ -234,7 +235,6 @@ export function ProgressDashboardScreen({ navigation }: Props): React.JSX.Elemen
             {t.progress.title}
           </AppText>
         </View>
-        <HeaderAvatar />
       </View>
 
       {isLoading ? (
@@ -446,6 +446,7 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: spacing.sm,
     marginBottom: spacing.lg,
   },
   headerText: { flex: 1 },

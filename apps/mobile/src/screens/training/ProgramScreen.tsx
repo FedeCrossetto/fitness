@@ -436,10 +436,10 @@ export function ProgramScreen({ navigation }: Props): React.JSX.Element {
       }
     >
       <View style={styles.header}>
+        <HeaderAvatar />
         <AppText variant="h1" color={colors.text.primary} style={styles.headerTitle}>
           {t.training.title}
         </AppText>
-        <HeaderAvatar />
       </View>
 
       <ActiveSessionBanner />
@@ -455,7 +455,7 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: spacing.md,
+    gap: spacing.sm,
     marginBottom: spacing.sm,
   },
   headerTitle: { flex: 1 },

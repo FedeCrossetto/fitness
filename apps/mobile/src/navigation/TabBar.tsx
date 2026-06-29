@@ -1,6 +1,11 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import Animated from 'react-native-reanimated';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withSequence,
+} from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -36,9 +41,26 @@ interface TabItemProps {
   onPress: () => void;
 }
 
+const SPRING = { damping: 12, stiffness: 300, mass: 0.6 };
+
 function TabItem({ routeName, routeKey, isFocused, activeColor, inactiveColor, onPress }: TabItemProps): React.JSX.Element {
   const meta = TAB_META[routeName];
   const styles = useThemedStyles(createStyles);
+  const scale = useSharedValue(1);
+
+  useEffect(() => {
+    if (isFocused) {
+      scale.value = withSequence(
+        withSpring(0.75, SPRING),
+        withSpring(1.15, SPRING),
+        withSpring(1, SPRING),
+      );
+    }
+  }, [isFocused, scale]);
+
+  const iconAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
 
   return (
     <Pressable
@@ -49,11 +71,13 @@ function TabItem({ routeName, routeKey, isFocused, activeColor, inactiveColor, o
       onPress={onPress}
       style={styles.tab}
     >
-      <Ionicons
-        name={isFocused ? meta?.iconActive ?? 'ellipse' : meta?.icon ?? 'ellipse-outline'}
-        size={22}
-        color={isFocused ? activeColor : inactiveColor}
-      />
+      <Animated.View style={iconAnimStyle}>
+        <Ionicons
+          name={isFocused ? meta?.iconActive ?? 'ellipse' : meta?.icon ?? 'ellipse-outline'}
+          size={22}
+          color={isFocused ? activeColor : inactiveColor}
+        />
+      </Animated.View>
       <AppText variant="body12Medium" color={isFocused ? activeColor : inactiveColor}>
         {meta?.label ?? routeName}
       </AppText>

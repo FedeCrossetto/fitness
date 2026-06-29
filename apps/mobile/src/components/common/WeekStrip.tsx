@@ -1,5 +1,11 @@
 import React, { useCallback, useEffect, useRef } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withSequence,
+} from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, radius, spacing, useTheme, useThemedStyles } from '../../theme';
 import { AppText } from './AppText';
@@ -11,6 +17,87 @@ const DAYS_BEFORE = 30;
 const DAYS_AFTER = 14;
 const DAY_CELL_WIDTH = 52;
 const DAY_CELL_GAP = 6;
+
+const SPRING = { damping: 14, stiffness: 320, mass: 0.6 };
+
+interface DayCellProps {
+  iso: string;
+  isActive: boolean;
+  isCurrentDay: boolean;
+  isPast: boolean;
+  onSelect: (iso: string) => void;
+}
+
+function DayCell({ iso, isActive, isCurrentDay, isPast, onSelect }: DayCellProps): React.JSX.Element {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+  const scale = useSharedValue(1);
+
+  useEffect(() => {
+    if (isActive) {
+      scale.value = withSequence(
+        withSpring(0.88, SPRING),
+        withSpring(1.08, SPRING),
+        withSpring(1, SPRING),
+      );
+    }
+  }, [isActive, scale]);
+
+  const cellAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const { dayNum: num, dayAbbr } = getDayInfo(iso);
+
+  return (
+    <Pressable
+      onPress={() => onSelect(iso)}
+      accessibilityLabel={`Seleccionar ${iso}`}
+      accessibilityState={{ selected: isActive }}
+    >
+      <Animated.View
+        style={[
+          styles.dayCell,
+          isActive && styles.dayCellActive,
+          cellAnimStyle,
+        ]}
+      >
+        <AppText
+          variant="body16SemiBold"
+          color={
+            isActive
+              ? colors.primary.onText
+              : isPast
+              ? colors.text.tertiary
+              : colors.text.primary
+          }
+          style={styles.dayNum}
+        >
+          {num}
+        </AppText>
+        <AppText
+          variant="caps11"
+          color={
+            isActive
+              ? colors.primary.onText
+              : colors.text.tertiary
+          }
+          style={styles.dayAbbr}
+        >
+          {dayAbbr}
+        </AppText>
+        {isCurrentDay && (
+          <View
+            style={[
+              styles.todayDot,
+              { backgroundColor: isActive ? colors.primary.onText : colors.primary.default },
+            ]}
+          />
+        )}
+      </Animated.View>
+    </Pressable>
+  );
+}
 
 export type WeekStripHeaderAction = {
   icon: keyof typeof Ionicons.glyphMap;
@@ -128,60 +215,16 @@ export function WeekStrip({ onDateChange, headerAction }: WeekStripProps): React
         snapToInterval={DAY_CELL_WIDTH + DAY_CELL_GAP}
         snapToAlignment="start"
       >
-        {dates.map((iso) => {
-          const { dayNum: num, dayAbbr } = getDayInfo(iso);
-          const isActive = iso === activeDate;
-          const isCurrentDay = iso === today;
-          const isPast = iso < today;
-
-          return (
-            <Pressable
-              key={iso}
-              onPress={() => handleSelect(iso)}
-              style={({ pressed }) => [
-                styles.dayCell,
-                isActive && styles.dayCellActive,
-                pressed && !isActive && styles.dayCellPressed,
-              ]}
-              accessibilityLabel={`Seleccionar ${iso}`}
-              accessibilityState={{ selected: isActive }}
-            >
-              <AppText
-                variant="body16SemiBold"
-                color={
-                  isActive
-                    ? colors.primary.onText
-                    : isPast
-                    ? colors.text.tertiary
-                    : colors.text.primary
-                }
-                style={styles.dayNum}
-              >
-                {num}
-              </AppText>
-              <AppText
-                variant="caps11"
-                color={
-                  isActive
-                    ? colors.primary.onText
-                    : colors.text.tertiary
-                }
-                style={styles.dayAbbr}
-              >
-                {dayAbbr}
-              </AppText>
-              {/* Today dot indicator */}
-              {isCurrentDay && (
-                <View
-                  style={[
-                    styles.todayDot,
-                    { backgroundColor: isActive ? colors.primary.onText : colors.primary.default },
-                  ]}
-                />
-              )}
-            </Pressable>
-          );
-        })}
+        {dates.map((iso) => (
+          <DayCell
+            key={iso}
+            iso={iso}
+            isActive={iso === activeDate}
+            isCurrentDay={iso === today}
+            isPast={iso < today}
+            onSelect={handleSelect}
+          />
+        ))}
       </ScrollView>
     </View>
   );

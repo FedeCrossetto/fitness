@@ -1,6 +1,13 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
+import Animated, {
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+  useAnimatedStyle,
+} from 'react-native-reanimated';
 import { spacing, emptyStateIllustration, Pillar, useTheme } from '../../theme';
 import { AppText } from './AppText';
 import { Button } from './Button';
@@ -39,15 +46,30 @@ export function EmptyState({
   const resolvedTitleColor = titleColor ?? colors.text.primary;
   const resolvedMessageColor = messageColor ?? colors.text.secondary;
 
+  const breathe = useSharedValue(1);
+  useEffect(() => {
+    breathe.value = withRepeat(
+      withSequence(
+        withTiming(1.06, { duration: 1900 }),
+        withTiming(1, { duration: 1900 }),
+      ),
+      -1,
+      true,
+    );
+  }, [breathe]);
+  const breatheStyle = useAnimatedStyle(() => ({ transform: [{ scale: breathe.value }] }));
+
   return (
     <View style={[styles.container, compact && styles.compact, subdued && styles.subdued]}>
       {!hideIllustration ? (
-        <Image
-          source={emptyStateIllustration[pillar]}
-          style={compact ? styles.mascotCompact : styles.mascot}
-          contentFit="contain"
-          transition={200}
-        />
+        <Animated.View style={breatheStyle}>
+          <Image
+            source={emptyStateIllustration[pillar]}
+            style={compact ? styles.mascotCompact : styles.mascot}
+            contentFit="contain"
+            transition={200}
+          />
+        </Animated.View>
       ) : null}
       <AppText
         variant={subdued ? 'body14Medium' : 'h3'}

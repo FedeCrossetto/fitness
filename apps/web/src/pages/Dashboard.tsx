@@ -9,7 +9,7 @@ import { TrophyIcon, UsersIcon, CheckIcon, DumbbellIcon } from '@/components/ico
 import { AreaChart } from '@/components/charts';
 import { ErrorState, Lightbox, useCountUp } from '@/components/ui';
 import { UserAvatar } from '@/components/UserAvatar';
-import { TrophyRankCard } from '@/components/TrophyRankCard';
+import { StudentListCard } from '@/components/StudentListCard';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -321,7 +321,7 @@ export function DashboardPage(): React.JSX.Element {
   const [workouts, setWorkouts]         = useState<Pick<WorkoutLogRow, 'date' | 'completed'>[]>([]);
   const [range, setRange]               = useState<30 | 90>(30);
   const [trophyRaw, setTrophyRaw]           = useState<{ user_id: string; date: string }[]>([]);
-  const [trophyClients, setTrophyClients]   = useState<{ id: string; full_name: string | null; avatar_url: string | null }[]>([]);
+  const [trophyClients, setTrophyClients]   = useState<{ id: string; full_name: string | null; avatar_url: string | null; goal: string | null }[]>([]);
   const [trophyPeriod, setTrophyPeriod]     = useState<TrophyRankPeriod>('30d');
   const [loadingRank, setLoadingRank]       = useState(true);
 
@@ -354,17 +354,19 @@ export function DashboardPage(): React.JSX.Element {
     [t, language],
   );
 
-  const trophyRank = useMemo(
-    () =>
-      buildTrophyLeaderboard(
-        trophyClients,
-        trophyRaw,
-        trophyPeriod,
-        t.dashboard.activity_student_default,
-        language === 'es' ? 'es-AR' : 'en-US',
-      ),
-    [trophyClients, trophyRaw, trophyPeriod, t.dashboard.activity_student_default, language],
-  );
+  const trophyRank = useMemo(() => {
+    const goalByUser = new Map(trophyClients.map((c) => [c.id, c.goal]));
+    return buildTrophyLeaderboard(
+      trophyClients,
+      trophyRaw,
+      trophyPeriod,
+      t.dashboard.activity_student_default,
+      language === 'es' ? 'es-AR' : 'en-US',
+    ).map((entry) => ({
+      ...entry,
+      subtitle: goalByUser.get(entry.userId) ?? t.profile.no_goal,
+    }));
+  }, [trophyClients, trophyRaw, trophyPeriod, t.dashboard.activity_student_default, t.profile.no_goal, language]);
 
   useEffect(() => {
     if (!userId) return;
@@ -404,7 +406,7 @@ export function DashboardPage(): React.JSX.Element {
 
       const { data: allActive } = await supabase
         .from('profiles')
-        .select('id, full_name, avatar_url')
+        .select('id, full_name, avatar_url, goal')
         .eq('trainer_id', userId)
         .eq('client_status', 'active');
 
@@ -600,61 +602,27 @@ export function DashboardPage(): React.JSX.Element {
           />
         </div>
 
-        {/* Chart + students row */}
-        <div className="dash-chart-row">
-          {/* Chart */}
-          <div className="card dash-chart-card">
-            <div className="dash-chart-header">
-              <div>
-                <div className="dash-chart-title">{t.dashboard.chart_title}</div>
-                <div className="dash-chart-sub">{t.dashboard.chart_sub}</div>
-              </div>
-              <div className="segmented">
-                <button className={range === 30 ? 'active' : ''} onClick={() => setRange(30)}>30d</button>
-                <button className={range === 90 ? 'active' : ''} onClick={() => setRange(90)}>90d</button>
-              </div>
+        {/* Chart (full width) */}
+        <div className="card dash-chart-card">
+          <div className="dash-chart-header">
+            <div>
+              <div className="dash-chart-title">{t.dashboard.chart_title}</div>
+              <div className="dash-chart-sub">{t.dashboard.chart_sub}</div>
             </div>
-            <div className="dash-chart-body">
-              <AreaChart values={series} height={148} color="#31F37B" />
+            <div className="segmented">
+              <button className={range === 30 ? 'active' : ''} onClick={() => setRange(30)}>30d</button>
+              <button className={range === 90 ? 'active' : ''} onClick={() => setRange(90)}>90d</button>
             </div>
           </div>
-
-          {/* Students list */}
-          <div className="card dash-students-card">
-            <div className="dash-students-header">
-              <span className="dash-students-title">{t.dashboard.recent_students}</span>
-              <span className="section-link" onClick={() => navigate('/students')}>{t.dashboard.see_all}</span>
-            </div>
-            {students.length === 0 ? (
-              <p className="muted dash-students-empty">
-                {t.dashboard.no_students}
-              </p>
-            ) : (
-              <div className="students-list">
-                {students.slice(0, 6).map((s) => (
-                  <div key={s.id} className="student-row" onClick={() => navigate(`/students/${s.id}`)}>
-                    <UserAvatar name={s.full_name} url={s.avatar_url} size="sm" />
-                    <div className="student-info">
-                      <span className="student-name">{s.full_name ?? t.dashboard.activity_student_default}</span>
-                      <span className="student-goal">{s.goal ?? t.profile.no_goal}</span>
-                    </div>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                      style={{ color: 'var(--text-tertiary)', flexShrink: 0 }}>
-                      <polyline points="9 18 15 12 9 6" />
-                    </svg>
-                  </div>
-                ))}
-              </div>
-            )}
+          <div className="dash-chart-body">
+            <AreaChart values={series} height={148} color="#31F37B" />
           </div>
         </div>
 
-        <TrophyRankCard
+        <StudentListCard
           entries={trophyRank}
           loading={loadingRank}
           title={t.dashboard.trophy_rank_title}
-          subtitle={t.dashboard.trophy_rank_sub}
           emptyMessage={t.dashboard.trophy_rank_empty}
           period={trophyPeriod}
           periodOptions={trophyPeriodOptions}
