@@ -1,3 +1,4 @@
+import { AppState } from 'react-native';
 import { create } from 'zustand';
 import * as WebBrowser from 'expo-web-browser';
 import type { Session } from '@supabase/supabase-js';
@@ -241,6 +242,12 @@ let authListenerRegistered = false;
 function ensureAuthListener(): void {
   if (authListenerRegistered) return;
   authListenerRegistered = true;
+
+  AppState.addEventListener('change', (nextState) => {
+    if (nextState !== 'active') return;
+    const { session } = useAuthStore.getState();
+    if (session) void useAuthStore.getState().refreshProfile();
+  });
 
   supabase.auth.onAuthStateChange((event, session) => {
     if (!session) {
