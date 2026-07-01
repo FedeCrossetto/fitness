@@ -11,11 +11,11 @@ export const palette = {
   scale200: '#B5B5B5',
   scale300: '#808084',
   scale400: '#5C5C5C',
-  scale500: '#D4FD7F',
-  scale600: '#BEFC50',
-  scale700: '#90BD3B',
-  scale800: '#7DA433',
-  scale900: '#3A4E15',
+  scale500: '#E1FF5C',
+  scale600: '#C1ED00',
+  scale700: '#90AE09',
+  scale800: '#72890B',
+  scale900: '#363F0D',
   scale1000: '#0C0C0C',
 } as const;
 
@@ -34,12 +34,12 @@ export const paletteLight = {
 } as const;
 
 export const darkColors = {
-  background: '#0C161F',
+  background: '#07090A',
 
   surface: {
-    base: '#242A34',
-    elevated: '#2C3240',
-    overlay: 'rgba(12,13,16,0.88)',
+    base: '#131618',
+    elevated: '#1D2225',
+    overlay: 'rgba(7,9,10,0.88)',
   },
 
   primary: {
@@ -48,7 +48,7 @@ export const darkColors = {
     dark: palette.scale700,
     deep: palette.scale800,
     darkest: palette.scale900,
-    muted: 'rgba(190,252,80,0.15)',
+    muted: 'rgba(193,237,0,0.15)',
     onText: palette.scale1000,
   },
 
@@ -74,16 +74,16 @@ export const darkColors = {
   states: {
     success: palette.scale600,
     warning: '#FBBF24',
-    error: '#EF4444',
+    error: '#FE734A',
     info: palette.scale300,
   },
 
   water: '#4FB0F7',
 
   gradients: {
-    kinetic: ['#D4FD7F', '#BEFC50'] as readonly [string, string],
-    deep: ['#BEFC50', '#3A4E15'] as readonly [string, string],
-    darkFade: ['rgba(12,22,31,0)', '#0C161F'] as readonly [string, string],
+    kinetic: ['#E1FF5C', '#C1ED00'] as readonly [string, string],
+    deep: ['#C1ED00', '#363F0D'] as readonly [string, string],
+    darkFade: ['rgba(7,9,10,0)', '#07090A'] as readonly [string, string],
   },
 
   pillars: {

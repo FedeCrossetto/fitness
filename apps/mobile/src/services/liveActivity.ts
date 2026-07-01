@@ -5,6 +5,7 @@ import {
   updateLiveActivity,
   stopLiveActivity,
 } from '../../modules/activity-controller';
+import { palette } from '../theme/colors';
 
 /**
  * Presencia del entrenamiento en curso fuera de la app (pantalla bloqueada /
@@ -50,7 +51,7 @@ export function buildLiveWorkoutState(session: ActiveSession): LiveWorkoutState 
 
 const WORKOUT_NOTIFICATION_ID = 'reset-fitness:live-workout';
 const WORKOUT_CHANNEL_ID = 'workout';
-const BRAND_COLOR = '#BEFC50';
+const BRAND_COLOR = palette.scale600;
 
 let channelReady = false;
 let active = false;

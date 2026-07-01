@@ -48,6 +48,8 @@ interface AuthInputProps extends Omit<TextInputProps, 'style'> {
   label?: string;
   error?: string | null;
   icon?: keyof typeof Ionicons.glyphMap;
+  /** Reemplaza el ícono por un elemento custom (ej. la bandera del país elegido). */
+  leftElement?: React.ReactNode;
   containerStyle?: StyleProp<ViewStyle>;
 }
 
@@ -55,6 +57,7 @@ export function AuthInput({
   label,
   error,
   icon,
+  leftElement,
   secureTextEntry,
   containerStyle,
   ...rest
@@ -77,7 +80,7 @@ export function AuthInput({
           error ? styles.fieldError : null,
         ]}
       >
-        {icon ? <Ionicons name={icon} size={18} color={authColors.textTertiary} /> : null}
+        {leftElement ?? (icon ? <Ionicons name={icon} size={18} color={authColors.textTertiary} /> : null)}
         <TextInput
           placeholderTextColor={authColors.textDisabled}
           selectionColor={authColors.textPrimary}

@@ -1,17 +1,24 @@
-/** Paleta oscura R3SET — consistente con el Marketing Slider. */
+import { darkColors } from '../../theme/colors';
+
+/**
+ * Paleta de las pantallas de auth — deriva del tema central (theme/colors.ts)
+ * para que login/onboarding y el resto de la app no puedan volver a desalinearse.
+ * Los valores de texto acá usan rgba (opacidad sobre negro) en vez de los grises
+ * sólidos del tema central; visualmente equivalen sobre el mismo fondo casi negro.
+ */
 export const authColors = {
-  background:        '#07090A',
-  surface:           '#131618',
-  textPrimary:       '#FFFFFF',
+  background:        darkColors.background,
+  surface:           darkColors.surface.base,
+  textPrimary:       darkColors.text.primary,
   textSecondary:     'rgba(255,255,255,0.55)',
   textTertiary:      'rgba(255,255,255,0.38)',
   textDisabled:      'rgba(255,255,255,0.22)',
-  border:            'rgba(255,255,255,0.10)',
-  borderFocus:       '#C1ED00',
-  buttonPrimary:     '#C1ED00',
-  buttonPrimaryText: '#07090A',
-  buttonBrand:       '#C1ED00',
-  buttonBrandText:   '#07090A',
+  border:            darkColors.border.default,
+  borderFocus:       darkColors.primary.default,
+  buttonPrimary:     darkColors.primary.default,
+  buttonPrimaryText: darkColors.background,
+  buttonBrand:       darkColors.primary.default,
+  buttonBrandText:   darkColors.background,
   errorBg:           'rgba(254,115,74,0.15)',
-  errorText:         '#FE734A',
+  errorText:         darkColors.states.error,
 } as const;
