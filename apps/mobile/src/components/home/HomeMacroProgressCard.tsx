@@ -91,14 +91,14 @@ export function HomeMacroProgressCard({
 
   const trackColor = isDark ? colors.surface.elevated : colors.border.default;
 
-  const metrics: Array<{
+  const metrics: {
     key: string;
     icon: MacroIconName;
     color: string;
     label: string;
     consumed: string;
     goal: string;
-  }> = [
+  }[] = [
     {
       key: 'kcal',
       icon: 'fire',

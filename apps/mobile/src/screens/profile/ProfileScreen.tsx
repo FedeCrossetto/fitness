@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -22,7 +22,6 @@ import { useBiometricLock } from '../../hooks/useBiometricLock';
 import { GarminSyncCard } from '../../components/health/GarminSyncCard';
 import { NUTRITION_MACRO_COLORS } from '../../components/nutrition/nutritionTheme';
 import * as Device from 'expo-device';
-import { Platform } from 'react-native';
 import { cancelReminder, scheduleDailyReminder, isPushMessagesEnabled, enablePushMessages, disablePushMessages, getNotificationPermissionStatus, openNotificationSettings } from '../../services/notifications';
 import {
   AppText,

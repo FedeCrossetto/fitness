@@ -94,7 +94,6 @@ function messageFor(error: unknown): string {
   return 'Algo salió mal. Intentá de nuevo.';
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const anyClient = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> };
 
 async function refreshProgressMeasurements(userId: string): Promise<void> {
@@ -109,14 +108,14 @@ function genderLabel(data: OnboardingFormData): string {
   return '';
 }
 
-function buildOnboardingResponses(data: OnboardingFormData): Array<{ label: string; type: string; answer: string | string[] }> {
+function buildOnboardingResponses(data: OnboardingFormData): { label: string; type: string; answer: string | string[] }[] {
   const fullPhone = `${data.phoneCode} ${data.phone}`.trim();
   const fullAddress = [
     [data.street.trim(), data.streetNumber.trim()].filter(Boolean).join(' '),
     data.apartment.trim(),
   ].filter(Boolean).join(', ');
   const sharedBody = !data.shareBodyLater;
-  const entries: Array<{ label: string; type: string; answer: string | string[] }> = [
+  const entries: { label: string; type: string; answer: string | string[] }[] = [
     { label: 'País', type: 'textbox', answer: data.country.trim() },
     { label: 'Ciudad', type: 'textbox', answer: data.city.trim() },
     { label: 'Código postal', type: 'textbox', answer: data.postalCode.trim() },

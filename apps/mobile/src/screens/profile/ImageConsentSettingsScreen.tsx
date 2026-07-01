@@ -5,7 +5,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { spacing } from '../../theme';
 import { AppText, IconButton } from '../../components/common';
 import { ImageConsentScreen } from '../waiver/ImageConsentScreen';
-import { supabase } from '../../lib/supabase';
+import { anyClient, supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
 import { useTranslation } from '../../stores/i18nStore';
 import { formatLongDate } from '../../lib/dates';
@@ -32,8 +32,6 @@ interface State {
   fullName: string | null;
   respondedAt: string | null;
 }
-
-const anyClient = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> };
 
 export function ImageConsentSettingsScreen({ navigation }: Props): React.JSX.Element {
   const { t } = useTranslation();

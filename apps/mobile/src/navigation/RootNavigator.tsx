@@ -24,10 +24,8 @@ import { useStoredProfile } from '../hooks/useStoredProfile';
 import { needsTrainerLink, isPendingActivation } from '../services/clientAccess';
 import { clearSubscriptionAccessCache } from '../services/payments';
 import { syncPushRegistration } from '../services/notifications';
-import { supabase } from '../lib/supabase';
+import { anyClient, supabase } from '../lib/supabase';
 import { useInboxStore } from '../stores/inboxStore';
-
-const anyClient = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> };
 
 interface ImageConsentCfg {
   title: string;

@@ -9,9 +9,9 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useTheme, spacing } from '../../theme';
+import { useTheme, spacing, type Colors } from '../../theme';
 import { AppText } from '../../components/common';
-import { supabase } from '../../lib/supabase';
+import { anyClient } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
 
 // ── DSL Parser (same logic as web ConsultationForm.tsx) ───────────────────────
@@ -90,9 +90,6 @@ interface ConsultationFormScreenProps {
   onSubmitted: () => void;
   onSkip: () => void;
 }
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const anyClient = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> };
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -295,8 +292,7 @@ export function ConsultationFormScreen({
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function makeStyles(colors: any) {
+function makeStyles(colors: Colors) {
   return StyleSheet.create({
     safe: { flex: 1 },
     scroll: { padding: spacing.lg, paddingBottom: 48 },
@@ -321,7 +317,7 @@ function makeStyles(colors: any) {
       borderRadius: 8,
       borderWidth: 1,
       borderColor: colors.border.default,
-      backgroundColor: colors.surface.default,
+      backgroundColor: colors.surface.elevated,
     },
     optionRowSelected: {
       borderColor: colors.primary.default,
@@ -367,7 +363,7 @@ function makeStyles(colors: any) {
       padding: 12,
       fontSize: 14,
       fontFamily: 'System',
-      backgroundColor: colors.surface.default,
+      backgroundColor: colors.surface.elevated,
     },
     textarea: {
       borderWidth: 1,
@@ -375,7 +371,7 @@ function makeStyles(colors: any) {
       padding: 12,
       fontSize: 14,
       fontFamily: 'System',
-      backgroundColor: colors.surface.default,
+      backgroundColor: colors.surface.elevated,
       minHeight: 96,
     },
 

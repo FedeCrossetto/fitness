@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAppActive } from './useAppActive';
 import { useAuthStore } from '../stores/authStore';
@@ -7,7 +8,7 @@ import { useAuthStore } from '../stores/authStore';
 // Si no está disponible (Expo Go o build sin rebuild), se degrada silenciosamente.
 let LocalAuthentication: typeof import('expo-local-authentication') | null = null;
 try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- carga condicional, no puede ser un import estático
   LocalAuthentication = require('expo-local-authentication') as typeof import('expo-local-authentication');
 } catch {
   LocalAuthentication = null;
@@ -71,7 +72,6 @@ export function useBiometricLock(): BiometricLockState {
 
   // Registra cuándo la app va a background
   useEffect(() => {
-    const { AppState } = require('react-native') as typeof import('react-native');
     const sub = AppState.addEventListener('change', (state: string) => {
       if (state === 'background' || state === 'inactive') {
         backgroundAt.current = Date.now();

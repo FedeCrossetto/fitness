@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { spacing } from '../../theme';
 import { AppText } from '../../components/common';
 import { SignaturePad, serializeStrokes, type Stroke } from '../../components/waiver/SignaturePad';
-import { supabase } from '../../lib/supabase';
+import { anyClient, supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
 import { useTranslation } from '../../stores/i18nStore';
 import { authColors } from '../auth/authScreenTheme';
@@ -35,8 +35,6 @@ interface WaiverScreenProps {
   embedded?: boolean;
   bottomInset?: number;
 }
-
-const anyClient = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> };
 
 const H_PAD = spacing.xl;
 

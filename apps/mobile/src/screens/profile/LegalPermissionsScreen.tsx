@@ -6,7 +6,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { layout, radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
 import { AppText, Card, CardSkeleton, IconButton, SectionHeader } from '../../components/common';
 import { SignaturePreview, deserializeStrokes } from '../../components/waiver/SignaturePad';
-import { supabase } from '../../lib/supabase';
+import { anyClient, supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
 import { useTranslation } from '../../stores/i18nStore';
 import { formatLongDate } from '../../lib/dates';
@@ -26,8 +26,6 @@ interface ImageConsentState {
   status: 'accepted' | 'declined' | null;
   respondedAt: string | null;
 }
-
-const anyClient = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> };
 
 export function LegalPermissionsScreen({ navigation }: Props): React.JSX.Element {
   const { colors } = useTheme();

@@ -23,7 +23,7 @@ interface ParticleConfig {
   drift: number;
 }
 
-interface ParticleProps extends ParticleConfig {}
+type ParticleProps = ParticleConfig;
 
 function Particle({ x, color, size, delay, duration, startRotate, endRotate, drift }: ParticleProps): React.JSX.Element {
   const ty = useSharedValue(-20);

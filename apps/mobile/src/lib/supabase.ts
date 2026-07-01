@@ -62,3 +62,11 @@ if (!isWeb) {
     }
   });
 }
+
+/**
+ * Acceso sin tipar a tablas que todavía no están en el `Database` generado
+ * (ej. waiver_signatures, image_consent_acceptances, evaluation_requests).
+ * Única fuente de este cast — antes se repetía idéntico en cada archivo que
+ * lo necesitaba.
+ */
+export const anyClient = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> };

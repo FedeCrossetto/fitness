@@ -27,7 +27,7 @@ function startOfTodayIso(): string {
 }
 
 function hasStepsReadPermission(
-  granted: Array<{ accessType?: string; recordType?: string }>
+  granted: { accessType?: string; recordType?: string }[]
 ): boolean {
   return granted.some(
     (p) => p.accessType === 'read' && p.recordType === 'Steps'

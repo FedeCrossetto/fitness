@@ -12,7 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { spacing } from '../../theme';
 import { AppText, IconButton } from '../../components/common';
-import { supabase } from '../../lib/supabase';
+import { anyClient } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
 import { authColors } from '../auth/authScreenTheme';
 import { AuthButton, AuthInput } from '../auth/authUi';
@@ -31,8 +31,6 @@ import {
 import { isValidOnboardingPhone } from '../auth/OnboardingScreen';
 import { ONBOARDING_GENDERS } from '../auth/onboardingConstants';
 import { EMPTY_EVALUATION, EVALUATION_GOALS, type EvaluationFormData } from './evaluationTypes';
-
-const anyClient = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> };
 
 interface EvaluationFormScreenProps {
   onBack: () => void;

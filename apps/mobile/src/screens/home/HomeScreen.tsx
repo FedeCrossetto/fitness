@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, RefreshControl, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { BlurView } from 'expo-blur';
@@ -45,7 +45,6 @@ import { useTabBarScrollPadding } from '../../hooks/useTabBarScrollPadding';
 import { syncPushRegistration } from '../../services/notifications';
 import { hapticSelect } from '../../lib/haptics';
 import { useUiStore } from '../../stores/uiStore';
-import { Platform } from 'react-native';
 import type { HomeStackParamList } from '../../types/navigation';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'HomeMain'>;

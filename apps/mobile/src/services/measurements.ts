@@ -1,22 +1,10 @@
-import { supabase } from '../lib/supabase';
+import { anyClient } from '../lib/supabase';
 import type { BodyMeasurementRow } from '../types/database';
 import { toISODate, todayISO } from '../lib/dates';
 
-const anyClient = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> };
-
 type ConsultationAnswer = { label: string; answer: string | string[] };
 
-const MEASURE_FIELDS = [
-  'weight_kg',
-  'body_fat_pct',
-  'chest_cm',
-  'waist_cm',
-  'hips_cm',
-  'arms_cm',
-  'legs_cm',
-] as const;
-
-type MeasureField = (typeof MEASURE_FIELDS)[number];
+type MeasureField = 'weight_kg' | 'body_fat_pct' | 'chest_cm' | 'waist_cm' | 'hips_cm' | 'arms_cm' | 'legs_cm';
 
 /** Combina medidas nuevas con la fila del día; null/undefined no pisa valores existentes. */
 export function mergeMeasurementFields(

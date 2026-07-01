@@ -78,7 +78,7 @@ export function useCheckout(
         useUiStore.getState().showToast('error', err instanceof Error ? err.message : 'No pudimos iniciar el pago. Intentá de nuevo.');
       }
     },
-    [userId, checkingOut, pollSubscription],
+    [userId, checkingOut],
   );
 
   return { checkingOut, startCheckout };
