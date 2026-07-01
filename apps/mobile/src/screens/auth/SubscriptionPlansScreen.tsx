@@ -370,11 +370,9 @@ export function SubscriptionPlansScreen(): React.JSX.Element {
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => void signOut()} hitSlop={8} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color={authColors.textPrimary} />
-        </TouchableOpacity>
-        <AppText variant="body16SemiBold" color={authColors.textPrimary}>
-          Elegí tu Plan
+        <AppText variant="h2" style={styles.titleLine} numberOfLines={1} adjustsFontSizeToFit>
+          <AppText variant="h2" color={authColors.textPrimary}>ELEGÍ TU </AppText>
+          <AppText variant="h2" color={LIMA}>PLAN</AppText>
         </AppText>
         <AppText variant="body16SemiBold" color={LIMA} style={styles.brandLabel}>
           R3SET
@@ -483,7 +481,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: authColors.border,
   },
-  backBtn: { marginRight: 12 },
+  titleLine: { letterSpacing: -0.5 },
   brandLabel: { marginLeft: 'auto', letterSpacing: -0.5 },
 
   hero: { paddingHorizontal: H_PAD, paddingTop: 28, paddingBottom: 24 },

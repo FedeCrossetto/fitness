@@ -133,6 +133,11 @@ Deno.serve(async (req) => {
     }
   }
 
+  // TEMPORAL: mientras se sigue probando el flujo de pago, el plan mensual
+  // cobra $1 real en la pasarela aunque el front muestre el precio de lista.
+  // Sacar esta línea cuando se cierre la etapa de pruebas con montos bajos.
+  if (plan.id === 'monthly') unitPrice = 1;
+
   // Suscripción pendiente
   const { data: subscription, error: subError } = await admin
     .from('subscriptions')
