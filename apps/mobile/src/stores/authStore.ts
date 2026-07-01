@@ -111,11 +111,17 @@ function genderLabel(data: OnboardingFormData): string {
 
 function buildOnboardingResponses(data: OnboardingFormData): Array<{ label: string; type: string; answer: string | string[] }> {
   const fullPhone = `${data.phoneCode} ${data.phone}`.trim();
+  const fullAddress = [
+    [data.street.trim(), data.streetNumber.trim()].filter(Boolean).join(' '),
+    data.apartment.trim(),
+  ].filter(Boolean).join(', ');
   const sharedBody = !data.shareBodyLater;
   const entries: Array<{ label: string; type: string; answer: string | string[] }> = [
     { label: 'País', type: 'textbox', answer: data.country.trim() },
     { label: 'Ciudad', type: 'textbox', answer: data.city.trim() },
-    { label: 'Dirección', type: 'textbox', answer: data.address.trim() },
+    { label: 'Código postal', type: 'textbox', answer: data.postalCode.trim() },
+    { label: 'Dirección', type: 'textbox', answer: fullAddress },
+    { label: 'Fecha de nacimiento', type: 'textbox', answer: data.birthDate.trim() },
     { label: 'Teléfono', type: 'textbox', answer: fullPhone },
     { label: 'Sexo', type: 'dropdown', answer: genderLabel(data) },
     { label: 'Peso actual (kg)', type: 'textbox', answer: sharedBody ? data.weightKg : 'A definir con el coach' },

@@ -1,4 +1,5 @@
 /** Opciones alineadas con Plan Base (Notion) y el formulario de consulta del panel web. */
+import worldCountries from 'world-countries';
 
 export const ONBOARDING_GOALS = [
   'Bajar de peso',
@@ -18,24 +19,43 @@ export const ONBOARDING_GENDERS = [
   { label: 'Otro', value: 'other' as const },
 ] as const;
 
-/** Códigos de país para el dropdown de teléfono (LATAM primero). */
-export const COUNTRY_CODES = [
-  { code: '+54',  flag: '🇦🇷', name: 'Argentina' },
-  { code: '+598', flag: '🇺🇾', name: 'Uruguay' },
-  { code: '+56',  flag: '🇨🇱', name: 'Chile' },
-  { code: '+595', flag: '🇵🇾', name: 'Paraguay' },
-  { code: '+591', flag: '🇧🇴', name: 'Bolivia' },
-  { code: '+51',  flag: '🇵🇪', name: 'Perú' },
-  { code: '+593', flag: '🇪🇨', name: 'Ecuador' },
-  { code: '+57',  flag: '🇨🇴', name: 'Colombia' },
-  { code: '+58',  flag: '🇻🇪', name: 'Venezuela' },
-  { code: '+55',  flag: '🇧🇷', name: 'Brasil' },
-  { code: '+52',  flag: '🇲🇽', name: 'México' },
-  { code: '+1',   flag: '🇺🇸', name: 'EE.UU. / Canadá' },
-  { code: '+34',  flag: '🇪🇸', name: 'España' },
-  { code: '+39',  flag: '🇮🇹', name: 'Italia' },
-  { code: '+44',  flag: '🇬🇧', name: 'Reino Unido' },
-] as const;
+export interface CountryOption {
+  /** Código de marcado internacional, ej. "+54". */
+  code: string;
+  /** ISO 3166-1 alpha-2, ej. "AR". Usado para validar el teléfono con libphonenumber-js. */
+  cca2: string;
+  flag: string;
+  /** Nombre en español, el que se muestra en la UI. */
+  name: string;
+  /** Nombre en inglés, el que esperan las APIs públicas de ciudades. */
+  nameEn: string;
+}
+
+/** Países cuyo nombre en español va primero en el listado (LATAM + España). */
+const PRIORITY_CCA2 = ['AR', 'UY', 'CL', 'PY', 'BO', 'PE', 'EC', 'CO', 'VE', 'BR', 'MX', 'ES'];
+
+function buildCountryOptions(): CountryOption[] {
+  const all: CountryOption[] = worldCountries
+    .filter((c) => c.idd?.root)
+    .map((c) => ({
+      code: `${c.idd.root}${c.idd.suffixes?.[0] ?? ''}`,
+      cca2: c.cca2,
+      flag: c.flag,
+      name: c.translations.spa?.common ?? c.name.common,
+      nameEn: c.name.common,
+    }));
+
+  const byCca2 = new Map(all.map((c) => [c.cca2, c]));
+  const priority = PRIORITY_CCA2.map((cca2) => byCca2.get(cca2)).filter((c): c is CountryOption => !!c);
+  const rest = all
+    .filter((c) => !PRIORITY_CCA2.includes(c.cca2))
+    .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+
+  return [...priority, ...rest];
+}
+
+/** Listado estándar ISO de países (LATAM + España primero), con código de marcado y bandera. */
+export const COUNTRY_CODES: CountryOption[] = buildCountryOptions();
 
 export const EXERCISE_HABITS = [
   'Nunca hice ejercicio regularmente',

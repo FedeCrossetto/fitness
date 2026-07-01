@@ -1,7 +1,11 @@
 export interface OnboardingFormData {
   country: string;
   city: string;
-  address: string;
+  postalCode: string;
+  street: string;
+  streetNumber: string;
+  apartment: string;
+  birthDate: string;
   phoneCode: string;
   phone: string;
   gender: 'male' | 'female' | 'other' | null;
@@ -22,7 +26,11 @@ export interface OnboardingFormData {
 export const EMPTY_ONBOARDING: OnboardingFormData = {
   country: '',
   city: '',
-  address: '',
+  postalCode: '',
+  street: '',
+  streetNumber: '',
+  apartment: '',
+  birthDate: '',
   phoneCode: '+54',
   phone: '',
   gender: null,

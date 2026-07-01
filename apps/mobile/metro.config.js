@@ -12,5 +12,9 @@ config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
   path.resolve(workspaceRoot, 'node_modules'),
 ];
+// NOTA: @reset-fitness/shared resuelve sus subpaths (ej. "shared/auth/...")
+// vía package.json#exports, así que NO desactivar unstable_enablePackageExports
+// acá — rompe esos imports en todo el monorepo. Si una librería de terceros
+// trae un mapa de exports roto para Metro, mejor cambiarla que tocar esto.
 
 module.exports = config;
