@@ -59,7 +59,7 @@ type Props = NativeStackScreenProps<AuthStackParamList, 'EasyLogin'>;
 
 export function EasyLoginScreen({ navigation }: Props): React.JSX.Element {
   const insets = useSafeAreaInsets();
-  const { profile, clearProfile } = useStoredProfile();
+  const { profile } = useStoredProfile();
   const { signIn, signInWithOAuth } = useAuthStore();
   const logoSource = useLogoSource();
   const flatRef = useRef<FlatList>(null);
@@ -108,8 +108,14 @@ export function EasyLoginScreen({ navigation }: Props): React.JSX.Element {
     navigation.navigate('Login', { prefillEmail: profile?.email });
   };
 
-  const handleOtherAccount = async () => {
-    await clearProfile();
+  const handleOtherAccount = () => {
+    // No borrar el perfil guardado acá: EasyLoginScreen y RootNavigator están
+    // suscriptos al mismo store reactivo, así que limpiarlo cambia el `key` del
+    // AuthStack en RootNavigator (showEasyLogin pasa a false) y fuerza un remount
+    // de todo el stack a mitad de la navegación — el replace('Login') termina
+    // corriendo sobre un navigator ya desmontado y la pantalla se queda pegada acá
+    // (solo se ve la tarjeta de cuenta vacía). Si el usuario efectivamente inicia
+    // sesión con otra cuenta, el perfil guardado se sobreescribe solo.
     navigation.replace('Login');
   };
 

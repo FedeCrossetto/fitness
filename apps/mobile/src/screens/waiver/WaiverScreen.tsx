@@ -1,9 +1,8 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
-  PanResponder,
   Platform,
   ScrollView,
   StyleSheet,
@@ -13,18 +12,15 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Path } from 'react-native-svg';
 import { spacing } from '../../theme';
 import { AppText } from '../../components/common';
+import { SignaturePad, serializeStrokes, type Stroke } from '../../components/waiver/SignaturePad';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
 import { useTranslation } from '../../stores/i18nStore';
 import { authColors } from '../auth/authScreenTheme';
 
 const LIMA = '#C1ED00';
-
-interface Point { x: number; y: number }
-type Stroke = Point[];
 
 interface WaiverConfig {
   title: string;
@@ -42,106 +38,7 @@ interface WaiverScreenProps {
 
 const anyClient = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> };
 
-const PAD_HEIGHT = 140;
 const H_PAD = spacing.xl;
-
-function SignaturePad({
-  width,
-  strokes,
-  onStrokeEnd,
-  onClear,
-  onDrawingChange,
-  hint,
-  clearLabel,
-}: {
-  width: number;
-  strokes: Stroke[];
-  onStrokeEnd: (strokes: Stroke[]) => void;
-  onClear: () => void;
-  onDrawingChange?: (drawing: boolean) => void;
-  hint: string;
-  clearLabel: string;
-}): React.JSX.Element {
-  const currentStroke = useRef<Stroke>([]);
-  const strokesRef = useRef(strokes);
-  const [, setTick] = useState(0);
-
-  strokesRef.current = strokes;
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onStartShouldSetPanResponderCapture: () => true,
-      onMoveShouldSetPanResponderCapture: () => true,
-      onPanResponderTerminationRequest: () => false,
-      onPanResponderGrant: (evt) => {
-        onDrawingChange?.(true);
-        const { locationX: x, locationY: y } = evt.nativeEvent;
-        currentStroke.current = [{ x, y }];
-        setTick((n) => n + 1);
-      },
-      onPanResponderMove: (evt) => {
-        const { locationX: x, locationY: y } = evt.nativeEvent;
-        currentStroke.current.push({ x, y });
-        setTick((n) => n + 1);
-      },
-      onPanResponderRelease: () => {
-        onDrawingChange?.(false);
-        if (currentStroke.current.length > 1) {
-          onStrokeEnd([...strokesRef.current, [...currentStroke.current]]);
-        }
-        currentStroke.current = [];
-        setTick((n) => n + 1);
-      },
-      onPanResponderTerminate: () => {
-        onDrawingChange?.(false);
-        currentStroke.current = [];
-        setTick((n) => n + 1);
-      },
-    }),
-  ).current;
-
-  const pathD = (stroke: Stroke) => {
-    if (stroke.length < 2) return '';
-    return stroke
-      .map((pt, i) => `${i === 0 ? 'M' : 'L'}${pt.x.toFixed(1)},${pt.y.toFixed(1)}`)
-      .join(' ');
-  };
-
-  const live = currentStroke.current.length > 1 ? currentStroke.current : null;
-  const allPaths = live ? [...strokes, live] : strokes;
-
-  return (
-    <View>
-      <View style={[styles.padBorder, { width, height: PAD_HEIGHT }]} {...panResponder.panHandlers}>
-        <Svg width={width} height={PAD_HEIGHT}>
-          {allPaths.map((s, i) => (
-            <Path
-              key={i}
-              d={pathD(s)}
-              stroke={authColors.textPrimary}
-              strokeWidth={2.2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              fill="none"
-            />
-          ))}
-        </Svg>
-        {strokes.length === 0 && !live && (
-          <View style={styles.padHint} pointerEvents="none">
-            <AppText variant="body13" color={authColors.textTertiary}>{hint}</AppText>
-          </View>
-        )}
-      </View>
-      {strokes.length > 0 ? (
-        <TouchableOpacity onPress={onClear} style={styles.clearBtn} hitSlop={8}>
-          <AppText variant="body13" color={authColors.textSecondary}>{clearLabel}</AppText>
-        </TouchableOpacity>
-      ) : null}
-    </View>
-  );
-}
 
 export function WaiverScreen({
   config,
@@ -161,9 +58,6 @@ export function WaiverScreen({
 
   const padWidth = screenWidth - H_PAD * 2;
   const canSign = strokes.length > 0 && fullName.trim().length > 0;
-
-  const serializeStrokes = (data: Stroke[]) =>
-    JSON.stringify(data.map((s) => s.map((pt) => [Math.round(pt.x), Math.round(pt.y)])));
 
   const saveSignature = async (): Promise<{ ok: boolean; error?: string }> => {
     const clientId = profile?.id;
@@ -358,24 +252,6 @@ const styles = StyleSheet.create({
     backgroundColor: authColors.surface,
     marginBottom: 4,
   },
-
-  padBorder: {
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: authColors.border,
-    borderRadius: 12,
-    overflow: 'hidden',
-    position: 'relative',
-    alignSelf: 'center',
-    backgroundColor: authColors.surface,
-  },
-  padHint: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-  },
-  clearBtn: { marginTop: 8, alignSelf: 'flex-end' },
 
   footer: {
     borderTopWidth: StyleSheet.hairlineWidth,

@@ -301,7 +301,7 @@ const styles = StyleSheet.create({
     minHeight: 52,
   },
   fieldFocused: { borderColor: authColors.borderFocus },
-  fieldError: { borderColor: authColors.textSecondary },
+  fieldError: { borderColor: authColors.errorText },
   input: {
     flex: 1,
     ...typography.body16,

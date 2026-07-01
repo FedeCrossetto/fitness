@@ -23,6 +23,8 @@ export type HomeStackParamList = {
   Achievements: undefined;
   Hydration: undefined;
   TrainerPanel: undefined;
+  LegalPermissions: undefined;
+  ImageConsentSettings: undefined;
 };
 
 export type TrainingStackParamList = {

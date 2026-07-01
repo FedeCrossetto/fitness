@@ -18,6 +18,9 @@ import { useCheckout } from '../../hooks/useCheckout';
 import { useAppActive } from '../../hooks/useAppActive';
 import { authColors } from './authScreenTheme';
 import type { PlanRow } from '../../types/database';
+import { EvaluationFormScreen } from '../evaluation/EvaluationFormScreen';
+import { EvaluationScheduleScreen } from '../evaluation/EvaluationScheduleScreen';
+import { EvaluationThankYouScreen } from '../evaluation/EvaluationThankYouScreen';
 
 const LIMA = '#C1ED00';
 const ORANGE = '#FF734A';
@@ -217,7 +220,7 @@ function PlanBaseView({
 
 // ── Mentoría View ─────────────────────────────────────────────────────────────
 
-function MentoriaView(): React.JSX.Element {
+function MentoriaView({ onRequestEvaluation }: { onRequestEvaluation: () => void }): React.JSX.Element {
   return (
     <View style={styles.tabContent}>
       {/* Banner transformacion */}
@@ -298,7 +301,7 @@ function MentoriaView(): React.JSX.Element {
         <TouchableOpacity
           style={[styles.ctaBtn, { backgroundColor: ORANGE }]}
           activeOpacity={0.85}
-          onPress={() => {/* contact trainer */}}
+          onPress={onRequestEvaluation}
         >
           <AppText variant="caps11" color={authColors.background} style={styles.ctaText}>
             SOLICITAR EVALUACIÓN
@@ -312,6 +315,10 @@ function MentoriaView(): React.JSX.Element {
 // ── Screen ─────────────────────────────────────────────────────────────────────
 
 type Tab = 'base' | 'mentoria';
+/** Solicitar evaluación (Mentoría 1 a 1): formulario → agendar por Calendly → gracias.
+ * Se maneja como estado local (no hay stack navigator acá, RootNavigator renderiza
+ * esta pantalla directamente) — mismo patrón que los demás gates de la app. */
+type EvalFlowStep = 'form' | 'schedule' | 'thanks' | null;
 
 export function SubscriptionPlansScreen(): React.JSX.Element {
   const insets = useSafeAreaInsets();
@@ -325,6 +332,7 @@ export function SubscriptionPlansScreen(): React.JSX.Element {
   const [, setCheckoutId] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('base');
+  const [evalFlowStep, setEvalFlowStep] = useState<EvalFlowStep>(null);
 
   const { checkingOut, startCheckout } = useCheckout(userId, () => {
     void refreshProfile();
@@ -363,6 +371,26 @@ export function SubscriptionPlansScreen(): React.JSX.Element {
     setCheckoutId(id);
     void startCheckout(id);
   }, [startCheckout]);
+
+  if (evalFlowStep === 'form') {
+    return (
+      <EvaluationFormScreen
+        onBack={() => setEvalFlowStep(null)}
+        onSubmitted={() => setEvalFlowStep('schedule')}
+      />
+    );
+  }
+  if (evalFlowStep === 'schedule') {
+    return (
+      <EvaluationScheduleScreen
+        onBack={() => setEvalFlowStep('form')}
+        onDone={() => setEvalFlowStep('thanks')}
+      />
+    );
+  }
+  if (evalFlowStep === 'thanks') {
+    return <EvaluationThankYouScreen />;
+  }
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -437,7 +465,7 @@ export function SubscriptionPlansScreen(): React.JSX.Element {
             onSwitchToMentoria={() => setActiveTab('mentoria')}
           />
         ) : (
-          <MentoriaView />
+          <MentoriaView onRequestEvaluation={() => setEvalFlowStep('form')} />
         )}
 
         {/* Footer */}

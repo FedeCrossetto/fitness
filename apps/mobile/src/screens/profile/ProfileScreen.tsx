@@ -472,6 +472,11 @@ export function ProfileScreen({ navigation, route }: Props): React.JSX.Element {
             icon="chatbubbles-outline"
             label={t.home.messages}
             onPress={() => navigation.navigate('Messages')}
+          />
+          <SettingsRow
+            icon="shield-checkmark-outline"
+            label={t.profile.legal_row}
+            onPress={() => navigation.navigate('LegalPermissions')}
             last
           />
         </Card>

@@ -197,6 +197,21 @@ async function markOnboardingDone(userId: string): Promise<void> {
   }
 }
 
+// Fuente única de verdad para el perfil de EasyLogin. Se llama en cada punto donde
+// `profile` puede quedar con datos definitivos (login, signup, onboarding, refresh),
+// porque `finishAuthSession` puede devolver full_name vacío/null en el primer signup
+// (el trigger que crea la fila en `profiles` puede no haber terminado todavía) y ese
+// hueco nunca se cerraba: al cerrar sesión después, `storedProfile` seguía null y no
+// se mostraba EasyLogin.
+function syncStoredProfile(session: Session, profile: ProfileRow | null): void {
+  if (!profile?.full_name) return;
+  void saveStoredProfile({
+    fullName: profile.full_name,
+    email: session.user.email ?? '',
+    avatarUrl: profile.avatar_url ?? null,
+  });
+}
+
 async function commitSession(
   session: Session,
   profile: ProfileRow | null,
@@ -206,13 +221,7 @@ async function commitSession(
   const resolvedNeedsOnboarding = needsOnboarding ?? !(await readOnboardingDone(session.user.id, profile));
   setAuthState(session, profile, userProfile, resolvedNeedsOnboarding);
   void AsyncStorage.setItem('onboarding_marketing_shown', 'true');
-  if (profile?.full_name) {
-    void saveStoredProfile({
-      fullName: profile.full_name,
-      email: session.user.email ?? '',
-      avatarUrl: profile.avatar_url ?? null,
-    });
-  }
+  syncStoredProfile(session, profile);
   await useBrandingStore.getState().load();
 }
 
@@ -232,12 +241,14 @@ function setAuthState(
     initializing: false,
     forcedSignOut: false,
   });
-  // Persist profile for easy login — covers all auth paths (login, session restore, OAuth)
-  void AsyncStorage.setItem('easy_login_profile', JSON.stringify({
+  // Persist profile for easy login — covers all auth paths (login, session restore, OAuth).
+  // Pasa por el store reactivo (no AsyncStorage directo) para que RootNavigator/EasyLogin
+  // se enteren del cambio sin depender de un reload manual del hook useStoredProfile.
+  void saveStoredProfile({
     fullName: profile?.full_name ?? session.user.email?.split('@')[0] ?? '',
     email:    session.user.email ?? '',
     avatarUrl: profile?.avatar_url ?? null,
-  }));
+  });
   // If provider is OAuth (Google, Apple, etc.), update easy_login_credentials so EasyLogin
   // knows to re-authenticate via OAuth instead of email/password.
   const provider = session.user.app_metadata?.provider ?? 'email';
@@ -332,6 +343,7 @@ function ensureAuthListener(): void {
         const { profile, userProfile } = await finishAuthSession(session);
         const onboardingDone = await readOnboardingDone(session.user.id, profile);
         setAuthState(session, profile, userProfile, !onboardingDone);
+        syncStoredProfile(session, profile);
         await useBrandingStore.getState().load();
       } catch {
         useAuthStore.setState({ loading: false });
@@ -373,6 +385,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           needsOnboarding: !onboardingDone,
           initializing: false,
         });
+        syncStoredProfile(session, profile);
         await useBrandingStore.getState().load();
       } else {
         set({ session: null, profile: null, userProfile: null, initializing: false });
@@ -633,6 +646,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           needsOnboarding: false,
           loading: false,
         });
+        syncStoredProfile(session, profileRes.data);
         await refreshProgressMeasurements(userId);
         return true;
       }
@@ -645,6 +659,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         needsOnboarding: false,
         loading: false,
       });
+      syncStoredProfile(session, nextProfile);
       await refreshProgressMeasurements(userId);
       return true;
     } catch (error) {
@@ -666,6 +681,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return; // onAuthStateChange limpia el estado
       }
       set({ profile, userProfile });
+      syncStoredProfile(session, profile);
       await useBrandingStore.getState().load();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -675,6 +691,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         if (data.session) {
           const { profile, userProfile } = await loadProfiles(data.session.user.id);
           set({ session: data.session, profile, userProfile });
+          syncStoredProfile(data.session, profile);
         }
       }
     }

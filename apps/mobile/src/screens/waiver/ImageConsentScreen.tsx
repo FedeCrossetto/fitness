@@ -8,12 +8,13 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { spacing } from '../../theme';
 import { AppText } from '../../components/common';
+import { SignaturePad, serializeStrokes, type Stroke } from '../../components/waiver/SignaturePad';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
 import { useTranslation } from '../../stores/i18nStore';
@@ -27,11 +28,17 @@ interface ImageConsentConfig {
   body: string;
 }
 
+type ImageConsentStatus = 'accepted' | 'declined' | null;
+
 interface ImageConsentScreenProps {
   config: ImageConsentConfig;
   trainerId: string;
   onAccepted: () => void;
   onSkip?: () => void;
+  /** Estado actual cuando se abre desde Perfil, para mostrar la respuesta previa. */
+  initialStatus?: ImageConsentStatus;
+  initialFullName?: string;
+  respondedAtLabel?: string | null;
   embedded?: boolean;
   bottomInset?: number;
 }
@@ -43,23 +50,36 @@ export function ImageConsentScreen({
   trainerId,
   onAccepted,
   onSkip,
+  initialStatus = null,
+  initialFullName,
+  respondedAtLabel,
   embedded = false,
   bottomInset = 0,
 }: ImageConsentScreenProps): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
+  const { width: screenWidth } = useWindowDimensions();
   const profile = useAuthStore((s) => s.profile);
-  const [fullName, setFullName] = useState(profile?.full_name ?? '');
-  const [checked, setChecked] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [fullName, setFullName] = useState(initialFullName ?? profile?.full_name ?? '');
+  const [strokes, setStrokes] = useState<Stroke[]>([]);
+  const [saving, setSaving] = useState<'accept' | 'decline' | null>(null);
+  const [drawingSignature, setDrawingSignature] = useState(false);
+  const [status, setStatus] = useState<ImageConsentStatus>(initialStatus);
 
-  const canAccept = checked && fullName.trim().length > 0;
+  const padWidth = screenWidth - H_PAD * 2;
+  const canAccept = strokes.length > 0 && fullName.trim().length > 0;
 
-  const saveAcceptance = async (): Promise<{ ok: boolean; error?: string }> => {
-    await useAuthStore.getState().refreshProfile();
-    const freshProfile = useAuthStore.getState().profile;
-    const resolvedTrainerId = freshProfile?.trainer_id ?? trainerId;
-    const clientId = freshProfile?.id ?? profile?.id;
+  const saveResponse = async (
+    responseStatus: 'accepted' | 'declined',
+    signatureData: string | null,
+  ): Promise<{ ok: boolean; error?: string }> => {
+    // OJO: no llamar a refreshProfile() acá. Dispara un cambio de `profile` en el
+    // store, que hace que RootNavigator vuelva a chequear el gate de imagen ANTES
+    // de que este RPC termine de guardar la respuesta — encontraba "todavía no hay
+    // fila" y reabría la pantalla un instante, para cerrarse sola en el siguiente
+    // recheck. `profile` (reactivo) ya tiene el trainer_id/id correctos acá.
+    const resolvedTrainerId = profile?.trainer_id ?? trainerId;
+    const clientId = profile?.id;
     if (!clientId || !resolvedTrainerId) return { ok: false, error: 'no_trainer_linked' };
 
     const payload = {
@@ -67,6 +87,8 @@ export function ImageConsentScreen({
       p_full_name: fullName.trim(),
       p_document_snapshot: config.body ?? '',
       p_document_title: config.title ?? 'Consentimiento de uso de imágenes',
+      p_signature_data: signatureData,
+      p_status: responseStatus,
     };
 
     const { error: rpcError } = await supabase.rpc('save_client_image_consent', payload);
@@ -81,6 +103,8 @@ export function ImageConsentScreen({
       full_name: fullName.trim(),
       document_snapshot: config.body ?? '',
       document_title: config.title ?? 'Consentimiento de uso de imágenes',
+      signature_data: signatureData,
+      status: responseStatus,
       accepted_at: new Date().toISOString(),
     }, { onConflict: 'client_id,trainer_id' });
 
@@ -96,21 +120,38 @@ export function ImageConsentScreen({
       Alert.alert(t.image_consent.name_required, t.image_consent.name_required_msg);
       return;
     }
-    if (!checked) {
-      Alert.alert(t.image_consent.check_required, t.image_consent.check_required_msg);
+    if (strokes.length === 0) {
+      Alert.alert(t.image_consent.sig_required, t.image_consent.sig_required_msg);
       return;
     }
     if (!profile?.id) return;
-    setSaving(true);
-    const result = await saveAcceptance();
-    setSaving(false);
+    setSaving('accept');
+    const result = await saveResponse('accepted', serializeStrokes(strokes));
+    setSaving(null);
     if (!result.ok) {
       const detail = __DEV__ && result.error ? `\n\n${result.error}` : '';
       Alert.alert('Error', `${t.image_consent.save_error}${detail}`);
       return;
     }
+    setStatus('accepted');
     onAccepted();
-  }, [fullName, checked, profile?.id, trainerId, onAccepted, config.body, config.title, t]);
+  }, [fullName, strokes, profile?.id, trainerId, onAccepted, config.body, config.title, t]);
+
+  const handleSkip = useCallback(async () => {
+    if (!profile?.id || !onSkip) return;
+    setSaving('decline');
+    // Es una respuesta opcional: no bloqueamos al usuario si falla el guardado
+    // (se reintentará la próxima vez que se evalúe el gate). Solo confirmamos
+    // el guardado para que no vuelva a pedirse en cada sesión cuando sí funciona.
+    const result = await saveResponse('declined', null);
+    setSaving(null);
+    if (!result.ok && __DEV__) {
+      console.warn('[image_consent] no se pudo persistir el rechazo:', result.error);
+    } else {
+      setStatus('declined');
+    }
+    onSkip();
+  }, [profile?.id, onSkip, trainerId, config.body, config.title, t]);
 
   const topPad = embedded ? spacing.md : insets.top + spacing.lg;
   const botPad = Math.max(embedded ? bottomInset : insets.bottom, spacing.md);
@@ -127,6 +168,8 @@ export function ImageConsentScreen({
           contentContainerStyle={[styles.scroll, { paddingTop: topPad }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          scrollEnabled={!drawingSignature}
+          bounces={!drawingSignature}
         >
           {!embedded ? (
             <AppText variant="caps11" color={authColors.textTertiary} style={styles.legalBadge}>
@@ -141,14 +184,35 @@ export function ImageConsentScreen({
             {t.image_consent.read_before}
           </AppText>
 
+          {status && respondedAtLabel ? (
+            <View style={[styles.statusBadge, status === 'declined' && styles.statusBadgeDeclined]}>
+              <AppText
+                variant="body13SemiBold"
+                color={status === 'accepted' ? authColors.background : authColors.textPrimary}
+              >
+                {status === 'accepted' ? t.image_consent.status_accepted : t.image_consent.status_declined}
+                {'  ·  '}
+                {respondedAtLabel}
+              </AppText>
+            </View>
+          ) : null}
+
           <View style={styles.card}>
             <AppText variant="body14" color={authColors.textSecondary} style={styles.docText}>
               {config.body}
             </AppText>
           </View>
+
+          <AppText variant="body12" color={authColors.textTertiary} style={styles.agreement}>
+            {t.image_consent.agreement}
+          </AppText>
         </ScrollView>
 
-        <View style={styles.panel}>
+        <View style={styles.sigPanel}>
+          <AppText variant="body16SemiBold" color={authColors.textPrimary} style={styles.sigTitle}>
+            {t.image_consent.sign_section}
+          </AppText>
+
           <AppText variant="caps12" color={authColors.textTertiary} style={styles.fieldLabel}>
             {t.image_consent.full_name}
           </AppText>
@@ -162,28 +226,28 @@ export function ImageConsentScreen({
             returnKeyType="done"
           />
 
-          <TouchableOpacity
-            style={styles.checkRow}
-            onPress={() => setChecked((v) => !v)}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.checkbox, checked && styles.checkboxChecked]}>
-              {checked ? <Ionicons name="checkmark" size={16} color={authColors.background} /> : null}
-            </View>
-            <AppText variant="body13" color={authColors.textSecondary} style={styles.checkLabel}>
-              {t.image_consent.checkbox}
-            </AppText>
-          </TouchableOpacity>
+          <AppText variant="caps12" color={authColors.textTertiary} style={[styles.fieldLabel, styles.fieldLabelSpaced]}>
+            {t.image_consent.signature}
+          </AppText>
+          <SignaturePad
+            width={padWidth}
+            strokes={strokes}
+            onStrokeEnd={setStrokes}
+            onClear={() => setStrokes([])}
+            onDrawingChange={setDrawingSignature}
+            hint={t.image_consent.signature_hint}
+            clearLabel={t.image_consent.clear}
+          />
         </View>
 
         <View style={[styles.footer, { paddingBottom: botPad }]}>
           <TouchableOpacity
             style={[styles.acceptBtn, { backgroundColor: canAccept ? LIMA : authColors.surface }]}
             onPress={() => void handleAccept()}
-            disabled={saving}
+            disabled={saving !== null}
             activeOpacity={0.85}
           >
-            {saving ? (
+            {saving === 'accept' ? (
               <ActivityIndicator color={authColors.background} />
             ) : (
               <AppText variant="body16SemiBold" color={canAccept ? authColors.background : authColors.textTertiary}>
@@ -193,10 +257,19 @@ export function ImageConsentScreen({
           </TouchableOpacity>
 
           {onSkip ? (
-            <TouchableOpacity style={styles.skipBtn} onPress={onSkip} disabled={saving} activeOpacity={0.7}>
-              <AppText variant="body14" color={authColors.textTertiary}>
-                Ahora no
-              </AppText>
+            <TouchableOpacity
+              style={styles.skipBtn}
+              onPress={() => void handleSkip()}
+              disabled={saving !== null}
+              activeOpacity={0.7}
+            >
+              {saving === 'decline' ? (
+                <ActivityIndicator color={authColors.textTertiary} />
+              ) : (
+                <AppText variant="body14" color={authColors.textTertiary}>
+                  {t.image_consent.decline_cta}
+                </AppText>
+              )}
             </TouchableOpacity>
           ) : null}
         </View>
@@ -213,6 +286,20 @@ const styles = StyleSheet.create({
   title: { marginBottom: spacing.xs, letterSpacing: -0.5 },
   subtitle: { marginBottom: spacing.lg, lineHeight: 20 },
 
+  statusBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: LIMA,
+    marginBottom: spacing.md,
+  },
+  statusBadgeDeclined: {
+    backgroundColor: authColors.surface,
+    borderWidth: 1,
+    borderColor: authColors.border,
+  },
+
   card: {
     borderWidth: 1,
     borderColor: authColors.border,
@@ -222,16 +309,19 @@ const styles = StyleSheet.create({
     backgroundColor: authColors.surface,
   },
   docText: { lineHeight: 22 },
+  agreement: { lineHeight: 18, textAlign: 'center', paddingHorizontal: 4, marginTop: 4, marginBottom: 8 },
 
-  panel: {
+  sigPanel: {
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: authColors.border,
     paddingHorizontal: H_PAD,
     paddingTop: spacing.md,
-    paddingBottom: spacing.sm,
+    paddingBottom: spacing.xs,
     backgroundColor: authColors.background,
   },
+  sigTitle: { marginBottom: spacing.md },
   fieldLabel: { marginBottom: 8, letterSpacing: 0.4 },
+  fieldLabelSpaced: { marginTop: spacing.xs },
   textInput: {
     borderWidth: 1,
     borderColor: authColors.border,
@@ -243,20 +333,6 @@ const styles = StyleSheet.create({
     backgroundColor: authColors.surface,
     marginBottom: spacing.md,
   },
-  checkRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 1.5,
-    borderColor: authColors.border,
-    backgroundColor: authColors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 1,
-  },
-  checkboxChecked: { borderColor: LIMA, backgroundColor: LIMA },
-  checkLabel: { flex: 1, lineHeight: 20 },
 
   footer: {
     borderTopWidth: StyleSheet.hairlineWidth,

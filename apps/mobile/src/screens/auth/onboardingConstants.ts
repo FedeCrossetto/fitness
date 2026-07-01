@@ -38,7 +38,13 @@ function buildCountryOptions(): CountryOption[] {
   const all: CountryOption[] = worldCountries
     .filter((c) => c.idd?.root)
     .map((c) => ({
-      code: `${c.idd.root}${c.idd.suffixes?.[0] ?? ''}`,
+      // `idd.suffixes` son los codigos de área locales, no parte del código de país.
+      // Solo tiene sentido "pegarlo" al root cuando el país entero comparte un único
+      // sufijo (ej. Jamaica +1876, Bahamas +1242) — así se distingue de otros países
+      // con el mismo root en el selector. Países con decenas de sufijos (EE.UU.,
+      // Canadá, República Dominicana) NO tienen un único código de área nacional:
+      // agregar el primero de la lista al azar daba códigos como "+1201" para EE.UU.
+      code: `${c.idd.root}${c.idd.suffixes?.length === 1 ? c.idd.suffixes[0] : ''}`,
       cca2: c.cca2,
       flag: c.flag,
       name: c.translations.spa?.common ?? c.name.common,

@@ -219,6 +219,10 @@ export function RootNavigator(): React.JSX.Element {
 
   const [imageConsentRequired, setImageConsentRequired] = useState(false);
   const [imageConsentConfig, setImageConsentConfig] = useState<ImageConsentCfg | null>(null);
+  // true mientras se resuelve el gate de imagen (recién firmado el deslinde, o
+  // recheck al volver del background). Evita el flash de MainTabs entre "ya no
+  // hace falta el deslinde" y "hace falta el consentimiento de imagen".
+  const [imageConsentChecking, setImageConsentChecking] = useState(false);
 
   const [consultationRequired, setConsultationRequired] = useState(false);
   const [consultationFormCode, setConsultationFormCode] = useState<string | null>(null);
@@ -226,6 +230,18 @@ export function RootNavigator(): React.JSX.Element {
   const { sliderDone, markSliderDone } = useMarketingSlider();
   const { profile: storedProfile } = useStoredProfile();
   const [sliderJustFinished, setSliderJustFinished] = useState(false);
+
+  // Mientras needsOnboarding es true, checkWaiver ni siquiera consulta el gate (lo
+  // marca "checked, no requerido" para no bloquear el onboarding). Si dejáramos que
+  // ese valor viejo sobreviva al primer render con needsOnboarding=false, se ve un
+  // frame de MainTabs antes de que el chequeo real (disparado por un efecto aparte)
+  // determine que hace falta el deslinde. Ajustamos el estado durante el render —
+  // no en un efecto — para que la corrección aplique en el mismo commit, sin flash.
+  const prevNeedsOnboardingRef = useRef(needsOnboarding);
+  if (prevNeedsOnboardingRef.current !== needsOnboarding) {
+    prevNeedsOnboardingRef.current = needsOnboarding;
+    if (!needsOnboarding && waiverChecked) setWaiverChecked(false);
+  }
 
   // Reset el flag cuando el usuario inicia sesión, así el próximo logout muestra EasyLogin
   useEffect(() => {
@@ -268,6 +284,7 @@ export function RootNavigator(): React.JSX.Element {
   }, [session?.user.id, profile?.id, profile?.trainer_id, profile?.role, profile?.client_status, needsOnboarding]);
 
   const applyImageConsentGate = useCallback(async () => {
+    setImageConsentChecking(true);
     try {
       const result = await resolveImageConsentGate();
       setImageConsentConfig(result.config);
@@ -276,6 +293,8 @@ export function RootNavigator(): React.JSX.Element {
       if (__DEV__) console.warn('[image_consent] gate check failed:', err);
       setImageConsentRequired(false);
       setImageConsentConfig(null);
+    } finally {
+      setImageConsentChecking(false);
     }
   }, []);
 
@@ -403,7 +422,7 @@ export function RootNavigator(): React.JSX.Element {
     !!profile?.id &&
     !needsOnboarding &&
     !needsTrainerLink(profile) &&
-    !waiverChecked;
+    (!waiverChecked || imageConsentChecking);
 
   // Only block rendering with the loading overlay during initialization or when a session
   // exists and gates are pending. While the user is unauthenticated, keep the AuthStack
@@ -447,7 +466,8 @@ export function RootNavigator(): React.JSX.Element {
           setImageConsentConfig(null);
         }}
         onSkip={() => {
-          // Consentimiento opcional: se omite por esta sesión.
+          // ImageConsentScreen ya persistió el rechazo (status='declined') antes de llamar
+          // a este callback, así que el gate no se va a volver a activar en próximos logins.
           setImageConsentRequired(false);
           setImageConsentConfig(null);
         }}

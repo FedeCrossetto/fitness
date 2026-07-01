@@ -39,6 +39,8 @@ interface ImageConsentAcceptance {
   accepted_at: string;
   document_snapshot: string;
   document_title: string;
+  signature_data: string | null;
+  status: 'accepted' | 'declined';
 }
 
 interface ConsultationResponseEntry {
@@ -166,7 +168,7 @@ export function StudentDetailPage(): React.JSX.Element {
         supabase.from('meal_logs').select('*').eq('user_id', studentId).order('created_at', { ascending: false }).limit(20),
         supabase.from('messages').select('*').eq('client_id', studentId).order('created_at', { ascending: true }),
         anyClient.from('waiver_signatures').select('id, full_name, signed_at, signature_data, document_snapshot, document_title').eq('client_id', studentId).maybeSingle(),
-        anyClient.from('image_consent_acceptances').select('id, full_name, accepted_at, document_snapshot, document_title').eq('client_id', studentId).maybeSingle(),
+        anyClient.from('image_consent_acceptances').select('id, full_name, accepted_at, document_snapshot, document_title, signature_data, status').eq('client_id', studentId).maybeSingle(),
         anyClient.from('consultation_responses').select('responses, submitted_at').eq('client_id', studentId).maybeSingle(),
         supabase.from('progress_photos').select('*').eq('user_id', studentId).order('created_at', { ascending: false }),
         supabase
@@ -1243,8 +1245,9 @@ function WaiverTab({
 }): React.JSX.Element {
   const isSigned = sig !== null && sig !== false;
   const ws = isSigned ? (sig as WaiverSignature) : null;
-  const consentAccepted = imageConsent !== null && imageConsent !== false;
-  const ic = consentAccepted ? (imageConsent as ImageConsentAcceptance) : null;
+  const icRow = imageConsent !== null && imageConsent !== false ? (imageConsent as ImageConsentAcceptance) : null;
+  const ic = icRow?.status === 'accepted' ? icRow : null;
+  const icDeclined = icRow?.status === 'declined' ? icRow : null;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -1358,13 +1361,28 @@ function WaiverTab({
             </details>
           ) : null}
         </>
+      ) : icDeclined ? (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+            <span style={{ width: 34, height: 34, borderRadius: '50%', background: '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>✕</span>
+            <div>
+              <div style={{ fontWeight: 700, color: '#dc2626', fontSize: 15 }}>Rechazado</div>
+              <div style={{ fontSize: 12.5, color: 'var(--text-tertiary)' }}>
+                {new Date(icDeclined.accepted_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </div>
+            </div>
+          </div>
+          <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.6, padding: '12px 14px', borderRadius: 8, background: 'var(--surface-elevated)', border: '1px solid var(--border)' }}>
+            El alumno eligió "Ahora no" para el consentimiento de uso de imágenes. Puede cambiar su respuesta en cualquier momento desde su Perfil en la app.
+          </div>
+        </>
       ) : (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ width: 34, height: 34, borderRadius: '50%', background: '#fef9c3', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>!</span>
           <div>
             <div style={{ fontWeight: 700, color: '#ca8a04', fontSize: 15 }}>Pendiente</div>
             <div style={{ fontSize: 12.5, color: 'var(--text-tertiary)' }}>
-              El alumno todavía no aceptó el consentimiento de imágenes
+              El alumno todavía no respondió al consentimiento de imágenes
             </div>
           </div>
         </div>

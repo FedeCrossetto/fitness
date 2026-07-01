@@ -7,6 +7,10 @@ export interface OnboardingFormData {
   apartment: string;
   birthDate: string;
   phoneCode: string;
+  /** cca2 del país elegido para el código de teléfono (ej. "US"). Varios países
+   * comparten el mismo `phoneCode` (+1 = EE.UU./Canadá/Rep. Dominicana/...), así
+   * que solo el código no alcanza para saber cuál mostrar seleccionado. */
+  phoneCountryCca2: string;
   phone: string;
   gender: 'male' | 'female' | 'other' | null;
   genderOther: string;
@@ -32,6 +36,7 @@ export const EMPTY_ONBOARDING: OnboardingFormData = {
   apartment: '',
   birthDate: '',
   phoneCode: '+54',
+  phoneCountryCca2: 'AR',
   phone: '',
   gender: null,
   genderOther: '',

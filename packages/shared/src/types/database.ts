@@ -619,12 +619,18 @@ export interface Database {
         Args: Record<string, never>;
         Returns: Json;
       };
+      get_client_image_consent_status: {
+        Args: Record<string, never>;
+        Returns: Json;
+      };
       save_client_image_consent: {
         Args: {
           p_trainer_id: string;
           p_full_name: string;
           p_document_snapshot: string;
           p_document_title: string;
+          p_signature_data?: string | null;
+          p_status?: string;
         };
         Returns: string;
       };

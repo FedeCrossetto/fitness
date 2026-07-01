@@ -30,6 +30,8 @@ import { CoachChatScreen } from '../screens/coach/CoachChatScreen';
 import { AchievementsScreen } from '../screens/achievements/AchievementsScreen';
 import { HydrationScreen } from '../screens/progress/HydrationScreen';
 import { TrainerPanelScreen } from '../screens/trainer/TrainerPanelScreen';
+import { LegalPermissionsScreen } from '../screens/profile/LegalPermissionsScreen';
+import { ImageConsentSettingsScreen } from '../screens/profile/ImageConsentSettingsScreen';
 
 import { ProgramScreen } from '../screens/training/ProgramScreen';
 import { WorkoutDetailScreen } from '../screens/training/WorkoutDetailScreen';
@@ -95,6 +97,8 @@ export function HomeStack(): React.JSX.Element {
       <Home.Screen name="Achievements" component={AchievementsScreen} />
       <Home.Screen name="Hydration" component={HydrationScreen} />
       <Home.Screen name="TrainerPanel" component={TrainerPanelScreen} />
+      <Home.Screen name="LegalPermissions" component={LegalPermissionsScreen} />
+      <Home.Screen name="ImageConsentSettings" component={ImageConsentSettingsScreen} />
     </Home.Navigator>
     </ErrorBoundary>
   );
