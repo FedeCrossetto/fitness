@@ -20,7 +20,6 @@ import { AuthButton, AuthErrorBox } from './authUi';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'VerifyEmail'>;
 
-const LIMA = '#C1ED00';
 const CODE_LENGTH = 6;
 const RESEND_COOLDOWN = 45; // segundos
 
@@ -97,7 +96,7 @@ export function VerifyEmailScreen({ navigation, route }: Props): React.JSX.Eleme
           />
           <AppText variant="h2" style={styles.titleLine} numberOfLines={1} adjustsFontSizeToFit>
             <AppText variant="h2" color={authColors.textPrimary}>CONFIRMÁ TU </AppText>
-            <AppText variant="h2" color={LIMA}>EMAIL</AppText>
+            <AppText variant="h2" color={authColors.lima}>EMAIL</AppText>
           </AppText>
         </View>
 
@@ -153,8 +152,8 @@ export function VerifyEmailScreen({ navigation, route }: Props): React.JSX.Eleme
         <View style={styles.resendRow}>
           {resent ? (
             <View style={styles.resentBadge}>
-              <Ionicons name="checkmark-circle" size={14} color={LIMA} />
-              <AppText variant="caps11" color={LIMA}>CÓDIGO REENVIADO</AppText>
+              <Ionicons name="checkmark-circle" size={14} color={authColors.lima} />
+              <AppText variant="caps11" color={authColors.lima}>CÓDIGO REENVIADO</AppText>
             </View>
           ) : cooldown > 0 ? (
             <AppText variant="caps11" color={authColors.textDisabled}>
@@ -164,7 +163,7 @@ export function VerifyEmailScreen({ navigation, route }: Props): React.JSX.Eleme
             <Pressable onPress={() => void handleResend()} accessibilityRole="button" hitSlop={8}>
               <AppText variant="caps11" color={authColors.textTertiary}>
                 ¿NO LLEGÓ?{'  '}
-                <AppText variant="caps11" color={LIMA}>REENVIAR CÓDIGO</AppText>
+                <AppText variant="caps11" color={authColors.lima}>REENVIAR CÓDIGO</AppText>
               </AppText>
             </Pressable>
           )}
@@ -213,7 +212,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   otpBoxFilled: { borderColor: 'rgba(193,237,0,0.4)' },
-  otpBoxActive: { borderColor: LIMA },
+  otpBoxActive: { borderColor: authColors.lima },
 
   hiddenInput: {
     position: 'absolute',

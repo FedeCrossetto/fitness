@@ -7,8 +7,6 @@ import { WaiverScreen } from '../../screens/waiver/WaiverScreen';
 import { useTranslation } from '../../stores/i18nStore';
 import { authColors } from '../../screens/auth/authScreenTheme';
 
-const LIMA = '#C1ED00';
-
 interface WaiverConfig {
   title: string;
   body: string;
@@ -28,7 +26,7 @@ function WaiverGateContent({ config, trainerId, onSigned }: Props): React.JSX.El
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <FlowGradientBanner
-        icon={<Ionicons name="document-text" size={20} color={LIMA} />}
+        icon={<Ionicons name="document-text" size={20} color={authColors.lima} />}
         title={t.waiver.banner_title}
         body={t.waiver.banner_body}
       />

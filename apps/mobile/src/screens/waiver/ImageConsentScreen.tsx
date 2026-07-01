@@ -20,7 +20,6 @@ import { useAuthStore } from '../../stores/authStore';
 import { useTranslation } from '../../stores/i18nStore';
 import { authColors } from '../auth/authScreenTheme';
 
-const LIMA = '#C1ED00';
 const H_PAD = spacing.xl;
 
 interface ImageConsentConfig {
@@ -240,7 +239,7 @@ export function ImageConsentScreen({
 
         <View style={[styles.footer, { paddingBottom: botPad }]}>
           <TouchableOpacity
-            style={[styles.acceptBtn, { backgroundColor: canAccept ? LIMA : authColors.surface }]}
+            style={[styles.acceptBtn, { backgroundColor: canAccept ? authColors.lima : authColors.surface }]}
             onPress={() => void handleAccept()}
             disabled={saving !== null}
             activeOpacity={0.85}
@@ -289,7 +288,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: LIMA,
+    backgroundColor: authColors.lima,
     marginBottom: spacing.md,
   },
   statusBadgeDeclined: {

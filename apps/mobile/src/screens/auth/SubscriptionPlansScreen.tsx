@@ -22,7 +22,6 @@ import { EvaluationFormScreen } from '../evaluation/EvaluationFormScreen';
 import { EvaluationScheduleScreen } from '../evaluation/EvaluationScheduleScreen';
 import { EvaluationThankYouScreen } from '../evaluation/EvaluationThankYouScreen';
 
-const LIMA = '#C1ED00';
 const ORANGE = '#FF734A';
 const H_PAD = 20;
 
@@ -85,7 +84,7 @@ function PlanBaseView({
     <View style={styles.tabContent}>
       {/* Plan card */}
       <View style={styles.planCard}>
-        <AppText variant="caps11" color={LIMA} style={styles.planCategory}>
+        <AppText variant="caps11" color={authColors.lima} style={styles.planCategory}>
           ACCESO INMEDIATO
         </AppText>
         <AppText variant="h1" color={authColors.textPrimary} style={styles.planTitle}>
@@ -96,7 +95,7 @@ function PlanBaseView({
         <View style={styles.priceRow}>
           <AppText variant="body13" color={authColors.textSecondary}>Desde ARS </AppText>
           {loadingPlans ? (
-            <ActivityIndicator color={LIMA} size="small" />
+            <ActivityIndicator color={authColors.lima} size="small" />
           ) : (
             <AppText variant="metricMedium" color={authColors.textPrimary} style={styles.priceNum}>
               ${(pricePerMonth ?? 0).toLocaleString('es-AR')}
@@ -139,12 +138,12 @@ function PlanBaseView({
         </AppText>
 
         {/* Features */}
-        <AppText variant="caps11" color={LIMA} style={styles.sectionLabel}>
+        <AppText variant="caps11" color={authColors.lima} style={styles.sectionLabel}>
           EL PLAN BASE INCLUYE:
         </AppText>
         {BASE_FEATURES.map((f) => (
           <View key={f} style={styles.featureRow}>
-            <Ionicons name="checkmark" size={16} color={LIMA} />
+            <Ionicons name="checkmark" size={16} color={authColors.lima} />
             <AppText variant="body13" color={authColors.textSecondary} style={styles.featureText}>
               {f}
             </AppText>
@@ -153,12 +152,12 @@ function PlanBaseView({
 
         {/* Complements */}
         <View style={styles.complementsBlock}>
-          <AppText variant="caps11" color={LIMA} style={styles.sectionLabel}>
+          <AppText variant="caps11" color={authColors.lima} style={styles.sectionLabel}>
             COMPLEMENTÁ TU PROCESO CON:
           </AppText>
           {BASE_COMPLEMENTS.map((c) => (
             <View key={c} style={styles.featureRow}>
-              <Ionicons name="checkmark" size={14} color={LIMA} />
+              <Ionicons name="checkmark" size={14} color={authColors.lima} />
               <AppText variant="body12" color={authColors.textTertiary} style={styles.featureText}>
                 {c}
               </AppText>
@@ -168,14 +167,14 @@ function PlanBaseView({
 
         {/* Banner */}
         <View style={styles.motiveBanner}>
-          <AppText variant="caps11" color={LIMA} style={styles.motiveBannerText}>
+          <AppText variant="caps11" color={authColors.lima} style={styles.motiveBannerText}>
             EL PRIMER PASO ES EL MÁS IMPORTANTE.
           </AppText>
         </View>
 
         {/* CTA */}
         <TouchableOpacity
-          style={[styles.ctaBtn, { backgroundColor: LIMA }]}
+          style={[styles.ctaBtn, { backgroundColor: authColors.lima }]}
           onPress={() => selected && onSelectPlan(selected.id)}
           disabled={checkingOut || !selected}
           activeOpacity={0.85}
@@ -400,9 +399,9 @@ export function SubscriptionPlansScreen(): React.JSX.Element {
       <View style={styles.header}>
         <AppText variant="h2" style={styles.titleLine} numberOfLines={1} adjustsFontSizeToFit>
           <AppText variant="h2" color={authColors.textPrimary}>ELEGÍ TU </AppText>
-          <AppText variant="h2" color={LIMA}>PLAN</AppText>
+          <AppText variant="h2" color={authColors.lima}>PLAN</AppText>
         </AppText>
-        <AppText variant="body16SemiBold" color={LIMA} style={styles.brandLabel}>
+        <AppText variant="body16SemiBold" color={authColors.lima} style={styles.brandLabel}>
           R3SET
         </AppText>
       </View>
@@ -414,7 +413,7 @@ export function SubscriptionPlansScreen(): React.JSX.Element {
       >
         {/* Hero */}
         <View style={styles.hero}>
-          <AppText variant="caps11" color={LIMA} style={styles.heroLabel}>
+          <AppText variant="caps11" color={authColors.lima} style={styles.heroLabel}>
             MÉTODO R3SET
           </AppText>
           <AppText variant="h1" color={authColors.textPrimary} style={styles.heroTitle}>
@@ -521,7 +520,7 @@ const styles = StyleSheet.create({
     letterSpacing: -1.5,
     marginBottom: 14,
   },
-  heroLine: { width: 52, height: 3, backgroundColor: LIMA },
+  heroLine: { width: 52, height: 3, backgroundColor: authColors.lima },
 
   toggleContainer: { paddingHorizontal: H_PAD, marginBottom: 24 },
   toggle: {
@@ -537,7 +536,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  toggleBtnActiveBase: { backgroundColor: LIMA },
+  toggleBtnActiveBase: { backgroundColor: authColors.lima },
   toggleBtnActiveMentoria: { backgroundColor: ORANGE },
   toggleBtnText: { letterSpacing: 1, fontWeight: '700' },
 

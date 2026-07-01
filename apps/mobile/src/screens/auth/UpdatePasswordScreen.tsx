@@ -14,7 +14,6 @@ import { useAuthStore } from '../../stores/authStore';
 import { authColors } from './authScreenTheme';
 import { AuthButton, AuthErrorBox, AuthInput } from './authUi';
 
-const LIMA = '#C1ED00';
 const CYAN = '#00E3FC';
 
 interface Req { label: string; met: boolean }
@@ -80,7 +79,7 @@ export function UpdatePasswordScreen(): React.JSX.Element {
           />
           <AppText variant="h2" style={styles.titleLine} numberOfLines={1} adjustsFontSizeToFit>
             <AppText variant="h2" color={authColors.textPrimary}>NUEVA </AppText>
-            <AppText variant="h2" color={LIMA}>CONTRASEÑA</AppText>
+            <AppText variant="h2" color={authColors.lima}>CONTRASEÑA</AppText>
           </AppText>
         </View>
 
@@ -91,7 +90,7 @@ export function UpdatePasswordScreen(): React.JSX.Element {
         {done ? (
           /* Success state */
           <View style={styles.successBox}>
-            <Ionicons name="checkmark-circle" size={40} color={LIMA} style={styles.successIcon} />
+            <Ionicons name="checkmark-circle" size={40} color={authColors.lima} style={styles.successIcon} />
             <AppText variant="body14SemiBold" color={authColors.textPrimary} style={styles.successTitle}>
               ¡CONTRASEÑA ACTUALIZADA!
             </AppText>
@@ -219,7 +218,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  reqDotMet: { backgroundColor: LIMA },
+  reqDotMet: { backgroundColor: authColors.lima },
 
   infoBox: {
     flexDirection: 'row',

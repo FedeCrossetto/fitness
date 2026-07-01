@@ -9,6 +9,8 @@ import { darkColors } from '../../theme/colors';
 export const authColors = {
   background:        darkColors.background,
   surface:           darkColors.surface.base,
+  /** Verde lima de marca — antes redeclarado como `const LIMA = '#C1ED00'` en cada pantalla. */
+  lima:              darkColors.primary.default,
   textPrimary:       darkColors.text.primary,
   textSecondary:     'rgba(255,255,255,0.55)',
   textTertiary:      'rgba(255,255,255,0.38)',

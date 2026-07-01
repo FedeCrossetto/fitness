@@ -20,8 +20,6 @@ import { useAuthStore } from '../../stores/authStore';
 import { useTranslation } from '../../stores/i18nStore';
 import { authColors } from '../auth/authScreenTheme';
 
-const LIMA = '#C1ED00';
-
 interface WaiverConfig {
   title: string;
   body: string;
@@ -190,7 +188,7 @@ export function WaiverScreen({
 
         <View style={[styles.footer, { paddingBottom: botPad }]}>
           <TouchableOpacity
-            style={[styles.signBtn, { backgroundColor: canSign ? LIMA : authColors.surface }]}
+            style={[styles.signBtn, { backgroundColor: canSign ? authColors.lima : authColors.surface }]}
             onPress={() => void handleSign()}
             disabled={saving}
             activeOpacity={0.85}

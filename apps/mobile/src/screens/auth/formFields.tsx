@@ -26,7 +26,7 @@ import { COUNTRY_CODES, type CountryOption } from './onboardingConstants';
  * el de código de teléfono, la fecha de nacimiento, y los estilos base.
  */
 
-export const LIMA = '#C1ED00';
+export const LIMA = authColors.lima;
 
 /**
  * Al elegir un país en el CountryField, el código de teléfono debería seguirlo

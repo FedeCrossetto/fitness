@@ -7,8 +7,6 @@ import { ImageConsentScreen } from '../../screens/waiver/ImageConsentScreen';
 import { useTranslation } from '../../stores/i18nStore';
 import { authColors } from '../../screens/auth/authScreenTheme';
 
-const LIMA = '#C1ED00';
-
 interface ImageConsentConfig {
   title: string;
   body: string;
@@ -28,7 +26,7 @@ function ImageConsentGateContent({ config, trainerId, onAccepted, onSkip }: Prop
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <FlowGradientBanner
-        icon={<Ionicons name="images" size={20} color={LIMA} />}
+        icon={<Ionicons name="images" size={20} color={authColors.lima} />}
         title={t.image_consent.banner_title}
         body={t.image_consent.banner_body}
       />
