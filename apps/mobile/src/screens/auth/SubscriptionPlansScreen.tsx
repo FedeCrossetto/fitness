@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText } from '../../components/common';
 import { useAuthStore } from '../../stores/authStore';
+import { useUiStore } from '../../stores/uiStore';
 import { clearSubscriptionAccessCache, fetchPlans } from '../../services/payments';
 import { useCheckout } from '../../hooks/useCheckout';
 import { useAppActive } from '../../hooks/useAppActive';
@@ -230,8 +231,12 @@ export function SubscriptionPlansScreen(): React.JSX.Element {
       try {
         const list = await fetchPlans(userId);
         setPlans(list);
-      } catch {
-        // mostrar igual con mentoría
+      } catch (err) {
+        // No bloqueamos la pantalla (el usuario puede seguir con Mentoría),
+        // pero antes esto quedaba en silencio y el Plan Base se veía roto
+        // ($0/mes, sin selector de duración) sin ninguna pista de qué pasó.
+        if (__DEV__) console.warn('[plans] fetchPlans failed:', err);
+        useUiStore.getState().showToast('error', 'No pudimos cargar los planes. Probá de nuevo más tarde.');
       } finally {
         setLoadingPlans(false);
       }
