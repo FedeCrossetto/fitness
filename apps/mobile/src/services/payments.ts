@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import type { PlanRow, ProfileRow, SubscriptionRow } from '../types/database';
+import type { PlanRow, PlanType, ProfileRow, SubscriptionRow } from '../types/database';
 
 /**
  * Pagos con Mercado Pago.
@@ -24,7 +24,9 @@ export async function fetchPlans(userId?: string | null): Promise<PlanRow[]> {
   const trainerId = userId ? await resolvePlanTrainerId(userId) : null;
 
   const [{ data: plans, error: plansError }, overridesResult] = await Promise.all([
-    supabase.from('plans').select('*').eq('active', true).order('duration_days'),
+    // plan_type='base': el checkout self-service nunca debe ofrecer Mentoría
+    // 1-1 (se procesa manualmente vía evaluación + activación del entrenador).
+    supabase.from('plans').select('*').eq('active', true).eq('plan_type', 'base').order('duration_days'),
     trainerId
       ? supabase
           .from('trainer_plan_prices')
@@ -78,6 +80,21 @@ export async function fetchActiveSubscription(userId: string): Promise<Subscript
     return { ...data, status: 'expired' };
   }
   return data;
+}
+
+/** Plan real del cliente (Base o Mentoría 1-1), vía su suscripción activa más
+ * reciente. Sin suscripción (ej. recién activado) devuelve 'base', igual
+ * default que la columna plans.plan_type. Usado para elegir qué formulario
+ * de consulta (consultation_form_configs) le corresponde ver. */
+export async function resolveClientPlanType(clientId: string): Promise<PlanType> {
+  const sub = await fetchActiveSubscription(clientId);
+  if (!sub) return 'base';
+  const { data: plan } = await supabase
+    .from('plans')
+    .select('plan_type')
+    .eq('id', sub.plan_id)
+    .maybeSingle();
+  return (plan as { plan_type: PlanType } | null)?.plan_type ?? 'base';
 }
 
 type SubscriptionAccessCache = {

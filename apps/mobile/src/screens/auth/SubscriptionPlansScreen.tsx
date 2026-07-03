@@ -12,7 +12,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText } from '../../components/common';
 import { useAuthStore } from '../../stores/authStore';
-import { useUiStore } from '../../stores/uiStore';
 import { clearSubscriptionAccessCache, fetchPlans } from '../../services/payments';
 import { useCheckout } from '../../hooks/useCheckout';
 import { useAppActive } from '../../hooks/useAppActive';
@@ -21,8 +20,8 @@ import type { PlanRow } from '../../types/database';
 import { EvaluationFormScreen } from '../evaluation/EvaluationFormScreen';
 import { EvaluationScheduleScreen } from '../evaluation/EvaluationScheduleScreen';
 import { EvaluationThankYouScreen } from '../evaluation/EvaluationThankYouScreen';
+import { MentoriaView, ORANGE, BASE_COMPLEMENTS } from './MentoriaView';
 
-const ORANGE = '#FF734A';
 const H_PAD = 20;
 
 function monthsOf(plan: PlanRow): number {
@@ -37,23 +36,6 @@ const BASE_FEATURES = [
   'Soporte en plataforma',
   'Comunidad privada de alumnos',
   'Sin permanencia — cancelá cuando quieras',
-];
-
-const BASE_COMPLEMENTS = [
-  'Consultas nutricionales con profesionales especializados',
-  'Acompañamiento psicológico para fortalecer hábitos y emociones',
-];
-
-const MENTORIA_FEATURES: { text: string; bold?: boolean }[] = [
-  { text: 'Comunicación directa conmigo', bold: true },
-  { text: 'Entrenamiento personalizado 100% (gimnasio - hogar)' },
-  { text: 'Estrategia alimentaria adaptada' },
-  { text: 'Seguimiento y análisis de todas tus comidas', bold: true },
-  { text: 'Ajustes permanentes' },
-  { text: 'Aplicación exclusiva para Android e iPhone' },
-  { text: 'Sesiones 1-1 conmigo', bold: true },
-  { text: 'Comunidad privada de alumnos' },
-  { text: 'Prioridad absoluta en la respuesta' },
 ];
 
 // ── Plan Base View ─────────────────────────────────────────────────────────────
@@ -109,7 +91,7 @@ function PlanBaseView({
           <View style={styles.durationRow}>
             {sorted.map((plan, idx) => {
               const m = monthsOf(plan);
-              const label = m === 1 ? '1 Mes' : m <= 3 ? '3 Meses' : '6 Meses';
+              const label = `${m} ${m === 1 ? 'Mes' : 'Meses'}`;
               const active = idx === selectedIdx;
               return (
                 <TouchableOpacity
@@ -217,100 +199,6 @@ function PlanBaseView({
   );
 }
 
-// ── Mentoría View ─────────────────────────────────────────────────────────────
-
-function MentoriaView({ onRequestEvaluation }: { onRequestEvaluation: () => void }): React.JSX.Element {
-  return (
-    <View style={styles.tabContent}>
-      {/* Banner transformacion */}
-      <View style={styles.mentoriaBanner}>
-        <AppText variant="body13" color={authColors.textPrimary} style={styles.mentoriaBannerText}>
-          <AppText variant="body13" color={ORANGE} style={styles.mentoriaBannerBold}>
-            Transformación Radical:{' '}
-          </AppText>
-          Este no es solo un plan, es un compromiso mutuo para alcanzar tu mejor versión con mi supervisión directa.
-        </AppText>
-      </View>
-
-      {/* Main card */}
-      <View style={styles.mentoriaCard}>
-        {/* CUPOS LIMITADOS badge */}
-        <View style={styles.cuposBadge}>
-          <AppText variant="caps11" color={authColors.background} style={styles.cuposText}>
-            CUPOS LIMITADOS
-          </AppText>
-        </View>
-
-        <AppText variant="caps11" color={ORANGE} style={[styles.planCategory, { marginTop: 8 }]}>
-          ACOMPAÑAMIENTO PERSONALIZADO
-        </AppText>
-        <AppText variant="h1" color={authColors.textPrimary} style={styles.planTitle}>
-          MENTORÍA 1 A 1
-        </AppText>
-
-        {/* 100% personalizado */}
-        <View style={styles.mentoriaPctRow}>
-          <AppText variant="metricMedium" color={authColors.textPrimary} style={styles.mentoriaPct}>
-            100%
-          </AppText>
-          <AppText variant="body16SemiBold" color={authColors.textSecondary}>
-            {' '}personalizado
-          </AppText>
-        </View>
-        <AppText variant="caps11" color={authColors.textTertiary} style={styles.mentoriaDesigned}>
-          DISEÑADO EXCLUSIVAMENTE PARA VOS.
-        </AppText>
-        <AppText variant="body14" color={authColors.textPrimary} style={styles.mentoriaSubtitle}>
-          Mi nivel más alto de acompañamiento.
-        </AppText>
-
-        {/* Features */}
-        <AppText variant="caps11" color={ORANGE} style={styles.sectionLabel}>
-          INCLUYE LO DEL PLAN BASE Y ADEMÁS:
-        </AppText>
-        {MENTORIA_FEATURES.map(({ text, bold }) => (
-          <View key={text} style={styles.featureRow}>
-            <Ionicons name="checkmark" size={16} color={ORANGE} />
-            <AppText
-              variant="body13"
-              color={bold ? authColors.textPrimary : authColors.textSecondary}
-              style={[styles.featureText, bold && styles.featureBold]}
-            >
-              {text}
-            </AppText>
-          </View>
-        ))}
-
-        {/* Complements */}
-        <View style={styles.complementsBlock}>
-          <AppText variant="caps11" color={ORANGE} style={styles.sectionLabel}>
-            COMPLEMENTÁ TU PROCESO CON:
-          </AppText>
-          {BASE_COMPLEMENTS.map((c) => (
-            <View key={c} style={styles.featureRow}>
-              <Ionicons name="checkmark" size={14} color={ORANGE} />
-              <AppText variant="body12" color={authColors.textTertiary} style={styles.featureText}>
-                {c}
-              </AppText>
-            </View>
-          ))}
-        </View>
-
-        {/* CTA */}
-        <TouchableOpacity
-          style={[styles.ctaBtn, { backgroundColor: ORANGE }]}
-          activeOpacity={0.85}
-          onPress={onRequestEvaluation}
-        >
-          <AppText variant="caps11" color={authColors.background} style={styles.ctaText}>
-            SOLICITAR EVALUACIÓN
-          </AppText>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-}
-
 // ── Screen ─────────────────────────────────────────────────────────────────────
 
 type Tab = 'base' | 'mentoria';
@@ -329,7 +217,6 @@ export function SubscriptionPlansScreen(): React.JSX.Element {
   const [plans, setPlans] = useState<PlanRow[]>([]);
   const [loadingPlans, setLoadingPlans] = useState(true);
   const [, setCheckoutId] = useState<string | null>(null);
-  const [checking, setChecking] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('base');
   const [evalFlowStep, setEvalFlowStep] = useState<EvalFlowStep>(null);
 
@@ -356,16 +243,6 @@ export function SubscriptionPlansScreen(): React.JSX.Element {
     void refreshProfile();
   });
 
-  const onCheck = useCallback(async () => {
-    setChecking(true);
-    clearSubscriptionAccessCache();
-    await refreshProfile();
-    setChecking(false);
-    if (useAuthStore.getState().profile?.client_status === 'pending') {
-      useUiStore.getState().showToast('info', 'Todavía no figura tu pago. Si pagaste en efectivo, avisale a tu entrenador.');
-    }
-  }, [refreshProfile]);
-
   const onSelectPlan = useCallback((id: string) => {
     setCheckoutId(id);
     void startCheckout(id);
@@ -388,7 +265,14 @@ export function SubscriptionPlansScreen(): React.JSX.Element {
     );
   }
   if (evalFlowStep === 'thanks') {
-    return <EvaluationThankYouScreen />;
+    return (
+      <EvaluationThankYouScreen
+        primaryAction={{
+          label: 'Continuar a la app',
+          onPress: () => useAuthStore.getState().bumpEvaluationGate(),
+        }}
+      />
+    );
   }
 
   return (
@@ -469,19 +353,6 @@ export function SubscriptionPlansScreen(): React.JSX.Element {
 
         {/* Footer */}
         <View style={styles.footer}>
-          <TouchableOpacity
-            style={styles.yaPageBtn}
-            onPress={() => void onCheck()}
-            disabled={checking}
-          >
-            {checking ? (
-              <ActivityIndicator color={authColors.textTertiary} size="small" />
-            ) : (
-              <AppText variant="body13" color={authColors.textTertiary}>
-                Ya pagué, actualizar estado
-              </AppText>
-            )}
-          </TouchableOpacity>
           <AppText variant="body12" color={authColors.textTertiary} style={styles.terms}>
             Al seleccionar un plan aceptás nuestros términos de servicio y políticas de privacidad. Todos los planes incluyen actualizaciones constantes del Método R3SET.
           </AppText>
@@ -626,42 +497,6 @@ const styles = StyleSheet.create({
   },
   upsellBtnText: { letterSpacing: 2, color: ORANGE, fontWeight: '700' },
 
-  // Mentoría
-  mentoriaBanner: {
-    borderLeftWidth: 2,
-    borderLeftColor: ORANGE,
-    backgroundColor: 'rgba(255,115,74,0.08)',
-    borderRadius: 8,
-    padding: 14,
-    marginBottom: 4,
-  },
-  mentoriaBannerText: { lineHeight: 19 },
-  mentoriaBannerBold: { fontWeight: '700' },
-
-  mentoriaCard: {
-    borderWidth: 1,
-    borderColor: 'rgba(255,115,74,0.3)',
-    borderRadius: 12,
-    padding: 24,
-    backgroundColor: '#0e0e0e',
-    gap: 14,
-    marginBottom: 4,
-  },
-  cuposBadge: {
-    alignSelf: 'center',
-    backgroundColor: ORANGE,
-    borderRadius: 4,
-    paddingHorizontal: 14,
-    paddingVertical: 5,
-    marginBottom: 4,
-  },
-  cuposText: { letterSpacing: 1.5 },
-
-  mentoriaPctRow: { flexDirection: 'row', alignItems: 'baseline' },
-  mentoriaPct: { fontSize: 36, fontWeight: '800', lineHeight: 40 },
-  mentoriaDesigned: { letterSpacing: 2, marginTop: -6 },
-  mentoriaSubtitle: { fontWeight: '700' },
-
   // Footer
   footer: {
     paddingHorizontal: H_PAD,
@@ -669,7 +504,6 @@ const styles = StyleSheet.create({
     gap: 10,
     alignItems: 'center',
   },
-  yaPageBtn: { paddingVertical: 8 },
   terms: { textAlign: 'center', lineHeight: 16, maxWidth: 300 },
   signOutBtn: { paddingVertical: 4 },
 });

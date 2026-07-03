@@ -19,12 +19,20 @@ export type HomeStackParamList = {
   Messages: { focus?: 'groups' } | undefined;
   CommunityChat: { communityId: string; communityName?: string; communityAvatarUrl?: string | null };
   Subscription: undefined;
+  MentoriaUpgrade: undefined;
   CoachChat: undefined;
   Achievements: undefined;
   Hydration: undefined;
   TrainerPanel: undefined;
   LegalPermissions: undefined;
   ImageConsentSettings: undefined;
+};
+
+/** Cliente nuevo que eligió Mentoría 1-1 y todavía no fue activado por el
+ * entrenador — ver RootNavigator/services/evaluationGate.ts. */
+export type MentoriaWaitStackParamList = {
+  Waiting: undefined;
+  Profile: undefined;
 };
 
 export type TrainingStackParamList = {

@@ -26,8 +26,10 @@ const MessagesPage         = lazy(() => import('@/pages/Messages').then((m) => (
 const GroupsPage           = lazy(() => import('@/pages/Groups').then((m) => ({ default: m.GroupsPage })));
 const GroupDetailPage      = lazy(() => import('@/pages/GroupDetail').then((m) => ({ default: m.GroupDetailPage })));
 const PaymentsPage         = lazy(() => import('@/pages/Payments').then((m) => ({ default: m.PaymentsPage })));
+const ManagePlansPage      = lazy(() => import('@/pages/ManagePlans').then((m) => ({ default: m.ManagePlansPage })));
 const SettingsPage         = lazy(() => import('@/pages/Settings').then((m) => ({ default: m.SettingsPage })));
 const AutoMessagesPage     = lazy(() => import('@/pages/AutoMessages').then((m) => ({ default: m.AutoMessagesPage })));
+const FormsPage            = lazy(() => import('@/pages/Forms').then((m) => ({ default: m.FormsPage })));
 const ConsultationFormPage = lazy(() => import('@/pages/ConsultationForm').then((m) => ({ default: m.ConsultationFormPage })));
 const WaiverSettingsPage   = lazy(() => import('@/pages/WaiverSettings').then((m) => ({ default: m.WaiverSettingsPage })));
 const AnnouncementsPage    = lazy(() => import('@/pages/Announcements').then((m) => ({ default: m.AnnouncementsPage })));
@@ -85,6 +87,7 @@ function App(): React.JSX.Element {
             <Route path="/students" element={<StudentsPage />} />
             <Route path="/students/:id" element={<StudentDetailPage />} />
             <Route path="/payments" element={<PaymentsPage />} />
+            <Route path="/payments/planes" element={<ManagePlansPage />} />
             <Route path="/routines" element={<RoutinesPage />} />
             <Route path="/foods" element={<FoodsPage />} />
             <Route path="/branding" element={<BrandingPage />} />
@@ -92,7 +95,8 @@ function App(): React.JSX.Element {
             <Route path="/announcements" element={<AnnouncementsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/settings/auto-messages" element={<AutoMessagesPage />} />
-            <Route path="/settings/consultation-form" element={<ConsultationFormPage />} />
+            <Route path="/settings/forms" element={<FormsPage />} />
+            <Route path="/settings/forms/:planType" element={<ConsultationFormPage />} />
             <Route path="/settings/waiver" element={<WaiverSettingsPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

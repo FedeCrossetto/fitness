@@ -1,39 +1,22 @@
 import React from 'react';
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { spacing } from '../../theme';
-import { AppText, Button } from '../../components/common';
+import { AppText } from '../../components/common';
 import { useAuthStore } from '../../stores/authStore';
 import { authColors } from '../auth/authScreenTheme';
-import { LIMA } from '../auth/formFields';
+import { AuthButton } from '../auth/authUi';
+import { EvaluationProcessCard } from './EvaluationProcessCard';
 
-interface ProcessStep {
-  icon: keyof typeof Ionicons.glyphMap;
-  title: string;
-  body: string;
+interface Props {
+  /** Botón principal — varía según de dónde se llegó: "Continuar a la app"
+   * desde el alta de un cliente nuevo, "Volver a mi perfil" desde el upgrade
+   * de un cliente que ya paga Plan Base. */
+  primaryAction: { label: string; onPress: () => void };
 }
 
-const STEPS: ProcessStep[] = [
-  {
-    icon: 'chatbubble-outline',
-    title: '1. Reviso tu solicitud',
-    body: 'Analizo tu información para entender tu situación actual, objetivos y necesidades.',
-  },
-  {
-    icon: 'chatbubbles-outline',
-    title: '2. Charla personalizada',
-    body: 'Hablamos sobre tu caso y te muestro el plan ideal para vos.',
-  },
-  {
-    icon: 'rocket-outline',
-    title: '3. Comenzamos',
-    body: 'Te acompaño paso a paso para que logres resultados reales y sostenibles.',
-  },
-];
-
 /** Confirmación final, mismo contenido que alegerezcoach.com/es/evaluacion/gracias. */
-export function EvaluationThankYouScreen(): React.JSX.Element {
+export function EvaluationThankYouScreen({ primaryAction }: Props): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const signOut = useAuthStore((s) => s.signOut);
 
@@ -50,49 +33,18 @@ export function EvaluationThankYouScreen(): React.JSX.Element {
         contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.xl, paddingBottom: insets.bottom + spacing.xl }]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.iconOuter}>
-          <View style={styles.iconInner}>
-            <Ionicons name="checkmark" size={36} color={LIMA} />
-          </View>
-        </View>
+        <EvaluationProcessCard
+          title="¡SOLICITUD ENVIADA!"
+          subtitle="Gracias por confiar en mí. 💚"
+          intro="Recibí tu solicitud correctamente. Estoy muy contento de que hayas dado este paso."
+        />
 
-        <AppText variant="h1" color={authColors.textPrimary} align="center" style={styles.title}>
-          ¡SOLICITUD ENVIADA!
-        </AppText>
-        <AppText variant="body16SemiBold" color={LIMA} align="center" style={styles.thanks}>
-          Gracias por confiar en mí. 💚
-        </AppText>
-        <AppText variant="body14" color={authColors.textSecondary} align="center" style={styles.intro}>
-          Recibí tu solicitud correctamente. Estoy muy contento de que hayas dado este paso.
-        </AppText>
-
-        <View style={styles.card}>
-          <AppText variant="caps11" color={LIMA} style={styles.cardLabel}>
-            ¿CÓMO ES EL PROCESO?
+        <AuthButton label={primaryAction.label} onPress={primaryAction.onPress} fullWidth style={styles.cta} />
+        <Pressable onPress={onSignOut} style={styles.signOutBtn}>
+          <AppText variant="body12" color={authColors.textTertiary}>
+            Cerrar sesión
           </AppText>
-          {STEPS.map((step) => (
-            <View key={step.title} style={styles.stepRow}>
-              <View style={styles.stepIcon}>
-                <Ionicons name={step.icon} size={18} color={LIMA} />
-              </View>
-              <View style={styles.stepCopy}>
-                <AppText variant="body14SemiBold" color={authColors.textPrimary}>
-                  {step.title}
-                </AppText>
-                <AppText variant="body13" color={authColors.textSecondary} style={styles.stepBody}>
-                  {step.body}
-                </AppText>
-              </View>
-            </View>
-          ))}
-        </View>
-
-        <Ionicons name="heart-outline" size={22} color={authColors.textTertiary} style={styles.heart} />
-        <AppText variant="body14SemiBold" color={authColors.textPrimary} align="center" style={styles.closing}>
-          Este es el comienzo de algo grande.{'\n'}¡Vamos por tu mejor versión! 💪
-        </AppText>
-
-        <Button label="Cerrar sesión" variant="secondary" onPress={onSignOut} fullWidth style={styles.cta} />
+        </Pressable>
       </ScrollView>
     </View>
   );
@@ -101,54 +53,6 @@ export function EvaluationThankYouScreen(): React.JSX.Element {
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: authColors.background },
   content: { paddingHorizontal: spacing.xl, alignItems: 'center' },
-
-  iconOuter: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: 'rgba(193,237,0,0.08)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.lg,
-  },
-  iconInner: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: 'rgba(193,237,0,0.16)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  title: { letterSpacing: -0.5, marginBottom: spacing.sm },
-  thanks: { marginBottom: spacing.sm },
-  intro: { lineHeight: 20, marginBottom: spacing.xl, paddingHorizontal: spacing.sm },
-
-  card: {
-    alignSelf: 'stretch',
-    borderWidth: 1,
-    borderColor: authColors.border,
-    borderRadius: 16,
-    padding: spacing.lg,
-    backgroundColor: authColors.surface,
-    marginBottom: spacing.xl,
-  },
-  cardLabel: { letterSpacing: 1, marginBottom: spacing.md },
-  stepRow: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.md },
-  stepIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(193,237,0,0.10)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  stepCopy: { flex: 1 },
-  stepBody: { marginTop: 2, lineHeight: 18 },
-
-  heart: { marginBottom: spacing.sm },
-  closing: { lineHeight: 20, marginBottom: spacing.xl },
-
   cta: { alignSelf: 'stretch' },
+  signOutBtn: { paddingVertical: spacing.md },
 });

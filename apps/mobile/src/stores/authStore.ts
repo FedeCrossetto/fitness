@@ -46,6 +46,11 @@ interface AuthState {
   error: string | null;
   needsOnboarding: boolean;
   needsPasswordReset: boolean;
+  /** Se incrementa manualmente para forzarle a RootNavigator a re-evaluar el
+   * gate de "esperando evaluación de mentoría" sin depender de un cambio de
+   * `profile` (sigue en client_status='pending' hasta que el entrenador activa
+   * la cuenta) — ver bumpEvaluationGate(). */
+  evaluationGateVersion: number;
 
   checkSession: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<boolean>;
@@ -61,6 +66,7 @@ interface AuthState {
   signOut: (forced?: boolean) => Promise<void>;
   clearError: () => void;
   forcedSignOut: boolean;
+  bumpEvaluationGate: () => void;
 }
 
 function messageFor(error: unknown): string {
@@ -362,6 +368,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   needsOnboarding: false,
   needsPasswordReset: false,
   forcedSignOut: false,
+  evaluationGateVersion: 0,
+
+  bumpEvaluationGate: () => set((s) => ({ evaluationGateVersion: s.evaluationGateVersion + 1 })),
 
   checkSession: async () => {
     ensureAuthListener();

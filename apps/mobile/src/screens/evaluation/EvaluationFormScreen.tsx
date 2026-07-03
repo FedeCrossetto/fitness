@@ -203,6 +203,7 @@ export function EvaluationFormScreen({ onBack, onSubmitted }: EvaluationFormScre
             }}
             error={fieldErrors.country}
             onDropdownOpenChange={setDropdownOpen}
+            scrollFieldAboveKeyboard={scrollFieldAboveKeyboard}
           />
           <CityField
             country={form.country}
@@ -210,6 +211,7 @@ export function EvaluationFormScreen({ onBack, onSubmitted }: EvaluationFormScre
             onChange={(v) => update('city', v)}
             error={fieldErrors.city}
             onDropdownOpenChange={setDropdownOpen}
+            scrollFieldAboveKeyboard={scrollFieldAboveKeyboard}
           />
 
           <View style={formStyles.field}>
@@ -239,6 +241,16 @@ export function EvaluationFormScreen({ onBack, onSubmitted }: EvaluationFormScre
             ))}
           </View>
           <FieldError message={fieldErrors.gender} />
+          {form.gender === 'other' ? (
+            <AuthInput
+              label="ESPECIFICÁ (OPCIONAL)"
+              icon="create-outline"
+              placeholder="Cómo te identificás"
+              value={form.genderOther}
+              onChangeText={(v) => update('genderOther', v)}
+              containerStyle={[formStyles.field, styles.genderOther]}
+            />
+          ) : null}
 
           <View style={[styles.bodyRow, styles.sectionSpacing]}>
             <AuthInput
@@ -344,6 +356,7 @@ const styles = StyleSheet.create({
   title: { flex: 1, letterSpacing: -0.5 },
   subtitle: { marginBottom: spacing.lg, lineHeight: 20 },
   sectionSpacing: { marginTop: spacing.md },
+  genderOther: { marginTop: spacing.sm },
   bodyRow: { flexDirection: 'row', gap: spacing.md },
   bodyInput: { flex: 1 },
   laterRow: {

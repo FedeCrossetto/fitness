@@ -8,18 +8,37 @@ import { authColors } from '../auth/authScreenTheme';
 import { LIMA } from '../auth/formFields';
 
 // TODO: reemplazar si cambia el link de Calendly del coach.
-const CALENDLY_URL = 'https://calendly.com/r3set-method/30min';
+// embed_domain + embed_type=Inline son requeridos por Calendly para que su script
+// emita los eventos por postMessage (sin esto, event_scheduled nunca llega).
+const CALENDLY_URL = 'https://calendly.com/r3set-method/30min?embed_domain=r3set.app&embed_type=Inline';
 
 // Calendly emite eventos por postMessage al iframe/WebView embebido (event_type_viewed,
 // date_and_time_selected, event_scheduled). Los reenviamos a React Native para saber
 // cuándo terminó de agendar sin depender de que el usuario "cierre" nada — con un
 // WebView embebido no hay un gesto de cierre equivalente al del navegador in-app.
+//
+// Fallback por si el postMessage no llega dentro del WebView (algunos WebViews no
+// disparan el listener aunque los params de embed estén bien puestos): además
+// buscamos por texto la confirmación propia de Calendly ("Ha programado su cita" /
+// "is scheduled"), que se muestra en la misma página sin navegar a otra URL.
 const INJECTED_JS = `
-  window.addEventListener('message', function (e) {
-    if (e.data && typeof e.data.event === 'string' && e.data.event.indexOf('calendly.') === 0) {
-      window.ReactNativeWebView.postMessage(e.data.event);
+  (function () {
+    function notifyScheduled() {
+      window.ReactNativeWebView.postMessage('calendly.event_scheduled');
     }
-  });
+    window.addEventListener('message', function (e) {
+      if (e.data && e.data.event === 'calendly.event_scheduled') notifyScheduled();
+    });
+    var alreadyNotified = false;
+    setInterval(function () {
+      if (alreadyNotified) return;
+      var text = (document.body && document.body.innerText) || '';
+      if (/programado su cita|has been scheduled|is scheduled/i.test(text)) {
+        alreadyNotified = true;
+        notifyScheduled();
+      }
+    }, 1000);
+  })();
   true;
 `;
 

@@ -345,12 +345,15 @@ export interface PushTokenRow {
   updated_at: string;
 }
 
+export type PlanType = 'base' | 'mentoria';
+
 export interface PlanRow {
   id: string;
   name: string;
   description: string | null;
   price_ars: number;
   duration_days: number;
+  plan_type: PlanType;
   active: boolean | null;
   created_at: string;
 }
@@ -374,6 +377,8 @@ export interface SubscriptionRow {
   started_at: string | null;
   expires_at: string | null;
   locale: string | null;
+  /** Monto realmente facturado — puede diferir de plans.price_ars por un override manual. Null en filas viejas. */
+  amount_ars: number | null;
   created_at: string;
 }
 
@@ -511,6 +516,7 @@ export interface ConsultationFormConfigRow {
   id: string;
   trainer_id: string;
   form_code: string;
+  plan_type: PlanType;
   updated_at: string;
 }
 

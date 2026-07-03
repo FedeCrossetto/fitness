@@ -149,7 +149,9 @@ export function StudentDetailPage(): React.JSX.Element {
           .select('default_program_key')
           .eq('trainer_id', trainerProfile.id)
           .maybeSingle(),
-        supabase.from('plans').select('*').eq('active', true).order('duration_days'),
+        // Sin filtro de `active`: ManualPaymentModal necesita resolver cualquier
+        // combinación de Plan × Frecuencia del catálogo.
+        supabase.from('plans').select('*').order('duration_days'),
       ]);
       setDefaultProgramKey((branding as { default_program_key?: string } | null)?.default_program_key ?? 'default');
       setPlans((planRows as PlanRow[] | null) ?? []);

@@ -314,9 +314,12 @@ export interface CountryFieldProps {
   /** La pantalla desactiva su propio scroll mientras el dropdown está abierto,
    * para que no compita por el gesto con el ScrollView de las sugerencias. */
   onDropdownOpenChange?: (open: boolean) => void;
+  /** Mismo hook que PhoneField: sube el scroll al enfocar para que la lista de
+   * sugerencias no quede tapada por el teclado. */
+  scrollFieldAboveKeyboard?: (nodeHandle: number, extraRoom?: number) => void;
 }
 
-export function CountryField({ value, onChange, error, onDropdownOpenChange }: CountryFieldProps): React.JSX.Element {
+export function CountryField({ value, onChange, error, onDropdownOpenChange, scrollFieldAboveKeyboard }: CountryFieldProps): React.JSX.Element {
   const [query, setQuery] = useState(value);
   const { focused, onFocus, onBlur, close, setScrolling } = useDismissableFocus();
   const selected = COUNTRY_CODES.find((c) => c.name === value);
@@ -352,7 +355,10 @@ export function CountryField({ value, onChange, error, onDropdownOpenChange }: C
         autoCapitalize="words"
         value={query}
         onChangeText={(text) => { setQuery(text); if (text.trim() === '') onChange(''); }}
-        onFocus={onFocus}
+        onFocus={(e) => {
+          onFocus();
+          scrollFieldAboveKeyboard?.(e.nativeEvent.target, 220);
+        }}
         onBlur={onBlur}
         error={error}
       />
@@ -391,9 +397,12 @@ export interface CityFieldProps {
   onChange: (city: string) => void;
   error?: string;
   onDropdownOpenChange?: (open: boolean) => void;
+  /** Mismo hook que PhoneField/CountryField: sube el scroll al enfocar para que
+   * la lista de sugerencias no quede tapada por el teclado. */
+  scrollFieldAboveKeyboard?: (nodeHandle: number, extraRoom?: number) => void;
 }
 
-export function CityField({ country, value, onChange, error, onDropdownOpenChange }: CityFieldProps): React.JSX.Element {
+export function CityField({ country, value, onChange, error, onDropdownOpenChange, scrollFieldAboveKeyboard }: CityFieldProps): React.JSX.Element {
   const [allCities, setAllCities] = useState<string[] | null>(null);
   const { focused, onFocus, onBlur, close, setScrolling } = useDismissableFocus();
   const loadedForCountry = useRef<string | null>(null);
@@ -434,7 +443,10 @@ export function CityField({ country, value, onChange, error, onDropdownOpenChang
         editable={hasValidCountry}
         value={value}
         onChangeText={onChange}
-        onFocus={onFocus}
+        onFocus={(e) => {
+          onFocus();
+          scrollFieldAboveKeyboard?.(e.nativeEvent.target, 220);
+        }}
         onBlur={onBlur}
         error={error}
         containerStyle={!hasValidCountry ? formStyles.disabledField : undefined}

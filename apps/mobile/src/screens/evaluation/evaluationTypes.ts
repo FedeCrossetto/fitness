@@ -7,6 +7,7 @@ export interface EvaluationFormData {
   phoneCountryCca2: string;
   phone: string;
   gender: 'male' | 'female' | 'other' | null;
+  genderOther: string;
   shareBodyLater: boolean;
   weightKg: string;
   heightCm: string;
@@ -24,6 +25,7 @@ export const EMPTY_EVALUATION: EvaluationFormData = {
   phoneCountryCca2: 'AR',
   phone: '',
   gender: null,
+  genderOther: '',
   shareBodyLater: false,
   weightKg: '',
   heightCm: '',

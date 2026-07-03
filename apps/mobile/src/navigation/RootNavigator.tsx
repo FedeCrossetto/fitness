@@ -8,7 +8,7 @@ import { AuthLoadingOverlay } from '../components/common';
 import type { MainTabsParamList } from '../types/navigation';
 import { TabBar } from './TabBar';
 import { AddMenuOverlay } from './AddMenuOverlay';
-import { AuthStack, HomeStack, NutritionStack, ProgressStack, TrainingStack } from './stacks';
+import { AuthStack, HomeStack, MentoriaWaitStack, NutritionStack, ProgressStack, TrainingStack } from './stacks';
 import { OnboardingScreen } from '../screens/auth/OnboardingScreen';
 import { UpdatePasswordScreen } from '../screens/auth/UpdatePasswordScreen';
 import { LinkTrainerScreen } from '../screens/auth/LinkTrainerScreen';
@@ -22,7 +22,8 @@ import { useMarketingSlider } from '../hooks/useMarketingSlider';
 import { MarketingSliderScreen } from '../screens/auth/MarketingSliderScreen';
 import { useStoredProfile } from '../hooks/useStoredProfile';
 import { needsTrainerLink, isPendingActivation } from '../services/clientAccess';
-import { clearSubscriptionAccessCache } from '../services/payments';
+import { hasPendingMentoriaEvaluation } from '../services/evaluationGate';
+import { clearSubscriptionAccessCache, resolveClientPlanType } from '../services/payments';
 import { syncPushRegistration } from '../services/notifications';
 import { anyClient, supabase } from '../lib/supabase';
 import { useInboxStore } from '../stores/inboxStore';
@@ -209,7 +210,24 @@ export function RootNavigator(): React.JSX.Element {
   const needsOnboarding      = useAuthStore((s) => s.needsOnboarding);
   const needsPasswordReset   = useAuthStore((s) => s.needsPasswordReset);
   const forcedSignOut        = useAuthStore((s) => s.forcedSignOut);
+  const evaluationGateVersion = useAuthStore((s) => s.evaluationGateVersion);
   const restoreActiveSession = useTrainingStore((s) => s.restoreActiveSession);
+
+  // Mientras isPendingActivation(profile) sea true, decide si mostrar el
+  // selector de planes (nunca aplicó a nada) o la pantalla de espera de
+  // Mentoría 1-1 (ya aplicó, solo falta que el entrenador lo active).
+  // null = todavía no se resolvió la consulta.
+  const [mentoriaWaiting, setMentoriaWaiting] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!isPendingActivation(profile) || !profile?.id) { setMentoriaWaiting(false); return; }
+    // Vuelve a "cargando" en cada resolución (ej. re-login luego de un logout) —
+    // sin esto, el valor anterior (ej. `false`, de antes de aplicar a mentoría)
+    // queda mostrando la pantalla equivocada mientras la consulta está en curso.
+    let active = true;
+    setMentoriaWaiting(null);
+    void hasPendingMentoriaEvaluation(profile.id).then((v) => { if (active) setMentoriaWaiting(v); });
+    return () => { active = false; };
+  }, [profile?.id, profile?.client_status, evaluationGateVersion]);
 
   const [waiverChecked, setWaiverChecked] = useState(false);
   const [waiverRequired, setWaiverRequired] = useState(false);
@@ -253,6 +271,15 @@ export function RootNavigator(): React.JSX.Element {
 
   /** Evita pantalla negra al re-chequear gates (p. ej. refreshProfile al firmar deslinde). */
   const gatesInitializedRef = useRef(false);
+  const gatesSessionIdRef = useRef<string | null>(null);
+
+  // Nueva sesión (login) → los gates deben re-evaluarse desde cero, incluso si un
+  // usuario anterior ya los había inicializado en este mismo montaje de RootNavigator.
+  const currentSessionId = session?.user.id ?? null;
+  if (gatesSessionIdRef.current !== currentSessionId) {
+    gatesSessionIdRef.current = currentSessionId;
+    gatesInitializedRef.current = false;
+  }
 
   useEffect(() => {
     void restoreActiveSession();
@@ -381,10 +408,12 @@ export function RootNavigator(): React.JSX.Element {
 
     void (async () => {
       try {
+        const planType = await resolveClientPlanType(profile.id);
         const { data: cfg } = await anyClient
           .from('consultation_form_configs')
           .select('form_code')
           .eq('trainer_id', trainerId)
+          .eq('plan_type', planType)
           .maybeSingle() as { data: { form_code: string } | null };
 
         if (!cfg?.form_code?.trim()) {
@@ -415,7 +444,14 @@ export function RootNavigator(): React.JSX.Element {
     return () => { active = false; };
   }, [waiverChecked, waiverRequired, imageConsentRequired, session, profile, needsOnboarding]);
 
+  // gatesInitializedRef distingue el chequeo inicial (debe bloquear con el loading
+  // overlay) de un recheck posterior — p. ej. al volver del background, cuando
+  // checkWaiver() y applyImageConsentGate() se re-disparan mientras el usuario ya
+  // está viendo la app. Sin este flag, imageConsentChecking pasa a true en cada
+  // recheck y gatesPending vuelve a ser true, provocando un segundo AuthLoadingOverlay
+  // ("doble R") sobre una app que ya había terminado de cargar.
   const gatesPending =
+    !gatesInitializedRef.current &&
     !!session &&
     !!profile?.id &&
     !needsOnboarding &&
@@ -436,7 +472,10 @@ export function RootNavigator(): React.JSX.Element {
   }
   if (needsPasswordReset) return <UpdatePasswordScreen />;
   if (needsTrainerLink(profile)) return <LinkTrainerScreen />;
-  if (isPendingActivation(profile)) return <SubscriptionPlansScreen />;
+  if (isPendingActivation(profile)) {
+    if (mentoriaWaiting === null) return <AuthLoadingOverlay />;
+    return mentoriaWaiting ? <MentoriaWaitStack /> : <SubscriptionPlansScreen />;
+  }
   if (needsOnboarding) return <OnboardingScreen />;
 
   // Deslinde antes que consulta o pantalla principal

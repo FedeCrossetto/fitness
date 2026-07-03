@@ -149,7 +149,6 @@ export async function registerPushToken(userId: string): Promise<EnablePushResul
     return 'error';
   }
 
-  console.log('[push] Token registrado:', expoToken.slice(0, 24), '…');
   return 'enabled';
 }
 

@@ -14,9 +14,25 @@ import { resolveAvatarUrl, initials } from '@/lib/avatarUrl';
 import { ErrorState, LoadingRows } from '@/components/ui';
 import { ChevronRightIcon, SearchIcon, TrashIcon, UsersIcon } from '@/components/icons';
 
+const anyClient = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> };
+
 type Student = Pick<ProfileRow, 'id' | 'full_name' | 'goal' | 'created_at' | 'avatar_url'> & {
   client_status: 'pending' | 'active';
 };
+
+type StudentPlan =
+  | { kind: 'base'; label: string }
+  | { kind: 'mentoria'; label: string }
+  | { kind: 'none' };
+
+function PlanBadge({ plan }: { plan: StudentPlan }): React.JSX.Element {
+  if (plan.kind === 'none') return <span className="muted">—</span>;
+  return (
+    <span className={`plan-badge${plan.kind === 'mentoria' ? ' mentoria' : ''}`}>
+      {plan.label}
+    </span>
+  );
+}
 
 function StudentAvatar({ name, url, style }: { name: string | null; url?: string | null; style?: React.CSSProperties }): React.JSX.Element {
   const resolved = resolveAvatarUrl(url);
@@ -80,6 +96,8 @@ export function StudentsPage(): React.JSX.Element {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [activeSubByStudent, setActiveSubByStudent] = useState<Map<string, string>>(new Map());
+  const [evaluationByStudent, setEvaluationByStudent] = useState<Map<string, { id: string; status: string }>>(new Map());
 
   const inviteLink = inviteCode ? buildInviteLink(inviteCode, getJoinBaseUrl()) : null;
 
@@ -109,7 +127,10 @@ export function StudentsPage(): React.JSX.Element {
     void (async () => {
       const [{ data: branding }, { data: planRows }] = await Promise.all([
         supabase.from('trainer_branding').select('invite_code').eq('trainer_id', userId).maybeSingle(),
-        supabase.from('plans').select('*').eq('active', true).order('duration_days'),
+        // Sin filtro de `active`: ManualPaymentModal necesita poder resolver
+        // cualquier combinación de Plan × Frecuencia del catálogo, incluidas
+        // las que no están habilitadas para el checkout self-service de mobile.
+        supabase.from('plans').select('*').order('duration_days'),
       ]);
       if (branding && 'invite_code' in branding) {
         setInviteCode((branding as { invite_code: string }).invite_code);
@@ -117,6 +138,92 @@ export function StudentsPage(): React.JSX.Element {
       setPlans((planRows as PlanRow[] | null) ?? []);
     })();
   }, [userId]);
+
+  // Plan que cada alumno eligió al crear la cuenta: "Plan Base" viene de una
+  // suscripción activa; "Mentoría 1 a 1" no es una suscripción, es un lead
+  // capturado en evaluation_requests (el entrenador lo procesa manualmente).
+  useEffect(() => {
+    if (!userId || !studentsData || studentsData.length === 0) return;
+    const studentIds = studentsData.map((s) => s.id);
+    void (async () => {
+      const [{ data: subRows }, { data: evalRows }] = await Promise.all([
+        supabase
+          .from('subscriptions')
+          .select('user_id, plan_id, status, expires_at, created_at')
+          .in('user_id', studentIds)
+          .eq('status', 'active')
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('evaluation_requests')
+          .select('id, client_id, status, created_at')
+          .eq('trainer_id', userId)
+          .order('created_at', { ascending: false }),
+      ]);
+
+      const subMap = new Map<string, string>();
+      for (const row of (subRows as { user_id: string; plan_id: string; expires_at: string | null }[] | null) ?? []) {
+        if (subMap.has(row.user_id)) continue;
+        if (row.expires_at && new Date(row.expires_at) < new Date()) continue;
+        subMap.set(row.user_id, row.plan_id);
+      }
+      setActiveSubByStudent(subMap);
+
+      const evalMap = new Map<string, { id: string; status: string }>();
+      for (const row of (evalRows as { id: string; client_id: string; status: string }[] | null) ?? []) {
+        if (!evalMap.has(row.client_id)) evalMap.set(row.client_id, { id: row.id, status: row.status });
+      }
+      setEvaluationByStudent(evalMap);
+    })();
+  }, [userId, studentsData]);
+
+  const planByStudent = useMemo(() => {
+    const map = new Map<string, StudentPlan>();
+    for (const s of students) {
+      const planId = activeSubByStudent.get(s.id);
+      const planRow = planId ? plans.find((p) => p.id === planId) : undefined;
+      if (planRow) {
+        map.set(s.id, {
+          kind: planRow.plan_type === 'mentoria' ? 'mentoria' : 'base',
+          label: planRow.plan_type === 'mentoria' ? 'Mentoría 1 a 1' : 'Base',
+        });
+      } else if (evaluationByStudent.has(s.id)) {
+        map.set(s.id, { kind: 'mentoria', label: 'Mentoría 1 a 1' });
+      } else {
+        map.set(s.id, { kind: 'none' });
+      }
+    }
+    return map;
+  }, [students, activeSubByStudent, evaluationByStudent, plans]);
+
+  // Frecuencia de facturación de la suscripción activa (solo Activos) —
+  // en Pendientes queda en blanco hasta que se active al alumno.
+  const billingByStudent = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const s of students) {
+      const planId = activeSubByStudent.get(s.id);
+      const planRow = planId ? plans.find((p) => p.id === planId) : undefined;
+      if (!planRow) continue;
+      const months = Math.max(1, Math.round(planRow.duration_days / 30));
+      map.set(s.id, months === 1 ? '1 mes' : `${months} meses`);
+    }
+    return map;
+  }, [students, activeSubByStudent, plans]);
+
+  const markEvaluationCompleted = async (studentId: string) => {
+    const row = evaluationByStudent.get(studentId);
+    if (!row) return;
+    const { error } = await anyClient.from('evaluation_requests').update({ status: 'completed' }).eq('id', row.id);
+    if (error) {
+      showToast('error', 'No pudimos actualizar el estado de la reunión.');
+      return;
+    }
+    setEvaluationByStudent((prev) => {
+      const next = new Map(prev);
+      next.set(studentId, { ...row, status: 'completed' });
+      return next;
+    });
+    showToast('success', 'Reunión marcada como hecha');
+  };
 
   const copyLink = () => {
     if (!inviteLink) return;
@@ -287,6 +394,8 @@ export function StudentsPage(): React.JSX.Element {
               <tr>
                 <th>Cliente</th>
                 <th>Objetivo</th>
+                <th>Plan</th>
+                <th>Facturación</th>
                 <th>Se unió</th>
                 <th></th>
               </tr>
@@ -304,6 +413,8 @@ export function StudentsPage(): React.JSX.Element {
                     </div>
                   </td>
                   <td className="muted">{s.goal ?? '—'}</td>
+                  <td><PlanBadge plan={planByStudent.get(s.id) ?? { kind: 'none' }} /></td>
+                  <td className="muted">{billingByStudent.get(s.id) ?? '—'}</td>
                   <td className="muted">{timeAgo(s.created_at)}</td>
                   <td>
                     <ClientRowActions
@@ -322,6 +433,8 @@ export function StudentsPage(): React.JSX.Element {
               <tr>
                 <th>Cliente</th>
                 <th>Objetivo</th>
+                <th>Plan</th>
+                <th>Facturación</th>
                 <th>Solicitó</th>
                 <th>Acción</th>
               </tr>
@@ -339,9 +452,19 @@ export function StudentsPage(): React.JSX.Element {
                     </div>
                   </td>
                   <td className="muted">{s.goal ?? '—'}</td>
+                  <td><PlanBadge plan={planByStudent.get(s.id) ?? { kind: 'none' }} /></td>
+                  <td className="muted">—</td>
                   <td className="muted">{timeAgo(s.created_at)}</td>
                   <td>
                     <div className="client-pending-actions">
+                      {planByStudent.get(s.id)?.kind === 'mentoria' && evaluationByStudent.get(s.id)?.status !== 'completed' ? (
+                        <button
+                          className="btn secondary sm"
+                          onClick={() => void markEvaluationCompleted(s.id)}
+                        >
+                          Marcar reunión hecha
+                        </button>
+                      ) : null}
                       <button
                         className="btn primary sm"
                         onClick={() => openManualPayment(s.id)}
@@ -450,6 +573,17 @@ export function StudentsPage(): React.JSX.Element {
           background: var(--brand-lime-soft);
           color: color-mix(in srgb, var(--brand-lime) 72%, #0C0C0C);
         }
+        .plan-badge {
+          display: inline-flex; align-items: center;
+          padding: 3px 9px; border-radius: 999px;
+          font-size: 12px; font-weight: 600; white-space: nowrap;
+          background: var(--brand-lime-soft);
+          color: color-mix(in srgb, var(--brand-lime) 72%, #0C0C0C);
+        }
+        .plan-badge.mentoria {
+          background: rgba(255,115,74,0.12);
+          color: #c44e26;
+        }
         .cell-sub { font-size: 11.5px; color: var(--text-tertiary); margin-top: 1px; }
         .btn.sm { font-size: 12px; padding: 5px 12px; }
         .client-row-actions {
@@ -476,7 +610,7 @@ export function StudentsPage(): React.JSX.Element {
       <ManualPaymentModal
         open={manualPayOpen}
         onClose={() => setManualPayOpen(false)}
-        students={students.map((s) => ({ id: s.id, full_name: s.full_name }))}
+        students={students.filter((s) => s.id === manualPayStudentId).map((s) => ({ id: s.id, full_name: s.full_name }))}
         plans={plans}
         initialStudentId={manualPayStudentId ?? undefined}
         onSuccess={onManualPaymentSuccess}

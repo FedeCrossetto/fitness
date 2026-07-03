@@ -1,7 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import { Link, useParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { useTranslation } from '@/hooks/useTranslation';
+import type { PlanType } from '@reset-fitness/shared/types/database';
 
 // ── Default form ──────────────────────────────────────────────────────────────
 
@@ -140,6 +143,49 @@ function parseForm(code: string): FormField[] {
   return fields;
 }
 
+const KNOWN_TAGS = /^\[(\/?listbox|\/?dropdown|value|textbox|textarea|p)\b/i;
+
+/** Validador mínimo de sintaxis del DSL — no es código ejecutable, así que
+ * "compilar" acá significa: tags conocidos y bien cerrados. Devuelve un
+ * mensaje de error (para bloquear "Guardar") o null si está todo bien. */
+function validateForm(code: string): string | null {
+  const lines = code.split('\n').map((l) => l.trim()).filter(Boolean);
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i]!;
+
+    const isListbox = /^\[listbox /i.test(line);
+    const isDropdown = /^\[dropdown /i.test(line);
+    if (isListbox || isDropdown) {
+      const closeRe = isListbox ? /^\[\/listbox\]/i : /^\[\/dropdown\]/i;
+      const closeTag = isListbox ? '[/listbox]' : '[/dropdown]';
+      let j = i + 1;
+      let closed = false;
+      while (j < lines.length) {
+        if (closeRe.test(lines[j]!)) { closed = true; break; }
+        if (/^\[(listbox|dropdown|textbox|textarea|p) /i.test(lines[j]!)) break;
+        if (!/^\[value /i.test(lines[j]!)) {
+          return `Línea "${lines[j]}" no es válida dentro de ${line} (solo se admiten [value text='...']).`;
+        }
+        j++;
+      }
+      if (!closed) {
+        return `Falta el cierre ${closeTag} para "${line}".`;
+      }
+      i = j + 1;
+      continue;
+    }
+
+    if (line.startsWith('[') && !KNOWN_TAGS.test(line)) {
+      return `Tag desconocido: "${line}".`;
+    }
+
+    i++;
+  }
+  return null;
+}
+
 // ── Preview renderer ──────────────────────────────────────────────────────────
 
 function FormPreview({ fields }: { fields: FormField[] }): React.JSX.Element {
@@ -202,8 +248,16 @@ const CODE_REF = [
 
 const cfTable = () => supabase.from('consultation_form_configs');
 
+const PLAN_TITLES: Record<PlanType, string> = {
+  mentoria: 'Mentoría 1 a 1',
+  base: 'Plan Base',
+};
+
 export function ConsultationFormPage(): React.JSX.Element {
   const { session } = useAuth();
+  const { t } = useTranslation();
+  const { planType: planTypeParam } = useParams<{ planType: string }>();
+  const planType: PlanType = planTypeParam === 'mentoria' ? 'mentoria' : 'base';
   const trainerId = session?.user.id;
 
   const [code, setCode]     = useState(DEFAULT_FORM);
@@ -215,29 +269,37 @@ export function ConsultationFormPage(): React.JSX.Element {
   const [dbMissing, setDbMissing] = useState(false);
 
   const dirty = code !== saved;
+  const validationError = useMemo(() => validateForm(code), [code]);
 
   useEffect(() => {
     if (!trainerId) return;
+    setLoading(true);
+    setRecordId(null);
     void (async () => {
       const { data, error } = await cfTable()
         .select('id, form_code')
         .eq('trainer_id', trainerId)
+        .eq('plan_type', planType)
         .maybeSingle() as { data: { id: string; form_code: string } | null; error: { code?: string } | null };
 
       if (error) { setDbMissing(true); setLoading(false); return; }
-      if (data) { setCode(data.form_code); setSaved(data.form_code); setRecordId(data.id); }
+      if (data) {
+        setCode(data.form_code); setSaved(data.form_code); setRecordId(data.id);
+      } else {
+        setCode(DEFAULT_FORM); setSaved(DEFAULT_FORM);
+      }
       setLoading(false);
     })();
-  }, [trainerId]);
+  }, [trainerId, planType]);
 
   const handleSave = async () => {
-    if (!trainerId) return;
+    if (!trainerId || validationError) return;
     setSaving(true);
     if (recordId) {
       await cfTable().update({ form_code: code }).eq('id', recordId);
     } else {
       const { data } = await cfTable()
-        .insert({ trainer_id: trainerId, form_code: code })
+        .insert({ trainer_id: trainerId, plan_type: planType, form_code: code })
         .select('id').single() as { data: { id: string } | null };
       if (data) setRecordId(data.id);
     }
@@ -249,9 +311,10 @@ export function ConsultationFormPage(): React.JSX.Element {
 
   return (
     <div>
+      <Link to="/settings/forms" className="back-link">← {t.web.back_to_forms}</Link>
       <div className="cf-page-header">
         <div>
-          <h1 className="page-title">Formulario de consulta</h1>
+          <h1 className="page-title">Formulario — {PLAN_TITLES[planType]}</h1>
           <p className="page-sub">
             Este formulario se envía a tus alumnos para conocer sus metas, historial y disponibilidad.
           </p>
@@ -260,7 +323,7 @@ export function ConsultationFormPage(): React.JSX.Element {
           <button className="btn secondary" onClick={() => setShowPreview(true)}>
             Previsualizar
           </button>
-          <button className="btn primary" onClick={() => void handleSave()} disabled={saving || !dirty}>
+          <button className="btn primary" onClick={() => void handleSave()} disabled={saving || !dirty || !!validationError}>
             {saving ? 'Guardando…' : 'Guardar'}
           </button>
         </div>
@@ -268,7 +331,13 @@ export function ConsultationFormPage(): React.JSX.Element {
 
       {dbMissing && (
         <div className="cf-banner">
-          ⚠️ &nbsp; Ejecutá <code>supabase/migrations/0015_consultation_form.sql</code> para habilitar el guardado.
+          ⚠️ &nbsp; Ejecutá <code>supabase/migrations/0064_consultation_form_per_plan_type.sql</code> para habilitar el guardado.
+        </div>
+      )}
+
+      {validationError && (
+        <div className="cf-banner cf-banner-error">
+          ⚠️ &nbsp; {validationError}
         </div>
       )}
 
@@ -317,7 +386,7 @@ export function ConsultationFormPage(): React.JSX.Element {
             <div className="cf-preview-header">
               <div className="cf-preview-header-left">
                 <div className="cf-preview-badge">Vista previa</div>
-                <span className="cf-preview-title">Formulario de consulta</span>
+                <span className="cf-preview-title">Formulario — {PLAN_TITLES[planType]}</span>
               </div>
               <button className="cf-close-btn" onClick={() => setShowPreview(false)} aria-label="Cerrar">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
@@ -347,6 +416,7 @@ export function ConsultationFormPage(): React.JSX.Element {
           padding: 10px 16px; font-size: 12.5px; color: #92400e; margin-bottom: 16px;
         }
         .cf-banner code { background: #fde68a; padding: 1px 6px; border-radius: 4px; }
+        .cf-banner-error { background: #fef2f2; border-color: #dc2626; color: #991b1b; }
 
         /* Layout */
         .cf-layout { display: grid; grid-template-columns: 1fr 260px; gap: 16px; align-items: start; }

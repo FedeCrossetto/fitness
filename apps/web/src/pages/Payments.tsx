@@ -174,7 +174,10 @@ export function PaymentsPage(): React.JSX.Element {
         { data: overrideRows, error: overridesError },
         { data: students, error: studentsError },
       ] = await Promise.all([
-        supabase.from('plans').select('*').eq('active', true).order('duration_days'),
+        // Sin filtro de `active`: el modal de "Registrar pago" necesita poder
+        // resolver Mentoría/2-4-5 meses; la grilla de precios de abajo sigue
+        // mostrando solo los planes Base activos (se filtra en memoria).
+        supabase.from('plans').select('*').order('duration_days'),
         supabase.from('trainer_plan_prices').select('plan_id, price_ars').eq('trainer_id', userId!),
         supabase
           .from('profiles')
@@ -267,6 +270,13 @@ export function PaymentsPage(): React.JSX.Element {
     cancelled: 'pay-badge pay-badge--cancelled',
   };
 
+  // Grilla editable: solo los planes Base activos de siempre (Mentoría y las
+  // frecuencias nuevas se ajustan directo en la base por ahora).
+  const priceGridPlans = useMemo(
+    () => plans.filter((p) => p.plan_type === 'base' && p.active),
+    [plans],
+  );
+
   const updateDraftPrice = useCallback((planId: string, value: string) => {
     setPlans((prev) =>
       prev.map((p) => (p.id === planId ? { ...p, draftPrice: value.replace(/[^\d]/g, '') } : p)),
@@ -356,14 +366,17 @@ export function PaymentsPage(): React.JSX.Element {
           </div>
 
           <section className="payments-plans-panel">
-            <div className="payments-panel-head">
+            <div className="payments-panel-head" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
               <div>
                 <h2 className="payments-panel-title">{t.payments.plans_title}</h2>
                 <p className="payments-panel-sub">{t.payments.plans_sub}</p>
               </div>
+              <button type="button" className="btn secondary sm" onClick={() => navigate('/payments/planes')}>
+                {t.payments.manage_plans_link}
+              </button>
             </div>
             <div className="payments-plans-row">
-              {plans.map((plan) => {
+              {priceGridPlans.map((plan) => {
                 const months = Math.max(1, Math.round(plan.duration_days / 30));
                 const perMonth = Math.round(plan.effectivePrice / months);
                 const dirty = plan.draftPrice !== String(Math.round(plan.effectivePrice));

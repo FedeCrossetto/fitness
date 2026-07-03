@@ -97,6 +97,7 @@ function ProfileStep({ form, setForm, fieldErrors, onDropdownOpenChange, scrollF
         }}
         error={fieldErrors.country}
         onDropdownOpenChange={onDropdownOpenChange}
+        scrollFieldAboveKeyboard={scrollFieldAboveKeyboard}
       />
       <CityField
         country={form.country}
@@ -104,6 +105,7 @@ function ProfileStep({ form, setForm, fieldErrors, onDropdownOpenChange, scrollF
         onChange={(city) => setForm((p) => ({ ...p, city }))}
         error={fieldErrors.city}
         onDropdownOpenChange={onDropdownOpenChange}
+        scrollFieldAboveKeyboard={scrollFieldAboveKeyboard}
       />
       <AuthInput
         label="CÓDIGO POSTAL"

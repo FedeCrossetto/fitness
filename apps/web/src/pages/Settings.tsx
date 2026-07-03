@@ -62,7 +62,7 @@ export function SettingsPage(): React.JSX.Element {
     { icon: <UsersIcon size={20} />, title: cs.sec_profile.title, desc: cs.sec_profile.desc, action: cs.sec_profile.action },
     { icon: <BrushIcon size={20} />, title: cs.sec_branding.title, desc: cs.sec_branding.desc, action: cs.sec_branding.action, to: '/branding' },
     { icon: <MessageIcon size={20} />, title: cs.sec_auto_messages.title, desc: cs.sec_auto_messages.desc, action: cs.sec_auto_messages.action, to: '/settings/auto-messages', highlight: true },
-    { icon: <BookOpenIcon size={20} />, title: cs.sec_consultation.title, desc: cs.sec_consultation.desc, action: cs.sec_consultation.action, to: '/settings/consultation-form' },
+    { icon: <BookOpenIcon size={20} />, title: cs.sec_consultation.title, desc: cs.sec_consultation.desc, action: cs.sec_consultation.action, to: '/settings/forms' },
     { icon: <CheckIcon size={20} />, title: cs.sec_waiver.title, desc: cs.sec_waiver.desc, action: cs.sec_waiver.action, to: '/settings/waiver' },
     { icon: <CreditCardIcon size={20} />, title: cs.sec_subscription.title, desc: cs.sec_subscription.desc, action: cs.sec_subscription.action },
     { icon: <BellIcon size={20} />, title: cs.sec_notifications.title, desc: cs.sec_notifications.desc, action: cs.sec_notifications.action },

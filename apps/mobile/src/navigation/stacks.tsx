@@ -4,6 +4,7 @@ import type { NativeStackNavigationOptions } from '@react-navigation/native-stac
 import type {
   AuthStackParamList,
   HomeStackParamList,
+  MentoriaWaitStackParamList,
   NutritionStackParamList,
   ProgressStackParamList,
   TrainingStackParamList,
@@ -26,6 +27,9 @@ import { CommunityScreen } from '../screens/community/CommunityScreen';
 import { CommunityChatScreen } from '../screens/community/CommunityChatScreen';
 import { MessagesScreen } from '../screens/messages/MessagesScreen';
 import { SubscriptionScreen } from '../screens/subscription/SubscriptionScreen';
+import { MentoriaUpgradeScreen } from '../screens/subscription/MentoriaUpgradeScreen';
+import { MentoriaWaitingScreen } from '../screens/evaluation/MentoriaWaitingScreen';
+import { MentoriaWaitProfileScreen } from '../screens/evaluation/MentoriaWaitProfileScreen';
 import { CoachChatScreen } from '../screens/coach/CoachChatScreen';
 import { AchievementsScreen } from '../screens/achievements/AchievementsScreen';
 import { HydrationScreen } from '../screens/progress/HydrationScreen';
@@ -93,6 +97,7 @@ export function HomeStack(): React.JSX.Element {
       <Home.Screen name="Messages" component={MessagesScreen} />
       <Home.Screen name="CommunityChat" component={CommunityChatScreen} />
       <Home.Screen name="Subscription" component={SubscriptionScreen} options={{ gestureEnabled: false }} />
+      <Home.Screen name="MentoriaUpgrade" component={MentoriaUpgradeScreen} options={{ gestureEnabled: false }} />
       <Home.Screen name="CoachChat" component={CoachChatScreen} />
       <Home.Screen name="Achievements" component={AchievementsScreen} />
       <Home.Screen name="Hydration" component={HydrationScreen} />
@@ -148,6 +153,19 @@ export function ProgressStack(): React.JSX.Element {
       <Progress.Screen name="Measurements" component={MeasurementsScreen} />
       <Progress.Screen name="Hydration" component={HydrationScreen} />
     </Progress.Navigator>
+    </ErrorBoundary>
+  );
+}
+
+const MentoriaWait = createNativeStackNavigator<MentoriaWaitStackParamList>();
+export function MentoriaWaitStack(): React.JSX.Element {
+  const defaultOptions = useStackOptions();
+  return (
+    <ErrorBoundary>
+    <MentoriaWait.Navigator screenOptions={defaultOptions}>
+      <MentoriaWait.Screen name="Waiting" component={MentoriaWaitingScreen} />
+      <MentoriaWait.Screen name="Profile" component={MentoriaWaitProfileScreen} />
+    </MentoriaWait.Navigator>
     </ErrorBoundary>
   );
 }

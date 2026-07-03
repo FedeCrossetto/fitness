@@ -19,6 +19,7 @@ import { useGoalsStore } from '../../stores/goalsStore';
 import { useTabBarScrollPadding } from '../../hooks/useTabBarScrollPadding';
 import { useStepsAutoSync } from '../../hooks/useStepsAutoSync';
 import { useBiometricLock } from '../../hooks/useBiometricLock';
+import { ORANGE } from '../auth/MentoriaView';
 import { GarminSyncCard } from '../../components/health/GarminSyncCard';
 import { NUTRITION_MACRO_COLORS } from '../../components/nutrition/nutritionTheme';
 import * as Device from 'expo-device';
@@ -657,6 +658,32 @@ export function ProfileScreen({ navigation, route }: Props): React.JSX.Element {
           </>
         ) : null}
 
+        {profile?.role === 'client' && subscriptionActive ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => navigation.navigate('MentoriaUpgrade')}
+            style={styles.mentoriaUpsell}
+          >
+            <View style={styles.mentoriaUpsellHeader}>
+              <Ionicons name="ribbon" size={18} color={ORANGE} />
+              <AppText variant="caps11" color={ORANGE} style={styles.mentoriaUpsellCategory}>
+                OPCIÓN PREMIUM
+              </AppText>
+            </View>
+            <AppText variant="body16SemiBold" color={colors.text.primary}>
+              ¿Buscás resultados 100% personalizados?
+            </AppText>
+            <AppText variant="body13" color={colors.text.secondary} style={styles.mentoriaUpsellSub}>
+              Si necesitás un acompañamiento diario y una estrategia diseñada exclusivamente para vos, la Mentoría 1 a 1 es tu mejor opción.
+            </AppText>
+            <View style={styles.mentoriaUpsellBtn}>
+              <AppText variant="caps11" color={ORANGE} style={styles.mentoriaUpsellBtnText}>
+                VER MENTORÍA 1 A 1
+              </AppText>
+            </View>
+          </Pressable>
+        ) : null}
+
         <Button label={t.profile.sign_out} variant="secondary" onPress={onSignOut} fullWidth style={styles.signOut} />
 
         <AppText variant="body12" color={colors.text.disabled} align="center" style={styles.version}>
@@ -783,6 +810,27 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  signOut: { marginTop: spacing.xl },
+  mentoriaUpsell: {
+    marginTop: spacing.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(255,115,74,0.3)',
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    backgroundColor: 'rgba(255,115,74,0.05)',
+    gap: spacing.xs,
+  },
+  mentoriaUpsellHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  mentoriaUpsellCategory: { letterSpacing: 1.5 },
+  mentoriaUpsellSub: { lineHeight: 19 },
+  mentoriaUpsellBtn: {
+    borderWidth: 1,
+    borderColor: ORANGE,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+    marginTop: spacing.xxs,
+  },
+  mentoriaUpsellBtnText: { letterSpacing: 2, color: ORANGE, fontWeight: '700' },
+  signOut: { marginTop: spacing.md },
   version: { marginTop: spacing.md },
 });

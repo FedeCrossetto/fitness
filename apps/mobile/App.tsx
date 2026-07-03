@@ -11,7 +11,7 @@ import {
   Inter_600SemiBold,
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useTheme } from './src/theme';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import {
@@ -82,16 +82,17 @@ export default function App(): React.JSX.Element {
   return (
     <GestureHandlerRootView style={[styles.root, { backgroundColor: colors.background }]}>
       <SafeAreaProvider>
+        <NavigationContainer ref={navigationRef} theme={navigationTheme}>
+          <StatusBar style={isDark ? 'light' : 'dark'} />
+          <RootNavigator />
+          <ToastHost />
+          <NetworkBanner />
+        </NavigationContainer>
         {locked && hasSession ? (
-          <BiometricLockScreen onAuthenticate={authenticate} />
-        ) : (
-          <NavigationContainer ref={navigationRef} theme={navigationTheme}>
-            <StatusBar style={isDark ? 'light' : 'dark'} />
-            <RootNavigator />
-            <ToastHost />
-            <NetworkBanner />
-          </NavigationContainer>
-        )}
+          <View style={StyleSheet.absoluteFill}>
+            <BiometricLockScreen onAuthenticate={authenticate} />
+          </View>
+        ) : null}
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

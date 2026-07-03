@@ -2895,7 +2895,8 @@ tr.row-clickable.dragging { opacity: 0.55; }
   color: var(--text-secondary);
   margin-bottom: 6px;
 }
-.pay-modal-field select {
+.pay-modal-field select,
+.pay-modal-field input {
   width: 100%;
   padding: 10px 12px;
   border-radius: var(--radius-sm);
@@ -2905,7 +2906,27 @@ tr.row-clickable.dragging { opacity: 0.55; }
   font-size: 14px;
   cursor: pointer;
 }
-.pay-modal-field select:focus { outline: none; border-color: var(--text-tertiary); }
+.pay-modal-field input { cursor: text; }
+.pay-modal-field input:disabled { opacity: 0.6; cursor: not-allowed; }
+.pay-modal-field select:focus, .pay-modal-field input:focus { outline: none; border-color: var(--text-tertiary); }
+.pay-modal-fixed-student {
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+}
+.pay-modal-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  font-size: 13.5px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
 .pay-modal-actions {
   display: flex;
   justify-content: flex-end;
