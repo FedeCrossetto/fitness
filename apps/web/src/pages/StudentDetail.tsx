@@ -15,14 +15,12 @@ import type {
   WorkoutLogRow,
   PlanRow,
 } from '@reset-fitness/shared/types/database';
-import { supabase } from '@/lib/supabase';
+import { supabase, anyClient } from '@/lib/supabase';
 import { formatWorkoutVolume, summarizeWorkoutForFeed } from '@reset-fitness/shared';
 import { RoutineManager } from '@/components/RoutineManager';
 import { StudentCoachPanel } from '@/components/StudentCoachPanel';
 import { Lightbox, Spinner } from '@/components/ui';
 import { ManualPaymentModal } from '@/components/ManualPaymentModal';
-
-const anyClient = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> };
 
 interface WaiverSignature {
   id: string;

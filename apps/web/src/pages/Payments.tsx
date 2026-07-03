@@ -9,16 +9,11 @@ import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
 import { CreditCardIcon } from '@/components/icons';
 import { ErrorState, LoadingRows } from '@/components/ui';
 import { ManualPaymentModal } from '@/components/ManualPaymentModal';
+import { formatInputPrice, formatMoney, mergePlans, type PlanWithPrice } from '@/lib/planPricing';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
 type StudentMin = { id: string; full_name: string | null };
-
-type PlanWithPrice = PlanRow & {
-  effectivePrice: number;
-  draftPrice: string;
-  hasOverride: boolean;
-};
 
 type PaymentRow = {
   id: string;
@@ -38,20 +33,6 @@ type PaymentsData = {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-function formatMoney(amount: number, locale: string): string {
-  return new Intl.NumberFormat(locale === 'es' ? 'es-AR' : 'en-US', {
-    style: 'currency',
-    currency: 'ARS',
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
-
-function formatInputPrice(value: string, locale: string): string {
-  const n = Number(value.replace(/\D/g, ''));
-  if (!n) return '';
-  return new Intl.NumberFormat(locale === 'es' ? 'es-AR' : 'en-US').format(n);
-}
-
 function mapStatus(status: SubscriptionRow['status']): PaymentRow['status'] {
   if (status === 'active') return 'paid';
   if (status === 'pending') return 'pending';
@@ -63,22 +44,6 @@ function isThisMonth(iso: string): boolean {
   const d = new Date(iso);
   const now = new Date();
   return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-}
-
-function mergePlans(
-  plans: PlanRow[],
-  overrides: { plan_id: string; price_ars: number }[],
-): PlanWithPrice[] {
-  return plans.map((plan) => {
-    const override = overrides.find((o) => o.plan_id === plan.id);
-    const effectivePrice = override ? Number(override.price_ars) : Number(plan.price_ars);
-    return {
-      ...plan,
-      effectivePrice,
-      draftPrice: String(Math.round(effectivePrice)),
-      hasOverride: !!override,
-    };
-  });
 }
 
 function planAccent(id: string): string {

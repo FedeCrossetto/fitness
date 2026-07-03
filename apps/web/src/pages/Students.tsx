@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import type { PlanRow, ProfileRow } from '@reset-fitness/shared/types/database';
 import { ManualPaymentModal } from '@/components/ManualPaymentModal';
-import { supabase } from '@/lib/supabase';
+import { supabase, anyClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useToast } from '@/hooks/useToast';
@@ -13,8 +13,6 @@ import { deleteClientAccount } from '@/lib/clientAccounts';
 import { resolveAvatarUrl, initials } from '@/lib/avatarUrl';
 import { ErrorState, LoadingRows } from '@/components/ui';
 import { ChevronRightIcon, SearchIcon, TrashIcon, UsersIcon } from '@/components/icons';
-
-const anyClient = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> };
 
 type Student = Pick<ProfileRow, 'id' | 'full_name' | 'goal' | 'created_at' | 'avatar_url'> & {
   client_status: 'pending' | 'active';

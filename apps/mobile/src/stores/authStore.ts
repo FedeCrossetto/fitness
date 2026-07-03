@@ -4,7 +4,7 @@ import * as WebBrowser from 'expo-web-browser';
 import type { Session } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
-import { supabase } from '../lib/supabase';
+import { supabase, anyClient } from '../lib/supabase';
 import { clearCache, invalidateCache } from '../lib/cache';
 import { useBrandingStore } from './brandingStore';
 import { useProgressStore } from './progressStore';
@@ -99,8 +99,6 @@ function messageFor(error: unknown): string {
   if (__DEV__) return raw;
   return 'Algo salió mal. Intentá de nuevo.';
 }
-
-const anyClient = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> };
 
 async function refreshProgressMeasurements(userId: string): Promise<void> {
   await invalidateCache(`progress:measurements:${userId}`);

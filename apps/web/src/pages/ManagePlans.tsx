@@ -7,42 +7,7 @@ import { useTranslation } from '@/hooks/useTranslation';
 import { useToast } from '@/hooks/useToast';
 import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
 import { ErrorState, LoadingRows } from '@/components/ui';
-
-type PlanWithPrice = PlanRow & {
-  effectivePrice: number;
-  draftPrice: string;
-  hasOverride: boolean;
-};
-
-function formatMoney(amount: number, locale: string): string {
-  return new Intl.NumberFormat(locale === 'es' ? 'es-AR' : 'en-US', {
-    style: 'currency',
-    currency: 'ARS',
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
-
-function formatInputPrice(value: string, locale: string): string {
-  const n = Number(value.replace(/\D/g, ''));
-  if (!n) return '';
-  return new Intl.NumberFormat(locale === 'es' ? 'es-AR' : 'en-US').format(n);
-}
-
-function mergePlans(
-  plans: PlanRow[],
-  overrides: { plan_id: string; price_ars: number }[],
-): PlanWithPrice[] {
-  return plans.map((plan) => {
-    const override = overrides.find((o) => o.plan_id === plan.id);
-    const effectivePrice = override ? Number(override.price_ars) : Number(plan.price_ars);
-    return {
-      ...plan,
-      effectivePrice,
-      draftPrice: String(Math.round(effectivePrice)),
-      hasOverride: !!override,
-    };
-  });
-}
+import { formatInputPrice, formatMoney, mergePlans, type PlanWithPrice } from '@/lib/planPricing';
 
 /** Todo el catálogo (Base + Mentoría, 1 a 6 meses) — a diferencia de la
  * grilla acotada de /payments, que solo muestra los 3 planes Base activos

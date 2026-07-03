@@ -1,13 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
+import { anyClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 
-// Bypass strict types for new tables
-const anyClient = supabase as unknown as {
-  from: (table: string) => ReturnType<typeof supabase.from>;
-};
 const waiverCfgTable  = () => anyClient.from('waiver_configs');
 
 // ── Default waiver text ────────────────────────────────────────────────────────

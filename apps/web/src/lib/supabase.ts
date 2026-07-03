@@ -14,3 +14,7 @@ export const supabase = createResetFitnessClient({
   detectSessionInUrl: false,
   flowType: 'pkce',
 });
+
+/** Escape hatch para tablas que todavía no están en el tipado estricto de
+ * `Database` (ej. agregadas en una migración reciente). */
+export const anyClient = supabase as unknown as { from: (table: string) => ReturnType<typeof supabase.from> };
