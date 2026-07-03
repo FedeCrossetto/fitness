@@ -466,7 +466,10 @@ export function RootNavigator(): React.JSX.Element {
   if (!themeHydrated) return <AuthLoadingOverlay />;
   if (showLoading || sliderDone === null || storedProfile === undefined) return <AuthLoadingOverlay />;
   if (!session) {
-    if (!sliderDone) return <MarketingSliderScreen onDone={handleSliderDone} />;
+    // El slider es para dispositivos que nunca iniciaron sesión acá — si ya
+    // hay un perfil guardado (EasyLogin), un logout no debe volver a mostrarlo
+    // aunque `sliderDone` todavía esté en false (ej. DEV_ALWAYS_SHOW).
+    if (!sliderDone && !storedProfile) return <MarketingSliderScreen onDone={handleSliderDone} />;
     const showEasyLogin = !!storedProfile && !sliderJustFinished && !forcedSignOut;
     return <AuthStack key={showEasyLogin ? 'easy' : 'login'} hasStoredProfile={showEasyLogin} />;
   }

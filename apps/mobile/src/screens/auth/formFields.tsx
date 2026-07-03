@@ -573,6 +573,10 @@ export function BirthDateField({ value, onChange, error }: BirthDateFieldProps):
   const [pending, setPending] = useState<Date>(() => parseDMY(value) ?? defaultBirthDate());
 
   const openPicker = () => {
+    // Si un TextInput anterior (ej. "Depto/Piso") seguía enfocado al tocar
+    // este Pressable, el teclado quedaba retenido debajo del modal y
+    // reaparecía ahí mismo al cerrar — en vez de avanzar al siguiente campo.
+    Keyboard.dismiss();
     setPending(parseDMY(value) ?? defaultBirthDate());
     setOpen(true);
   };
