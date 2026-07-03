@@ -65,7 +65,11 @@ export function useCheckout(
         // Abrimos el checkout en Safari del sistema (Linking.openURL) en lugar de
         // un modal in-app. Así cuando el usuario vuelve a la app no queda ningún
         // popup flotando, y AppState hace la transición background→active que
-        // dispara useAppActive + polling.
+        // dispara useAppActive + polling. `AuthSession.makeRedirectUri` produce
+        // el esquema correcto para cada entorno (exp://… en Expo Go, la app real
+        // en un build standalone) — es lo que Expo Go sabe resolver, a diferencia
+        // de un esquema custom fijo como reset-fitness://, que en Expo Go no está
+        // registrado.
         const returnUrl = AuthSession.makeRedirectUri({ path: 'pago' });
         const { checkoutUrl } = await createCheckout(planId, returnUrl);
         waitingReturnRef.current = true;

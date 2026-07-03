@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Modal,
   Pressable,
   ScrollView,
   StatusBar,
@@ -27,6 +28,75 @@ const H_PAD = 20;
 
 function monthsOf(plan: PlanRow): number {
   return Math.max(1, Math.round(plan.duration_days / 30));
+}
+
+function monthLabel(m: number): string {
+  return `${m} ${m === 1 ? 'Mes' : 'Meses'}`;
+}
+
+// ── Selector de frecuencia de facturación ────────────────────────────────────
+// Bottom sheet en vez de una fila de tabs: con más de 3-4 frecuencias (ahora
+// que el entrenador puede agregar las que quiera desde la webapp) una fila
+// de botones queda apretada o se corta. El sheet escala a cualquier cantidad.
+
+function FrequencyPicker({
+  visible,
+  plans,
+  selectedId,
+  onSelect,
+  onClose,
+}: {
+  visible: boolean;
+  plans: PlanRow[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  onClose: () => void;
+}): React.JSX.Element {
+  const insets = useSafeAreaInsets();
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.pickerBackdropContainer}>
+        <Pressable style={styles.pickerBackdrop} onPress={onClose} accessibilityLabel="Cerrar" />
+        <View style={[styles.pickerSheet, { paddingBottom: Math.max(insets.bottom, 20) }]}>
+          <View style={styles.pickerHandle} />
+          <AppText variant="body16SemiBold" color={authColors.textPrimary} style={styles.pickerTitle}>
+            Elegí la frecuencia de facturación
+          </AppText>
+          <ScrollView style={styles.pickerList} showsVerticalScrollIndicator={false}>
+            {plans.map((plan) => {
+              const m = monthsOf(plan);
+              const perMonth = Math.round(plan.price_ars / m);
+              const active = plan.id === selectedId;
+              return (
+                <TouchableOpacity
+                  key={plan.id}
+                  style={[styles.pickerRow, active && styles.pickerRowActive]}
+                  onPress={() => {
+                    onSelect(plan.id);
+                    onClose();
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View>
+                    <AppText
+                      variant="body14SemiBold"
+                      color={active ? authColors.lima : authColors.textPrimary}
+                    >
+                      {monthLabel(m)}
+                    </AppText>
+                    <AppText variant="body12" color={authColors.textTertiary}>
+                      ${perMonth.toLocaleString('es-AR')}/mes · Total ${Math.round(plan.price_ars).toLocaleString('es-AR')}
+                    </AppText>
+                  </View>
+                  {active ? <Ionicons name="checkmark-circle" size={22} color={authColors.lima} /> : null}
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
 }
 
 const BASE_FEATURES = [
@@ -56,12 +126,20 @@ function PlanBaseView({
 }): React.JSX.Element {
   const sorted = [...plans].sort((a, b) => monthsOf(a) - monthsOf(b));
   const [selectedIdx, setSelectedIdx] = useState(0);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const selected = sorted[selectedIdx] ?? null;
   const selectedMonths = selected ? monthsOf(selected) : 1;
+  const totalPrice = selected ? Math.round(selected.price_ars) : null;
   const pricePerMonth = selected
     ? Math.round(selected.price_ars / selectedMonths)
     : null;
+
+  // % de ahorro vs. pagar mes a mes (plan de 1 mes como referencia).
+  const oneMonthPlan = sorted.find((p) => monthsOf(p) === 1);
+  const discountPct = oneMonthPlan && selected && selectedMonths > 1
+    ? Math.round((1 - Number(selected.price_ars) / (Number(oneMonthPlan.price_ars) * selectedMonths)) * 100)
+    : 0;
 
   return (
     <View style={styles.tabContent}>
@@ -87,32 +165,52 @@ function PlanBaseView({
           <AppText variant="body13" color={authColors.textSecondary}>/mes</AppText>
         </View>
 
-        {/* Duration selector */}
-        {!loadingPlans && sorted.length > 0 && (
-          <View style={styles.durationRow}>
-            {sorted.map((plan, idx) => {
-              const m = monthsOf(plan);
-              const label = `${m} ${m === 1 ? 'Mes' : 'Meses'}`;
-              const active = idx === selectedIdx;
-              return (
-                <TouchableOpacity
-                  key={plan.id}
-                  style={[styles.durationBtn, active && styles.durationBtnActive]}
-                  onPress={() => setSelectedIdx(idx)}
-                  activeOpacity={0.7}
-                >
-                  <AppText
-                    variant="caps11"
-                    color={active ? authColors.textPrimary : authColors.textTertiary}
-                    style={styles.durationLabel}
-                  >
-                    {label}
+        {!loadingPlans && selected ? (
+          <>
+            <View style={styles.totalRow}>
+              <AppText variant="body13Medium" color={authColors.textSecondary}>
+                Cobro mensual automático
+              </AppText>
+              {discountPct > 0 ? (
+                <View style={styles.discountPill}>
+                  <AppText variant="body12SemiBold" color={authColors.lima}>
+                    {discountPct}% OFF
                   </AppText>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+                </View>
+              ) : null}
+            </View>
+            {selectedMonths > 1 && totalPrice ? (
+              <AppText variant="body12" color={authColors.textTertiary} style={styles.totalCaption}>
+                Equivale a ${totalPrice.toLocaleString('es-AR')} en total durante {selectedMonths} meses.
+              </AppText>
+            ) : null}
+          </>
+        ) : null}
+
+        {/* Selector de frecuencia */}
+        {!loadingPlans && sorted.length > 0 && (
+          <TouchableOpacity
+            style={styles.freqSelector}
+            onPress={() => setPickerOpen(true)}
+            activeOpacity={0.75}
+          >
+            <AppText variant="body14SemiBold" color={authColors.textPrimary}>
+              {monthLabel(selectedMonths)}
+            </AppText>
+            <Ionicons name="chevron-down" size={18} color={authColors.textTertiary} />
+          </TouchableOpacity>
         )}
+
+        <FrequencyPicker
+          visible={pickerOpen}
+          plans={sorted}
+          selectedId={selected?.id ?? null}
+          onSelect={(id) => {
+            const idx = sorted.findIndex((p) => p.id === id);
+            if (idx >= 0) setSelectedIdx(idx);
+          }}
+          onClose={() => setPickerOpen(false)}
+        />
 
         <AppText variant="body13" color={authColors.textSecondary} style={styles.planDescription}>
           {selectedMonths > 1
@@ -433,21 +531,24 @@ const styles = StyleSheet.create({
   priceRow: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap' },
   priceNum: { fontSize: 38, fontWeight: '800', lineHeight: 42 },
 
-  durationRow: {
+  totalRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: -8 },
+  totalCaption: { marginTop: -4 },
+  discountPill: {
+    backgroundColor: 'rgba(193,237,0,0.14)',
+    borderRadius: 100,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+
+  freqSelector: {
     flexDirection: 'row',
-    backgroundColor: '#1a1a1a',
-    borderRadius: 8,
-    padding: 4,
-    gap: 4,
-  },
-  durationBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 6,
     alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#1a1a1a',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
   },
-  durationBtnActive: { backgroundColor: 'rgba(255,255,255,0.12)' },
-  durationLabel: { letterSpacing: 0.5 },
 
   planDescription: { lineHeight: 19, marginTop: -4 },
 
@@ -511,4 +612,37 @@ const styles = StyleSheet.create({
   },
   terms: { textAlign: 'center', lineHeight: 16, maxWidth: 300 },
   signOutBtn: { paddingVertical: 4 },
+
+  // Frequency picker (bottom sheet)
+  pickerBackdropContainer: { flex: 1, justifyContent: 'flex-end' },
+  pickerBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)' },
+  pickerSheet: {
+    backgroundColor: '#141414',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: H_PAD,
+    paddingTop: 10,
+    maxHeight: '70%',
+  },
+  pickerHandle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 100,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    marginBottom: 14,
+  },
+  pickerTitle: { marginBottom: 12 },
+  pickerList: { marginBottom: 4 },
+  pickerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.08)',
+  },
+  pickerRowActive: { backgroundColor: 'rgba(193,237,0,0.06)', marginHorizontal: -H_PAD, paddingHorizontal: H_PAD },
 });

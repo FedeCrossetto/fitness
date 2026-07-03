@@ -1,7 +1,14 @@
 // Edge Function: mp-webhook
-// Recibe notificaciones de pago de Mercado Pago y activa/expira suscripciones.
+// Recibe notificaciones de Mercado Pago y activa/expira suscripciones.
 // Configurar en MP la URL: https://<proyecto>.supabase.co/functions/v1/mp-webhook
 // Desplegar con --no-verify-jwt (MP no envía JWT de Supabase).
+//
+// Maneja 3 tipos de notificación:
+//   - `payment`                       — pago único (Preferencias), flujo legacy.
+//   - `subscription_preapproval`      — cambios de estado de una suscripción
+//                                        recurrente (autorizada/pausada/cancelada).
+//   - `subscription_authorized_payment` — cada cobro mensual individual de una
+//                                        suscripción recurrente ya autorizada.
 //
 // Secrets requeridos: MP_ACCESS_TOKEN
 // Secret recomendado: MP_WEBHOOK_SECRET — clave secreta del webhook (Dashboard de MP
@@ -10,12 +17,32 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
+type SupabaseAdmin = ReturnType<typeof createClient>;
+
 interface MpPayment {
   id: number;
   status: string;
   external_reference?: string;
   metadata?: { subscription_id?: string };
 }
+
+interface MpPreapproval {
+  id: string;
+  status: string; // 'pending' | 'authorized' | 'paused' | 'cancelled'
+  external_reference?: string;
+}
+
+interface MpAuthorizedPayment {
+  id: number;
+  preapproval_id: string;
+  status: string; // 'processed' | 'pending' | 'rejected' | 'cancelled' (a confirmar en sandbox)
+  transaction_amount?: number;
+}
+
+/** Cuánto se extiende `expires_at` en cada cobro recurrente exitoso — ventana
+ * de gracia sobre el ciclo mensual, para tolerar cobros que lleguen unos
+ * días tarde sin cortar el acceso de golpe. */
+const RECURRING_GRACE_DAYS = 35;
 
 /** Comparación en tiempo constante para evitar timing attacks. */
 function timingSafeEqual(a: string, b: string): boolean {
@@ -65,75 +92,21 @@ async function isValidMpSignature(
   return timingSafeEqual(computed, v1);
 }
 
-Deno.serve(async (req) => {
-  if (req.method !== 'POST') {
-    return new Response('ok', { status: 200 });
-  }
+/** Resuelve el token de MP a usar para consultar el recurso: el del
+ * entrenador (?trainer= en la notification_url) o el de la plataforma. */
+async function resolveQueryToken(admin: SupabaseAdmin, trainerId: string | null, fallback: string): Promise<string> {
+  if (!trainerId) return fallback;
+  const { data: mpAccount } = await admin
+    .from('trainer_mp_accounts')
+    .select('access_token')
+    .eq('trainer_id', trainerId)
+    .eq('active', true)
+    .maybeSingle();
+  return (mpAccount as { access_token?: string } | null)?.access_token ?? fallback;
+}
 
-  // Opcional: solo fallback para pagos sin entrenador. En el modelo por
-  // entrenador se usa el token de cada uno (param ?trainer=).
-  const mpToken = Deno.env.get('MP_ACCESS_TOKEN') ?? '';
-
-  const url = new URL(req.url);
-  const queryDataId = url.searchParams.get('data.id') ?? url.searchParams.get('id');
-  // Si la preferencia se creó con el token de un entrenador, viene este param.
-  const trainerId = url.searchParams.get('trainer');
-
-  // Validación de firma con el secret de la PLATAFORMA. Solo aplica a los pagos
-  // de la plataforma: los de cada entrenador vienen firmados con el secret de SU
-  // cuenta, así que para esos la verificación real es re-consultar el pago con su
-  // token (no se puede falsificar un pago aprobado en la cuenta del entrenador).
-  const webhookSecret = Deno.env.get('MP_WEBHOOK_SECRET');
-  if (webhookSecret && !trainerId) {
-    const valid = await isValidMpSignature(req, queryDataId, webhookSecret);
-    if (!valid) {
-      console.error('Firma de webhook MP inválida; notificación rechazada');
-      return new Response('firma inválida', { status: 401 });
-    }
-  } else if (!webhookSecret && !trainerId) {
-    console.warn('MP_WEBHOOK_SECRET no configurado: se omite validación de firma (no recomendado en producción)');
-  }
-
-  let paymentId: string | null = queryDataId;
-
-  try {
-    const body = (await req.json()) as { type?: string; action?: string; data?: { id?: string | number } };
-    if (body?.data?.id) paymentId = String(body.data.id);
-    if (body?.type && body.type !== 'payment') {
-      return new Response('ignorado', { status: 200 });
-    }
-  } catch {
-    // body vacío: usamos query params
-  }
-
-  if (!paymentId) {
-    return new Response('sin payment id', { status: 200 });
-  }
-
-  const admin = createClient(
-    Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-  );
-
-  // Cobro directo: si la preferencia se creó con el token de un entrenador,
-  // consultamos el pago con ESE token (la plata está en su cuenta).
-  let queryToken = mpToken;
-  if (trainerId) {
-    const { data: mpAccount } = await admin
-      .from('trainer_mp_accounts')
-      .select('access_token')
-      .eq('trainer_id', trainerId)
-      .eq('active', true)
-      .maybeSingle();
-    if (mpAccount?.access_token) queryToken = mpAccount.access_token;
-  }
-
-  if (!queryToken) {
-    console.error('Sin token para consultar el pago (entrenador sin cuenta MP)');
-    return new Response('sin token', { status: 200 });
-  }
-
-  // Consultar el pago real a la API de MP (nunca confiar en el payload del webhook)
+/** Flujo legacy: pago único (Preferencias). */
+async function handlePayment(admin: SupabaseAdmin, queryToken: string, paymentId: string): Promise<Response> {
   const paymentResponse = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
     headers: { Authorization: `Bearer ${queryToken}` },
   });
@@ -194,4 +167,173 @@ Deno.serve(async (req) => {
   }
 
   return new Response('ok', { status: 200 });
+}
+
+/** Cambios de estado de una suscripción recurrente (autorizada/pausada/cancelada). */
+async function handlePreapproval(admin: SupabaseAdmin, queryToken: string, preapprovalId: string): Promise<Response> {
+  const resp = await fetch(`https://api.mercadopago.com/preapproval/${preapprovalId}`, {
+    headers: { Authorization: `Bearer ${queryToken}` },
+  });
+  if (!resp.ok) {
+    console.error('No se pudo consultar el preapproval', preapprovalId);
+    return new Response('error consultando preapproval', { status: 200 });
+  }
+  const preapproval = (await resp.json()) as MpPreapproval;
+
+  const subscriptionId = preapproval.external_reference;
+  const { data: subscription } = subscriptionId
+    ? await admin.from('subscriptions').select('id, user_id').eq('id', subscriptionId).maybeSingle()
+    : await admin.from('subscriptions').select('id, user_id').eq('mp_preapproval_id', preapprovalId).maybeSingle();
+
+  if (!subscription) {
+    return new Response('suscripción no encontrada', { status: 200 });
+  }
+
+  if (preapproval.status === 'authorized') {
+    const startedAt = new Date();
+    const expiresAt = new Date(startedAt.getTime() + RECURRING_GRACE_DAYS * 24 * 60 * 60 * 1000);
+    await admin
+      .from('subscriptions')
+      .update({
+        status: 'active',
+        mp_preapproval_id: preapproval.id,
+        mp_status: preapproval.status,
+        started_at: startedAt.toISOString(),
+        expires_at: expiresAt.toISOString(),
+      })
+      .eq('id', subscription.id);
+
+    if (subscription.user_id) {
+      await admin.from('profiles').update({ client_status: 'active' }).eq('id', subscription.user_id);
+    }
+  } else if (preapproval.status === 'paused') {
+    await admin
+      .from('subscriptions')
+      .update({ status: 'paused', mp_preapproval_id: preapproval.id, mp_status: preapproval.status })
+      .eq('id', subscription.id);
+  } else if (preapproval.status === 'cancelled') {
+    await admin
+      .from('subscriptions')
+      .update({ status: 'cancelled', mp_preapproval_id: preapproval.id, mp_status: preapproval.status })
+      .eq('id', subscription.id);
+  } else {
+    await admin
+      .from('subscriptions')
+      .update({ mp_preapproval_id: preapproval.id, mp_status: preapproval.status })
+      .eq('id', subscription.id);
+  }
+
+  return new Response('ok', { status: 200 });
+}
+
+/** Cada cobro mensual individual de una suscripción ya autorizada. */
+async function handleAuthorizedPayment(admin: SupabaseAdmin, queryToken: string, authorizedPaymentId: string): Promise<Response> {
+  const resp = await fetch(`https://api.mercadopago.com/authorized_payments/${authorizedPaymentId}`, {
+    headers: { Authorization: `Bearer ${queryToken}` },
+  });
+  if (!resp.ok) {
+    console.error('No se pudo consultar el authorized_payment', authorizedPaymentId);
+    return new Response('error consultando cobro', { status: 200 });
+  }
+  const charge = (await resp.json()) as MpAuthorizedPayment;
+
+  const { data: subscription } = await admin
+    .from('subscriptions')
+    .select('id')
+    .eq('mp_preapproval_id', charge.preapproval_id)
+    .maybeSingle();
+
+  if (!subscription) {
+    return new Response('suscripción no encontrada para el preapproval', { status: 200 });
+  }
+
+  await admin.from('subscription_charges').insert({
+    subscription_id: subscription.id,
+    mp_payment_id: String(charge.id),
+    amount_ars: charge.transaction_amount ?? null,
+    status: charge.status,
+    charged_at: new Date().toISOString(),
+  });
+
+  // Cobro exitoso: extendemos la ventana de acceso (gracia) y reactivamos si
+  // había caído a 'expired' entre ciclos. Cobro fallido: solo queda
+  // registrado — sin reintentos/dunning en esta primera versión, el acceso
+  // se corta solo si no llega un próximo cobro exitoso a tiempo.
+  if (charge.status === 'processed' || charge.status === 'approved') {
+    const expiresAt = new Date(Date.now() + RECURRING_GRACE_DAYS * 24 * 60 * 60 * 1000);
+    await admin
+      .from('subscriptions')
+      .update({ status: 'active', expires_at: expiresAt.toISOString(), mp_status: charge.status })
+      .eq('id', subscription.id);
+  }
+
+  return new Response('ok', { status: 200 });
+}
+
+Deno.serve(async (req) => {
+  if (req.method !== 'POST') {
+    return new Response('ok', { status: 200 });
+  }
+
+  // Opcional: solo fallback para pagos sin entrenador. En el modelo por
+  // entrenador se usa el token de cada uno (param ?trainer=).
+  const mpToken = Deno.env.get('MP_ACCESS_TOKEN') ?? '';
+
+  const url = new URL(req.url);
+  const queryDataId = url.searchParams.get('data.id') ?? url.searchParams.get('id');
+  // Si la preferencia/suscripción se creó con el token de un entrenador, viene este param.
+  const trainerId = url.searchParams.get('trainer');
+
+  let notificationType: string | undefined;
+  let dataId: string | null = queryDataId;
+  try {
+    const body = (await req.json()) as { type?: string; action?: string; data?: { id?: string | number } };
+    notificationType = body?.type;
+    if (body?.data?.id) dataId = String(body.data.id);
+  } catch {
+    // body vacío: usamos query params (flujo legacy de `payment`)
+  }
+
+  // Validación de firma con el secret de la PLATAFORMA. Solo aplica a las
+  // notificaciones de la plataforma: las de cada entrenador vienen firmadas
+  // con el secret de SU cuenta, así que para esas la verificación real es
+  // re-consultar el recurso con su token (no se puede falsificar un estado
+  // aprobado/autorizado en la cuenta del entrenador).
+  const webhookSecret = Deno.env.get('MP_WEBHOOK_SECRET');
+  if (webhookSecret && !trainerId) {
+    const valid = await isValidMpSignature(req, dataId, webhookSecret);
+    if (!valid) {
+      console.error('Firma de webhook MP inválida; notificación rechazada');
+      return new Response('firma inválida', { status: 401 });
+    }
+  } else if (!webhookSecret && !trainerId) {
+    console.warn('MP_WEBHOOK_SECRET no configurado: se omite validación de firma (no recomendado en producción)');
+  }
+
+  if (!dataId) {
+    return new Response('sin data id', { status: 200 });
+  }
+
+  const admin = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+  );
+  const queryToken = await resolveQueryToken(admin, trainerId, mpToken);
+  if (!queryToken) {
+    console.error('Sin token para consultar el recurso (entrenador sin cuenta MP)');
+    return new Response('sin token', { status: 200 });
+  }
+
+  // Sin `type` en el body (notificación vieja por query params) = pago único.
+  if (!notificationType || notificationType === 'payment') {
+    return handlePayment(admin, queryToken, dataId);
+  }
+  if (notificationType === 'subscription_preapproval') {
+    return handlePreapproval(admin, queryToken, dataId);
+  }
+  if (notificationType === 'subscription_authorized_payment') {
+    return handleAuthorizedPayment(admin, queryToken, dataId);
+  }
+
+  return new Response('ignorado', { status: 200 });
 });

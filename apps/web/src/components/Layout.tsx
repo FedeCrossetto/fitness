@@ -11,7 +11,7 @@ import {
   GridIcon, BrushIcon, UsersIcon, LogOutIcon,
   MessageIcon, GroupsIcon, CreditCardIcon,
   DumbbellIcon, NutritionIcon, SettingsIcon, ChevronDownIcon, ChevronRightIcon,
-  MegaphoneIcon, TrophyIcon,
+  MegaphoneIcon, TrophyIcon, PuzzleIcon, BookOpenIcon,
 } from '@/components/icons';
 import { resolveAvatarUrl, initials } from '@/lib/avatarUrl';
 
@@ -87,7 +87,14 @@ export function Layout(): React.JSX.Element {
         { to: '/challenges', label: t.web.challenges,            icon: () => <TrophyIcon />     },
         { to: '/groups',     label: t.web.groups,                icon: () => <GroupsIcon />     },
         { to: '/students',   label: t.web.clients,               icon: () => <UsersIcon />      },
-        { to: '/payments',   label: t.web.payments,              icon: () => <CreditCardIcon /> },
+      ],
+    },
+    {
+      section: t.web.nav_billing,
+      items: [
+        { to: '/payments',              label: t.web.payments,                end: true, icon: () => <CreditCardIcon /> },
+        { to: '/payments/planes',       label: t.web.manage_plans,                       icon: () => <BookOpenIcon />   },
+        { to: '/payments/integraciones',label: t.web.payment_integrations,               icon: () => <PuzzleIcon />     },
       ],
     },
     {

@@ -19,8 +19,9 @@ import { supabase, anyClient } from '@/lib/supabase';
 import { formatWorkoutVolume, summarizeWorkoutForFeed } from '@reset-fitness/shared';
 import { RoutineManager } from '@/components/RoutineManager';
 import { StudentCoachPanel } from '@/components/StudentCoachPanel';
-import { Lightbox, Spinner } from '@/components/ui';
+import { Lightbox, Spinner, ConfirmDialog } from '@/components/ui';
 import { ManualPaymentModal } from '@/components/ManualPaymentModal';
+import { useToast } from '@/hooks/useToast';
 
 interface WaiverSignature {
   id: string;
@@ -58,7 +59,7 @@ type Profile = Pick<ProfileRow, 'id' | 'full_name' | 'goal' | 'phone' | 'avatar_
   client_status?: 'pending' | 'active';
 };
 
-type StudentSubscription = Pick<SubscriptionRow, 'status' | 'expires_at' | 'started_at'> & {
+type StudentSubscription = Pick<SubscriptionRow, 'id' | 'status' | 'expires_at' | 'started_at' | 'mp_preapproval_id'> & {
   plan_name: string | null;
 };
 
@@ -117,6 +118,7 @@ export function StudentDetailPage(): React.JSX.Element {
   const { id: studentId } = useParams<{ id: string }>();
   const { profile: trainerProfile } = useAuth();
   const { t } = useTranslation();
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>('resumen');
   const [defaultProgramKey, setDefaultProgramKey] = useState('default');
@@ -137,6 +139,8 @@ export function StudentDetailPage(): React.JSX.Element {
   const [loading, setLoading]         = useState(true);
   const [manualPayOpen, setManualPayOpen] = useState(false);
   const [plans, setPlans]             = useState<PlanRow[]>([]);
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
+  const [cancelling, setCancelling]   = useState(false);
 
   useEffect(() => {
     if (!trainerProfile?.id) return;
@@ -173,7 +177,7 @@ export function StudentDetailPage(): React.JSX.Element {
         supabase.from('progress_photos').select('*').eq('user_id', studentId).order('created_at', { ascending: false }),
         supabase
           .from('subscriptions')
-          .select('status, expires_at, started_at, plan_id')
+          .select('id, status, expires_at, started_at, plan_id, mp_preapproval_id')
           .eq('user_id', studentId)
           .order('created_at', { ascending: false })
           .limit(1)
@@ -192,7 +196,7 @@ export function StudentDetailPage(): React.JSX.Element {
       setConsultation((cr as ConsultationResponse | null) ?? false);
 
       if (sub) {
-        const row = sub as Pick<SubscriptionRow, 'status' | 'expires_at' | 'started_at' | 'plan_id'>;
+        const row = sub as Pick<SubscriptionRow, 'id' | 'status' | 'expires_at' | 'started_at' | 'plan_id' | 'mp_preapproval_id'>;
         let status = row.status;
         if (status === 'active' && row.expires_at && new Date(row.expires_at) < new Date()) {
           status = 'expired';
@@ -203,9 +207,11 @@ export function StudentDetailPage(): React.JSX.Element {
           .eq('id', row.plan_id)
           .maybeSingle();
         setSubscription({
+          id: row.id,
           status,
           expires_at: row.expires_at,
           started_at: row.started_at,
+          mp_preapproval_id: row.mp_preapproval_id,
           plan_name: (plan as { name: string } | null)?.name ?? null,
         });
       } else {
@@ -262,7 +268,7 @@ export function StudentDetailPage(): React.JSX.Element {
     if (!studentId) return;
     const { data: sub } = await supabase
       .from('subscriptions')
-      .select('status, expires_at, started_at, plan_id, mp_status')
+      .select('id, status, expires_at, started_at, plan_id, mp_status, mp_preapproval_id')
       .eq('user_id', studentId)
       .order('created_at', { ascending: false })
       .limit(1)
@@ -271,16 +277,18 @@ export function StudentDetailPage(): React.JSX.Element {
       setSubscription(null);
       return;
     }
-    const row = sub as Pick<SubscriptionRow, 'status' | 'expires_at' | 'started_at' | 'plan_id' | 'mp_status'>;
+    const row = sub as Pick<SubscriptionRow, 'id' | 'status' | 'expires_at' | 'started_at' | 'plan_id' | 'mp_status' | 'mp_preapproval_id'>;
     let status = row.status;
     if (status === 'active' && row.expires_at && new Date(row.expires_at) < new Date()) {
       status = 'expired';
     }
     const { data: plan } = await supabase.from('plans').select('name').eq('id', row.plan_id).maybeSingle();
     setSubscription({
+      id: row.id,
       status,
       expires_at: row.expires_at,
       started_at: row.started_at,
+      mp_preapproval_id: row.mp_preapproval_id,
       plan_name: (plan as { name: string } | null)?.name ?? null,
     });
   }, [studentId]);
@@ -290,6 +298,25 @@ export function StudentDetailPage(): React.JSX.Element {
     setProfile((prev) => (prev ? { ...prev, client_status: 'active' } : prev));
     await reloadSubscription();
   }, [studentId, reloadSubscription]);
+
+  const doCancelSubscription = useCallback(async () => {
+    if (!subscription || cancelling) return;
+    setCancelling(true);
+    try {
+      const { data, error } = await supabase.functions.invoke<{ ok?: boolean; error?: string }>(
+        'mp-cancel-subscription',
+        { body: { subscription_id: subscription.id } },
+      );
+      if (error || !data?.ok) throw new Error(data?.error ?? 'error');
+      showToast('success', 'Suscripción cancelada.');
+      setCancelConfirmOpen(false);
+      await reloadSubscription();
+    } catch {
+      showToast('error', 'No pudimos cancelar la suscripción.');
+    } finally {
+      setCancelling(false);
+    }
+  }, [subscription, cancelling, showToast, reloadSubscription]);
 
   if (loading) return (
     <div style={{ display: 'flex', justifyContent: 'center', padding: 64 }}>
@@ -542,6 +569,16 @@ export function StudentDetailPage(): React.JSX.Element {
                 <InfoTile label="Objetivo" value={profile.goal ?? '—'} />
                 <InfoTile label="Se unió" value={new Date(profile.created_at).toLocaleDateString('es-AR')} />
               </div>
+              {subscription?.mp_preapproval_id && subscription.status !== 'cancelled' ? (
+                <button
+                  type="button"
+                  className="btn secondary sm"
+                  style={{ marginTop: 14 }}
+                  onClick={() => setCancelConfirmOpen(true)}
+                >
+                  Cancelar suscripción
+                </button>
+              ) : null}
             </div>
 
             {studentId ? (
@@ -992,6 +1029,17 @@ export function StudentDetailPage(): React.JSX.Element {
       ) : null}
 
       <Lightbox src={lightbox?.src ?? null} caption={lightbox?.caption} onClose={() => setLightbox(null)} />
+
+      <ConfirmDialog
+        open={cancelConfirmOpen}
+        title="Cancelar suscripción"
+        message="Se corta el cobro automático en MercadoPago. El alumno mantiene el acceso hasta el final del período ya pagado."
+        confirmLabel={cancelling ? 'Cancelando…' : 'Cancelar suscripción'}
+        cancelLabel="Volver"
+        onConfirm={() => void doCancelSubscription()}
+        onCancel={() => setCancelConfirmOpen(false)}
+        danger
+      />
     </div>
   );
 }

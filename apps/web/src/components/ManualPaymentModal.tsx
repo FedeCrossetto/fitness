@@ -15,7 +15,7 @@ interface ManualPaymentModalProps {
   onSuccess?: () => void;
 }
 
-const MONTH_OPTIONS = [1, 2, 3, 4, 5, 6];
+const DEFAULT_MONTH_OPTIONS = [1, 2, 3, 4, 5, 6];
 
 function todayInputValue(): string {
   const d = new Date();
@@ -56,6 +56,19 @@ export function ManualPaymentModal({
     setOverrideAmount(false);
     setStartedOn(todayInputValue());
   }, [open, initialStudentId, students]);
+
+  // Meses disponibles para el tipo elegido: catálogo built-in (1-6) +
+  // cualquier frecuencia custom que el entrenador haya agregado en
+  // "Administrar planes" (ej. 7 meses).
+  const monthOptions = useMemo(() => {
+    const fromCatalog = plans.filter((p) => p.plan_type === planType).map((p) => Math.round(p.duration_days / 30));
+    const merged = [...new Set([...DEFAULT_MONTH_OPTIONS, ...fromCatalog])].sort((a, b) => a - b);
+    return merged;
+  }, [plans, planType]);
+
+  useEffect(() => {
+    if (!monthOptions.includes(months)) setMonths(monthOptions[0] ?? 1);
+  }, [monthOptions, months]);
 
   const resolvedPlan = useMemo(
     () => plans.find((p) => p.plan_type === planType && p.duration_days === months * 30) ?? null,
@@ -139,7 +152,7 @@ export function ManualPaymentModal({
             <label className="pay-modal-field">
               <span>{t.payments.register_frequency}</span>
               <select value={months} onChange={(e) => setMonths(Number(e.target.value))}>
-                {MONTH_OPTIONS.map((m) => (
+                {monthOptions.map((m) => (
                   <option key={m} value={m}>{m === 1 ? '1 mes' : `${m} meses`}</option>
                 ))}
               </select>

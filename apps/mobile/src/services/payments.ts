@@ -23,32 +23,41 @@ async function resolvePlanTrainerId(userId: string): Promise<string | null> {
 export async function fetchPlans(userId?: string | null): Promise<PlanRow[]> {
   const trainerId = userId ? await resolvePlanTrainerId(userId) : null;
 
+  // Sin filtro `active` acá: la RLS de `plans` ya devuelve solo los planes
+  // built-in (trainer_id null) + los custom del propio entrenador — la
+  // visibilidad real (mostrar/ocultar) se resuelve abajo por entrenador,
+  // no es un flag global.
   const [{ data: plans, error: plansError }, overridesResult] = await Promise.all([
     // plan_type='base': el checkout self-service nunca debe ofrecer Mentoría
     // 1-1 (se procesa manualmente vía evaluación + activación del entrenador).
-    supabase.from('plans').select('*').eq('active', true).eq('plan_type', 'base').order('duration_days'),
+    supabase.from('plans').select('*').eq('plan_type', 'base').order('duration_days'),
     trainerId
       ? supabase
           .from('trainer_plan_prices')
-          .select('plan_id, price_ars')
+          .select('plan_id, price_ars, active')
           .eq('trainer_id', trainerId)
-          .eq('active', true)
       : Promise.resolve({ data: null, error: null }),
   ]);
   if (plansError) throw plansError;
   if (overridesResult.error) throw overridesResult.error;
 
   const overrides = new Map(
-    ((overridesResult.data as { plan_id: string; price_ars: number }[] | null) ?? []).map((o) => [
+    ((overridesResult.data as { plan_id: string; price_ars: number; active: boolean }[] | null) ?? []).map((o) => [
       o.plan_id,
-      Number(o.price_ars),
+      o,
     ]),
   );
 
-  return ((plans as PlanRow[] | null) ?? []).map((plan) => ({
-    ...plan,
-    price_ars: overrides.get(plan.id) ?? Number(plan.price_ars),
-  }));
+  return ((plans as PlanRow[] | null) ?? [])
+    .map((plan) => {
+      const override = overrides.get(plan.id);
+      return {
+        ...plan,
+        price_ars: override ? Number(override.price_ars) : Number(plan.price_ars),
+        active: override ? override.active : !!plan.active,
+      };
+    })
+    .filter((plan) => plan.active);
 }
 
 export async function fetchActiveSubscription(userId: string): Promise<SubscriptionRow | null> {
@@ -174,7 +183,8 @@ export function isManualSubscription(subscription: SubscriptionRow | null | unde
   return subscription?.mp_status === 'manual';
 }
 
-/** Crea la preferencia de pago y devuelve la URL de checkout de Mercado Pago. */
+/** Crea la suscripción recurrente (Preapproval) y devuelve la URL de
+ * checkout de Mercado Pago donde el alumno autoriza el cobro mensual. */
 export async function createCheckout(
   planId: string,
   returnUrl?: string,
@@ -182,9 +192,28 @@ export async function createCheckout(
   const { data, error } = await supabase.functions.invoke<{
     init_point: string;
     subscription_id: string;
-  }>('mp-create-preference', { body: { plan_id: planId, return_url: returnUrl } });
+  }>('mp-create-preapproval', { body: { plan_id: planId, return_url: returnUrl } });
   if (error || !data) {
+    if (__DEV__) {
+      // FunctionsHttpError trae la respuesta real en `context` — logueamos
+      // el detalle (incluye el motivo de rechazo de Mercado Pago) sin
+      // mostrárselo al alumno.
+      const context = (error as { context?: Response })?.context;
+      void context?.clone().text().then((body) => console.warn('[createCheckout] error:', body)).catch(() => {});
+      console.warn('[createCheckout] invoke error:', error);
+    }
     throw new Error('No pudimos iniciar el pago. Intentá de nuevo.');
   }
   return { checkoutUrl: data.init_point, subscriptionId: data.subscription_id };
+}
+
+/** Cancela la suscripción recurrente en Mercado Pago (el alumno cancela la propia). */
+export async function cancelSubscription(subscriptionId: string): Promise<void> {
+  const { data, error } = await supabase.functions.invoke<{ ok?: boolean; error?: string }>(
+    'mp-cancel-subscription',
+    { body: { subscription_id: subscriptionId } },
+  );
+  if (error || !data?.ok) {
+    throw new Error('No pudimos cancelar la suscripción. Intentá de nuevo.');
+  }
 }

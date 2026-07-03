@@ -1,20 +1,55 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { supabase } from '@/lib/supabase';
+
+const FALLBACK_SCHEME_PREFIX = 'reset-fitness://pago/';
 
 // Página intermedia a la que redirige MercadoPago tras el pago.
 // MP no acepta deep links en back_urls, por lo que esta página HTTPS recibe el
-// resultado y le muestra al usuario cómo volver a la app.
-// La app detecta el retorno via useAppActive + polling → no necesita deep link.
+// resultado y redirige al esquema de la app.
+//
+// Pago único (Preferencias): el deep link viaja directo en `?return=`.
+// Suscripción recurrente (Preapproval): MP rechaza un back_url con un
+// esquema custom codificado en el query, así que viaja `?sub=<subscription
+// id>` y acá se resuelve el deep link real vía get_subscription_return_url
+// (necesario en Expo Go, donde solo el esquema exp://… es resoluble — el
+// esquema fijo de la app no está registrado ahí).
 export function PaymentReturnPage(): React.JSX.Element {
   const { result } = useParams<{ result: string }>();
   const isError = result === 'error';
-  const returnParam = new URLSearchParams(window.location.search).get('return');
-  const deepLink = returnParam ?? `reset-fitness://pago/${result ?? 'exito'}`;
+  const [deepLink, setDeepLink] = useState<string | null>(null);
   const [tried, setTried] = useState(false);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const returnParam = params.get('return');
+    const subId = params.get('sub');
+    if (returnParam) {
+      setDeepLink(returnParam);
+      return;
+    }
+    if (subId) {
+      void (async () => {
+        const { data } = await supabase.rpc('get_subscription_return_url', { p_id: subId });
+        setDeepLink((data as string | null) ?? `${FALLBACK_SCHEME_PREFIX}${result ?? 'exito'}`);
+      })();
+      return;
+    }
+    setDeepLink(`${FALLBACK_SCHEME_PREFIX}${result ?? 'exito'}`);
+  }, [result]);
+
   const goToApp = useCallback(() => {
+    if (!deepLink) return;
     setTried(true);
     window.location.href = deepLink;
+  }, [deepLink]);
+
+  // Intento automático apenas se resuelve el deep link — algunos browsers
+  // bloquean el redirect a un esquema custom sin gesto del usuario, así que
+  // el botón queda como fallback.
+  useEffect(() => {
+    if (deepLink) goToApp();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deepLink]);
 
   return (
@@ -26,7 +61,7 @@ export function PaymentReturnPage(): React.JSX.Element {
           ? 'Podés cerrar esta ventana y volver a intentarlo desde la app.'
           : 'Cerrá esta ventana o tocá el botón para volver a la app.'}
       </p>
-      <button style={styles.btn} onClick={goToApp}>
+      <button style={styles.btn} onClick={goToApp} disabled={!deepLink}>
         Volver a la app
       </button>
       {tried && (

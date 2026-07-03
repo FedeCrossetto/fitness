@@ -18,7 +18,7 @@ export type MealType = 'DES' | 'ALM' | 'MER' | 'CEN' | 'COL';
 export type FoodSource = 'manual' | 'voice' | 'barcode' | 'openfoodfacts' | 'import';
 export type MacroSource = 'openfoodfacts' | 'manual' | 'user_food' | 'catalog' | 'voice' | 'barcode';
 export type PhotoPosition = 'frente' | 'perfil' | 'espalda';
-export type SubscriptionStatus = 'pending' | 'active' | 'expired' | 'cancelled';
+export type SubscriptionStatus = 'pending' | 'active' | 'expired' | 'cancelled' | 'paused';
 export type SenderRole = 'client' | 'trainer';
 export type PlanId = 'monthly' | 'quarterly' | 'semiannual';
 
@@ -356,6 +356,10 @@ export interface PlanRow {
   plan_type: PlanType;
   active: boolean | null;
   created_at: string;
+  /** null = plan built-in (catálogo global). Si tiene valor, es una
+   * frecuencia custom creada por ese entrenador — solo visible para
+   * él/ella y sus alumnos. */
+  trainer_id: string | null;
 }
 
 export interface TrainerPlanPriceRow {
@@ -373,12 +377,18 @@ export interface SubscriptionRow {
   status: SubscriptionStatus | null;
   mp_payment_id: string | null;
   mp_preference_id: string | null;
+  /** Id del contrato recurrente en MercadoPago (Preapproval). Null en
+   * suscripciones de pago único (Preferencias) o pagos manuales. */
+  mp_preapproval_id: string | null;
   mp_status: string | null;
   started_at: string | null;
   expires_at: string | null;
   locale: string | null;
   /** Monto realmente facturado — puede diferir de plans.price_ars por un override manual. Null en filas viejas. */
   amount_ars: number | null;
+  /** Deep link de la app (ej. exp://…/--/pago) al que /pago/:result debe
+   * redirigir tras el checkout de Preapproval. Null en pagos únicos/manuales. */
+  client_return_url: string | null;
   created_at: string;
 }
 
@@ -558,7 +568,7 @@ export interface Database {
       body_measurements: TableDef<BodyMeasurementRow, 'user_id'>;
       progress_photos: TableDef<ProgressPhotoRow, 'user_id' | 'position' | 'photo_url' | 'week_number'>;
       push_tokens: TableDef<PushTokenRow, 'user_id' | 'expo_token'>;
-      plans: TableDef<PlanRow, 'id' | 'name' | 'price_ars' | 'duration_days'>;
+      plans: TableDef<PlanRow, 'name' | 'price_ars' | 'duration_days' | 'plan_type'>;
       trainer_plan_prices: TableDef<TrainerPlanPriceRow, 'trainer_id' | 'plan_id' | 'price_ars'>;
       subscriptions: TableDef<SubscriptionRow, 'user_id' | 'plan_id'>;
       routines: TableDef<RoutineRow, 'client_id' | 'name'>;
@@ -658,6 +668,10 @@ export interface Database {
       trainer_mp_connected: {
         Args: Record<string, never>;
         Returns: boolean;
+      };
+      get_subscription_return_url: {
+        Args: { p_id: string };
+        Returns: string | null;
       };
     };
     Enums: Record<string, never>;

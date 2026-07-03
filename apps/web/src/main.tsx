@@ -27,6 +27,7 @@ const GroupsPage           = lazy(() => import('@/pages/Groups').then((m) => ({ 
 const GroupDetailPage      = lazy(() => import('@/pages/GroupDetail').then((m) => ({ default: m.GroupDetailPage })));
 const PaymentsPage         = lazy(() => import('@/pages/Payments').then((m) => ({ default: m.PaymentsPage })));
 const ManagePlansPage      = lazy(() => import('@/pages/ManagePlans').then((m) => ({ default: m.ManagePlansPage })));
+const PaymentIntegrationsPage = lazy(() => import('@/pages/PaymentIntegrations').then((m) => ({ default: m.PaymentIntegrationsPage })));
 const SettingsPage         = lazy(() => import('@/pages/Settings').then((m) => ({ default: m.SettingsPage })));
 const AutoMessagesPage     = lazy(() => import('@/pages/AutoMessages').then((m) => ({ default: m.AutoMessagesPage })));
 const FormsPage            = lazy(() => import('@/pages/Forms').then((m) => ({ default: m.FormsPage })));
@@ -88,6 +89,7 @@ function App(): React.JSX.Element {
             <Route path="/students/:id" element={<StudentDetailPage />} />
             <Route path="/payments" element={<PaymentsPage />} />
             <Route path="/payments/planes" element={<ManagePlansPage />} />
+            <Route path="/payments/integraciones" element={<PaymentIntegrationsPage />} />
             <Route path="/routines" element={<RoutinesPage />} />
             <Route path="/foods" element={<FoodsPage />} />
             <Route path="/branding" element={<BrandingPage />} />

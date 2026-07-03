@@ -1779,7 +1779,7 @@ tr.row-clickable.dragging { opacity: 0.55; }
 .confirm-backdrop {
   align-items: center;
   padding: 24px;
-  z-index: 110;
+  z-index: 1200;
 }
 .confirm-modal {
   width: 100%;
@@ -3026,7 +3026,7 @@ tr.row-clickable.dragging { opacity: 0.55; }
 /* Planes — 3 cards separadas */
 .payments-plans-row {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 16px;
 }
 @media (max-width: 900px) {

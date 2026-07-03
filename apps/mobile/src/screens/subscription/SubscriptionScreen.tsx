@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -8,6 +8,7 @@ import type { HomeStackParamList } from '../../types/navigation';
 import { layout, radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
 import { formatLongDate } from '../../lib/dates';
 import {
+  cancelSubscription,
   clearSubscriptionAccessCache,
   fetchActiveSubscription,
   fetchPlans,
@@ -52,6 +53,7 @@ export function SubscriptionScreen({ navigation }: Props): React.JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [refreshingSub, setRefreshingSub] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   const { checkingOut, startCheckout } = useCheckout(userId, (sub) => {
     setSubscription(sub);
@@ -98,6 +100,32 @@ export function SubscriptionScreen({ navigation }: Props): React.JSX.Element {
     if (!selectedId) return;
     void startCheckout(selectedId);
   }, [selectedId, startCheckout]);
+
+  const doCancelSubscription = useCallback(async () => {
+    if (!subscription) return;
+    setCancelling(true);
+    try {
+      await cancelSubscription(subscription.id);
+      clearSubscriptionAccessCache();
+      await refreshSubscription();
+      useUiStore.getState().showToast('success', 'Tu suscripción fue cancelada.');
+    } catch {
+      useUiStore.getState().showToast('error', 'No pudimos cancelar la suscripción. Intentá de nuevo.');
+    } finally {
+      setCancelling(false);
+    }
+  }, [subscription, refreshSubscription]);
+
+  const onCancelSubscription = useCallback(() => {
+    Alert.alert(
+      'Cancelar suscripción',
+      'No se te va a volver a cobrar. Vas a mantener el acceso hasta el final del período ya pagado.',
+      [
+        { text: 'Volver', style: 'cancel' },
+        { text: 'Cancelar suscripción', style: 'destructive', onPress: () => void doCancelSubscription() },
+      ],
+    );
+  }, [doCancelSubscription]);
 
   const active = hasActiveAccess(subscription);
   const pending = subscription?.status === 'pending';
@@ -154,6 +182,16 @@ export function SubscriptionScreen({ navigation }: Props): React.JSX.Element {
               </View>
               <Chip label={t.profile.plan_active} active />
             </View>
+            {subscription.mp_preapproval_id ? (
+              <Button
+                label="Cancelar suscripción"
+                variant="outline"
+                size="md"
+                loading={cancelling}
+                onPress={onCancelSubscription}
+                style={styles.cancelBtn}
+              />
+            ) : null}
           </Card>
         ) : null}
 
@@ -284,6 +322,7 @@ const createStyles = (colors: Colors) => StyleSheet.create({
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   statusInfo: { flex: 1 },
   statusSub: { marginTop: spacing.xxs },
+  cancelBtn: { marginTop: spacing.md },
   pendingCard: { marginBottom: spacing.md, borderColor: colors.border.default },
   pendingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   pendingText: { flex: 1 },
