@@ -6,8 +6,9 @@ import { useUiStore } from '../stores/uiStore';
 import { useAppActive } from './useAppActive';
 import type { SubscriptionRow } from '../types/database';
 
-// Intervalos de polling: 2s → 4s → 8s → 15s → 30s (total ~59s max)
-const POLL_INTERVALS = [2000, 4000, 8000, 15000, 30000];
+// Intervalos de polling: arranca rápido (el webhook suele acreditar en pocos
+// segundos) y se estira. Total ~50s máx si nunca se activa.
+const POLL_INTERVALS = [1500, 2500, 4000, 6000, 8000, 12000, 15000];
 
 export function useCheckout(
   userId: string | undefined,
@@ -48,8 +49,9 @@ export function useCheckout(
     }
   }, []);
 
-  // Cuando la app vuelve al frente (AppState: background → active), el usuario
-  // terminó con Safari y hay que detectar el resultado del pago.
+  // Al abrir el checkout en Safari (app externa), la nuestra pasa a background.
+  // Cuando el usuario vuelve (AppState background→active) disparamos el polling.
+  // El navegador in-app NO genera esa transición — por eso usamos Safari externo.
   useAppActive(() => {
     if (waitingReturnRef.current && userId) {
       waitingReturnRef.current = false;
@@ -62,17 +64,16 @@ export function useCheckout(
       if (!userId || checkingOut) return;
       setCheckingOut(true);
       try {
-        // Abrimos el checkout en Safari del sistema (Linking.openURL) en lugar de
-        // un modal in-app. Así cuando el usuario vuelve a la app no queda ningún
-        // popup flotando, y AppState hace la transición background→active que
-        // dispara useAppActive + polling. `AuthSession.makeRedirectUri` produce
-        // el esquema correcto para cada entorno (exp://… en Expo Go, la app real
-        // en un build standalone) — es lo que Expo Go sabe resolver, a diferencia
-        // de un esquema custom fijo como reset-fitness://, que en Expo Go no está
-        // registrado.
+        // `makeRedirectUri` produce el deep link del entorno actual: `exp://…/--/pago`
+        // en Expo Go, `reset-fitness://pago` en un build standalone. Se guarda en el
+        // backend (client_return_url) y la página /pago/exito redirige exactamente a
+        // ese deep link — que Safari sabe rutear de vuelta a la app.
         const returnUrl = AuthSession.makeRedirectUri({ path: 'pago' });
         const { checkoutUrl } = await createCheckout(planId, returnUrl);
         waitingReturnRef.current = true;
+        // Safari del sistema (app externa), NO un navegador in-app: así la app pasa
+        // a background y AppState dispara useAppActive + polling al volver. Con el
+        // navegador in-app la transición no ocurría y el spinner quedaba colgado.
         await Linking.openURL(checkoutUrl);
         // Linking.openURL resuelve inmediatamente; el polling lo dispara useAppActive
         // cuando el usuario vuelve a la app tras completar (o cancelar) el pago.
