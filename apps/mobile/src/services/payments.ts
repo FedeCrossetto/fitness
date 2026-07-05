@@ -188,10 +188,11 @@ export function isManualSubscription(subscription: SubscriptionRow | null | unde
 export async function createCheckout(
   planId: string,
   returnUrl?: string,
-): Promise<{ checkoutUrl: string; subscriptionId: string }> {
+): Promise<{ checkoutUrl: string; subscriptionId: string; alreadyActive?: boolean }> {
   const { data, error } = await supabase.functions.invoke<{
-    init_point: string;
-    subscription_id: string;
+    init_point?: string;
+    subscription_id?: string;
+    already_active?: boolean;
   }>('mp-create-preapproval', { body: { plan_id: planId, return_url: returnUrl } });
   if (error || !data) {
     if (__DEV__) {
@@ -204,7 +205,27 @@ export async function createCheckout(
     }
     throw new Error('No pudimos iniciar el pago. Intentá de nuevo.');
   }
-  return { checkoutUrl: data.init_point, subscriptionId: data.subscription_id };
+  if (data.already_active) {
+    return { checkoutUrl: '', subscriptionId: data.subscription_id ?? '', alreadyActive: true };
+  }
+  return { checkoutUrl: data.init_point ?? '', subscriptionId: data.subscription_id ?? '' };
+}
+
+/** Activación PULL: consulta el estado real del preapproval contra MP y activa
+ * la suscripción si está autorizada, sin depender del webhook. Devuelve el
+ * estado resultante. Silenciosa ante errores (el polling reintenta). */
+export async function syncSubscription(
+  subscriptionId?: string,
+): Promise<{ status: string | null; mp_status: string | null } | null> {
+  const { data, error } = await supabase.functions.invoke<{ status: string | null; mp_status: string | null }>(
+    'mp-sync-subscription',
+    { body: subscriptionId ? { subscription_id: subscriptionId } : {} },
+  );
+  if (error || !data) {
+    if (__DEV__) console.warn('[syncSubscription] error:', error);
+    return null;
+  }
+  return data;
 }
 
 /** Cancela la suscripción recurrente en Mercado Pago (el alumno cancela la propia). */

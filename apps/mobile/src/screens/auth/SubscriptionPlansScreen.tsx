@@ -14,8 +14,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText } from '../../components/common';
 import { useAuthStore } from '../../stores/authStore';
 import { useUiStore } from '../../stores/uiStore';
-import { clearSubscriptionAccessCache, fetchPlans } from '../../services/payments';
-import { useCheckout } from '../../hooks/useCheckout';
+import { clearSubscriptionAccessCache, fetchPlans, syncSubscription } from '../../services/payments';
+import { useCheckoutStore } from '../../stores/checkoutStore';
 import { useAppActive } from '../../hooks/useAppActive';
 import { authColors } from './authScreenTheme';
 import type { PlanRow } from '../../types/database';
@@ -315,13 +315,9 @@ export function SubscriptionPlansScreen(): React.JSX.Element {
 
   const [plans, setPlans] = useState<PlanRow[]>([]);
   const [loadingPlans, setLoadingPlans] = useState(true);
-  const [, setCheckoutId] = useState<string | null>(null);
+  const [starting, setStarting] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('base');
   const [evalFlowStep, setEvalFlowStep] = useState<EvalFlowStep>(null);
-
-  const { checkingOut, startCheckout } = useCheckout(userId, () => {
-    void refreshProfile();
-  });
 
   useEffect(() => {
     if (!userId) return;
@@ -341,15 +337,37 @@ export function SubscriptionPlansScreen(): React.JSX.Element {
     })();
   }, [userId]);
 
+  // Recuperación de suscripciones que quedaron `pending` pero ya se pagaron
+  // (webhook perdido / usuario que cerró el navegador de MP y volvió más tarde).
+  // Consultamos activamente a MP; si autorizó, la fila se activa y el gate avanza.
+  const recoverPendingSubscription = useCallback(async () => {
+    if (!userId) return;
+    const result = await syncSubscription();
+    if (result?.status === 'active') {
+      clearSubscriptionAccessCache();
+      await refreshProfile();
+    }
+  }, [userId, refreshProfile]);
+
+  useEffect(() => {
+    void recoverPendingSubscription();
+  }, [recoverPendingSubscription]);
+
   useAppActive(() => {
     clearSubscriptionAccessCache();
+    void recoverPendingSubscription();
     void refreshProfile();
   });
 
-  const onSelectPlan = useCallback((id: string) => {
-    setCheckoutId(id);
-    void startCheckout(id);
-  }, [startCheckout]);
+  const onSelectPlan = useCallback(async (id: string) => {
+    // `start` pasa el checkout a 'processing' de forma síncrona → el RootNavigator
+    // swapea a CheckoutResultScreen al instante. `starting` cubre el frame previo.
+    setStarting(true);
+    await useCheckoutStore.getState().start(id);
+    // Si falló (volvió a 'idle') destrabamos el botón; si abrió MP ('processing')
+    // esta pantalla ya se está desmontando, no tocamos el estado.
+    if (useCheckoutStore.getState().phase === 'idle') setStarting(false);
+  }, []);
 
   if (evalFlowStep === 'form') {
     return (
@@ -446,7 +464,7 @@ export function SubscriptionPlansScreen(): React.JSX.Element {
           <PlanBaseView
             plans={plans}
             loadingPlans={loadingPlans}
-            checkingOut={checkingOut}
+            checkingOut={starting}
             onSelectPlan={onSelectPlan}
             onSwitchToMentoria={() => setActiveTab('mentoria')}
           />

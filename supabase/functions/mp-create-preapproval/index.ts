@@ -49,6 +49,15 @@ Deno.serve(async (req) => {
 
   const admin = createClient(supabaseUrl, serviceKey);
 
+  // Suscripciones existentes del usuario — usado abajo para el guard
+  // anti-doble-suscripción (evita crear un segundo preapproval si ya hay uno activo).
+  const { data: existingSubs } = await admin
+    .from('subscriptions')
+    .select('id, status, mp_status, mp_preapproval_id, created_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(5);
+
   const { data: plan, error: planError } = await admin
     .from('plans')
     .select('*')
@@ -148,6 +157,19 @@ Deno.serve(async (req) => {
   // suscripciones) aunque el front muestre el precio de lista. Sacar esta
   // línea cuando se cierre la etapa de pruebas con montos bajos.
   if (plan.id === 'monthly') monthlyRate = 15;
+
+  // Guard anti-doble-suscripción: si el alumno YA tiene una suscripción activa,
+  // no creamos otro preapproval (era la raíz de los cobros duplicados). La app,
+  // al recibir `already_active`, muestra "tu plan ya está activo" y avanza.
+  const activeSub = (existingSubs as { id: string; status: string | null }[] | null)?.find(
+    (s) => s.status === 'active',
+  );
+  if (activeSub) {
+    return new Response(
+      JSON.stringify({ already_active: true, subscription_id: activeSub.id }),
+      { headers: { 'Content-Type': 'application/json' } },
+    );
+  }
 
   const { data: authUser, error: authUserError } = await admin.auth.admin.getUserById(userId);
   const payerEmail = authUser?.user?.email;

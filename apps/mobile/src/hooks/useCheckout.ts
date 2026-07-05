@@ -1,15 +1,28 @@
 import { useCallback, useRef, useState } from 'react';
 import { Linking } from 'react-native';
 import * as AuthSession from 'expo-auth-session';
-import { createCheckout, fetchActiveSubscription, clearSubscriptionAccessCache, resolveSubscriptionAccess } from '../services/payments';
+import {
+  createCheckout,
+  fetchActiveSubscription,
+  syncSubscription,
+  clearSubscriptionAccessCache,
+  resolveSubscriptionAccess,
+} from '../services/payments';
 import { useUiStore } from '../stores/uiStore';
 import { useAppActive } from './useAppActive';
 import type { SubscriptionRow } from '../types/database';
 
-// Intervalos de polling: arranca rápido (el webhook suele acreditar en pocos
-// segundos) y se estira. Total ~50s máx si nunca se activa.
+// Intervalos de polling: arranca rápido (MP suele autorizar en pocos segundos)
+// y se estira. ~50s máx.
 const POLL_INTERVALS = [1500, 2500, 4000, 6000, 8000, 12000, 15000];
 
+/**
+ * Checkout in-app para "Mi plan" (usuario ya activo que renueva/cambia de plan).
+ * A diferencia del flujo de onboarding (checkoutStore + CheckoutResultScreen),
+ * este es autocontenido: abre MP, y al volver consulta activamente a MP
+ * (`mp-sync-subscription`) hasta que la suscripción queda activa, sin depender
+ * del webhook. No toma la pantalla completa — solo un spinner en el botón.
+ */
 export function useCheckout(
   userId: string | undefined,
   onActivated: (sub: SubscriptionRow) => void,
@@ -17,6 +30,7 @@ export function useCheckout(
   const [checkingOut, setCheckingOut] = useState(false);
   const pollingRef = useRef(false);
   const waitingReturnRef = useRef(false);
+  const lastSubscriptionIdRef = useRef<string | null>(null);
   const onActivatedRef = useRef(onActivated);
   onActivatedRef.current = onActivated;
 
@@ -24,11 +38,14 @@ export function useCheckout(
     if (pollingRef.current) return;
     pollingRef.current = true;
 
+    const syncNow = () => syncSubscription(lastSubscriptionIdRef.current ?? undefined);
+    await syncNow();
     let updated = await fetchActiveSubscription(uid);
 
     for (const delay of POLL_INTERVALS) {
       if (updated?.status === 'active') break;
       await new Promise((r) => setTimeout(r, delay));
+      await syncNow();
       updated = await fetchActiveSubscription(uid);
     }
 
@@ -38,10 +55,9 @@ export function useCheckout(
     if (updated?.status === 'active') {
       clearSubscriptionAccessCache();
       await resolveSubscriptionAccess(uid);
-      useUiStore.getState().showToast('success', '¡Bienvenido! Tu suscripción ya está activa.');
+      useUiStore.getState().showToast('success', '¡Listo! Tu suscripción ya está activa.');
       onActivatedRef.current(updated);
     } else {
-      // Timeout agotado — el webhook puede haber tardado más de lo esperado
       useUiStore.getState().showToast(
         'info',
         'El pago puede demorar unos minutos en acreditarse. Volvé a abrir la app para verificar.',
@@ -49,9 +65,6 @@ export function useCheckout(
     }
   }, []);
 
-  // Al abrir el checkout en Safari (app externa), la nuestra pasa a background.
-  // Cuando el usuario vuelve (AppState background→active) disparamos el polling.
-  // El navegador in-app NO genera esa transición — por eso usamos Safari externo.
   useAppActive(() => {
     if (waitingReturnRef.current && userId) {
       waitingReturnRef.current = false;
@@ -64,19 +77,22 @@ export function useCheckout(
       if (!userId || checkingOut) return;
       setCheckingOut(true);
       try {
-        // `makeRedirectUri` produce el deep link del entorno actual: `exp://…/--/pago`
-        // en Expo Go, `reset-fitness://pago` en un build standalone. Se guarda en el
-        // backend (client_return_url) y la página /pago/exito redirige exactamente a
-        // ese deep link — que Safari sabe rutear de vuelta a la app.
         const returnUrl = AuthSession.makeRedirectUri({ path: 'pago' });
-        const { checkoutUrl } = await createCheckout(planId, returnUrl);
+        const { checkoutUrl, subscriptionId, alreadyActive } = await createCheckout(planId, returnUrl);
+        lastSubscriptionIdRef.current = subscriptionId || null;
+
+        if (alreadyActive) {
+          clearSubscriptionAccessCache();
+          await resolveSubscriptionAccess(userId);
+          setCheckingOut(false);
+          useUiStore.getState().showToast('success', 'Tu plan ya está activo.');
+          const active = await fetchActiveSubscription(userId);
+          if (active) onActivatedRef.current(active);
+          return;
+        }
+
         waitingReturnRef.current = true;
-        // Safari del sistema (app externa), NO un navegador in-app: así la app pasa
-        // a background y AppState dispara useAppActive + polling al volver. Con el
-        // navegador in-app la transición no ocurría y el spinner quedaba colgado.
         await Linking.openURL(checkoutUrl);
-        // Linking.openURL resuelve inmediatamente; el polling lo dispara useAppActive
-        // cuando el usuario vuelve a la app tras completar (o cancelar) el pago.
       } catch (err) {
         waitingReturnRef.current = false;
         setCheckingOut(false);

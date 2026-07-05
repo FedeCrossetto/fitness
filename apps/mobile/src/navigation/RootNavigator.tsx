@@ -13,6 +13,8 @@ import { OnboardingScreen } from '../screens/auth/OnboardingScreen';
 import { UpdatePasswordScreen } from '../screens/auth/UpdatePasswordScreen';
 import { LinkTrainerScreen } from '../screens/auth/LinkTrainerScreen';
 import { SubscriptionPlansScreen } from '../screens/auth/SubscriptionPlansScreen';
+import { CheckoutResultScreen } from '../screens/subscription/CheckoutResultScreen';
+import { useCheckoutStore } from '../stores/checkoutStore';
 import { ConsultationFormScreen } from '../screens/consultation/ConsultationFormScreen';
 import { WaiverBlockingGate } from '../components/waiver/WaiverBlockingGate';
 import { ImageConsentBlockingGate } from '../components/waiver/ImageConsentBlockingGate';
@@ -23,34 +25,15 @@ import { MarketingSliderScreen } from '../screens/auth/MarketingSliderScreen';
 import { useStoredProfile } from '../hooks/useStoredProfile';
 import { needsTrainerLink, isPendingActivation } from '../services/clientAccess';
 import { hasPendingMentoriaEvaluation } from '../services/evaluationGate';
-import { clearSubscriptionAccessCache, resolveClientPlanType } from '../services/payments';
+import { clearSubscriptionAccessCache } from '../services/payments';
+import {
+  resolveActivationSteps,
+  type ActivationStep,
+  type WaiverCfg,
+  type ImageConsentCfg,
+} from '../services/activationGate';
 import { syncPushRegistration } from '../services/notifications';
-import { anyClient, supabase } from '../lib/supabase';
 import { useInboxStore } from '../stores/inboxStore';
-
-interface ImageConsentCfg {
-  title: string;
-  body: string;
-}
-
-type ImageConsentGateRpc = {
-  required?: boolean;
-  title?: string;
-  body?: string;
-};
-
-interface WaiverCfg {
-  title: string;
-  body: string;
-  require_before_start: boolean;
-}
-
-type WaiverGateRpc = {
-  required?: boolean;
-  title?: string;
-  body?: string;
-  require_before_start?: boolean;
-};
 
 const Tabs = createBottomTabNavigator<MainTabsParamList>();
 
@@ -77,127 +60,6 @@ function MainTabs(): React.JSX.Element {
   );
 }
 
-async function resolveWaiverGate(): Promise<{ required: boolean; config: WaiverCfg | null }> {
-  const { data, error } = await supabase.rpc('get_client_waiver_gate');
-
-  if (error) {
-    if (__DEV__) console.warn('[waiver] get_client_waiver_gate failed:', error.message);
-    // Fallback directo por si la migración 0049 aún no está aplicada
-    return resolveWaiverGateLegacy();
-  }
-
-  const row = data as WaiverGateRpc | null;
-  if (!row?.required || !row.body?.trim()) {
-    return { required: false, config: null };
-  }
-
-  return {
-    required: true,
-    config: {
-      title: row.title ?? 'Deslinde de Responsabilidad',
-      body: row.body,
-      require_before_start: row.require_before_start ?? true,
-    },
-  };
-}
-
-async function resolveWaiverGateLegacy(): Promise<{ required: boolean; config: WaiverCfg | null }> {
-  const { data: profile } = await supabase.from('profiles').select('id, trainer_id, role').maybeSingle();
-  if (!profile?.trainer_id || profile.role === 'trainer' || profile.role === 'admin') {
-    return { required: false, config: null };
-  }
-
-  const { data: cfg, error: cfgError } = await anyClient
-    .from('waiver_configs')
-    .select('title, body, require_before_start')
-    .eq('trainer_id', profile.trainer_id)
-    .maybeSingle();
-
-  if (cfgError && __DEV__) console.warn('[waiver] waiver_configs query failed:', cfgError.message);
-
-  const waiverCfg = cfg as WaiverCfg | null;
-  if (!waiverCfg?.require_before_start || !waiverCfg.body?.trim()) {
-    return { required: false, config: null };
-  }
-
-  const { data: sig, error: sigError } = await anyClient
-    .from('waiver_signatures')
-    .select('id')
-    .eq('client_id', profile.id)
-    .eq('trainer_id', profile.trainer_id)
-    .maybeSingle();
-
-  if (sigError && __DEV__) console.warn('[waiver] waiver_signatures query failed:', sigError.message);
-  if (sig) return { required: false, config: null };
-
-  return { required: true, config: waiverCfg };
-}
-
-async function resolveImageConsentGate(): Promise<{ required: boolean; config: ImageConsentCfg | null }> {
-  const { data, error } = await supabase.rpc('get_client_image_consent_gate');
-
-  if (error) {
-    if (__DEV__) console.warn('[image_consent] get_client_image_consent_gate failed:', error.message);
-    return resolveImageConsentGateLegacy();
-  }
-
-  const row = data as ImageConsentGateRpc | null;
-  if (!row?.required || !row.body?.trim()) {
-    return { required: false, config: null };
-  }
-
-  return {
-    required: true,
-    config: {
-      title: row.title ?? 'Consentimiento de uso de imágenes',
-      body: row.body,
-    },
-  };
-}
-
-async function resolveImageConsentGateLegacy(): Promise<{ required: boolean; config: ImageConsentCfg | null }> {
-  const { data: profile } = await supabase.from('profiles').select('id, trainer_id, role').maybeSingle();
-  if (!profile?.trainer_id || profile.role === 'trainer' || profile.role === 'admin') {
-    return { required: false, config: null };
-  }
-
-  const { data: cfg, error: cfgError } = await anyClient
-    .from('waiver_configs')
-    .select('image_consent_enabled, image_consent_title, image_consent_body')
-    .eq('trainer_id', profile.trainer_id)
-    .maybeSingle();
-
-  if (cfgError && __DEV__) console.warn('[image_consent] waiver_configs query failed:', cfgError.message);
-
-  const consentCfg = cfg as {
-    image_consent_enabled?: boolean;
-    image_consent_title?: string;
-    image_consent_body?: string;
-  } | null;
-
-  if (!consentCfg?.image_consent_enabled || !consentCfg.image_consent_body?.trim()) {
-    return { required: false, config: null };
-  }
-
-  const { data: existing, error: accError } = await anyClient
-    .from('image_consent_acceptances')
-    .select('id')
-    .eq('client_id', profile.id)
-    .eq('trainer_id', profile.trainer_id)
-    .maybeSingle();
-
-  if (accError && __DEV__) console.warn('[image_consent] acceptances query failed:', accError.message);
-  if (existing) return { required: false, config: null };
-
-  return {
-    required: true,
-    config: {
-      title: consentCfg.image_consent_title ?? 'Consentimiento de uso de imágenes',
-      body: consentCfg.image_consent_body,
-    },
-  };
-}
-
 /** Decide entre Auth, Onboarding, WaiverGate y App según la sesión de Supabase. */
 export function RootNavigator(): React.JSX.Element {
   useInviteDeepLink();
@@ -212,6 +74,10 @@ export function RootNavigator(): React.JSX.Element {
   const forcedSignOut        = useAuthStore((s) => s.forcedSignOut);
   const evaluationGateVersion = useAuthStore((s) => s.evaluationGateVersion);
   const restoreActiveSession = useTrainingStore((s) => s.restoreActiveSession);
+  // Flujo de checkout activo (procesando/aprobado/rechazado): toma la pantalla
+  // por encima del gate normal, así el resultado del pago se muestra completo
+  // (incluida la pantalla "aprobado + Comencemos") sin que el gate lo saltee.
+  const checkoutPhase = useCheckoutStore((s) => s.phase);
 
   // Mientras isPendingActivation(profile) sea true, decide si mostrar el
   // selector de planes (nunca aplicó a nada) o la pantalla de espera de
@@ -229,34 +95,48 @@ export function RootNavigator(): React.JSX.Element {
     return () => { active = false; };
   }, [profile?.id, profile?.client_status, evaluationGateVersion]);
 
-  const [waiverChecked, setWaiverChecked] = useState(false);
-  const [waiverRequired, setWaiverRequired] = useState(false);
-  const [waiverConfig, setWaiverConfig] = useState<WaiverCfg | null>(null);
-
-  const [imageConsentRequired, setImageConsentRequired] = useState(false);
-  const [imageConsentConfig, setImageConsentConfig] = useState<ImageConsentCfg | null>(null);
-  // true mientras se resuelve el gate de imagen (recién firmado el deslinde, o
-  // recheck al volver del background). Evita el flash de MainTabs entre "ya no
-  // hace falta el deslinde" y "hace falta el consentimiento de imagen".
-  const [imageConsentChecking, setImageConsentChecking] = useState(false);
-
-  const [consultationRequired, setConsultationRequired] = useState(false);
-  const [consultationFormCode, setConsultationFormCode] = useState<string | null>(null);
+  // Deslinde + consentimiento de imagen + formulario de consulta, unificados en
+  // UNA lista de pasos resuelta atómicamente (ver activationGate.ts). Antes cada
+  // gate se resolvía con su propio efecto async independiente: entre que un
+  // paso terminaba y el siguiente se resolvía, había una ventana de render sin
+  // ningún gate activo → se veía un frame de MainTabs (menú, tabs, etc.) antes
+  // de que apareciera el siguiente paso. Con el batch, avanzar de un paso al
+  // siguiente es un simple incremento de índice en memoria — no dispara una
+  // nueva consulta de red ni pasa por un estado intermedio "sin gate".
+  const [activationSteps, setActivationSteps] = useState<ActivationStep[] | null>(null);
+  const [activationIndex, setActivationIndex] = useState(0);
+  const [activationConfigs, setActivationConfigs] = useState<{
+    waiverConfig: WaiverCfg | null;
+    imageConsentConfig: ImageConsentCfg | null;
+    consultationFormCode: string | null;
+  }>({ waiverConfig: null, imageConsentConfig: null, consultationFormCode: null });
 
   const { sliderDone, markSliderDone } = useMarketingSlider();
   const { profile: storedProfile } = useStoredProfile();
   const [sliderJustFinished, setSliderJustFinished] = useState(false);
 
-  // Mientras needsOnboarding es true, checkWaiver ni siquiera consulta el gate (lo
-  // marca "checked, no requerido" para no bloquear el onboarding). Si dejáramos que
-  // ese valor viejo sobreviva al primer render con needsOnboarding=false, se ve un
-  // frame de MainTabs antes de que el chequeo real (disparado por un efecto aparte)
-  // determine que hace falta el deslinde. Ajustamos el estado durante el render —
-  // no en un efecto — para que la corrección aplique en el mismo commit, sin flash.
+  /** Evita pantalla negra al re-chequear gates (p. ej. refreshProfile al firmar deslinde). */
+  const activationInitializedRef = useRef(false);
+  const activationSessionIdRef = useRef<string | null>(null);
+
+  // Nueva sesión (login) → los gates deben re-evaluarse desde cero, incluso si un
+  // usuario anterior ya los había inicializado en este mismo montaje de RootNavigator.
+  const currentSessionId = session?.user.id ?? null;
+  if (activationSessionIdRef.current !== currentSessionId) {
+    activationSessionIdRef.current = currentSessionId;
+    activationInitializedRef.current = false;
+  }
+
+  // Igual que antes con needsOnboarding: si el batch ya se había resuelto y
+  // needsOnboarding pasa a false, forzamos un recheck (durante el render, no en
+  // un efecto, para que aplique en el mismo commit sin flash).
   const prevNeedsOnboardingRef = useRef(needsOnboarding);
   if (prevNeedsOnboardingRef.current !== needsOnboarding) {
     prevNeedsOnboardingRef.current = needsOnboarding;
-    if (!needsOnboarding && waiverChecked) setWaiverChecked(false);
+    if (!needsOnboarding && activationInitializedRef.current) {
+      activationInitializedRef.current = false;
+      setActivationSteps(null);
+    }
   }
 
   // Reset el flag cuando el usuario inicia sesión, así el próximo logout muestra EasyLogin
@@ -268,18 +148,6 @@ export function RootNavigator(): React.JSX.Element {
     setSliderJustFinished(true);
     await markSliderDone();
   };
-
-  /** Evita pantalla negra al re-chequear gates (p. ej. refreshProfile al firmar deslinde). */
-  const gatesInitializedRef = useRef(false);
-  const gatesSessionIdRef = useRef<string | null>(null);
-
-  // Nueva sesión (login) → los gates deben re-evaluarse desde cero, incluso si un
-  // usuario anterior ya los había inicializado en este mismo montaje de RootNavigator.
-  const currentSessionId = session?.user.id ?? null;
-  if (gatesSessionIdRef.current !== currentSessionId) {
-    gatesSessionIdRef.current = currentSessionId;
-    gatesInitializedRef.current = false;
-  }
 
   useEffect(() => {
     void restoreActiveSession();
@@ -308,155 +176,67 @@ export function RootNavigator(): React.JSX.Element {
     return unsubscribe;
   }, [session?.user.id, profile?.id, profile?.trainer_id, profile?.role, profile?.client_status, needsOnboarding]);
 
-  const applyImageConsentGate = useCallback(async () => {
-    setImageConsentChecking(true);
-    try {
-      const result = await resolveImageConsentGate();
-      setImageConsentConfig(result.config);
-      setImageConsentRequired(result.required);
-    } catch (err) {
-      if (__DEV__) console.warn('[image_consent] gate check failed:', err);
-      setImageConsentRequired(false);
-      setImageConsentConfig(null);
-    } finally {
-      setImageConsentChecking(false);
-    }
-  }, []);
-
-  const checkWaiver = useCallback(async () => {
+  const computeActivation = useCallback(async () => {
     if (!session || needsOnboarding || needsTrainerLink(profile)) {
-      setWaiverChecked(true);
-      setWaiverRequired(false);
-      setWaiverConfig(null);
-      setImageConsentRequired(false);
-      setImageConsentConfig(null);
-      gatesInitializedRef.current = true;
+      setActivationSteps([]);
+      activationInitializedRef.current = true;
       return;
     }
     if (!profile?.id) {
-      if (!gatesInitializedRef.current) setWaiverChecked(false);
+      if (!activationInitializedRef.current) setActivationSteps(null);
       return;
     }
-    if (profile.role === 'trainer' || profile.role === 'admin') {
-      setWaiverChecked(true);
-      setWaiverRequired(false);
-      setWaiverConfig(null);
-      setImageConsentRequired(false);
-      setImageConsentConfig(null);
-      gatesInitializedRef.current = true;
+    if (profile.role === 'trainer' || profile.role === 'admin' || !profile.trainer_id) {
+      setActivationSteps([]);
+      activationInitializedRef.current = true;
       return;
     }
-    if (!profile.trainer_id) {
-      setWaiverChecked(true);
-      setWaiverRequired(false);
-      setWaiverConfig(null);
-      setImageConsentRequired(false);
-      setImageConsentConfig(null);
-      gatesInitializedRef.current = true;
-      return;
-    }
-
-    const isRecheck = gatesInitializedRef.current;
-    if (!isRecheck) setWaiverChecked(false);
 
     try {
-      const result = await resolveWaiverGate();
-      setWaiverConfig(result.config);
-      setWaiverRequired(result.required);
-
-      if (!result.required) {
-        await applyImageConsentGate();
-      } else if (!isRecheck) {
-        setImageConsentRequired(false);
-        setImageConsentConfig(null);
-      }
+      const result = await resolveActivationSteps(profile);
+      setActivationConfigs({
+        waiverConfig: result.waiverConfig,
+        imageConsentConfig: result.imageConsentConfig,
+        consultationFormCode: result.consultationFormCode,
+      });
+      setActivationSteps(result.steps);
+      setActivationIndex(0);
     } catch (err) {
-      if (__DEV__) console.warn('[waiver] check failed:', err);
-      setWaiverRequired(false);
-      setWaiverConfig(null);
-      setImageConsentRequired(false);
-      setImageConsentConfig(null);
+      if (__DEV__) console.warn('[activation] compute failed:', err);
+      setActivationSteps([]);
     } finally {
-      setWaiverChecked(true);
-      gatesInitializedRef.current = true;
+      activationInitializedRef.current = true;
     }
-  }, [session, profile, needsOnboarding, applyImageConsentGate]);
+  }, [session, profile, needsOnboarding]);
 
   useEffect(() => {
-    void checkWaiver();
-  }, [checkWaiver]);
+    void computeActivation();
+  }, [computeActivation]);
 
   useAppActive(() => {
-    void checkWaiver();
+    void computeActivation();
     clearSubscriptionAccessCache();
     void useAuthStore.getState().refreshProfile();
   });
 
-  useEffect(() => {
-    if (!waiverChecked || waiverRequired || imageConsentRequired) return;
-    if (!session || !profile?.id || needsOnboarding || needsTrainerLink(profile)) {
-      setConsultationRequired(false);
-      return;
-    }
-    const trainerId = profile.trainer_id;
-    if (!trainerId) {
-      setConsultationRequired(false);
-      return;
-    }
+  const advanceActivation = useCallback(() => {
+    setActivationIndex((i) => i + 1);
+  }, []);
 
-    let active = true;
+  const currentActivationStep =
+    activationSteps && activationIndex < activationSteps.length ? activationSteps[activationIndex] : null;
 
-    void (async () => {
-      try {
-        const planType = await resolveClientPlanType(profile.id);
-        const { data: cfg } = await anyClient
-          .from('consultation_form_configs')
-          .select('form_code')
-          .eq('trainer_id', trainerId)
-          .eq('plan_type', planType)
-          .maybeSingle() as { data: { form_code: string } | null };
-
-        if (!cfg?.form_code?.trim()) {
-          if (active) setConsultationRequired(false);
-          return;
-        }
-
-        const { data: existing } = await anyClient
-          .from('consultation_responses')
-          .select('id')
-          .eq('client_id', profile.id)
-          .eq('trainer_id', trainerId)
-          .maybeSingle();
-
-        if (!active) return;
-
-        if (existing) {
-          setConsultationRequired(false);
-        } else {
-          setConsultationFormCode(cfg.form_code);
-          setConsultationRequired(true);
-        }
-      } catch {
-        if (active) setConsultationRequired(false);
-      }
-    })();
-
-    return () => { active = false; };
-  }, [waiverChecked, waiverRequired, imageConsentRequired, session, profile, needsOnboarding]);
-
-  // gatesInitializedRef distingue el chequeo inicial (debe bloquear con el loading
-  // overlay) de un recheck posterior — p. ej. al volver del background, cuando
-  // checkWaiver() y applyImageConsentGate() se re-disparan mientras el usuario ya
-  // está viendo la app. Sin este flag, imageConsentChecking pasa a true en cada
-  // recheck y gatesPending vuelve a ser true, provocando un segundo AuthLoadingOverlay
-  // ("doble R") sobre una app que ya había terminado de cargar.
+  // activationInitializedRef distingue el chequeo inicial (debe bloquear con el
+  // loading overlay) de un recheck posterior — p. ej. al volver del background,
+  // cuando computeActivation() se re-dispara mientras el usuario ya está viendo
+  // la app. Sin este flag, cada recheck volvería a mostrar el overlay ("doble R")
+  // sobre una app que ya había terminado de cargar.
   const gatesPending =
-    !gatesInitializedRef.current &&
+    !activationInitializedRef.current &&
     !!session &&
     !!profile?.id &&
     !needsOnboarding &&
-    !needsTrainerLink(profile) &&
-    (!waiverChecked || imageConsentChecking);
+    !needsTrainerLink(profile);
 
   // Only block rendering with the loading overlay during initialization or when a session
   // exists and gates are pending. While the user is unauthenticated, keep the AuthStack
@@ -475,53 +255,50 @@ export function RootNavigator(): React.JSX.Element {
   }
   if (needsPasswordReset) return <UpdatePasswordScreen />;
   if (needsTrainerLink(profile)) return <LinkTrainerScreen />;
+  // Resultado del pago (aprobado/pending/rechazado) por encima de todos los
+  // gates: incluso si el backend ya activó al cliente, retenemos hasta que
+  // toque "Comencemos".
+  if (checkoutPhase !== 'idle') return <CheckoutResultScreen />;
   if (isPendingActivation(profile)) {
     if (mentoriaWaiting === null) return <AuthLoadingOverlay />;
     return mentoriaWaiting ? <MentoriaWaitStack /> : <SubscriptionPlansScreen />;
   }
   if (needsOnboarding) return <OnboardingScreen />;
 
-  // Deslinde antes que consulta o pantalla principal
-  if (waiverRequired && waiverConfig && profile?.trainer_id) {
+  // Deslinde + consentimiento de imagen + formulario, como un solo flujo de
+  // pasos: avanzar de uno al siguiente es un simple incremento de índice, sin
+  // volver a golpear la red ni pasar por MainTabs entre paso y paso.
+  if (currentActivationStep === 'waiver' && activationConfigs.waiverConfig && profile?.trainer_id) {
     return (
       <WaiverBlockingGate
-        config={waiverConfig}
+        config={activationConfigs.waiverConfig}
         trainerId={profile.trainer_id}
-        onSigned={() => {
-          setWaiverRequired(false);
-          setWaiverConfig(null);
-          void applyImageConsentGate();
-        }}
+        onSigned={advanceActivation}
       />
     );
   }
 
-  if (imageConsentRequired && imageConsentConfig && profile?.trainer_id) {
+  if (currentActivationStep === 'imageConsent' && activationConfigs.imageConsentConfig && profile?.trainer_id) {
     return (
       <ImageConsentBlockingGate
-        config={imageConsentConfig}
+        config={activationConfigs.imageConsentConfig}
         trainerId={profile.trainer_id}
-        onAccepted={() => {
-          setImageConsentRequired(false);
-          setImageConsentConfig(null);
-        }}
-        onSkip={() => {
-          // ImageConsentScreen ya persistió el rechazo (status='declined') antes de llamar
-          // a este callback, así que el gate no se va a volver a activar en próximos logins.
-          setImageConsentRequired(false);
-          setImageConsentConfig(null);
-        }}
+        onAccepted={advanceActivation}
+        // ImageConsentScreen ya persistió el rechazo (status='declined') antes de
+        // llamar a este callback, así que el gate no se va a volver a activar en
+        // próximos logins.
+        onSkip={advanceActivation}
       />
     );
   }
 
-  if (consultationRequired && consultationFormCode && profile?.trainer_id) {
+  if (currentActivationStep === 'consultation' && activationConfigs.consultationFormCode && profile?.trainer_id) {
     return (
       <ConsultationFormScreen
-        formCode={consultationFormCode}
+        formCode={activationConfigs.consultationFormCode}
         trainerId={profile.trainer_id}
-        onSubmitted={() => setConsultationRequired(false)}
-        onSkip={() => setConsultationRequired(false)}
+        onSubmitted={advanceActivation}
+        onSkip={advanceActivation}
       />
     );
   }
