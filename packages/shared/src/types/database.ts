@@ -673,6 +673,10 @@ export interface Database {
         Args: { p_id: string };
         Returns: string | null;
       };
+      account_exists: {
+        Args: { p_user_id: string };
+        Returns: boolean;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;

@@ -18,6 +18,7 @@ import { useCheckoutStore } from '../stores/checkoutStore';
 import { ConsultationFormScreen } from '../screens/consultation/ConsultationFormScreen';
 import { WaiverBlockingGate } from '../components/waiver/WaiverBlockingGate';
 import { ImageConsentBlockingGate } from '../components/waiver/ImageConsentBlockingGate';
+import { BiometricSetupScreen } from '../screens/auth/BiometricSetupScreen';
 import { useInviteDeepLink } from '../hooks/useInviteDeepLink';
 import { useAppActive } from '../hooks/useAppActive';
 import { useMarketingSlider } from '../hooks/useMarketingSlider';
@@ -290,6 +291,10 @@ export function RootNavigator(): React.JSX.Element {
         onSkip={advanceActivation}
       />
     );
+  }
+
+  if (currentActivationStep === 'biometric' && profile?.id) {
+    return <BiometricSetupScreen onDecided={advanceActivation} />;
   }
 
   if (currentActivationStep === 'consultation' && activationConfigs.consultationFormCode && profile?.trainer_id) {

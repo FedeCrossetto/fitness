@@ -23,7 +23,7 @@ import {
   syncClientActivationIfPaid,
 } from '../services/payments';
 import { INVITE_REQUIRED_MESSAGE } from '../services/clientAccess';
-import { completeOAuthFromUrl, getOAuthRedirectUri, getOAuthReturnUri } from '../lib/oauthRedirect';
+import { completeOAuthFromUrl, getOAuthRedirectUri, getOAuthReturnUri, getNativeAuthCallbackUri } from '../lib/oauthRedirect';
 import type { ProfileRow, UserProfileRow } from '../types/database';
 import { mirrorOAuthAvatar } from '@reset-fitness/shared/auth/mirrorOAuthAvatar';
 import { todayISO } from '../lib/dates';
@@ -46,6 +46,11 @@ interface AuthState {
   error: string | null;
   needsOnboarding: boolean;
   needsPasswordReset: boolean;
+  /** Email+token del link de reset "custom" (ver custom-request-password-reset).
+   * Sin esto, updatePassword() no sabría si hay que llamar a la Edge Function
+   * (sin sesión) o al flujo nativo de Supabase (con sesión, legacy). */
+  pendingPasswordReset: { email: string; token: string } | null;
+  setPendingPasswordReset: (v: { email: string; token: string } | null) => void;
   /** Se incrementa manualmente para forzarle a RootNavigator a re-evaluar el
    * gate de "esperando evaluación de mentoría" sin depender de un cambio de
    * `profile` (sigue en client_status='pending' hasta que el entrenador activa
@@ -209,6 +214,7 @@ async function markOnboardingDone(userId: string): Promise<void> {
 function syncStoredProfile(session: Session, profile: ProfileRow | null): void {
   if (!profile?.full_name) return;
   void saveStoredProfile({
+    userId: session.user.id,
     fullName: profile.full_name,
     email: session.user.email ?? '',
     avatarUrl: profile.avatar_url ?? null,
@@ -248,6 +254,7 @@ function setAuthState(
   // Pasa por el store reactivo (no AsyncStorage directo) para que RootNavigator/EasyLogin
   // se enteren del cambio sin depender de un reload manual del hook useStoredProfile.
   void saveStoredProfile({
+    userId: session.user.id,
     fullName: profile?.full_name ?? session.user.email?.split('@')[0] ?? '',
     email:    session.user.email ?? '',
     avatarUrl: profile?.avatar_url ?? null,
@@ -260,7 +267,7 @@ function setAuthState(
   }
 }
 
-async function clearEasyLoginData(): Promise<void> {
+export async function clearEasyLoginData(): Promise<void> {
   await Promise.all([
     clearStoredProfile(), // limpia AsyncStorage + actualiza el store global reactivamente
     SecureStore.deleteItemAsync('easy_login_credentials').catch(() => {}),
@@ -365,6 +372,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   error: null,
   needsOnboarding: false,
   needsPasswordReset: false,
+  pendingPasswordReset: null,
+  setPendingPasswordReset: (v) => set({ pendingPasswordReset: v, needsPasswordReset: v !== null }),
   forcedSignOut: false,
   evaluationGateVersion: 0,
 
@@ -407,6 +416,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
       if (error) throw error;
       const { profile, userProfile } = await finishAuthSession(data.session!);
+      if (!profile) {
+        // Credenciales válidas pero sin fila en `profiles` (cuenta borrada desde
+        // la webapp): sin este chequeo, commitSession igual armaba una sesión
+        // con profile null y RootNavigator no sabía a qué gate mandar al
+        // usuario. Mismo criterio que checkSession() al restaurar sesión.
+        await supabase.auth.signOut();
+        await clearEasyLoginData();
+        set({ loading: false, error: 'Esta cuenta ya no existe. Creá una cuenta nueva o contactá a tu entrenador.' });
+        return false;
+      }
       await commitSession(data.session!, profile, userProfile);
       void SecureStore.setItemAsync('easy_login_credentials', JSON.stringify({ email: email.trim(), password }));
       return true;
@@ -433,14 +452,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         },
       });
       if (error) throw error;
-      // Sin sesión = Supabase requiere confirmar el email con un código (OTP).
-      if (!data.session) {
+      // "Confirm email" está apagado en Supabase (Custom SMTP pide plan Pro acá),
+      // así que signUp() da sesión de una. La descartamos a propósito y mandamos
+      // NOSOTROS el código de verificación por Resend — mismo resultado para el
+      // usuario (tiene que confirmar antes de entrar) pero sin depender del
+      // mailer de Supabase. `!data.session` casi no debería pasar hoy, pero se
+      // deja el fallback nativo por si "Confirm email" se reactiva más adelante.
+      if (data.session) {
+        voluntarySignOut = true;
+        await supabase.auth.signOut();
+        const { error: sendError } = await supabase.functions.invoke('custom-send-verification-code', {
+          body: { email: email.trim() },
+        });
+        if (sendError) throw sendError;
         set({ loading: false });
         return 'verify';
       }
-      const { profile, userProfile } = await finishAuthSession(data.session);
-      await commitSession(data.session, profile, userProfile, true);
-      return 'session';
+      set({ loading: false });
+      return 'verify';
     } catch (error) {
       set({ loading: false, error: messageFor(error) });
       return 'error';
@@ -450,18 +479,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   verifyEmailOtp: async (email, token, password) => {
     set({ loading: true, error: null });
     try {
-      const { data, error } = await supabase.auth.verifyOtp({
-        email: email.trim(),
-        token: token.trim(),
-        type: 'signup',
+      const { data, error } = await supabase.functions.invoke<{ ok?: boolean; error?: string }>('custom-verify-code', {
+        body: { email: email.trim(), code: token.trim() },
       });
-      if (error) throw error;
-      if (!data.session) throw new Error('No se pudo confirmar la cuenta.');
-      const { profile, userProfile } = await finishAuthSession(data.session);
-      await commitSession(data.session, profile, userProfile, true);
-      if (password) {
-        void SecureStore.setItemAsync('easy_login_credentials', JSON.stringify({ email: email.trim(), password }));
+      if (error || !data?.ok) {
+        throw new Error(data?.error ?? 'Código incorrecto');
       }
+      // El código solo confirma el mail — la sesión real la da un login normal.
+      if (!password) throw new Error('Volvé a intentar el inicio de sesión.');
+      const ok = await get().signIn(email, password);
+      if (!ok) throw new Error('Tu cuenta se confirmó, pero no pudimos iniciar sesión. Probá loguearte de nuevo.');
       return true;
     } catch (error) {
       set({ loading: false, error: messageFor(error) });
@@ -472,7 +499,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   resendEmailOtp: async (email) => {
     set({ error: null });
     try {
-      const { error } = await supabase.auth.resend({ type: 'signup', email: email.trim() });
+      const { error } = await supabase.functions.invoke('custom-send-verification-code', {
+        body: { email: email.trim() },
+      });
       if (error) throw error;
       return true;
     } catch (error) {
@@ -552,6 +581,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   updatePassword: async (newPassword) => {
     try {
+      const pending = get().pendingPasswordReset;
+      if (pending) {
+        // Flujo custom (sin sesión): la Edge Function valida el token y
+        // actualiza la contraseña vía Admin API directamente.
+        const { data, error } = await supabase.functions.invoke<{ ok?: boolean; error?: string }>(
+          'custom-confirm-password-reset',
+          { body: { email: pending.email, token: pending.token, new_password: newPassword } },
+        );
+        if (error || !data?.ok) throw new Error(data?.error ?? 'No pudimos actualizar la contraseña.');
+        set({ needsPasswordReset: false, pendingPasswordReset: null });
+        return true;
+      }
+      // Legacy: sesión de recovery nativa de Supabase (por si ese flujo se reactiva).
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) throw error;
       set({ needsPasswordReset: false });
@@ -564,8 +606,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   resetPassword: async (email) => {
     try {
-      const redirectTo = getOAuthRedirectUri();
-      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo });
+      const deepLink = getNativeAuthCallbackUri();
+      const { error } = await supabase.functions.invoke('custom-request-password-reset', {
+        body: { email: email.trim(), deep_link: deepLink },
+      });
       if (error) throw error;
       return true;
     } catch {

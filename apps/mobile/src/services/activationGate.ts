@@ -1,18 +1,19 @@
 import { anyClient, supabase } from '../lib/supabase';
 import { resolveClientPlanType } from './payments';
+import { hasDecidedSetup, isHardwareSupported } from './biometrics';
 import type { ProfileRow } from '../types/database';
 
 /**
- * Resuelve los 3 gates de activación (deslinde, consentimiento de imagen,
- * formulario de consulta) EN UN SOLO batch atómico, en vez de 3 efectos
- * independientes que se disparan y resuelven por separado. Antes, entre que
- * un gate terminaba (ej. formulario enviado) y el siguiente (deslinde) se
- * resolvía de forma asíncrona, había una ventana de render donde ningún gate
- * estaba activo → se veía un frame de MainTabs (pantalla principal) antes de
- * que el siguiente gate apareciera. Con el batch, el `RootNavigator` conoce
- * TODOS los pasos pendientes desde el inicio y solo avanza el índice
- * localmente (sin volver a golpear la red) — no hay ventana en la que "no
- * hay gate activo" mientras todavía queda un paso por mostrar.
+ * Resuelve los gates de activación (deslinde, consentimiento de imagen,
+ * configuración de acceso rápido, formulario de consulta) EN UN SOLO batch
+ * atómico, en vez de efectos independientes que se disparan y resuelven por
+ * separado. Antes, entre que un gate terminaba (ej. formulario enviado) y el
+ * siguiente (deslinde) se resolvía de forma asíncrona, había una ventana de
+ * render donde ningún gate estaba activo → se veía un frame de MainTabs
+ * (pantalla principal) antes de que el siguiente gate apareciera. Con el
+ * batch, el `RootNavigator` conoce TODOS los pasos pendientes desde el inicio
+ * y solo avanza el índice localmente (sin volver a golpear la red) — no hay
+ * ventana en la que "no hay gate activo" mientras todavía queda un paso.
  */
 
 export interface WaiverCfg {
@@ -26,7 +27,7 @@ export interface ImageConsentCfg {
   body: string;
 }
 
-export type ActivationStep = 'waiver' | 'imageConsent' | 'consultation';
+export type ActivationStep = 'waiver' | 'imageConsent' | 'biometric' | 'consultation';
 
 export interface ActivationSteps {
   steps: ActivationStep[];
@@ -196,17 +197,28 @@ async function resolveConsultationFormCode(profile: ProfileRow): Promise<string 
   }
 }
 
-/** Resuelve los 3 gates en paralelo y arma el orden de pasos pendientes. */
+/** Configuración de acceso rápido (Face ID / Touch ID): se ofrece una sola vez
+ * por usuario, justo después de firmar deslinde + consentimiento de imagen, y
+ * solo si el dispositivo soporta biometría (si no, no tiene sentido mostrarla). */
+async function resolveBiometricStep(userId: string): Promise<boolean> {
+  const decided = await hasDecidedSetup(userId);
+  if (decided) return false;
+  return isHardwareSupported();
+}
+
+/** Resuelve los gates en paralelo y arma el orden de pasos pendientes. */
 export async function resolveActivationSteps(profile: ProfileRow): Promise<ActivationSteps> {
-  const [waiverResult, consentResult, consultationFormCode] = await Promise.all([
+  const [waiverResult, consentResult, biometricRequired, consultationFormCode] = await Promise.all([
     resolveWaiverGate(),
     resolveImageConsentGate(),
+    resolveBiometricStep(profile.id),
     resolveConsultationFormCode(profile),
   ]);
 
   const steps: ActivationStep[] = [];
   if (waiverResult.required) steps.push('waiver');
   if (consentResult.required) steps.push('imageConsent');
+  if (biometricRequired) steps.push('biometric');
   if (consultationFormCode) steps.push('consultation');
 
   return {

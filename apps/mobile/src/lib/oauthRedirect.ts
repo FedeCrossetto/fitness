@@ -32,6 +32,21 @@ export function getOAuthReturnUri(): string {
   return `${getAppScheme()}://${AUTH_CALLBACK_PATH}`;
 }
 
+/**
+ * Deep link real de ESTA sesión de la app — a diferencia de OAuth, el reset de
+ * contraseña se completa desde el link de un email que el usuario puede abrir
+ * días después, en cualquier browser, sin que la app esté "esperando" con un
+ * `ASWebAuthenticationSession`. La página HTTPS de rebote (`/auth/mobile-callback`)
+ * necesita este valor para reabrir la app: en Expo Go es `exp://<ip-lan>:<puerto>/--/...`,
+ * dinámico y distinto en cada sesión de Metro, imposible de adivinar desde una
+ * web estática. Se manda como `deep_link` al pedir el reset (custom-request-
+ * password-reset), que lo re-empaqueta en el link del mail.
+ */
+export function getNativeAuthCallbackUri(): string | null {
+  if (Platform.OS === 'web') return null;
+  return AuthSession.makeRedirectUri({ path: AUTH_CALLBACK_PATH });
+}
+
 type OAuthProvider = 'apple' | 'google';
 
 /** Completa la sesión OAuth desde la URL de retorno (PKCE o tokens en hash). */

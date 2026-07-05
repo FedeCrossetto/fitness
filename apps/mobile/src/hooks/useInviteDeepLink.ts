@@ -2,12 +2,27 @@ import { useEffect } from 'react';
 import { Linking } from 'react-native';
 import { parseInviteCodeFromUrl, savePendingInviteCode } from '../services/invite';
 import { supabase } from '../lib/supabase';
+import { useAuthStore } from '../stores/authStore';
 
-/** Procesa un deep link de recuperación de contraseña (type=recovery). */
+/** Procesa un deep link de recuperación de contraseña (type=recovery o
+ * type=custom_recovery — ver custom-request-password-reset). */
 async function handleRecoveryUrl(url: string): Promise<boolean> {
   try {
     const parsed = new URL(url);
     const type = parsed.searchParams.get('type') ?? new URLSearchParams(parsed.hash.replace(/^#/, '')).get('type');
+
+    // Flujo custom (Resend, sin sesión de Supabase): token+email de nuestra
+    // propia tabla — ver custom-request-password-reset / custom-confirm-password-reset.
+    if (type === 'custom_recovery') {
+      const token = parsed.searchParams.get('token');
+      const email = parsed.searchParams.get('email');
+      if (token && email) {
+        useAuthStore.getState().setPendingPasswordReset({ email, token });
+        return true;
+      }
+      return false;
+    }
+
     if (type !== 'recovery') return false;
 
     // PKCE: code en query string

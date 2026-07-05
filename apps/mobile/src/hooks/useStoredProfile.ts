@@ -5,6 +5,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const KEY = 'easy_login_profile';
 
 export interface StoredProfile {
+  /** Id en `profiles` — permite a EasyLoginScreen verificar si la cuenta
+   * sigue existiendo sin necesidad de una sesión activa. Puede faltar en
+   * perfiles guardados por versiones anteriores de la app. */
+  userId?: string;
   fullName: string;
   email: string;
   avatarUrl: string | null;

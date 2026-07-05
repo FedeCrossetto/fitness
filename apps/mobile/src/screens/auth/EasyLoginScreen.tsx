@@ -19,7 +19,9 @@ import { spacing } from '../../theme';
 import { AppText } from '../../components/common';
 import { resolveAvatarUrl } from '../../lib/avatarUrl';
 import { useStoredProfile } from '../../hooks/useStoredProfile';
-import { useAuthStore } from '../../stores/authStore';
+import { useAuthStore, clearEasyLoginData } from '../../stores/authStore';
+import { useAppActive } from '../../hooks/useAppActive';
+import { supabase } from '../../lib/supabase';
 import type { AuthStackParamList } from '../../types/navigation';
 import { authColors } from './authScreenTheme';
 import { AuthButton } from './authUi';
@@ -79,6 +81,32 @@ export function EasyLoginScreen({ navigation }: Props): React.JSX.Element {
     return () => clearInterval(id);
   }, []);
 
+  // Sin sesión activa acá no hay forma de suscribirse a Realtime (RLS lo
+  // impide) — a diferencia de `subscribeProfileDeletion` que sí puede hacerlo
+  // con la app logueada. Chequeamos contra `account_exists` (RPC pública,
+  // solo devuelve un booleano) al entrar y cada vez que la app vuelve del
+  // background, para detectar una cuenta borrada desde la webapp mientras el
+  // usuario está parado acá sin tocar nada.
+  const checkAccountStillExists = React.useCallback(async () => {
+    const userId = profile?.userId;
+    if (!userId) return; // perfiles guardados antes de este cambio no tienen id — se resuelve solo la próxima vez que loguee
+    try {
+      const { data, error } = await supabase.rpc('account_exists', { p_user_id: userId });
+      if (error) return; // sin conexión u otro problema transitorio: no borramos nada por las dudas
+      if (data === false) await clearEasyLoginData();
+    } catch {
+      // silencioso — mejor esfuerzo, no bloquea la pantalla
+    }
+  }, [profile?.userId]);
+
+  useEffect(() => {
+    void checkAccountStillExists();
+  }, [checkAccountStillExists]);
+
+  useAppActive(() => {
+    void checkAccountStillExists();
+  });
+
   const handleLoginAsUser = async () => {
     setLoginError(null);
     setLoggingIn(true);
@@ -97,7 +125,14 @@ export function EasyLoginScreen({ navigation }: Props): React.JSX.Element {
           const ok = await signIn(creds.email, creds.password);
           if (ok) return;
           setLoggingIn(false);
-          navigation.navigate('Login', { prefillEmail: creds.email, prefillError: 'Email o contraseña incorrectos.' });
+          // El error real puede ser "contraseña incorrecta" o "esta cuenta ya no
+          // existe" (borrada desde la webapp) — usamos el que dejó signIn en vez
+          // de asumir siempre credenciales inválidas.
+          const authError = useAuthStore.getState().error;
+          navigation.navigate('Login', {
+            prefillEmail: creds.email,
+            prefillError: authError ?? 'Email o contraseña incorrectos.',
+          });
           return;
         }
       }

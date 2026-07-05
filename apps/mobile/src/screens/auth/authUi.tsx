@@ -121,6 +121,8 @@ interface AuthButtonProps {
   disabled?: boolean;
   fullWidth?: boolean;
   variant?: 'default' | 'brand';
+  /** Ícono al final del label (ej. chevron-forward en CTAs de avance). */
+  icon?: keyof typeof Ionicons.glyphMap;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -131,10 +133,12 @@ export function AuthButton({
   disabled = false,
   fullWidth = false,
   variant = 'default',
+  icon,
   style,
 }: AuthButtonProps): React.JSX.Element {
   const isDisabled = disabled || loading;
   const isBrand = variant === 'brand';
+  const textColor = isBrand ? authColors.buttonBrandText : authColors.buttonPrimaryText;
 
   return (
     <Pressable
@@ -152,14 +156,14 @@ export function AuthButton({
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={isBrand ? authColors.buttonBrandText : authColors.buttonPrimaryText} />
+        <ActivityIndicator color={textColor} />
       ) : (
-        <AppText
-          variant="body16SemiBold"
-          color={isBrand ? authColors.buttonBrandText : authColors.buttonPrimaryText}
-        >
-          {label}
-        </AppText>
+        <View style={styles.btnContent}>
+          <AppText variant="body16SemiBold" color={textColor}>
+            {label}
+          </AppText>
+          {icon ? <Ionicons name={icon} size={20} color={textColor} /> : null}
+        </View>
       )}
     </Pressable>
   );
@@ -310,6 +314,7 @@ const styles = StyleSheet.create({
     minHeight: layout.minHitTarget,
   },
   inputError: { marginTop: spacing.xxs },
+  btnContent: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   primaryBtn: {
     borderRadius: radius.md,
     alignItems: 'center',

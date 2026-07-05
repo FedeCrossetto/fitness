@@ -95,7 +95,7 @@ export function UpdatePasswordScreen(): React.JSX.Element {
               ¡CONTRASEÑA ACTUALIZADA!
             </AppText>
             <AppText variant="caps11" color={authColors.textSecondary} style={styles.successBody}>
-              TU CONTRASEÑA FUE CAMBIADA CON ÉXITO. YA PODÉS USAR LA APP NORMALMENTE.
+              TU CONTRASEÑA FUE CAMBIADA CON ÉXITO. INICIÁ SESIÓN DE NUEVO CON TU NUEVA CONTRASEÑA.
             </AppText>
             <AuthButton
               label="CONTINUAR"
