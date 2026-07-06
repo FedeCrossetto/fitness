@@ -197,13 +197,22 @@ export async function createCheckout(
     already_active?: boolean;
   }>('mp-create-preapproval', { body: { plan_id: planId, return_url: returnUrl } });
   if (error || !data) {
+    // FunctionsHttpError trae la respuesta real en `context` — en dev la
+    // mostramos en el mensaje de error (toast) además de loguearla, para
+    // no depender de mirar la consola de Metro para diagnosticar un rechazo
+    // de Mercado Pago. En producción el alumno sigue viendo el genérico.
     if (__DEV__) {
-      // FunctionsHttpError trae la respuesta real en `context` — logueamos
-      // el detalle (incluye el motivo de rechazo de Mercado Pago) sin
-      // mostrárselo al alumno.
       const context = (error as { context?: Response })?.context;
-      void context?.clone().text().then((body) => console.warn('[createCheckout] error:', body)).catch(() => {});
-      console.warn('[createCheckout] invoke error:', error);
+      const body = await context?.clone().text().catch(() => null);
+      console.warn('[createCheckout] invoke error:', error, '| body:', body);
+      let detail = body;
+      if (body) {
+        try {
+          const parsed = JSON.parse(body) as { error?: string; detail?: string };
+          detail = parsed.detail ?? parsed.error ?? body;
+        } catch { /* body no era JSON, se muestra tal cual */ }
+      }
+      throw new Error(`[DEV] No pudimos iniciar el pago: ${detail ?? error?.message ?? 'sin detalle'}`);
     }
     throw new Error('No pudimos iniciar el pago. Intentá de nuevo.');
   }
