@@ -9,7 +9,13 @@
 //   web estática no puede reabrir Expo Go — su IP/puerto cambian en cada sesión.
 //
 // Siempre responde `{ok:true}` exista o no la cuenta (evita filtrar qué mails
-// están registrados).
+// están registrados) — EXCEPTO cuando la cuenta existe pero fue creada por
+// Google/Apple (sin identity "email"): ahí no tiene sentido mandar un mail
+// con link de reset porque no hay contraseña que cambiar, así que devolvemos
+// `{ok:true, oauth_provider:"google"|"apple"}` para que la app se lo diga al
+// usuario en vez de simular un envío que nunca va a llegar. Esto sí revela
+// que ese email tiene cuenta OAuth — trade-off aceptado a propósito acá
+// (app chica, un solo entrenador) a cambio de no confundir al usuario.
 //
 // Secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, RESEND_API_KEY,
 //   RESEND_FROM_EMAIL, APP_BASE_URL
@@ -36,12 +42,19 @@ Deno.serve(async (req) => {
   // usuarios de este proyecto es chica (app de un entrenador), así que iterar
   // es aceptable. Si el volumen crece, reemplazar por una función SQL propia.
   let userId: string | null = null;
+  let oauthProvider: string | null = null;
   let page = 1;
   while (userId === null) {
     const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
     if (error || !data?.users?.length) break;
     const match = data.users.find((u) => u.email?.toLowerCase() === normalizedEmail);
-    if (match) userId = match.id;
+    if (match) {
+      userId = match.id;
+      const hasEmailIdentity = match.identities?.some((i) => i.provider === 'email') ?? false;
+      if (!hasEmailIdentity) {
+        oauthProvider = match.identities?.[0]?.provider ?? match.app_metadata?.provider ?? 'google';
+      }
+    }
     if (data.users.length < 200) break; // última página
     page += 1;
   }
@@ -49,6 +62,13 @@ Deno.serve(async (req) => {
   // Respuesta genérica siempre — no confirmamos/negamos si el mail existe.
   const genericOk = new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json' } });
   if (!userId) return genericOk;
+
+  // Cuenta de Google/Apple sin password propia: no hay nada que resetear.
+  if (oauthProvider) {
+    return new Response(JSON.stringify({ ok: true, oauth_provider: oauthProvider }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
 
   const token = crypto.randomUUID().replace(/-/g, '');
   const tokenHash = await sha256Hex(token);
@@ -69,6 +89,7 @@ Deno.serve(async (req) => {
   const params = new URLSearchParams({ token, email: normalizedEmail, type: 'custom_recovery' });
   if (deep_link) params.set('deep_link', deep_link);
   const resetLink = `${appBaseUrl}/auth/mobile-callback?${params.toString()}`;
+  console.log('[custom-request-password-reset] deep_link recibido=', deep_link, '| resetLink=', resetLink);
 
   const { ok, error: sendError } = await sendResendEmail({
     to: normalizedEmail,

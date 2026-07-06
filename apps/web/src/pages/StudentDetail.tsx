@@ -61,6 +61,12 @@ type Profile = Pick<ProfileRow, 'id' | 'full_name' | 'goal' | 'phone' | 'avatar_
 
 type StudentSubscription = Pick<SubscriptionRow, 'id' | 'status' | 'expires_at' | 'started_at' | 'mp_preapproval_id'> & {
   plan_name: string | null;
+  /** La frecuencia de facturación elegida fue soft-deleted por el entrenador
+   * — el alumno sigue renovando igual, pero ya no está en el catálogo activo. */
+  plan_deleted: boolean;
+  /** El precio de la frecuencia cambió desde que este alumno se suscribió
+   * y el cobro es recurrente por MercadoPago — hay que actualizarlo ahí a mano. */
+  price_changed: { current: number; paid: number } | null;
 };
 
 function subscriptionStatusLabel(status: SubscriptionRow['status']): string {
@@ -117,7 +123,7 @@ function relativeDate(iso: string): string {
 export function StudentDetailPage(): React.JSX.Element {
   const { id: studentId } = useParams<{ id: string }>();
   const { profile: trainerProfile } = useAuth();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>('resumen');
@@ -177,7 +183,7 @@ export function StudentDetailPage(): React.JSX.Element {
         supabase.from('progress_photos').select('*').eq('user_id', studentId).order('created_at', { ascending: false }),
         supabase
           .from('subscriptions')
-          .select('id, status, expires_at, started_at, plan_id, mp_preapproval_id')
+          .select('id, status, expires_at, started_at, plan_id, mp_preapproval_id, amount_ars')
           .eq('user_id', studentId)
           .order('created_at', { ascending: false })
           .limit(1)
@@ -196,23 +202,38 @@ export function StudentDetailPage(): React.JSX.Element {
       setConsultation((cr as ConsultationResponse | null) ?? false);
 
       if (sub) {
-        const row = sub as Pick<SubscriptionRow, 'id' | 'status' | 'expires_at' | 'started_at' | 'plan_id' | 'mp_preapproval_id'>;
+        const row = sub as Pick<SubscriptionRow, 'id' | 'status' | 'expires_at' | 'started_at' | 'plan_id' | 'mp_preapproval_id' | 'amount_ars'>;
         let status = row.status;
         if (status === 'active' && row.expires_at && new Date(row.expires_at) < new Date()) {
           status = 'expired';
         }
         const { data: plan } = await supabase
           .from('plans')
-          .select('name')
+          .select('name, deleted_at, price_ars')
           .eq('id', row.plan_id)
           .maybeSingle();
+        const planRow = plan as { name: string; deleted_at: string | null; price_ars: number } | null;
+        // El cobro recurrente vive en MercadoPago, no se actualiza solo cuando
+        // el entrenador edita plans.price_ars — flaggeamos para que lo arregle
+        // manualmente allá, solo si hay algo que comparar (amount_ars viejo en
+        // null no se flaggea, no hay dato confiable) y el cobro es recurrente.
+        const priceChanged =
+          status === 'active' &&
+          row.mp_preapproval_id &&
+          row.amount_ars != null &&
+          planRow &&
+          Number(planRow.price_ars) !== Number(row.amount_ars)
+            ? { current: Number(planRow.price_ars), paid: Number(row.amount_ars) }
+            : null;
         setSubscription({
           id: row.id,
           status,
           expires_at: row.expires_at,
           started_at: row.started_at,
           mp_preapproval_id: row.mp_preapproval_id,
-          plan_name: (plan as { name: string } | null)?.name ?? null,
+          plan_name: planRow?.name ?? null,
+          plan_deleted: !!planRow?.deleted_at,
+          price_changed: priceChanged,
         });
       } else {
         setSubscription(null);
@@ -268,7 +289,7 @@ export function StudentDetailPage(): React.JSX.Element {
     if (!studentId) return;
     const { data: sub } = await supabase
       .from('subscriptions')
-      .select('id, status, expires_at, started_at, plan_id, mp_status, mp_preapproval_id')
+      .select('id, status, expires_at, started_at, plan_id, mp_status, mp_preapproval_id, amount_ars')
       .eq('user_id', studentId)
       .order('created_at', { ascending: false })
       .limit(1)
@@ -277,19 +298,30 @@ export function StudentDetailPage(): React.JSX.Element {
       setSubscription(null);
       return;
     }
-    const row = sub as Pick<SubscriptionRow, 'id' | 'status' | 'expires_at' | 'started_at' | 'plan_id' | 'mp_status' | 'mp_preapproval_id'>;
+    const row = sub as Pick<SubscriptionRow, 'id' | 'status' | 'expires_at' | 'started_at' | 'plan_id' | 'mp_status' | 'mp_preapproval_id' | 'amount_ars'>;
     let status = row.status;
     if (status === 'active' && row.expires_at && new Date(row.expires_at) < new Date()) {
       status = 'expired';
     }
-    const { data: plan } = await supabase.from('plans').select('name').eq('id', row.plan_id).maybeSingle();
+    const { data: plan } = await supabase.from('plans').select('name, deleted_at, price_ars').eq('id', row.plan_id).maybeSingle();
+    const planRow = plan as { name: string; deleted_at: string | null; price_ars: number } | null;
+    const priceChanged =
+      status === 'active' &&
+      row.mp_preapproval_id &&
+      row.amount_ars != null &&
+      planRow &&
+      Number(planRow.price_ars) !== Number(row.amount_ars)
+        ? { current: Number(planRow.price_ars), paid: Number(row.amount_ars) }
+        : null;
     setSubscription({
       id: row.id,
       status,
       expires_at: row.expires_at,
       started_at: row.started_at,
       mp_preapproval_id: row.mp_preapproval_id,
-      plan_name: (plan as { name: string } | null)?.name ?? null,
+      plan_name: planRow?.name ?? null,
+      plan_deleted: !!planRow?.deleted_at,
+      price_changed: priceChanged,
     });
   }, [studentId]);
 
@@ -569,6 +601,26 @@ export function StudentDetailPage(): React.JSX.Element {
                 <InfoTile label="Objetivo" value={profile.goal ?? '—'} />
                 <InfoTile label="Se unió" value={new Date(profile.created_at).toLocaleDateString('es-AR')} />
               </div>
+              {subscription?.plan_deleted ? (
+                <div className="sd-plan-warning" title={t.payments.manage_plans_deleted_tooltip}>
+                  ⚠ {t.payments.manage_plans_deleted_badge}: {t.payments.manage_plans_deleted_tooltip}
+                </div>
+              ) : null}
+              {subscription?.price_changed ? (
+                <div
+                  className="sd-plan-warning"
+                  title={i18n(t.payments.manage_plans_price_changed_tooltip, {
+                    current: subscription.price_changed.current.toLocaleString('es-AR'),
+                    paid: subscription.price_changed.paid.toLocaleString('es-AR'),
+                  })}
+                >
+                  ⚠ {t.payments.manage_plans_price_changed_badge}:{' '}
+                  {i18n(t.payments.manage_plans_price_changed_tooltip, {
+                    current: subscription.price_changed.current.toLocaleString('es-AR'),
+                    paid: subscription.price_changed.paid.toLocaleString('es-AR'),
+                  })}
+                </div>
+              ) : null}
               {subscription?.mp_preapproval_id && subscription.status !== 'cancelled' ? (
                 <button
                   type="button"
@@ -978,6 +1030,11 @@ export function StudentDetailPage(): React.JSX.Element {
         .sd-info-tile.full { grid-column: 1 / -1; }
         .sd-info-tile-lbl { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--text-tertiary); margin-bottom: 5px; }
         .sd-info-tile-val { font-size: 14px; font-weight: 500; color: var(--text-primary); }
+        .sd-plan-warning {
+          margin-top: 12px; padding: 9px 12px; border-radius: var(--radius-sm);
+          border: 1px solid rgba(217,119,6,0.3); background: rgba(217,119,6,0.08);
+          color: #b45309; font-size: 12.5px; line-height: 1.4;
+        }
 
         .sd-measure-grid { display: grid; grid-template-columns: 1fr 1fr; column-gap: 20px; row-gap: 18px; }
         .sd-measure-tile { min-width: 0; }

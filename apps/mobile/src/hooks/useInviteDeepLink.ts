@@ -10,14 +10,17 @@ async function handleRecoveryUrl(url: string): Promise<boolean> {
   try {
     const parsed = new URL(url);
     const type = parsed.searchParams.get('type') ?? new URLSearchParams(parsed.hash.replace(/^#/, '')).get('type');
+    if (__DEV__) console.log('[deep link] recibido:', url, '| type=', type);
 
     // Flujo custom (Resend, sin sesión de Supabase): token+email de nuestra
     // propia tabla — ver custom-request-password-reset / custom-confirm-password-reset.
     if (type === 'custom_recovery') {
       const token = parsed.searchParams.get('token');
       const email = parsed.searchParams.get('email');
+      if (__DEV__) console.log('[deep link] custom_recovery token=', token, 'email=', email);
       if (token && email) {
         useAuthStore.getState().setPendingPasswordReset({ email, token });
+        if (__DEV__) console.log('[deep link] setPendingPasswordReset OK, needsPasswordReset=', useAuthStore.getState().needsPasswordReset);
         return true;
       }
       return false;
@@ -57,10 +60,14 @@ export function useInviteDeepLink(): void {
     };
 
     void Linking.getInitialURL().then((url) => {
+      if (__DEV__) console.log('[deep link] getInitialURL:', url);
       if (url) void handle(url);
     });
 
-    const sub = Linking.addEventListener('url', ({ url }) => void handle(url));
+    const sub = Linking.addEventListener('url', ({ url }) => {
+      if (__DEV__) console.log('[deep link] evento url:', url);
+      void handle(url);
+    });
     return () => sub.remove();
   }, []);
 }

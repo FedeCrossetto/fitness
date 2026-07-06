@@ -1,7 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Modal,
   Pressable,
   ScrollView,
   StatusBar,
@@ -25,6 +24,8 @@ import { EvaluationThankYouScreen } from '../evaluation/EvaluationThankYouScreen
 import { MentoriaView, ORANGE, BASE_COMPLEMENTS } from './MentoriaView';
 
 const H_PAD = 20;
+const CARD_WIDTH = 108;
+const CARD_GAP = 10;
 
 function monthsOf(plan: PlanRow): number {
   return Math.max(1, Math.round(plan.duration_days / 30));
@@ -35,67 +36,70 @@ function monthLabel(m: number): string {
 }
 
 // ── Selector de frecuencia de facturación ────────────────────────────────────
-// Bottom sheet en vez de una fila de tabs: con más de 3-4 frecuencias (ahora
-// que el entrenador puede agregar las que quiera desde la webapp) una fila
-// de botones queda apretada o se corta. El sheet escala a cualquier cantidad.
+// Tarjetas horizontales swipeables en vez de sheet/modal: se despliega inline
+// debajo del link "Ahorrá más en los planes", así el usuario compara
+// deslizando sin perder de vista el resto de la pantalla.
 
-function FrequencyPicker({
-  visible,
+function FrequencyCarousel({
   plans,
   selectedId,
   onSelect,
-  onClose,
 }: {
-  visible: boolean;
   plans: PlanRow[];
   selectedId: string | null;
   onSelect: (id: string) => void;
-  onClose: () => void;
 }): React.JSX.Element {
-  const insets = useSafeAreaInsets();
+  // snapToInterval por sí solo no alcanza: como el contenido arranca con un
+  // padding inicial (para que la primera tarjeta no quede pegada al borde),
+  // los múltiplos de (CARD_WIDTH+GAP) no coinciden con el borde real de cada
+  // tarjeta y el snap terminaba cortando una a la mitad. snapToOffsets con
+  // el offset exacto de cada tarjeta soluciona eso.
+  const snapOffsets = plans.map((_, i) => i * (CARD_WIDTH + CARD_GAP));
+  const scrollRef = useRef<ScrollView>(null);
+
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.pickerBackdropContainer}>
-        <Pressable style={styles.pickerBackdrop} onPress={onClose} accessibilityLabel="Cerrar" />
-        <View style={[styles.pickerSheet, { paddingBottom: Math.max(insets.bottom, 20) }]}>
-          <View style={styles.pickerHandle} />
-          <AppText variant="body16SemiBold" color={authColors.textPrimary} style={styles.pickerTitle}>
-            Elegí la frecuencia de facturación
-          </AppText>
-          <ScrollView style={styles.pickerList} showsVerticalScrollIndicator={false}>
-            {plans.map((plan) => {
-              const m = monthsOf(plan);
-              const perMonth = Math.round(plan.price_ars / m);
-              const active = plan.id === selectedId;
-              return (
-                <TouchableOpacity
-                  key={plan.id}
-                  style={[styles.pickerRow, active && styles.pickerRowActive]}
-                  onPress={() => {
-                    onSelect(plan.id);
-                    onClose();
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View>
-                    <AppText
-                      variant="body14SemiBold"
-                      color={active ? authColors.lima : authColors.textPrimary}
-                    >
-                      {monthLabel(m)}
-                    </AppText>
-                    <AppText variant="body12" color={authColors.textTertiary}>
-                      ${perMonth.toLocaleString('es-AR')}/mes · Total ${Math.round(plan.price_ars).toLocaleString('es-AR')}
-                    </AppText>
-                  </View>
-                  {active ? <Ionicons name="checkmark-circle" size={22} color={authColors.lima} /> : null}
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
+    <ScrollView
+      ref={scrollRef}
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      snapToOffsets={snapOffsets}
+      decelerationRate="fast"
+      contentContainerStyle={styles.carouselContent}
+      style={styles.carousel}
+    >
+      {plans.map((plan, index) => {
+        const m = monthsOf(plan);
+        const perMonth = Math.round(plan.price_ars / m);
+        const active = plan.id === selectedId;
+        return (
+          <TouchableOpacity
+            key={plan.id}
+            style={[styles.freqCard, active && styles.freqCardActive]}
+            onPress={() => {
+              onSelect(plan.id);
+              // Al tocar una tarjeta que quedó parcialmente fuera de vista
+              // (ej. la última al final del scroll), la traemos entera a
+              // pantalla en vez de dejar que el usuario tenga que arrastrarla.
+              scrollRef.current?.scrollTo({ x: snapOffsets[index], animated: true });
+            }}
+            activeOpacity={0.8}
+          >
+            <AppText
+              variant="body14SemiBold"
+              color={active ? authColors.lima : authColors.textPrimary}
+            >
+              {monthLabel(m)}
+            </AppText>
+            <AppText variant="body12" color={authColors.textTertiary} style={styles.freqCardPerMonth}>
+              ${perMonth.toLocaleString('es-AR')}/mes
+            </AppText>
+            <AppText variant="body12" color={authColors.textTertiary}>
+              Total ${Math.round(plan.price_ars).toLocaleString('es-AR')}
+            </AppText>
+          </TouchableOpacity>
+        );
+      })}
+    </ScrollView>
   );
 }
 
@@ -126,7 +130,7 @@ function PlanBaseView({
 }): React.JSX.Element {
   const sorted = [...plans].sort((a, b) => monthsOf(a) - monthsOf(b));
   const [selectedIdx, setSelectedIdx] = useState(0);
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(true);
 
   const selected = sorted[selectedIdx] ?? null;
   const selectedMonths = selected ? monthsOf(selected) : 1;
@@ -134,12 +138,6 @@ function PlanBaseView({
   const pricePerMonth = selected
     ? Math.round(selected.price_ars / selectedMonths)
     : null;
-
-  // % de ahorro vs. pagar mes a mes (plan de 1 mes como referencia).
-  const oneMonthPlan = sorted.find((p) => monthsOf(p) === 1);
-  const discountPct = oneMonthPlan && selected && selectedMonths > 1
-    ? Math.round((1 - Number(selected.price_ars) / (Number(oneMonthPlan.price_ars) * selectedMonths)) * 100)
-    : 0;
 
   return (
     <View style={styles.tabContent}>
@@ -171,13 +169,6 @@ function PlanBaseView({
               <AppText variant="body13Medium" color={authColors.textSecondary}>
                 Cobro mensual automático
               </AppText>
-              {discountPct > 0 ? (
-                <View style={styles.discountPill}>
-                  <AppText variant="body12SemiBold" color={authColors.lima}>
-                    {discountPct}% OFF
-                  </AppText>
-                </View>
-              ) : null}
             </View>
             {selectedMonths > 1 && totalPrice ? (
               <AppText variant="body12" color={authColors.textTertiary} style={styles.totalCaption}>
@@ -187,36 +178,36 @@ function PlanBaseView({
           </>
         ) : null}
 
-        {/* Selector de frecuencia */}
-        {!loadingPlans && sorted.length > 0 && (
+        <AppText variant="body13" color={authColors.textSecondary} style={styles.planDescription}>
+          La forma más simple de empezar tu transformación.
+        </AppText>
+
+        {/* Abierto por default: el objetivo no es esconder las otras
+         * frecuencias, sino no competir visualmente con "EMPEZAR HOY" en 1
+         * mes — por eso el título es de bajo contraste, no un botón grande. */}
+        {!loadingPlans && sorted.length > 1 && (
           <TouchableOpacity
-            style={styles.freqSelector}
-            onPress={() => setPickerOpen(true)}
-            activeOpacity={0.75}
+            style={styles.freqLink}
+            onPress={() => setPickerOpen((v) => !v)}
+            activeOpacity={0.6}
           >
-            <AppText variant="body14SemiBold" color={authColors.textPrimary}>
-              {monthLabel(selectedMonths)}
+            <AppText variant="body12" color={authColors.textTertiary}>
+              Ahorrá más en los planes:
             </AppText>
-            <Ionicons name="chevron-down" size={18} color={authColors.textTertiary} />
+            <Ionicons name={pickerOpen ? 'chevron-up' : 'chevron-forward'} size={13} color={authColors.textTertiary} />
           </TouchableOpacity>
         )}
 
-        <FrequencyPicker
-          visible={pickerOpen}
-          plans={sorted}
-          selectedId={selected?.id ?? null}
-          onSelect={(id) => {
-            const idx = sorted.findIndex((p) => p.id === id);
-            if (idx >= 0) setSelectedIdx(idx);
-          }}
-          onClose={() => setPickerOpen(false)}
-        />
-
-        <AppText variant="body13" color={authColors.textSecondary} style={styles.planDescription}>
-          {selectedMonths > 1
-            ? `Ahorrás pagando ${selectedMonths} meses. La forma más simple de empezar tu transformación.`
-            : 'Ahorrá en los planes de 3 y 6 meses. La forma más simple de empezar tu transformación.'}
-        </AppText>
+        {pickerOpen ? (
+          <FrequencyCarousel
+            plans={sorted}
+            selectedId={selected?.id ?? null}
+            onSelect={(id) => {
+              const idx = sorted.findIndex((p) => p.id === id);
+              if (idx >= 0) setSelectedIdx(idx);
+            }}
+          />
+        ) : null}
 
         {/* Features */}
         <AppText variant="caps11" color={authColors.lima} style={styles.sectionLabel}>
@@ -318,24 +309,36 @@ export function SubscriptionPlansScreen(): React.JSX.Element {
   const [starting, setStarting] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('base');
   const [evalFlowStep, setEvalFlowStep] = useState<EvalFlowStep>(null);
+  const scrollRef = useRef<ScrollView>(null);
+
+  // Cambiar de tab (Base ↔ Mentoría) — desde el toggle o desde el upsell al
+  // fondo de Plan Base — siempre vuelve al inicio de la pantalla. Si no, al
+  // venir del botón "VER MENTORÍA 1 A 1" (al pie del scroll) el usuario
+  // quedaba viendo el fondo del contenido de Mentoría en vez de su inicio.
+  const switchTab = useCallback((tab: Tab) => {
+    setActiveTab(tab);
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, []);
+
+  const loadPlans = useCallback(async () => {
+    if (!userId) return;
+    try {
+      const list = await fetchPlans(userId);
+      setPlans(list);
+    } catch (err) {
+      // No bloqueamos la pantalla (el usuario puede seguir con Mentoría),
+      // pero antes esto quedaba en silencio y el Plan Base se veía roto
+      // ($0/mes, sin selector de duración) sin ninguna pista de qué pasó.
+      if (__DEV__) console.warn('[plans] fetchPlans failed:', err);
+      useUiStore.getState().showToast('error', 'No pudimos cargar los planes. Probá de nuevo más tarde.');
+    } finally {
+      setLoadingPlans(false);
+    }
+  }, [userId]);
 
   useEffect(() => {
-    if (!userId) return;
-    void (async () => {
-      try {
-        const list = await fetchPlans(userId);
-        setPlans(list);
-      } catch (err) {
-        // No bloqueamos la pantalla (el usuario puede seguir con Mentoría),
-        // pero antes esto quedaba en silencio y el Plan Base se veía roto
-        // ($0/mes, sin selector de duración) sin ninguna pista de qué pasó.
-        if (__DEV__) console.warn('[plans] fetchPlans failed:', err);
-        useUiStore.getState().showToast('error', 'No pudimos cargar los planes. Probá de nuevo más tarde.');
-      } finally {
-        setLoadingPlans(false);
-      }
-    })();
-  }, [userId]);
+    void loadPlans();
+  }, [loadPlans]);
 
   // Recuperación de suscripciones que quedaron `pending` pero ya se pagaron
   // (webhook perdido / usuario que cerró el navegador de MP y volvió más tarde).
@@ -357,6 +360,10 @@ export function SubscriptionPlansScreen(): React.JSX.Element {
     clearSubscriptionAccessCache();
     void recoverPendingSubscription();
     void refreshProfile();
+    // El entrenador puede haber cambiado precio/visibilidad de una frecuencia
+    // mientras el alumno tenía la app en background parado en esta pantalla —
+    // sin esto, volvía a foreground viendo la lista vieja hasta remontar.
+    void loadPlans();
   });
 
   const onSelectPlan = useCallback(async (id: string) => {
@@ -412,6 +419,7 @@ export function SubscriptionPlansScreen(): React.JSX.Element {
       </View>
 
       <ScrollView
+        ref={scrollRef}
         style={styles.scroll}
         contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 24) }}
         showsVerticalScrollIndicator={false}
@@ -432,7 +440,7 @@ export function SubscriptionPlansScreen(): React.JSX.Element {
           <View style={styles.toggle}>
             <TouchableOpacity
               style={[styles.toggleBtn, activeTab === 'base' && styles.toggleBtnActiveBase]}
-              onPress={() => setActiveTab('base')}
+              onPress={() => switchTab('base')}
               activeOpacity={0.85}
             >
               <AppText
@@ -445,7 +453,7 @@ export function SubscriptionPlansScreen(): React.JSX.Element {
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.toggleBtn, activeTab === 'mentoria' && styles.toggleBtnActiveMentoria]}
-              onPress={() => setActiveTab('mentoria')}
+              onPress={() => switchTab('mentoria')}
               activeOpacity={0.85}
             >
               <AppText
@@ -466,7 +474,7 @@ export function SubscriptionPlansScreen(): React.JSX.Element {
             loadingPlans={loadingPlans}
             checkingOut={starting}
             onSelectPlan={onSelectPlan}
-            onSwitchToMentoria={() => setActiveTab('mentoria')}
+            onSwitchToMentoria={() => switchTab('mentoria')}
           />
         ) : (
           <MentoriaView onRequestEvaluation={() => setEvalFlowStep('form')} />
@@ -551,21 +559,13 @@ const styles = StyleSheet.create({
 
   totalRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: -8 },
   totalCaption: { marginTop: -4 },
-  discountPill: {
-    backgroundColor: 'rgba(193,237,0,0.14)',
-    borderRadius: 100,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
 
-  freqSelector: {
+  freqLink: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#1a1a1a',
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: 6,
   },
 
   planDescription: { lineHeight: 19, marginTop: -4 },
@@ -631,36 +631,24 @@ const styles = StyleSheet.create({
   terms: { textAlign: 'center', lineHeight: 16, maxWidth: 300 },
   signOutBtn: { paddingVertical: 4 },
 
-  // Frequency picker (bottom sheet)
-  pickerBackdropContainer: { flex: 1, justifyContent: 'flex-end' },
-  pickerBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)' },
-  pickerSheet: {
-    backgroundColor: '#141414',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+  // Frequency carousel (tarjetas horizontales swipeables)
+  // Sin bleed hacia los bordes de la tarjeta: si el offset no coincide
+  // exacto con el padding real de planCard (24) las tarjetas quedan cortadas
+  // contra el borde redondeado. Vive dentro del padding normal del card.
+  carousel: {},
+  carouselContent: { gap: CARD_GAP },
+  freqCard: {
+    width: CARD_WIDTH,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    paddingHorizontal: H_PAD,
-    paddingTop: 10,
-    maxHeight: '70%',
+    borderColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 10,
+    padding: 10,
+    backgroundColor: '#161616',
+    gap: 2,
   },
-  pickerHandle: {
-    alignSelf: 'center',
-    width: 40,
-    height: 4,
-    borderRadius: 100,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    marginBottom: 14,
+  freqCardActive: {
+    borderColor: authColors.lima,
+    backgroundColor: 'rgba(193,237,0,0.08)',
   },
-  pickerTitle: { marginBottom: 12 },
-  pickerList: { marginBottom: 4 },
-  pickerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
-  },
-  pickerRowActive: { backgroundColor: 'rgba(193,237,0,0.06)', marginHorizontal: -H_PAD, paddingHorizontal: H_PAD },
+  freqCardPerMonth: { marginTop: 2 },
 });

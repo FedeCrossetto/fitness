@@ -64,7 +64,7 @@ interface AuthState {
   resendEmailOtp: (email: string) => Promise<boolean>;
   signInWithOAuth: (provider: OAuthProvider, trainerCode?: string, intent?: AuthIntent) => Promise<boolean>;
   linkTrainer: (code: string) => Promise<boolean>;
-  resetPassword: (email: string) => Promise<boolean>;
+  resetPassword: (email: string) => Promise<{ status: 'sent' | 'oauth' | 'error'; provider?: string }>;
   updatePassword: (newPassword: string) => Promise<boolean>;
   completeOnboarding: (data: OnboardingFormData) => Promise<boolean>;
   refreshProfile: () => Promise<void>;
@@ -590,8 +590,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           { body: { email: pending.email, token: pending.token, new_password: newPassword } },
         );
         if (error || !data?.ok) throw new Error(data?.error ?? 'No pudimos actualizar la contraseña.');
-        set({ needsPasswordReset: false, pendingPasswordReset: null });
-        return true;
+        set({ pendingPasswordReset: null });
+        // Sin esto, el usuario quedaba sin sesión (este flujo nunca tuvo una) y caía a
+        // EasyLogin — que además tenía guardada la contraseña VIEJA en el dispositivo
+        // (se pisa recién en el próximo signIn exitoso), mostrando "credenciales
+        // inválidas" al tocar la cuenta guardada. signIn() resuelve ambos: deja al
+        // usuario adentro de una y actualiza las credenciales guardadas con la nueva.
+        // OJO: `needsPasswordReset` NO se limpia acá — si se limpiara ahora,
+        // RootNavigator sacaría esta pantalla de encima apenas se resuelve el
+        // signIn (ya con sesión activa), antes de que UpdatePasswordScreen
+        // llegue a mostrar "¡Contraseña actualizada!" (la promesa de este
+        // signIn recién vuelve a la pantalla después de que el store ya
+        // cambió). Queda en manos del botón "Continuar" de esa pantalla.
+        return await get().signIn(pending.email, newPassword);
       }
       // Legacy: sesión de recovery nativa de Supabase (por si ese flujo se reactiva).
       const { error } = await supabase.auth.updateUser({ password: newPassword });
@@ -607,13 +618,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   resetPassword: async (email) => {
     try {
       const deepLink = getNativeAuthCallbackUri();
-      const { error } = await supabase.functions.invoke('custom-request-password-reset', {
+      if (__DEV__) console.log('[resetPassword] deepLink=', deepLink);
+      const { data, error } = await supabase.functions.invoke('custom-request-password-reset', {
         body: { email: email.trim(), deep_link: deepLink },
       });
       if (error) throw error;
-      return true;
+      const oauthProvider = (data as { oauth_provider?: string } | null)?.oauth_provider;
+      if (oauthProvider) return { status: 'oauth', provider: oauthProvider };
+      return { status: 'sent' };
     } catch {
-      return false;
+      return { status: 'error' };
     }
   },
 

@@ -18,6 +18,7 @@ type PlanGroup = {
 };
 
 const MAX_MONTHS = 12;
+const STANDARD_MONTHS = [1, 3, 6, 12];
 
 export function ManagePlansPage(): React.JSX.Element {
   const { session } = useAuth();
@@ -34,6 +35,8 @@ export function ManagePlansPage(): React.JSX.Element {
   const [newVisible, setNewVisible] = useState(true);
   const [adding, setAdding] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<PlanWithPrice | null>(null);
+  const [deleteInUseCount, setDeleteInUseCount] = useState<number | null>(null);
+  const [checkingDeleteId, setCheckingDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [saveTarget, setSaveTarget] = useState<PlanWithPrice | null>(null);
@@ -44,7 +47,7 @@ export function ManagePlansPage(): React.JSX.Element {
       // RLS ya filtra a los planes built-in (trainer_id null) + los custom
       // del propio entrenador.
       const [{ data: planRows, error: plansError }, { data: overrideRows, error: overridesError }] = await Promise.all([
-        supabase.from('plans').select('*').order('plan_type').order('duration_days'),
+        supabase.from('plans').select('*').is('deleted_at', null).order('plan_type').order('duration_days'),
         supabase.from('trainer_plan_prices').select('plan_id, price_ars, active').eq('trainer_id', userId!),
       ]);
       if (plansError) throw plansError;
@@ -64,6 +67,16 @@ export function ManagePlansPage(): React.JSX.Element {
     setPlans((prev) =>
       prev.map((p) => (p.id === planId ? { ...p, draftPrice: value.replace(/[^\d]/g, '') } : p)),
     );
+  }, []);
+
+  // El total (draftPrice) es la fuente de verdad — el mensual se deriva de
+  // draftPrice/months al renderizar. Al editar el mensual directamente,
+  // recalculamos el total exacto (mensual × months) para que el redondeo
+  // nunca se acumule.
+  const updateDraftPriceFromMonthly = useCallback((planId: string, value: string, months: number) => {
+    const digits = value.replace(/[^\d]/g, '');
+    const total = digits ? String(Number(digits) * months) : '';
+    setPlans((prev) => prev.map((p) => (p.id === planId ? { ...p, draftPrice: total } : p)));
   }, []);
 
   const savePlanPrice = useCallback(async (plan: PlanWithPrice) => {
@@ -104,8 +117,9 @@ export function ManagePlansPage(): React.JSX.Element {
 
   const openGroup = groups.find((g) => g.type === openType) ?? null;
 
-  // Meses 1-12 que todavía no tienen una frecuencia (built-in o custom) en
-  // este grupo — son las únicas opciones válidas para agregar una nueva.
+  // Meses que todavía no tienen una frecuencia (built-in o custom) en este
+  // grupo — únicas opciones para el "+" (incluye los estándar 1/3/6/12 si
+  // todavía no existen).
   const availableMonths = useMemo(() => {
     if (!openGroup) return [];
     const used = new Set(openGroup.items.map((p) => Math.round(p.duration_days / 30)));
@@ -195,10 +209,32 @@ export function ManagePlansPage(): React.JSX.Element {
     setNewVisible(true);
   }, [userId, openGroup, adding, newMonths, newPrice, newVisible, showToast, t.payments.manage_plans_add_freq_duplicate, t.payments.manage_plans_add_freq_error, t.payments.manage_plans_add_freq_success]);
 
+  const openDeleteConfirm = useCallback(async (plan: PlanWithPrice) => {
+    setCheckingDeleteId(plan.id);
+    const { count, error: countError } = await supabase
+      .from('subscriptions')
+      .select('id', { count: 'exact', head: true })
+      .eq('plan_id', plan.id);
+    setCheckingDeleteId(null);
+    setDeleteInUseCount(countError ? null : (count ?? 0));
+    setDeleteTarget(plan);
+  }, []);
+
+  const cancelDelete = useCallback(() => {
+    setDeleteTarget(null);
+    setDeleteInUseCount(null);
+  }, []);
+
   const confirmDelete = useCallback(async () => {
     if (!deleteTarget || deleting) return;
     setDeleting(true);
-    const { error: deleteError } = await supabase.from('plans').delete().eq('id', deleteTarget.id);
+    // Soft-delete: nunca DELETE real. La fila sigue viva para no romper la FK
+    // de subscriptions ni la renovación de MercadoPago de quien ya la tenía
+    // elegida — solo deja de ofrecerse en la gestión y en checkout nuevo.
+    const { error: deleteError } = await supabase
+      .from('plans')
+      .update({ deleted_at: new Date().toISOString(), active: false })
+      .eq('id', deleteTarget.id);
     setDeleting(false);
     if (deleteError) {
       showToast('error', t.payments.manage_plans_delete_error);
@@ -207,6 +243,7 @@ export function ManagePlansPage(): React.JSX.Element {
     setPlans((prev) => prev.filter((p) => p.id !== deleteTarget.id));
     showToast('success', t.payments.manage_plans_delete_success);
     setDeleteTarget(null);
+    setDeleteInUseCount(null);
   }, [deleteTarget, deleting, showToast, t.payments.manage_plans_delete_error, t.payments.manage_plans_delete_success]);
 
   return (
@@ -271,14 +308,17 @@ export function ManagePlansPage(): React.JSX.Element {
                 const dirty = plan.draftPrice !== String(Math.round(plan.effectivePrice));
                 const saving = savingPlanId === plan.id;
                 const isOwnCustom = plan.trainer_id === userId;
+                const isStandard = STANDARD_MONTHS.includes(months);
+                const monthlyDraft = plan.draftPrice ? String(Math.round(Number(plan.draftPrice) / months)) : '';
                 return (
                   <div key={plan.id} className="payments-plan-cell" style={{ position: 'relative' }}>
-                    {isOwnCustom ? (
+                    {isOwnCustom && !isStandard ? (
                       <button
                         type="button"
                         className="manage-plans-delete-btn"
                         title={t.ui.delete}
-                        onClick={() => setDeleteTarget(plan)}
+                        disabled={checkingDeleteId === plan.id}
+                        onClick={() => void openDeleteConfirm(plan)}
                       >
                         <TrashIcon size={14} />
                       </button>
@@ -306,21 +346,40 @@ export function ManagePlansPage(): React.JSX.Element {
                         </span>
                       </span>
                     </label>
-                    <div className="payments-price-field">
-                      <label className="payments-price-label" htmlFor={`manage-price-${plan.id}`}>
-                        ARS
-                      </label>
-                      <div className={`payments-price-input-wrap${dirty ? ' dirty' : ''}`}>
-                        <span className="payments-price-currency">$</span>
-                        <input
-                          id={`manage-price-${plan.id}`}
-                          type="text"
-                          inputMode="numeric"
-                          className="payments-price-input"
-                          value={formatInputPrice(plan.draftPrice, language)}
-                          onChange={(e) => updateDraftPrice(plan.id, e.target.value)}
-                          aria-label={`${openGroup.label} — ${months} ${months === 1 ? 'mes' : 'meses'}`}
-                        />
+                    <div className="manage-plans-price-pair">
+                      <div className="payments-price-field">
+                        <label className="payments-price-label" htmlFor={`manage-price-monthly-${plan.id}`}>
+                          {t.payments.manage_plans_add_freq_monthly}
+                        </label>
+                        <div className={`payments-price-input-wrap${dirty ? ' dirty' : ''}`}>
+                          <span className="payments-price-currency">$</span>
+                          <input
+                            id={`manage-price-monthly-${plan.id}`}
+                            type="text"
+                            inputMode="numeric"
+                            className="payments-price-input"
+                            value={formatInputPrice(monthlyDraft, language)}
+                            onChange={(e) => updateDraftPriceFromMonthly(plan.id, e.target.value, months)}
+                            aria-label={`${openGroup.label} — ${months} ${months === 1 ? 'mes' : 'meses'} — mensual`}
+                          />
+                        </div>
+                      </div>
+                      <div className="payments-price-field">
+                        <label className="payments-price-label" htmlFor={`manage-price-${plan.id}`}>
+                          {t.payments.manage_plans_add_freq_price}
+                        </label>
+                        <div className={`payments-price-input-wrap${dirty ? ' dirty' : ''}`}>
+                          <span className="payments-price-currency">$</span>
+                          <input
+                            id={`manage-price-${plan.id}`}
+                            type="text"
+                            inputMode="numeric"
+                            className="payments-price-input"
+                            value={formatInputPrice(plan.draftPrice, language)}
+                            onChange={(e) => updateDraftPrice(plan.id, e.target.value)}
+                            aria-label={`${openGroup.label} — ${months} ${months === 1 ? 'mes' : 'meses'} — total`}
+                          />
+                        </div>
                       </div>
                     </div>
                     <div className="payments-plan-actions">
@@ -355,6 +414,24 @@ export function ManagePlansPage(): React.JSX.Element {
                       <option key={m} value={m}>{m === 1 ? '1 mes' : `${m} meses`}</option>
                     ))}
                   </select>
+                  <label className="payments-price-label" htmlFor="new-freq-monthly" style={{ marginTop: 10 }}>
+                    {t.payments.manage_plans_add_freq_monthly}
+                  </label>
+                  <input
+                    id="new-freq-monthly"
+                    type="text"
+                    inputMode="numeric"
+                    className="manage-plans-add-input"
+                    value={formatInputPrice(
+                      newPrice && Number(newMonths) ? String(Math.round(Number(newPrice) / Number(newMonths))) : '',
+                      language,
+                    )}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/[^\d]/g, '');
+                      const months = Number(newMonths) || 1;
+                      setNewPrice(digits ? String(Number(digits) * months) : '');
+                    }}
+                  />
                   <label className="payments-price-label" htmlFor="new-freq-price" style={{ marginTop: 10 }}>
                     {t.payments.manage_plans_add_freq_price}
                   </label>
@@ -381,7 +458,11 @@ export function ManagePlansPage(): React.JSX.Element {
                     </span>
                   </label>
                   <div className="payments-plan-actions" style={{ marginTop: 14 }}>
-                    <button type="button" className="btn secondary sm" onClick={() => setAddingOpen(false)}>
+                    <button
+                      type="button"
+                      className="btn secondary sm"
+                      onClick={() => setAddingOpen(false)}
+                    >
                       {t.ui.cancel}
                     </button>
                     <button
@@ -412,11 +493,15 @@ export function ManagePlansPage(): React.JSX.Element {
       <ConfirmDialog
         open={!!deleteTarget}
         title={t.payments.manage_plans_delete_title}
-        message={t.payments.manage_plans_delete_confirm}
+        message={
+          deleteInUseCount && deleteInUseCount > 0
+            ? i18n(t.payments.manage_plans_delete_confirm_in_use, { n: deleteInUseCount })
+            : t.payments.manage_plans_delete_confirm
+        }
         confirmLabel={t.ui.delete}
         cancelLabel={t.ui.cancel}
         onConfirm={() => void confirmDelete()}
-        onCancel={() => setDeleteTarget(null)}
+        onCancel={cancelDelete}
         danger
       />
 
@@ -476,6 +561,8 @@ export function ManagePlansPage(): React.JSX.Element {
           border: 1px solid var(--border-strong); background: var(--surface);
           color: var(--text-primary); font-size: 14px; margin-top: 4px;
         }
+        .manage-plans-price-pair { display: flex; gap: 10px; }
+        .manage-plans-price-pair .payments-price-field { flex: 1; min-width: 0; }
         .manage-plans-visible-row {
           display: flex; align-items: center; justify-content: space-between; gap: 10px;
           font-size: 12.5px; color: var(--text-secondary); cursor: pointer;

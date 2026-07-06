@@ -360,6 +360,11 @@ export interface PlanRow {
    * frecuencia custom creada por ese entrenador — solo visible para
    * él/ella y sus alumnos. */
   trainer_id: string | null;
+  /** Soft-delete: si tiene valor, la frecuencia ya no se ofrece en la
+   * gestión ni en checkout nuevo, pero sigue existiendo para no romper
+   * la FK de subscriptions ni la renovación de MercadoPago de quien ya
+   * la tenía elegida. */
+  deleted_at: string | null;
 }
 
 export interface TrainerPlanPriceRow {

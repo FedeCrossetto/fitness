@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import type { PlanRow, ProfileRow } from '@reset-fitness/shared/types/database';
+import type { Translations } from '@reset-fitness/shared';
 import { ManualPaymentModal } from '@/components/ManualPaymentModal';
 import { supabase, anyClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
@@ -28,6 +29,36 @@ function PlanBadge({ plan }: { plan: StudentPlan }): React.JSX.Element {
   return (
     <span className={`plan-badge${plan.kind === 'mentoria' ? ' mentoria' : ''}`}>
       {plan.label}
+    </span>
+  );
+}
+
+function BillingWarningIcons({
+  warnings,
+  t,
+  i18n,
+}: {
+  warnings: { deleted: boolean; priceChanged: { current: number; paid: number } | null } | undefined;
+  t: Translations;
+  i18n: (str: string, vars: Record<string, string | number>) => string;
+}): React.JSX.Element | null {
+  if (!warnings || (!warnings.deleted && !warnings.priceChanged)) return null;
+  return (
+    <span style={{ display: 'inline-flex', gap: 4, marginLeft: 6 }}>
+      {warnings.deleted ? (
+        <span title={t.payments.manage_plans_deleted_tooltip} style={{ cursor: 'help' }}>⚠️</span>
+      ) : null}
+      {warnings.priceChanged ? (
+        <span
+          title={i18n(t.payments.manage_plans_price_changed_tooltip, {
+            current: warnings.priceChanged.current.toLocaleString('es-AR'),
+            paid: warnings.priceChanged.paid.toLocaleString('es-AR'),
+          })}
+          style={{ cursor: 'help' }}
+        >
+          💲
+        </span>
+      ) : null}
     </span>
   );
 }
@@ -75,7 +106,7 @@ function ClientRowActions({
 
 export function StudentsPage(): React.JSX.Element {
   const { session } = useAuth();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { showToast } = useToast();
   const [searchParams] = useSearchParams();
@@ -95,6 +126,9 @@ export function StudentsPage(): React.JSX.Element {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [activeSubByStudent, setActiveSubByStudent] = useState<Map<string, string>>(new Map());
+  const [activeSubExtraByStudent, setActiveSubExtraByStudent] = useState<
+    Map<string, { amount_ars: number | null; mp_preapproval_id: string | null }>
+  >(new Map());
   const [evaluationByStudent, setEvaluationByStudent] = useState<Map<string, { id: string; status: string }>>(new Map());
 
   const inviteLink = inviteCode ? buildInviteLink(inviteCode, getJoinBaseUrl()) : null;
@@ -147,7 +181,7 @@ export function StudentsPage(): React.JSX.Element {
       const [{ data: subRows }, { data: evalRows }] = await Promise.all([
         supabase
           .from('subscriptions')
-          .select('user_id, plan_id, status, expires_at, created_at')
+          .select('user_id, plan_id, status, expires_at, created_at, amount_ars, mp_preapproval_id')
           .in('user_id', studentIds)
           .eq('status', 'active')
           .order('created_at', { ascending: false }),
@@ -159,12 +193,21 @@ export function StudentsPage(): React.JSX.Element {
       ]);
 
       const subMap = new Map<string, string>();
-      for (const row of (subRows as { user_id: string; plan_id: string; expires_at: string | null }[] | null) ?? []) {
+      const subExtraMap = new Map<string, { amount_ars: number | null; mp_preapproval_id: string | null }>();
+      for (const row of (subRows as {
+        user_id: string;
+        plan_id: string;
+        expires_at: string | null;
+        amount_ars: number | null;
+        mp_preapproval_id: string | null;
+      }[] | null) ?? []) {
         if (subMap.has(row.user_id)) continue;
         if (row.expires_at && new Date(row.expires_at) < new Date()) continue;
         subMap.set(row.user_id, row.plan_id);
+        subExtraMap.set(row.user_id, { amount_ars: row.amount_ars, mp_preapproval_id: row.mp_preapproval_id });
       }
       setActiveSubByStudent(subMap);
+      setActiveSubExtraByStudent(subExtraMap);
 
       const evalMap = new Map<string, { id: string; status: string }>();
       for (const row of (evalRows as { id: string; client_id: string; status: string }[] | null) ?? []) {
@@ -206,6 +249,25 @@ export function StudentsPage(): React.JSX.Element {
     }
     return map;
   }, [students, activeSubByStudent, plans]);
+
+  // Avisos de facturación: frecuencia eliminada (soft-delete) y/o precio
+  // desactualizado vs. lo que este alumno paga en su cobro recurrente de MP —
+  // ambos son independientes del texto de billingByStudent, no lo reemplazan.
+  const billingWarningsByStudent = useMemo(() => {
+    const map = new Map<string, { deleted: boolean; priceChanged: { current: number; paid: number } | null }>();
+    for (const s of students) {
+      const planId = activeSubByStudent.get(s.id);
+      const planRow = planId ? plans.find((p) => p.id === planId) : undefined;
+      if (!planRow) continue;
+      const extra = activeSubExtraByStudent.get(s.id);
+      const priceChanged =
+        extra?.mp_preapproval_id && extra.amount_ars != null && Number(planRow.price_ars) !== Number(extra.amount_ars)
+          ? { current: Number(planRow.price_ars), paid: Number(extra.amount_ars) }
+          : null;
+      map.set(s.id, { deleted: !!planRow.deleted_at, priceChanged });
+    }
+    return map;
+  }, [students, activeSubByStudent, activeSubExtraByStudent, plans]);
 
   const markEvaluationCompleted = async (studentId: string) => {
     const row = evaluationByStudent.get(studentId);
@@ -412,7 +474,10 @@ export function StudentsPage(): React.JSX.Element {
                   </td>
                   <td className="muted">{s.goal ?? '—'}</td>
                   <td><PlanBadge plan={planByStudent.get(s.id) ?? { kind: 'none' }} /></td>
-                  <td className="muted">{billingByStudent.get(s.id) ?? '—'}</td>
+                  <td className="muted">
+                    {billingByStudent.get(s.id) ?? '—'}
+                    <BillingWarningIcons warnings={billingWarningsByStudent.get(s.id)} t={t} i18n={i18n} />
+                  </td>
                   <td className="muted">{timeAgo(s.created_at)}</td>
                   <td>
                     <ClientRowActions

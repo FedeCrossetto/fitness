@@ -28,6 +28,12 @@ export function ForgotPasswordScreen({ navigation }: Props): React.JSX.Element {
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState<string | null>(null);
 
+  const providerLabel = (provider: string) => {
+    if (provider === 'apple') return 'Apple';
+    if (provider === 'google') return 'Google';
+    return provider;
+  };
+
   const handleSend = async () => {
     if (!email.includes('@')) {
       setError('INGRESÁ UN EMAIL VÁLIDO.');
@@ -35,10 +41,14 @@ export function ForgotPasswordScreen({ navigation }: Props): React.JSX.Element {
     }
     setError(null);
     setLoading(true);
-    const ok = await resetPassword(email);
+    const result = await resetPassword(email);
     setLoading(false);
-    if (ok) {
+    if (result.status === 'sent') {
       navigation.navigate('PasswordResetSent', { email });
+    } else if (result.status === 'oauth') {
+      setError(
+        `ESTA CUENTA USA ${providerLabel(result.provider ?? 'GOOGLE/APPLE').toUpperCase()} PARA INICIAR SESIÓN. VOLVÉ E INICIÁ SESIÓN CON ESE MÉTODO.`,
+      );
     } else {
       setError('NO PUDIMOS ENCONTRAR ESA CUENTA. VERIFICÁ EL EMAIL.');
     }
