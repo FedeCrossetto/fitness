@@ -580,6 +580,13 @@ export function ManagePlansPage(): React.JSX.Element {
         }
         .manage-plans-price-pair { display: flex; gap: 10px; }
         .manage-plans-price-pair .payments-price-field { flex: 1; min-width: 0; }
+        /* .payments-price-input trae font-size:22px pensado para un solo
+           input a lo ancho de la tarjeta (ver Payments.tsx) — acá van dos
+           lado a lado y ese tamaño corta números de 6 cifras. Achicamos
+           fuente/padding solo en este contexto, sin tocar el estilo base. */
+        .manage-plans-price-pair .payments-price-input-wrap { padding: 0 8px; height: 44px; }
+        .manage-plans-price-pair .payments-price-currency { font-size: 13px; margin-right: 3px; }
+        .manage-plans-price-pair .payments-price-input { font-size: 15px; letter-spacing: -0.01em; }
         .manage-plans-visible-row {
           display: flex; align-items: center; justify-content: space-between; gap: 10px;
           font-size: 12.5px; color: var(--text-secondary); cursor: pointer;
