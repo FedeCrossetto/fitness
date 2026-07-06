@@ -470,7 +470,7 @@ export function ManagePlansPage(): React.JSX.Element {
                       </span>
                     </span>
                   </label>
-                  <div className="payments-plan-actions" style={{ marginTop: 14 }}>
+                  <div className="payments-plan-actions manage-plans-add-actions">
                     <button
                       type="button"
                       className="btn secondary sm"
@@ -588,6 +588,11 @@ export function ManagePlansPage(): React.JSX.Element {
            ni bien agregamos la edición mensual/total. Solo queda el botón
            Guardar, alineado a la derecha. */
         .manage-plans-actions-end { justify-content: flex-end; }
+        /* Igual que .payments-price-field (margin-top:auto) empuja el botón
+           Guardar al fondo en las demás tarjetas, acá empujamos Cancelar/
+           Agregar para que el form quede alineado con la altura del resto
+           de la fila en vez de flotar pegado al contenido. */
+        .manage-plans-add-actions { margin-top: auto; }
         .manage-plans-visible-row {
           display: flex; align-items: center; justify-content: space-between; gap: 10px;
           font-size: 12.5px; color: var(--text-secondary); cursor: pointer;
