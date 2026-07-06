@@ -34,7 +34,7 @@ export async function fetchPlans(userId?: string | null): Promise<PlanRow[]> {
     trainerId
       ? supabase
           .from('trainer_plan_prices')
-          .select('plan_id, price_ars, active')
+          .select('plan_id, price_ars, active, deleted_at')
           .eq('trainer_id', trainerId)
       : Promise.resolve({ data: null, error: null }),
   ]);
@@ -42,7 +42,7 @@ export async function fetchPlans(userId?: string | null): Promise<PlanRow[]> {
   if (overridesResult.error) throw overridesResult.error;
 
   const overrides = new Map(
-    ((overridesResult.data as { plan_id: string; price_ars: number; active: boolean }[] | null) ?? []).map((o) => [
+    ((overridesResult.data as { plan_id: string; price_ars: number; active: boolean; deleted_at: string | null }[] | null) ?? []).map((o) => [
       o.plan_id,
       o,
     ]),
@@ -54,7 +54,9 @@ export async function fetchPlans(userId?: string | null): Promise<PlanRow[]> {
       return {
         ...plan,
         price_ars: override ? Number(override.price_ars) : Number(plan.price_ars),
-        active: override ? override.active : !!plan.active,
+        // Una frecuencia que el entrenador borró para sí (override.deleted_at)
+        // queda inactiva aunque el flag active no lo estuviera.
+        active: override ? override.active && !override.deleted_at : !!plan.active,
       };
     })
     .filter((plan) => plan.active);

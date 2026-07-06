@@ -373,6 +373,9 @@ export interface TrainerPlanPriceRow {
   price_ars: number;
   active: boolean;
   updated_at: string;
+  /** Soft-delete por-entrenador de una frecuencia built-in: si tiene valor,
+   * este entrenador la sacó de su oferta sin afectar el catálogo global. */
+  deleted_at: string | null;
 }
 
 export interface SubscriptionRow {

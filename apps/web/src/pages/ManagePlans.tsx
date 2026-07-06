@@ -48,14 +48,16 @@ export function ManagePlansPage(): React.JSX.Element {
       // del propio entrenador.
       const [{ data: planRows, error: plansError }, { data: overrideRows, error: overridesError }] = await Promise.all([
         supabase.from('plans').select('*').is('deleted_at', null).order('plan_type').order('duration_days'),
-        supabase.from('trainer_plan_prices').select('plan_id, price_ars, active').eq('trainer_id', userId!),
+        supabase.from('trainer_plan_prices').select('plan_id, price_ars, active, deleted_at').eq('trainer_id', userId!),
       ]);
       if (plansError) throw plansError;
       if (overridesError) throw overridesError;
-      return mergePlans(
-        (planRows as PlanRow[] | null) ?? [],
-        (overrideRows as { plan_id: string; price_ars: number; active: boolean }[] | null) ?? [],
-      );
+      const overrides = (overrideRows as { plan_id: string; price_ars: number; active: boolean; deleted_at: string | null }[] | null) ?? [];
+      // Frecuencias que este entrenador "borró" (built-in ocultas vía override
+      // con deleted_at) — no se muestran en la gestión.
+      const deletedForTrainer = new Set(overrides.filter((o) => o.deleted_at).map((o) => o.plan_id));
+      const visiblePlans = ((planRows as PlanRow[] | null) ?? []).filter((p) => !deletedForTrainer.has(p.id));
+      return mergePlans(visiblePlans, overrides);
     },
     [userId],
     { enabled: !!userId },
@@ -226,15 +228,30 @@ export function ManagePlansPage(): React.JSX.Element {
   }, []);
 
   const confirmDelete = useCallback(async () => {
-    if (!deleteTarget || deleting) return;
+    if (!deleteTarget || deleting || !userId) return;
     setDeleting(true);
     // Soft-delete: nunca DELETE real. La fila sigue viva para no romper la FK
     // de subscriptions ni la renovación de MercadoPago de quien ya la tenía
     // elegida — solo deja de ofrecerse en la gestión y en checkout nuevo.
-    const { error: deleteError } = await supabase
-      .from('plans')
-      .update({ deleted_at: new Date().toISOString(), active: false })
-      .eq('id', deleteTarget.id);
+    // Frecuencia custom propia → plans.deleted_at (global, es del entrenador).
+    // Frecuencia built-in → borrado por-entrenador vía trainer_plan_prices,
+    // sin tocar el catálogo global compartido.
+    const isOwnCustom = deleteTarget.trainer_id === userId;
+    const { error: deleteError } = isOwnCustom
+      ? await supabase
+          .from('plans')
+          .update({ deleted_at: new Date().toISOString(), active: false })
+          .eq('id', deleteTarget.id)
+      : await supabase.from('trainer_plan_prices').upsert(
+          {
+            trainer_id: userId,
+            plan_id: deleteTarget.id,
+            price_ars: deleteTarget.effectivePrice,
+            active: false,
+            deleted_at: new Date().toISOString(),
+          },
+          { onConflict: 'trainer_id,plan_id' },
+        );
     setDeleting(false);
     if (deleteError) {
       showToast('error', t.payments.manage_plans_delete_error);
@@ -244,7 +261,7 @@ export function ManagePlansPage(): React.JSX.Element {
     showToast('success', t.payments.manage_plans_delete_success);
     setDeleteTarget(null);
     setDeleteInUseCount(null);
-  }, [deleteTarget, deleting, showToast, t.payments.manage_plans_delete_error, t.payments.manage_plans_delete_success]);
+  }, [deleteTarget, deleting, userId, showToast, t.payments.manage_plans_delete_error, t.payments.manage_plans_delete_success]);
 
   return (
     <div>
@@ -312,7 +329,7 @@ export function ManagePlansPage(): React.JSX.Element {
                 const monthlyDraft = plan.draftPrice ? String(Math.round(Number(plan.draftPrice) / months)) : '';
                 return (
                   <div key={plan.id} className="payments-plan-cell" style={{ position: 'relative' }}>
-                    {isOwnCustom && !isStandard ? (
+                    {!isStandard ? (
                       <button
                         type="button"
                         className="manage-plans-delete-btn"
