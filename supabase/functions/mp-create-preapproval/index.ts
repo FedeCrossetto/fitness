@@ -58,13 +58,18 @@ Deno.serve(async (req) => {
     .order('created_at', { ascending: false })
     .limit(5);
 
+  // OJO: no filtramos `.eq('active', true)` acá — para un plan built-in la
+  // visibilidad real la decide el override por-entrenador (trainer_plan_prices
+  // .active), no la columna `plans.active` (que para las frecuencias no-
+  // estándar sembradas por migración viene en false a propósito, ver 0063).
+  // Filtrar acá rechazaba con "Plan inválido" cualquier frecuencia que el
+  // entrenador hubiera habilitado con su propio toggle "Visible on mobile".
   const { data: plan, error: planError } = await admin
     .from('plans')
     .select('*')
     .eq('id', plan_id)
-    .eq('active', true)
     .single();
-  if (planError || !plan) {
+  if (planError || !plan || plan.deleted_at) {
     return new Response(JSON.stringify({ error: 'Plan inválido' }), { status: 400 });
   }
 
@@ -75,16 +80,18 @@ Deno.serve(async (req) => {
     .maybeSingle();
 
   let unitPrice = Number(plan.price_ars);
+  let effectiveActive = !!plan.active;
   let sellerToken = mpToken; // fallback: token de la plataforma
   let trainerIdForHook = '';
 
   if (profile?.trainer_id) {
     const { data: override } = await admin
       .from('trainer_plan_prices')
-      .select('price_ars')
+      .select('price_ars, active, deleted_at')
       .eq('trainer_id', profile.trainer_id)
       .eq('plan_id', plan_id)
       .maybeSingle();
+    if (override) effectiveActive = !!override.active && !override.deleted_at;
     if (override?.price_ars) unitPrice = Number(override.price_ars);
 
     // Cobro directo al entrenador: usamos SU access token de MercadoPago.
@@ -144,6 +151,10 @@ Deno.serve(async (req) => {
       JSON.stringify({ error: 'trainer_payments_not_configured' }),
       { status: 409, headers: { 'Content-Type': 'application/json' } },
     );
+  }
+
+  if (!effectiveActive) {
+    return new Response(JSON.stringify({ error: 'Plan inválido' }), { status: 400 });
   }
 
   // La frecuencia elegida (ej. "8 meses") ya no es lo que se cobra de una
