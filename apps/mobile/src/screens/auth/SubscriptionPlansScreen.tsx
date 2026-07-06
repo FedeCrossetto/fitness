@@ -11,6 +11,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText } from '../../components/common';
+import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
 import { useUiStore } from '../../stores/uiStore';
 import { clearSubscriptionAccessCache, fetchPlans, syncSubscription } from '../../services/payments';
@@ -339,6 +340,23 @@ export function SubscriptionPlansScreen(): React.JSX.Element {
   useEffect(() => {
     void loadPlans();
   }, [loadPlans]);
+
+  // Realtime: si el entrenador cambia precio/visibilidad o da de alta/baja una
+  // frecuencia mientras el alumno está parado en esta pantalla, se refleja al
+  // instante sin necesidad de backgroundear la app. La visibilidad de un plan
+  // built-in vive en trainer_plan_prices.active y la de un custom en
+  // plans.active, por eso escuchamos las dos tablas.
+  useEffect(() => {
+    if (!userId) return;
+    const channel = supabase
+      .channel(`plans-${userId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'plans' }, () => { void loadPlans(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'trainer_plan_prices' }, () => { void loadPlans(); })
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [userId, loadPlans]);
 
   // Recuperación de suscripciones que quedaron `pending` pero ya se pagaron
   // (webhook perdido / usuario que cerró el navegador de MP y volvió más tarde).
