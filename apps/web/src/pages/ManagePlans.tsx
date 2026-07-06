@@ -574,8 +574,14 @@ export function ManagePlansPage(): React.JSX.Element {
           border: 1px solid var(--border-strong); background: var(--surface);
           color: var(--text-primary); font-size: 14px; margin-top: 4px;
         }
-        .manage-plans-price-pair { display: flex; gap: 10px; }
-        .manage-plans-price-pair .payments-price-field { flex: 1; min-width: 0; }
+        /* .payments-price-field traía margin-top:auto para empujar "Save" al
+           fondo de la tarjeta — eso funcionaba cuando era hijo directo de la
+           columna flex de la tarjeta. Ahora que va dentro de esta fila
+           (mensual + total), el auto-margin quedó atrapado adentro de la fila
+           y dejó de empujar nada; lo movemos acá para que vuelva a empujar
+           correctamente el conjunto (y con él, todo lo que viene después). */
+        .manage-plans-price-pair { display: flex; gap: 10px; margin-top: auto; }
+        .manage-plans-price-pair .payments-price-field { flex: 1; min-width: 0; margin-top: 0; }
         /* .payments-price-input trae font-size:22px pensado para un solo
            input a lo ancho de la tarjeta (ver Payments.tsx) — acá van dos
            lado a lado y ese tamaño corta números de 6 cifras. Achicamos
