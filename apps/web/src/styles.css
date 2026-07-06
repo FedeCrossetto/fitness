@@ -3028,6 +3028,10 @@ tr.row-clickable.dragging { opacity: 0.55; }
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 16px;
+  /* Sin esto, grid estira todas las celdas de la fila a la altura de la más
+     alta (el form de "Agregar frecuencia", que tiene más campos) — cada
+     tarjeta debe quedarse en su tamaño natural y solo esa crecer. */
+  align-items: start;
 }
 @media (max-width: 900px) {
   .payments-plans-row { grid-template-columns: 1fr; }

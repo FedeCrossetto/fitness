@@ -414,6 +414,11 @@ export function ManagePlansPage(): React.JSX.Element {
 
               {addingOpen ? (
                 <div className="payments-plan-cell manage-plans-add-form">
+                  <div className="payments-plan-cell-head">
+                    <span className="payments-plan-name manage-plans-add-form-title">
+                      {t.payments.manage_plans_add_freq_title}
+                    </span>
+                  </div>
                   <label className="payments-price-label" htmlFor="new-freq-months">
                     {t.payments.manage_plans_add_freq_months}
                   </label>
@@ -470,7 +475,7 @@ export function ManagePlansPage(): React.JSX.Element {
                       </span>
                     </span>
                   </label>
-                  <div className="payments-plan-actions manage-plans-add-actions">
+                  <div className="payments-plan-actions">
                     <button
                       type="button"
                       className="btn secondary sm"
@@ -586,14 +591,11 @@ export function ManagePlansPage(): React.JSX.Element {
         /* Sacamos el caption "ARS X / mes" (payments-plan-foot) de cada
            tarjeta: quedaba duplicando el input MONTHLY PRICE de arriba
            ni bien agregamos la edición mensual/total. Solo queda el botón
-           Guardar, alineado a la derecha y empujado al fondo de la tarjeta
-           (el precio se queda en su lugar de siempre, arriba). */
-        .manage-plans-actions-end { justify-content: flex-end; margin-top: auto; }
-        /* Igual que .payments-price-field (margin-top:auto) empuja el botón
-           Guardar al fondo en las demás tarjetas, acá empujamos Cancelar/
-           Agregar para que el form quede alineado con la altura del resto
-           de la fila en vez de flotar pegado al contenido. */
-        .manage-plans-add-actions { margin-top: auto; }
+           Guardar, alineado a la derecha. Las tarjetas ya no se estiran a
+           la altura de la más alta (.payments-plans-row align-items:start),
+           así que no hace falta empujar nada al fondo. */
+        .manage-plans-actions-end { justify-content: flex-end; }
+        .manage-plans-add-form-title { margin: 0 0 2px; }
         .manage-plans-visible-row {
           display: flex; align-items: center; justify-content: space-between; gap: 10px;
           font-size: 12.5px; color: var(--text-secondary); cursor: pointer;

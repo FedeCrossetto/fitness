@@ -739,6 +739,7 @@ export const en: Translations = {
     manage_plans_close: 'Close',
     manage_plans_custom_badge: 'Custom',
     manage_plans_add_freq: 'Add frequency',
+    manage_plans_add_freq_title: 'Add billing frequency',
     manage_plans_add_freq_months: 'Duration (months)',
     manage_plans_add_freq_monthly: 'Monthly price (ARS)',
     manage_plans_add_freq_price: 'Total price (ARS)',

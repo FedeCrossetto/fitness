@@ -737,6 +737,7 @@ export const es = {
     manage_plans_close: 'Cerrar',
     manage_plans_custom_badge: 'Personalizada',
     manage_plans_add_freq: 'Agregar frecuencia',
+    manage_plans_add_freq_title: 'Agregar frecuencia de facturación',
     manage_plans_add_freq_months: 'Duración (meses)',
     manage_plans_add_freq_monthly: 'Precio mensual (ARS)',
     manage_plans_add_freq_price: 'Precio total (ARS)',
