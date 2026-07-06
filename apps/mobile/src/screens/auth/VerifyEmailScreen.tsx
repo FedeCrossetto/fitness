@@ -105,8 +105,12 @@ export function VerifyEmailScreen({ navigation, route }: Props): React.JSX.Eleme
           <AppText variant="caps11" color={authColors.textSecondary}>{email.toUpperCase()}</AppText>
         </AppText>
 
-        {/* OTP boxes */}
-        <Pressable onPress={() => inputRef.current?.focus()} style={styles.otpRow}>
+        {/* OTP boxes — el input real es invisible pero cubre TODO el ancho de
+            esta fila (no un 1x1px aparte): así el long-press-para-pegar del
+            sistema operativo tiene dónde aparecer. Con el input reducido a un
+            punto minúsculo, no había ninguna superficie donde el long-press
+            disparara el menú de pegar. */}
+        <View style={styles.otpRow}>
           {Array.from({ length: CODE_LENGTH }).map((_, i) => {
             const filled = i < code.length;
             const active = i === code.length;
@@ -121,21 +125,20 @@ export function VerifyEmailScreen({ navigation, route }: Props): React.JSX.Eleme
               </View>
             );
           })}
-        </Pressable>
-
-        {/* Hidden input que captura el código real */}
-        <TextInput
-          ref={inputRef}
-          value={code}
-          onChangeText={handleChange}
-          keyboardType="number-pad"
-          textContentType="oneTimeCode"
-          autoComplete="sms-otp"
-          maxLength={CODE_LENGTH}
-          autoFocus
-          style={styles.hiddenInput}
-          caretHidden
-        />
+          <TextInput
+            ref={inputRef}
+            value={code}
+            onChangeText={handleChange}
+            keyboardType="number-pad"
+            textContentType="oneTimeCode"
+            autoComplete="sms-otp"
+            maxLength={CODE_LENGTH}
+            autoFocus
+            contextMenuHidden={false}
+            style={styles.otpOverlayInput}
+            caretHidden
+          />
+        </View>
 
         {error ? <AuthErrorBox message={error} /> : null}
 
@@ -196,6 +199,7 @@ const styles = StyleSheet.create({
   subtitle:  { marginBottom: spacing.xl, lineHeight: 18, letterSpacing: 0.8 },
 
   otpRow: {
+    position: 'relative',
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: spacing.sm,
@@ -214,11 +218,12 @@ const styles = StyleSheet.create({
   otpBoxFilled: { borderColor: 'rgba(193,237,0,0.4)' },
   otpBoxActive: { borderColor: authColors.lima },
 
-  hiddenInput: {
-    position: 'absolute',
+  // Cubre TODA la fila de cajitas (no un punto invisible aparte) para que el
+  // long-press del sistema tenga dónde mostrar "Pegar" — opacity:0 sigue
+  // recibiendo toques en RN, así que las cajitas de abajo se ven normales.
+  otpOverlayInput: {
+    ...StyleSheet.absoluteFillObject,
     opacity: 0,
-    height: 1,
-    width: 1,
   },
 
   cta: { marginTop: spacing.md },

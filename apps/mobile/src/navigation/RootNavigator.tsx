@@ -246,6 +246,12 @@ export function RootNavigator(): React.JSX.Element {
 
   if (!themeHydrated) return <AuthLoadingOverlay />;
   if (showLoading || sliderDone === null || storedProfile === undefined) return <AuthLoadingOverlay />;
+  // Antes que el chequeo de sesión: el reset de contraseña "custom" (Resend)
+  // no tiene sesión en ningún momento — la contraseña se actualiza vía Admin
+  // API directamente. Si este check quedara después de `if (!session)`, el
+  // deep link del mail reabría la app pero se quedaba en EasyLogin/Login sin
+  // llegar nunca a mostrar la pantalla de nueva contraseña.
+  if (needsPasswordReset) return <UpdatePasswordScreen />;
   if (!session) {
     // El slider es para dispositivos que nunca iniciaron sesión acá — si ya
     // hay un perfil guardado (EasyLogin), un logout no debe volver a mostrarlo
@@ -254,7 +260,6 @@ export function RootNavigator(): React.JSX.Element {
     const showEasyLogin = !!storedProfile && !sliderJustFinished && !forcedSignOut;
     return <AuthStack key={showEasyLogin ? 'easy' : 'login'} hasStoredProfile={showEasyLogin} />;
   }
-  if (needsPasswordReset) return <UpdatePasswordScreen />;
   if (needsTrainerLink(profile)) return <LinkTrainerScreen />;
   // Resultado del pago (aprobado/pending/rechazado) por encima de todos los
   // gates: incluso si el backend ya activó al cliente, retenemos hasta que
