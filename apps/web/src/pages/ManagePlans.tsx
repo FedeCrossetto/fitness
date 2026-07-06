@@ -574,13 +574,7 @@ export function ManagePlansPage(): React.JSX.Element {
           border: 1px solid var(--border-strong); background: var(--surface);
           color: var(--text-primary); font-size: 14px; margin-top: 4px;
         }
-        /* .payments-price-field traía margin-top:auto para empujar "Save" al
-           fondo de la tarjeta — eso funcionaba cuando era hijo directo de la
-           columna flex de la tarjeta. Ahora que va dentro de esta fila
-           (mensual + total), el auto-margin quedó atrapado adentro de la fila
-           y dejó de empujar nada; lo movemos acá para que vuelva a empujar
-           correctamente el conjunto (y con él, todo lo que viene después). */
-        .manage-plans-price-pair { display: flex; gap: 10px; margin-top: auto; }
+        .manage-plans-price-pair { display: flex; gap: 10px; }
         .manage-plans-price-pair .payments-price-field { flex: 1; min-width: 0; margin-top: 0; }
         /* .payments-price-input trae font-size:22px pensado para un solo
            input a lo ancho de la tarjeta (ver Payments.tsx) — acá van dos
@@ -592,8 +586,9 @@ export function ManagePlansPage(): React.JSX.Element {
         /* Sacamos el caption "ARS X / mes" (payments-plan-foot) de cada
            tarjeta: quedaba duplicando el input MONTHLY PRICE de arriba
            ni bien agregamos la edición mensual/total. Solo queda el botón
-           Guardar, alineado a la derecha. */
-        .manage-plans-actions-end { justify-content: flex-end; }
+           Guardar, alineado a la derecha y empujado al fondo de la tarjeta
+           (el precio se queda en su lugar de siempre, arriba). */
+        .manage-plans-actions-end { justify-content: flex-end; margin-top: auto; }
         /* Igual que .payments-price-field (margin-top:auto) empuja el botón
            Guardar al fondo en las demás tarjetas, acá empujamos Cancelar/
            Agregar para que el form quede alineado con la altura del resto
