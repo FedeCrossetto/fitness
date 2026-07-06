@@ -342,10 +342,11 @@ export function ManagePlansPage(): React.JSX.Element {
                     <div className="payments-plan-cell-head">
                       <span className="payments-plan-name">{months === 1 ? '1 mes' : `${months} meses`}</span>
                     </div>
+                    {/* No mostramos un badge por "precio distinto del catálogo default"
+                        (hasOverride): editar el precio acá vía Save es el flujo normal
+                        esperado para cualquier frecuencia, no algo excepcional a destacar. */}
                     {isOwnCustom ? (
                       <span className="payments-custom-tag">{t.payments.manage_plans_custom_badge}</span>
-                    ) : plan.hasOverride ? (
-                      <span className="payments-custom-tag">{t.payments.custom_price}</span>
                     ) : null}
                     <label className="manage-plans-visible-row">
                       <span>{t.payments.manage_plans_visible_label}</span>
