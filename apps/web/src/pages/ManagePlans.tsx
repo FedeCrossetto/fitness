@@ -321,7 +321,6 @@ export function ManagePlansPage(): React.JSX.Element {
             <div className="payments-plans-row">
               {openGroup.items.map((plan) => {
                 const months = Math.max(1, Math.round(plan.duration_days / 30));
-                const perMonth = Math.round(plan.effectivePrice / months);
                 const dirty = plan.draftPrice !== String(Math.round(plan.effectivePrice));
                 const saving = savingPlanId === plan.id;
                 const isOwnCustom = plan.trainer_id === userId;
@@ -399,10 +398,7 @@ export function ManagePlansPage(): React.JSX.Element {
                         </div>
                       </div>
                     </div>
-                    <div className="payments-plan-actions">
-                      <span className="payments-plan-foot">
-                        {formatMoney(perMonth, language)} / mes
-                      </span>
+                    <div className="payments-plan-actions manage-plans-actions-end">
                       <button
                         type="button"
                         className={`btn sm payments-save-btn${dirty ? '' : ' secondary'}`}
@@ -587,6 +583,11 @@ export function ManagePlansPage(): React.JSX.Element {
         .manage-plans-price-pair .payments-price-input-wrap { padding: 0 8px; height: 44px; }
         .manage-plans-price-pair .payments-price-currency { font-size: 13px; margin-right: 3px; }
         .manage-plans-price-pair .payments-price-input { font-size: 15px; letter-spacing: -0.01em; }
+        /* Sacamos el caption "ARS X / mes" (payments-plan-foot) de cada
+           tarjeta: quedaba duplicando el input MONTHLY PRICE de arriba
+           ni bien agregamos la edición mensual/total. Solo queda el botón
+           Guardar, alineado a la derecha. */
+        .manage-plans-actions-end { justify-content: flex-end; }
         .manage-plans-visible-row {
           display: flex; align-items: center; justify-content: space-between; gap: 10px;
           font-size: 12.5px; color: var(--text-secondary); cursor: pointer;
