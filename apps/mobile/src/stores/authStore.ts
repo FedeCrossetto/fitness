@@ -644,6 +644,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Columnas de sexo biológico solo aceptan male/female; "other" se guarda en responses.
       const dbGender = data.gender === 'male' || data.gender === 'female' ? data.gender : null;
       const responses = buildOnboardingResponses(data);
+      const fullName = `${data.firstName.trim()} ${data.lastName.trim()}`.trim();
 
       const { error: rpcError } = await supabase.rpc('save_client_onboarding_intake', {
         p_phone: fullPhone,
@@ -652,6 +653,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         p_gender: dbGender,
         p_weight_kg: Number.isFinite(weight) && weight > 0 ? weight : null,
         p_responses: responses,
+        p_full_name: fullName || null,
       });
 
       if (rpcError) {
@@ -667,11 +669,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const [profileRes, userProfileRes] = await Promise.all([
           supabase
             .from('profiles')
-            .update({ goal, phone: fullPhone || null })
+            .update({ goal, phone: fullPhone || null, ...(fullName ? { full_name: fullName } : {}) })
             .eq('id', userId)
             .select()
             .single(),
-          supabase.from('user_profiles').update({ level }).eq('user_id', userId).select().single(),
+          supabase
+            .from('user_profiles')
+            .update({ level, ...(fullName ? { full_name: fullName } : {}) })
+            .eq('user_id', userId)
+            .select()
+            .single(),
         ]);
         if (profileRes.error) throw profileRes.error;
         if (userProfileRes.error) throw userProfileRes.error;

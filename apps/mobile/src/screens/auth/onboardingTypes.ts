@@ -1,4 +1,6 @@
 export interface OnboardingFormData {
+  firstName: string;
+  lastName: string;
   country: string;
   city: string;
   postalCode: string;
@@ -28,6 +30,8 @@ export interface OnboardingFormData {
 }
 
 export const EMPTY_ONBOARDING: OnboardingFormData = {
+  firstName: '',
+  lastName: '',
   country: '',
   city: '',
   postalCode: '',

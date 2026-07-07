@@ -79,6 +79,31 @@ interface StepProps {
 function ProfileStep({ form, setForm, fieldErrors, onDropdownOpenChange, scrollFieldAboveKeyboard }: StepProps): React.JSX.Element {
   return (
     <>
+      <AuthInput
+        label="NOMBRE"
+        placeholder="Ej: Sebastián"
+        autoCapitalize="words"
+        autoComplete="given-name"
+        value={form.firstName}
+        onChangeText={(firstName) => setForm((p) => ({ ...p, firstName }))}
+        error={fieldErrors.firstName}
+        containerStyle={formStyles.field}
+      />
+      <AuthInput
+        label="APELLIDO"
+        placeholder="Ej: Riera"
+        autoCapitalize="words"
+        autoComplete="family-name"
+        value={form.lastName}
+        onChangeText={(lastName) => setForm((p) => ({ ...p, lastName }))}
+        error={fieldErrors.lastName}
+        containerStyle={formStyles.field}
+      />
+      <BirthDateField
+        value={form.birthDate}
+        onChange={(birthDate) => setForm((p) => ({ ...p, birthDate }))}
+        error={fieldErrors.birthDate}
+      />
       <CountryField
         value={form.country}
         onChange={(country) => {
@@ -143,11 +168,6 @@ function ProfileStep({ form, setForm, fieldErrors, onDropdownOpenChange, scrollF
         value={form.apartment}
         onChangeText={(apartment) => setForm((p) => ({ ...p, apartment }))}
         containerStyle={formStyles.field}
-      />
-      <BirthDateField
-        value={form.birthDate}
-        onChange={(birthDate) => setForm((p) => ({ ...p, birthDate }))}
-        error={fieldErrors.birthDate}
       />
 
       <View style={formStyles.field}>
@@ -362,7 +382,13 @@ export function OnboardingScreen(): React.JSX.Element {
   const { profile, completeOnboarding, loading, error } = useAuthStore();
 
   const [step, setStep] = useState(0);
-  const [form, setFormRaw] = useState<OnboardingFormData>(EMPTY_ONBOARDING);
+  const [form, setFormRaw] = useState<OnboardingFormData>(() => {
+    // Precompletamos con lo que ya vino de signup/OAuth (Google manda
+    // full_name armado) — el alumno lo puede corregir acá, es la primera
+    // vez que puede editarlo campo por campo en vez de un solo input.
+    const [prefillFirst = '', ...prefillRest] = (profile?.full_name ?? '').trim().split(/\s+/).filter(Boolean);
+    return { ...EMPTY_ONBOARDING, firstName: prefillFirst, lastName: prefillRest.join(' ') };
+  });
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof OnboardingFormData, string>>>({});
   const fieldErrorsRef = useRef(fieldErrors);
   fieldErrorsRef.current = fieldErrors;
@@ -420,6 +446,8 @@ export function OnboardingScreen(): React.JSX.Element {
     const errors: Partial<Record<keyof OnboardingFormData, string>> = {};
 
     if (step === 0) {
+      if (form.firstName.trim().length < 2)   errors.firstName = 'Ingresá tu nombre.';
+      if (form.lastName.trim().length < 2)    errors.lastName = 'Ingresá tu apellido.';
       if (form.country.trim().length < 2)     errors.country = 'Ingresá tu país.';
       if (form.city.trim().length < 2)        errors.city = 'Ingresá tu ciudad.';
       if (form.postalCode.trim().length < 3)  errors.postalCode = 'Ingresá tu código postal.';
