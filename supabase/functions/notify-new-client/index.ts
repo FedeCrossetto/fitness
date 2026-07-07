@@ -36,6 +36,17 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ skipped: 'sin_trainer' }), { headers: { 'Content-Type': 'application/json' } });
   }
 
+  const { data: prefs } = await admin
+    .from('trainer_notification_prefs')
+    .select('notify_new_client_email')
+    .eq('trainer_id', profile.trainer_id)
+    .maybeSingle();
+  // Sin fila propia = default (notify_new_client_email true), igual que la
+  // columna en la tabla — el entrenador nunca configuró esto todavía.
+  if (prefs && !prefs.notify_new_client_email) {
+    return new Response(JSON.stringify({ skipped: 'notificacion_deshabilitada' }), { headers: { 'Content-Type': 'application/json' } });
+  }
+
   const [{ data: clientAuth }, { data: trainerAuth }] = await Promise.all([
     admin.auth.admin.getUserById(client_id),
     admin.auth.admin.getUserById(profile.trainer_id),

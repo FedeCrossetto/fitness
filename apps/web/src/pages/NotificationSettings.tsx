@@ -7,12 +7,46 @@ import { useToast } from '@/hooks/useToast';
 interface NotificationPrefs {
   notify_billing_email: boolean;
   notify_billing_whatsapp: boolean;
+  notify_new_client_email: boolean;
+  notify_new_client_whatsapp: boolean;
+  notify_plan_purchased_email: boolean;
+  notify_plan_purchased_whatsapp: boolean;
 }
 
 const DEFAULT_PREFS: NotificationPrefs = {
   notify_billing_email: true,
   notify_billing_whatsapp: false,
+  notify_new_client_email: true,
+  notify_new_client_whatsapp: false,
+  notify_plan_purchased_email: true,
+  notify_plan_purchased_whatsapp: false,
 };
+
+const NOTIFICATION_TYPES: {
+  title: string;
+  desc: string;
+  emailKey: keyof NotificationPrefs;
+  whatsappKey: keyof NotificationPrefs;
+}[] = [
+  {
+    title: 'Cliente nuevo pendiente',
+    desc: 'Te avisamos apenas alguien se registra con tu código de invitación y queda esperando tu aprobación.',
+    emailKey: 'notify_new_client_email',
+    whatsappKey: 'notify_new_client_whatsapp',
+  },
+  {
+    title: 'Compra de plan',
+    desc: 'Te avisamos cuando un cliente activa una suscripción — plan, duración, monto y método de pago.',
+    emailKey: 'notify_plan_purchased_email',
+    whatsappKey: 'notify_plan_purchased_whatsapp',
+  },
+  {
+    title: 'Precio de facturación desactualizado',
+    desc: 'Te avisamos cuando un cliente sigue pagando el precio viejo de una frecuencia y le quedan menos de 10 días para renovar en Mercado Pago.',
+    emailKey: 'notify_billing_email',
+    whatsappKey: 'notify_billing_whatsapp',
+  },
+];
 
 export function NotificationSettingsPage(): React.JSX.Element {
   const { profile } = useAuth();
@@ -27,11 +61,13 @@ export function NotificationSettingsPage(): React.JSX.Element {
     void (async () => {
       const { data } = await anyClient
         .from('trainer_notification_prefs')
-        .select('notify_billing_email, notify_billing_whatsapp')
+        .select(
+          'notify_billing_email, notify_billing_whatsapp, notify_new_client_email, notify_new_client_whatsapp, notify_plan_purchased_email, notify_plan_purchased_whatsapp',
+        )
         .eq('trainer_id', profile.id)
         .maybeSingle();
       if (!active) return;
-      if (data) setPrefs(data as NotificationPrefs);
+      if (data) setPrefs({ ...DEFAULT_PREFS, ...(data as Partial<NotificationPrefs>) });
       setLoading(false);
     })();
     return () => { active = false; };
@@ -58,55 +94,58 @@ export function NotificationSettingsPage(): React.JSX.Element {
     <div>
       <Link to="/settings" className="back-link">← Volver a Settings</Link>
       <h1 className="page-title">Notificaciones</h1>
-      <p className="page-sub">Elegí cómo querés que te avisemos sobre alertas de facturación.</p>
+      <p className="page-sub">Elegí qué avisos querés recibir y por dónde.</p>
 
       {loading ? null : (
-        <div className="card" style={{ maxWidth: 560 }}>
-          <div className="section-title" style={{ marginBottom: 4 }}>Precio de facturación desactualizado</div>
-          <p className="muted" style={{ margin: '0 0 18px', fontSize: 12.5, lineHeight: 1.5 }}>
-            Te avisamos cuando un cliente sigue pagando el precio viejo de una frecuencia y le quedan menos de 10 días
-            para renovar en Mercado Pago.
-          </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {NOTIFICATION_TYPES.map((type) => (
+            <div key={type.emailKey} className="card" style={{ maxWidth: 560 }}>
+              <div className="section-title" style={{ marginBottom: 4 }}>{type.title}</div>
+              <p className="muted" style={{ margin: '0 0 18px', fontSize: 12.5, lineHeight: 1.5 }}>
+                {type.desc}
+              </p>
 
-          <label className="notif-row">
-            <div>
-              <div className="notif-row-title">Email</div>
-              <div className="notif-row-desc">Recibir un mail a tu correo de la cuenta.</div>
-            </div>
-            <span className={`toggle-switch${savingKey === 'notify_billing_email' ? ' saving' : ''}`}>
-              <input
-                type="checkbox"
-                checked={prefs.notify_billing_email}
-                onChange={() => void toggle('notify_billing_email')}
-                disabled={savingKey === 'notify_billing_email'}
-                aria-label="Notificar por email"
-              />
-              <span className="toggle-track">
-                <span className="toggle-thumb" />
-              </span>
-            </span>
-          </label>
+              <label className="notif-row">
+                <div>
+                  <div className="notif-row-title">Email</div>
+                  <div className="notif-row-desc">Recibir un mail a tu correo de la cuenta.</div>
+                </div>
+                <span className={`toggle-switch${savingKey === type.emailKey ? ' saving' : ''}`}>
+                  <input
+                    type="checkbox"
+                    checked={prefs[type.emailKey]}
+                    onChange={() => void toggle(type.emailKey)}
+                    disabled={savingKey === type.emailKey}
+                    aria-label={`Notificar "${type.title}" por email`}
+                  />
+                  <span className="toggle-track">
+                    <span className="toggle-thumb" />
+                  </span>
+                </span>
+              </label>
 
-          <label className="notif-row">
-            <div>
-              <div className="notif-row-title">WhatsApp</div>
-              <div className="notif-row-desc">
-                Todavía no está conectado — cuando lo esté, vas a empezar a recibir el aviso ahí si lo dejás activado.
-              </div>
+              <label className="notif-row">
+                <div>
+                  <div className="notif-row-title">WhatsApp</div>
+                  <div className="notif-row-desc">
+                    Todavía no está conectado — cuando lo esté, vas a empezar a recibir el aviso ahí si lo dejás activado.
+                  </div>
+                </div>
+                <span className={`toggle-switch${savingKey === type.whatsappKey ? ' saving' : ''}`}>
+                  <input
+                    type="checkbox"
+                    checked={prefs[type.whatsappKey]}
+                    onChange={() => void toggle(type.whatsappKey)}
+                    disabled={savingKey === type.whatsappKey}
+                    aria-label={`Notificar "${type.title}" por WhatsApp`}
+                  />
+                  <span className="toggle-track">
+                    <span className="toggle-thumb" />
+                  </span>
+                </span>
+              </label>
             </div>
-            <span className={`toggle-switch${savingKey === 'notify_billing_whatsapp' ? ' saving' : ''}`}>
-              <input
-                type="checkbox"
-                checked={prefs.notify_billing_whatsapp}
-                onChange={() => void toggle('notify_billing_whatsapp')}
-                disabled={savingKey === 'notify_billing_whatsapp'}
-                aria-label="Notificar por WhatsApp"
-              />
-              <span className="toggle-track">
-                <span className="toggle-thumb" />
-              </span>
-            </span>
-          </label>
+          ))}
         </div>
       )}
 

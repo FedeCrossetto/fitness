@@ -46,6 +46,15 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ skipped: 'sin_trainer' }), { headers: { 'Content-Type': 'application/json' } });
   }
 
+  const { data: prefs } = await admin
+    .from('trainer_notification_prefs')
+    .select('notify_plan_purchased_email')
+    .eq('trainer_id', profile.trainer_id)
+    .maybeSingle();
+  if (prefs && !prefs.notify_plan_purchased_email) {
+    return new Response(JSON.stringify({ skipped: 'notificacion_deshabilitada' }), { headers: { 'Content-Type': 'application/json' } });
+  }
+
   const [{ data: clientAuth }, { data: trainerAuth }] = await Promise.all([
     admin.auth.admin.getUserById(sub.user_id),
     admin.auth.admin.getUserById(profile.trainer_id),
