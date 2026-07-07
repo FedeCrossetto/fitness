@@ -1,5 +1,6 @@
 export interface EvaluationFormData {
-  fullName: string;
+  firstName: string;
+  lastName: string;
   email: string;
   country: string;
   city: string;
@@ -17,7 +18,8 @@ export interface EvaluationFormData {
 }
 
 export const EMPTY_EVALUATION: EvaluationFormData = {
-  fullName: '',
+  firstName: '',
+  lastName: '',
   email: '',
   country: '',
   city: '',

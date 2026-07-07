@@ -29,7 +29,8 @@ export function SignUpScreen({ navigation, route }: Props): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { signUp, signInWithOAuth, loading, oauthProvider, error, clearError } = useAuthStore();
 
-  const [fullName, setFullName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName]   = useState('');
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
   const [trainerCode, setTrainerCode] = useState(
@@ -37,7 +38,7 @@ export function SignUpScreen({ navigation, route }: Props): React.JSX.Element {
   );
   const [codeStatus, setCodeStatus] = useState<CodeStatus>('idle');
   const [preview, setPreview]       = useState<InvitePreview | null>(null);
-  const [fieldError, setFieldError] = useState<{ name?: string; email?: string; password?: string }>({});
+  const [fieldError, setFieldError] = useState<{ firstName?: string; lastName?: string; email?: string; password?: string }>({});
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [codeSelection, setCodeSelection] = useState<{ start: number; end: number } | undefined>();
@@ -91,12 +92,14 @@ export function SignUpScreen({ navigation, route }: Props): React.JSX.Element {
     if (codeStatus !== 'valid' || !preview) return;
 
     const errors: typeof fieldError = {};
-    if (fullName.trim().length < 2) errors.name = 'Ingresá tu nombre.';
+    if (firstName.trim().length < 2) errors.firstName = 'Ingresá tu nombre.';
+    if (lastName.trim().length < 2)  errors.lastName = 'Ingresá tu apellido.';
     if (!email.includes('@'))       errors.email = 'Ingresá un email válido.';
     if (password.length < 6)        errors.password = 'Mínimo 6 caracteres.';
     setFieldError(errors);
     if (Object.keys(errors).length > 0) return;
 
+    const fullName = `${firstName.trim()} ${lastName.trim()}`;
     const result = await signUp(email, password, fullName, preview.invite_code);
     if (result === 'verify') {
       navigation.navigate('VerifyEmail', { email: email.trim(), password });
@@ -179,13 +182,23 @@ export function SignUpScreen({ navigation, route }: Props): React.JSX.Element {
         {codeValidated ? (
           <>
             <AuthInput
-              label="NOMBRE COMPLETO"
+              label="NOMBRE"
               icon="person-outline"
-              placeholder="Ej: Martina López"
-              autoComplete="name"
-              value={fullName}
-              onChangeText={(v) => { setFullName(v); if (error) clearError(); }}
-              error={fieldError.name}
+              placeholder="Ej: Martina"
+              autoComplete="given-name"
+              value={firstName}
+              onChangeText={(v) => { setFirstName(v); if (error) clearError(); }}
+              error={fieldError.firstName}
+              containerStyle={styles.field}
+            />
+            <AuthInput
+              label="APELLIDO"
+              icon="person-outline"
+              placeholder="Ej: López"
+              autoComplete="family-name"
+              value={lastName}
+              onChangeText={(v) => { setLastName(v); if (error) clearError(); }}
+              error={fieldError.lastName}
               containerStyle={styles.field}
             />
             <AuthInput
@@ -218,7 +231,7 @@ export function SignUpScreen({ navigation, route }: Props): React.JSX.Element {
               label="CREAR CUENTA"
               onPress={() => void handleSignUp()}
               loading={loading}
-              disabled={!fullName || !email || !password}
+              disabled={!firstName || !lastName || !email || !password}
               fullWidth
               style={styles.cta}
             />

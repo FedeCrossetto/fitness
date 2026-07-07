@@ -50,11 +50,15 @@ export function EvaluationFormScreen({ onBack, onSubmitted }: EvaluationFormScre
   const profile = useAuthStore((s) => s.profile);
   const session = useAuthStore((s) => s.session);
 
-  const [form, setForm] = useState<EvaluationFormData>(() => ({
-    ...EMPTY_EVALUATION,
-    fullName: profile?.full_name ?? '',
-    email: session?.user.email ?? '',
-  }));
+  const [form, setForm] = useState<EvaluationFormData>(() => {
+    const [firstName = '', ...rest] = (profile?.full_name ?? '').trim().split(/\s+/).filter(Boolean);
+    return {
+      ...EMPTY_EVALUATION,
+      firstName,
+      lastName: rest.join(' '),
+      email: session?.user.email ?? '',
+    };
+  });
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof EvaluationFormData, string>>>({});
   const [submitting, setSubmitting] = useState(false);
 
@@ -71,7 +75,8 @@ export function EvaluationFormScreen({ onBack, onSubmitted }: EvaluationFormScre
 
   const validate = (): boolean => {
     const errors: Partial<Record<keyof EvaluationFormData, string>> = {};
-    if (form.fullName.trim().length < 2) errors.fullName = 'Ingresá tu nombre completo.';
+    if (form.firstName.trim().length < 2) errors.firstName = 'Ingresá tu nombre.';
+    if (form.lastName.trim().length < 2) errors.lastName = 'Ingresá tu apellido.';
     if (!form.email.includes('@')) errors.email = 'Ingresá un email válido.';
     if (!isValidOnboardingPhone(form.phoneCode, form.phone)) errors.phone = 'Ingresá un teléfono válido.';
     if (form.country.trim().length < 2) errors.country = 'Ingresá tu país.';
@@ -106,7 +111,7 @@ export function EvaluationFormScreen({ onBack, onSubmitted }: EvaluationFormScre
     const { error } = await anyClient.from('evaluation_requests').insert({
       client_id: clientId,
       trainer_id: trainerId,
-      full_name: form.fullName.trim(),
+      full_name: `${form.firstName.trim()} ${form.lastName.trim()}`,
       email: form.email.trim(),
       phone_code: form.phoneCode,
       phone: form.phone.trim(),
@@ -163,12 +168,23 @@ export function EvaluationFormScreen({ onBack, onSubmitted }: EvaluationFormScre
           </AppText>
 
           <AuthInput
-            label="NOMBRE COMPLETO"
-            placeholder="Ej: Juana Pérez"
+            label="NOMBRE"
+            placeholder="Ej: Juana"
             autoCapitalize="words"
-            value={form.fullName}
-            onChangeText={(v) => update('fullName', v)}
-            error={fieldErrors.fullName}
+            autoComplete="given-name"
+            value={form.firstName}
+            onChangeText={(v) => update('firstName', v)}
+            error={fieldErrors.firstName}
+            containerStyle={formStyles.field}
+          />
+          <AuthInput
+            label="APELLIDO"
+            placeholder="Ej: Pérez"
+            autoCapitalize="words"
+            autoComplete="family-name"
+            value={form.lastName}
+            onChangeText={(v) => update('lastName', v)}
+            error={fieldErrors.lastName}
             containerStyle={formStyles.field}
           />
           <AuthInput
