@@ -12,12 +12,12 @@ import { formatMoney, mergePlans, type PlanWithPrice } from '@/lib/planPricing';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-type StudentMin = { id: string; full_name: string | null };
+type ClientMin = { id: string; full_name: string | null };
 
 type PaymentRow = {
   id: string;
-  studentId: string;
-  studentName: string;
+  clientId: string;
+  clientName: string;
   planName: string;
   amount: number;
   date: string;
@@ -27,7 +27,7 @@ type PaymentRow = {
 type PaymentsData = {
   plans: PlanWithPrice[];
   payments: PaymentRow[];
-  students: StudentMin[];
+  clients: ClientMin[];
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -55,7 +55,7 @@ export function PaymentsPage(): React.JSX.Element {
 
   const [plans, setPlans] = useState<PlanWithPrice[]>([]);
   const [payments, setPayments] = useState<PaymentRow[]>([]);
-  const [students, setStudents] = useState<StudentMin[]>([]);
+  const [clients, setClients] = useState<ClientMin[]>([]);
 
   const [regOpen, setRegOpen] = useState(false);
 
@@ -66,7 +66,7 @@ export function PaymentsPage(): React.JSX.Element {
       const [
         { data: planRows, error: plansError },
         { data: overrideRows, error: overridesError },
-        { data: students, error: studentsError },
+        { data: clients, error: clientsError },
       ] = await Promise.all([
         // Sin filtro de `active`: el modal de "Registrar pago" necesita poder
         // resolver Mentoría/2-4-5 meses.
@@ -80,24 +80,24 @@ export function PaymentsPage(): React.JSX.Element {
 
       if (plansError) throw plansError;
       if (overridesError) throw overridesError;
-      if (studentsError) throw studentsError;
+      if (clientsError) throw clientsError;
 
       const mergedPlans = mergePlans(
         (planRows as PlanRow[] | null) ?? [],
         (overrideRows as { plan_id: string; price_ars: number }[] | null) ?? [],
       );
 
-      const studentMap = new Map(
-        ((students as StudentMin[] | null) ?? []).map((s) => [s.id, s.full_name ?? '—']),
+      const clientMap = new Map(
+        ((clients as ClientMin[] | null) ?? []).map((s) => [s.id, s.full_name ?? '—']),
       );
-      const studentIds = [...studentMap.keys()];
+      const clientIds = [...clientMap.keys()];
 
       let paymentRows: PaymentRow[] = [];
-      if (studentIds.length > 0) {
+      if (clientIds.length > 0) {
         const { data: subs, error: subsError } = await supabase
           .from('subscriptions')
           .select('id, user_id, plan_id, status, started_at, created_at, mp_preapproval_id')
-          .in('user_id', studentIds)
+          .in('user_id', clientIds)
           .neq('status', 'pending')
           .order('created_at', { ascending: false })
           .limit(100);
@@ -114,8 +114,8 @@ export function PaymentsPage(): React.JSX.Element {
             const plan = planById.get(sub.plan_id);
             return {
               id: sub.id,
-              studentId: sub.user_id,
-              studentName: studentMap.get(sub.user_id) ?? '—',
+              clientId: sub.user_id,
+              clientName: clientMap.get(sub.user_id) ?? '—',
               planName: plan?.name ?? sub.plan_id,
               amount: plan?.effectivePrice ?? 0,
               date: sub.started_at ?? sub.created_at,
@@ -149,15 +149,15 @@ export function PaymentsPage(): React.JSX.Element {
                     : 'pending';
               return {
                 id: charge.id,
-                studentId: sub?.user_id ?? '',
-                studentName: sub ? (studentMap.get(sub.user_id) ?? '—') : '—',
+                clientId: sub?.user_id ?? '',
+                clientName: sub ? (clientMap.get(sub.user_id) ?? '—') : '—',
                 planName: plan?.name ?? sub?.plan_id ?? '—',
                 amount: charge.amount_ars ?? plan?.effectivePrice ?? 0,
                 date: charge.charged_at,
                 status,
               };
             })
-            .filter((row) => !!row.studentId);
+            .filter((row) => !!row.clientId);
         }
 
         paymentRows = [...oneTimeRows, ...chargeRows].sort(
@@ -165,7 +165,7 @@ export function PaymentsPage(): React.JSX.Element {
         );
       }
 
-      return { plans: mergedPlans, payments: paymentRows, students: (students as StudentMin[] | null) ?? [] };
+      return { plans: mergedPlans, payments: paymentRows, clients: (clients as ClientMin[] | null) ?? [] };
     },
     [userId],
     { enabled: !!userId },
@@ -175,7 +175,7 @@ export function PaymentsPage(): React.JSX.Element {
     if (data) {
       setPlans(data.plans);
       setPayments(data.payments);
-      setStudents(data.students);
+      setClients(data.clients);
     }
   }, [data]);
 
@@ -277,9 +277,9 @@ export function PaymentsPage(): React.JSX.Element {
                       <tr
                         key={p.id}
                         className="payments-table-row"
-                        onClick={() => navigate(`/students/${p.studentId}`)}
+                        onClick={() => navigate(`/clients/${p.clientId}`)}
                       >
-                        <td><span className="cell-name">{p.studentName}</span></td>
+                        <td><span className="cell-name">{p.clientName}</span></td>
                         <td className="muted">{p.planName}</td>
                         <td className="payments-amount">{formatMoney(p.amount, language)}</td>
                         <td className="muted">
@@ -304,7 +304,7 @@ export function PaymentsPage(): React.JSX.Element {
       <ManualPaymentModal
         open={regOpen}
         onClose={() => setRegOpen(false)}
-        students={students}
+        clients={clients}
         plans={plans.map((p) => ({ ...p, price_ars: p.effectivePrice }))}
         onSuccess={() => void refetch()}
       />

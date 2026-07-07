@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase';
 
 type RoutineWithExercises = RoutineRow & { exercises: RoutineExerciseRow[] };
 
-export function RoutineManager({ studentId }: { studentId: string }): React.JSX.Element {
+export function RoutineManager({ clientId }: { clientId: string }): React.JSX.Element {
   const [routines, setRoutines] = useState<RoutineWithExercises[]>([]);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState('');
@@ -16,7 +16,7 @@ export function RoutineManager({ studentId }: { studentId: string }): React.JSX.
       const { data: rs } = await supabase
         .from('routines')
         .select('*')
-        .eq('client_id', studentId)
+        .eq('client_id', clientId)
         .order('created_at', { ascending: false });
       const routineRows = (rs as RoutineRow[] | null) ?? [];
       let exerciseRows: RoutineExerciseRow[] = [];
@@ -35,7 +35,7 @@ export function RoutineManager({ studentId }: { studentId: string }): React.JSX.
     return () => {
       active = false;
     };
-  }, [studentId]);
+  }, [clientId]);
 
   const createRoutine = async () => {
     const name = newName.trim();
@@ -43,7 +43,7 @@ export function RoutineManager({ studentId }: { studentId: string }): React.JSX.
     setCreating(true);
     const { data } = await supabase
       .from('routines')
-      .insert({ client_id: studentId, name, days_per_week: 3, active: true })
+      .insert({ client_id: clientId, name, days_per_week: 3, active: true })
       .select()
       .single();
     setCreating(false);

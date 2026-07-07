@@ -14,7 +14,7 @@ type MemberWithProfile = CommunityMemberRow & {
   avatar_url: string | null;
 };
 
-type AvailableStudent = Pick<ProfileRow, 'id' | 'full_name' | 'avatar_url'>;
+type AvailableClient = Pick<ProfileRow, 'id' | 'full_name' | 'avatar_url'>;
 
 export function GroupDetailPage(): React.JSX.Element {
   const { id } = useParams<{ id: string }>();
@@ -29,7 +29,7 @@ export function GroupDetailPage(): React.JSX.Element {
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
-  const [available, setAvailable] = useState<AvailableStudent[]>([]);
+  const [available, setAvailable] = useState<AvailableClient[]>([]);
   const [selectedAdd, setSelectedAdd] = useState<Set<string>>(new Set());
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
@@ -90,7 +90,7 @@ export function GroupDetailPage(): React.JSX.Element {
       .select('id, full_name, avatar_url')
       .eq('trainer_id', trainerId)
       .eq('client_status', 'active');
-    setAvailable(((data as AvailableStudent[] | null) ?? []).filter((s) => !memberIds.has(s.id)));
+    setAvailable(((data as AvailableClient[] | null) ?? []).filter((s) => !memberIds.has(s.id)));
   }, [trainerId, id, members]);
 
   useEffect(() => {

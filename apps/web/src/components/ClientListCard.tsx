@@ -2,7 +2,7 @@ import React from 'react';
 import type { TrophyRankPeriod } from '@reset-fitness/shared';
 import { UserAvatar } from '@/components/UserAvatar';
 
-export interface StudentListEntry {
+export interface ClientListEntry {
   userId: string;
   name: string;
   avatarUrl: string | null;
@@ -18,8 +18,8 @@ interface PeriodOption {
   label: string;
 }
 
-interface StudentListCardProps {
-  entries: StudentListEntry[];
+interface ClientListCardProps {
+  entries: ClientListEntry[];
   loading?: boolean;
   title: string;
   emptyMessage: string;
@@ -28,7 +28,7 @@ interface StudentListCardProps {
   onPeriodChange: (period: TrophyRankPeriod) => void;
   formatCount?: (n: number) => string;
   formatStreak?: (n: number) => string;
-  onStudentClick: (userId: string) => void;
+  onClientClick: (userId: string) => void;
   onSeeAll?: () => void;
 }
 
@@ -45,7 +45,7 @@ function SkeletonRow(): React.JSX.Element {
   );
 }
 
-export function StudentListCard({
+export function ClientListCard({
   entries,
   loading,
   title,
@@ -53,9 +53,9 @@ export function StudentListCard({
   period,
   periodOptions,
   onPeriodChange,
-  onStudentClick,
+  onClientClick,
   onSeeAll,
-}: StudentListCardProps): React.JSX.Element {
+}: ClientListCardProps): React.JSX.Element {
   return (
     <div className="card stl-card">
       {/* Header */}
@@ -99,7 +99,7 @@ export function StudentListCard({
               key={entry.userId}
               type="button"
               className="stl-row"
-              onClick={() => onStudentClick(entry.userId)}
+              onClick={() => onClientClick(entry.userId)}
             >
               <UserAvatar name={entry.name} url={entry.avatarUrl} size="md" />
               <div className="stl-info">

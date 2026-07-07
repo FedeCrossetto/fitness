@@ -12,14 +12,14 @@ const GOAL_PRESETS: { type: GoalType; unit: GoalUnit; label: string; defaultTarg
 ];
 
 interface Props {
-  studentId: string;
+  clientId: string;
   assignedProgramKey: string | null;
   defaultProgramKey: string;
   onProgramKeyChange: (key: string | null) => void;
 }
 
-export function StudentCoachPanel({
-  studentId,
+export function ClientCoachPanel({
+  clientId,
   assignedProgramKey,
   defaultProgramKey,
   onProgramKeyChange,
@@ -51,12 +51,12 @@ export function StudentCoachPanel({
     const { data } = await supabase
       .from('goal_assignments')
       .select('*')
-      .eq('user_id', studentId)
+      .eq('user_id', clientId)
       .eq('is_active', true)
       .order('created_at', { ascending: false });
     setAssignments((data as GoalAssignmentRow[] | null) ?? []);
     setLoadingGoals(false);
-  }, [studentId]);
+  }, [clientId]);
 
   useEffect(() => {
     void loadAssignments();
@@ -68,7 +68,7 @@ export function StudentCoachPanel({
     const { error } = await supabase
       .from('profiles')
       .update({ assigned_program_key: next })
-      .eq('id', studentId);
+      .eq('id', clientId);
     setSavingProgram(false);
     if (error) {
       showToast('error', 'No pudimos asignar el programa.');
@@ -85,7 +85,7 @@ export function StudentCoachPanel({
     const end = new Date();
     end.setDate(end.getDate() + 30);
     const { error } = await supabase.from('goal_assignments').insert({
-      user_id: studentId,
+      user_id: clientId,
       assigned_by: trainerId,
       title: preset.label,
       goal_type: preset.type,

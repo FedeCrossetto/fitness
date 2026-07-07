@@ -9,16 +9,16 @@ import { TrophyIcon, UsersIcon, CheckIcon, DumbbellIcon } from '@/components/ico
 import { AreaChart } from '@/components/charts';
 import { ErrorState, Lightbox, useCountUp } from '@/components/ui';
 import { UserAvatar } from '@/components/UserAvatar';
-import { StudentListCard } from '@/components/StudentListCard';
+import { ClientListCard } from '@/components/ClientListCard';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-type StudentMin = Pick<ProfileRow, 'id' | 'full_name' | 'avatar_url' | 'goal' | 'created_at'>;
+type ClientMin = Pick<ProfileRow, 'id' | 'full_name' | 'avatar_url' | 'goal' | 'created_at'>;
 
 type ActivityType = 'workout' | 'meal' | 'photo' | 'measurement' | 'joined';
 
 interface ActivityCopy {
-  studentDefault: string;
+  clientDefault: string;
   workoutCompleted: string;
   workoutIncomplete: string;
   workoutDefault: string;
@@ -35,9 +35,9 @@ interface ActivityCopy {
 
 interface Activity {
   id: string;
-  studentId: string;
-  studentName: string;
-  studentAvatar?: string | null;
+  clientId: string;
+  clientName: string;
+  clientAvatar?: string | null;
   type: ActivityType;
   verb: string;
   detail: string;
@@ -86,12 +86,12 @@ type MealLogForFeed = Pick<
 >;
 
 function buildMealDayActivities(
-  students: StudentMin[],
+  clients: ClientMin[],
   mLogs: MealLogForFeed[],
   kcalGoal: number,
   copy: ActivityCopy,
 ): Activity[] {
-  const byId = new Map(students.map((s) => [s.id, s]));
+  const byId = new Map(clients.map((s) => [s.id, s]));
   const byDay = new Map<string, MealLogForFeed[]>();
 
   for (const m of mLogs) {
@@ -132,9 +132,9 @@ function buildMealDayActivities(
 
     items.push({
       id: `md-${userId}-${date}`,
-      studentId: userId,
-      studentName: s.full_name ?? copy.studentDefault,
-      studentAvatar: s.avatar_url,
+      clientId: userId,
+      clientName: s.full_name ?? copy.clientDefault,
+      clientAvatar: s.avatar_url,
       type: 'meal',
       verb: copy.mealCaloriesCompleted,
       detail: copy.formatMealDetail(kcal, formatMacroDisplay(protein), formatMacroDisplay(carbs), formatMacroDisplay(fat)),
@@ -146,7 +146,7 @@ function buildMealDayActivities(
 }
 
 function buildActivities(
-  students: StudentMin[],
+  clients: ClientMin[],
   wLogs: Pick<
     WorkoutLogRow,
     | 'id'
@@ -166,7 +166,7 @@ function buildActivities(
   copy: ActivityCopy,
   kcalGoal = DEFAULT_KCAL_GOAL,
 ): Activity[] {
-  const byId = new Map(students.map((s) => [s.id, s]));
+  const byId = new Map(clients.map((s) => [s.id, s]));
 
   const items: Activity[] = [];
 
@@ -183,9 +183,9 @@ function buildActivities(
     ].filter(Boolean);
     items.push({
       id: `w-${w.id}`,
-      studentId: w.user_id,
-      studentName: s.full_name ?? copy.studentDefault,
-      studentAvatar: s.avatar_url,
+      clientId: w.user_id,
+      clientName: s.full_name ?? copy.clientDefault,
+      clientAvatar: s.avatar_url,
       type: 'workout',
       verb: w.completed ? copy.workoutCompleted : copy.workoutIncomplete,
       detail: title,
@@ -196,16 +196,16 @@ function buildActivities(
     });
   }
 
-  items.push(...buildMealDayActivities(students, mLogs, kcalGoal, copy));
+  items.push(...buildMealDayActivities(clients, mLogs, kcalGoal, copy));
 
   for (const p of pPhotos) {
     const s = byId.get(p.user_id);
     if (!s) continue;
     items.push({
       id: `p-${p.id}`,
-      studentId: p.user_id,
-      studentName: s.full_name ?? copy.studentDefault,
-      studentAvatar: s.avatar_url,
+      clientId: p.user_id,
+      clientName: s.full_name ?? copy.clientDefault,
+      clientAvatar: s.avatar_url,
       type: 'photo',
       verb: copy.photoUploaded,
       detail: p.position,
@@ -222,9 +222,9 @@ function buildActivities(
     if (b.body_fat_pct != null) parts.push(copy.formatFat(b.body_fat_pct));
     items.push({
       id: `b-${b.id}`,
-      studentId: b.user_id,
-      studentName: s.full_name ?? copy.studentDefault,
-      studentAvatar: s.avatar_url,
+      clientId: b.user_id,
+      clientName: s.full_name ?? copy.clientDefault,
+      clientAvatar: s.avatar_url,
       type: 'measurement',
       verb: copy.measurementLogged,
       detail: parts.join(' · ') || copy.measurementDefault,
@@ -232,15 +232,15 @@ function buildActivities(
     });
   }
 
-  // New students (created_at in last 7 days)
+  // New clients (created_at in last 7 days)
   const cutoff = Date.now() - 7 * 86400000;
-  for (const s of students) {
+  for (const s of clients) {
     if (new Date(s.created_at).getTime() >= cutoff) {
       items.push({
         id: `j-${s.id}`,
-        studentId: s.id,
-        studentName: s.full_name ?? copy.studentDefault,
-        studentAvatar: s.avatar_url,
+        clientId: s.id,
+        clientName: s.full_name ?? copy.clientDefault,
+        clientAvatar: s.avatar_url,
         type: 'joined',
         verb: copy.joinedVerb,
         detail: copy.joinedDetail,
@@ -261,7 +261,7 @@ export function DashboardPage(): React.JSX.Element {
   const userId = session?.user.id;
 
   const activityCopy = useMemo<ActivityCopy>(() => ({
-    studentDefault: t.dashboard.activity_student_default,
+    clientDefault: t.dashboard.activity_student_default,
     workoutCompleted: t.dashboard.activity_workout_completed,
     workoutIncomplete: t.dashboard.activity_workout_incomplete,
     workoutDefault: t.dashboard.activity_workout_default,
@@ -314,8 +314,8 @@ export function DashboardPage(): React.JSX.Element {
   );
 
   // Left panel state
-  const [students, setStudents]         = useState<StudentMin[]>([]);
-  const [studentCount, setStudentCount] = useState<number | null>(null);
+  const [clients, setClients]         = useState<ClientMin[]>([]);
+  const [clientCount, setClientCount] = useState<number | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
   const [phaseCount, setPhaseCount]     = useState<number | null>(null);
   const [workouts, setWorkouts]         = useState<Pick<WorkoutLogRow, 'date' | 'completed'>[]>([]);
@@ -380,7 +380,7 @@ export function DashboardPage(): React.JSX.Element {
       const since90 = new Date();
       since90.setDate(since90.getDate() - 90);
 
-      const [{ count: sc }, { count: pc }, { count: pending }, { data: studentsData }, { data: wl }] = await Promise.all([
+      const [{ count: sc }, { count: pc }, { count: pending }, { data: clientsData }, { data: wl }] = await Promise.all([
         supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('trainer_id', userId).eq('client_status', 'active'),
         supabase.from('training_phases').select('id', { count: 'exact', head: true }).eq('trainer_id', userId),
         supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('trainer_id', userId).eq('client_status', 'pending'),
@@ -398,10 +398,10 @@ export function DashboardPage(): React.JSX.Element {
       ]);
 
       if (!active) return;
-      setStudentCount(sc ?? 0);
+      setClientCount(sc ?? 0);
       setPendingCount(pending ?? 0);
       setPhaseCount(pc ?? 0);
-      setStudents((studentsData as StudentMin[] | null) ?? []);
+      setClients((clientsData as ClientMin[] | null) ?? []);
       setWorkouts((wl as Pick<WorkoutLogRow, 'date' | 'completed'>[] | null) ?? []);
 
       const { data: allActive } = await supabase
@@ -432,8 +432,8 @@ export function DashboardPage(): React.JSX.Element {
       }
 
       // ── Activity feed queries ─────────────────────────────────────────────
-      const allStudents = (studentsData as StudentMin[] | null) ?? [];
-      const ids = allStudents.map((s) => s.id);
+      const allClients = (clientsData as ClientMin[] | null) ?? [];
+      const ids = allClients.map((s) => s.id);
 
       if (ids.length === 0) {
         setLoadingFeed(false);
@@ -484,7 +484,7 @@ export function DashboardPage(): React.JSX.Element {
       if (!active) return;
 
       setActivities(buildActivities(
-        allStudents,
+        allClients,
         (wLogs ?? []) as Parameters<typeof buildActivities>[1],
         (mLogs ?? []) as Parameters<typeof buildActivities>[2],
         (pPhotos ?? []) as Parameters<typeof buildActivities>[3],
@@ -562,7 +562,7 @@ export function DashboardPage(): React.JSX.Element {
   return (
     <div className="dash-with-panel">
 
-      {/* ── Left: stats + chart + students ─────────────────────────────── */}
+      {/* ── Left: stats + chart + clients ─────────────────────────────── */}
       <div className="dash-left">
         <div className="dash-greeting">
           <span className="dash-date">
@@ -579,7 +579,7 @@ export function DashboardPage(): React.JSX.Element {
           <button
             type="button"
             className="dash-pending-banner"
-            onClick={() => navigate('/students?tab=pending')}
+            onClick={() => navigate('/clients?tab=pending')}
           >
             <span>{i18n(t.dashboard.pending_banner, { count: pendingCount })}</span>
             <span className="dash-pending-banner-link">{t.dashboard.pending_review} →</span>
@@ -588,7 +588,7 @@ export function DashboardPage(): React.JSX.Element {
 
         {/* Stats strip */}
         <div className="stats-strip">
-          <StatBlock value={studentCount ?? '—'} label={t.dashboard.students} icon={<UsersIcon size={18} />} />
+          <StatBlock value={clientCount ?? '—'} label={t.dashboard.clients} icon={<UsersIcon size={18} />} />
           <StatBlock
             value={completionPct ? `${completionPct}%` : '—'}
             label={i18n(t.dashboard.workouts_pct, { range })}
@@ -619,7 +619,7 @@ export function DashboardPage(): React.JSX.Element {
           </div>
         </div>
 
-        <StudentListCard
+        <ClientListCard
           entries={trophyRank}
           loading={loadingRank}
           title={t.dashboard.trophy_rank_title}
@@ -629,7 +629,7 @@ export function DashboardPage(): React.JSX.Element {
           onPeriodChange={setTrophyPeriod}
           formatCount={formatTrophyCount}
           formatStreak={formatTrophyStreak}
-          onStudentClick={(id) => navigate(`/students/${id}`)}
+          onClientClick={(id) => navigate(`/clients/${id}`)}
         />
       </div>
 
@@ -666,9 +666,9 @@ export function DashboardPage(): React.JSX.Element {
           <div className="act-panel-empty">
             <TrophyIcon size={28} />
             <p>{t.dashboard.empty_feed}</p>
-            {students.length === 0 && (
-              <button className="btn secondary sm" onClick={() => navigate('/students')}>
-                {t.dashboard.link_students}
+            {clients.length === 0 && (
+              <button className="btn secondary sm" onClick={() => navigate('/clients')}>
+                {t.dashboard.link_clients}
               </button>
             )}
           </div>
@@ -678,13 +678,13 @@ export function DashboardPage(): React.JSX.Element {
               <div
                 key={a.id}
                 className="act-panel-item"
-                onClick={() => navigate(`/students/${a.studentId}`)}
+                onClick={() => navigate(`/clients/${a.clientId}`)}
                 role="button"
                 tabIndex={0}
               >
                 {/* Avatar + type dot */}
                 <div className="act-panel-avatar-wrap">
-                  <UserAvatar name={a.studentName} url={a.studentAvatar} size="sm" />
+                  <UserAvatar name={a.clientName} url={a.clientAvatar} size="sm" />
                   <span
                     className="act-panel-type-dot"
                     style={{ background: TYPE_COLORS[a.type].dot }}
@@ -695,7 +695,7 @@ export function DashboardPage(): React.JSX.Element {
                 {/* Content */}
                 <div className="act-panel-body">
                   <div className="act-panel-text">
-                    <strong>{a.studentName}</strong> {a.verb}
+                    <strong>{a.clientName}</strong> {a.verb}
                   </div>
                   {a.type === 'workout' && a.workoutTitle ? (
                     <div className="act-workout-card">
@@ -738,7 +738,7 @@ export function DashboardPage(): React.JSX.Element {
                     onClick={(e) => {
                       e.stopPropagation();
                       const url = a.thumb!.startsWith('http') ? a.thumb! : thumbs[a.thumb!];
-                      if (url) setLightbox({ src: url, caption: `${a.studentName} · ${a.detail}` });
+                      if (url) setLightbox({ src: url, caption: `${a.clientName} · ${a.detail}` });
                     }}
                   />
                 )}

@@ -19,8 +19,8 @@ import { PaymentReturnPage } from '@/pages/PaymentReturn';
 const DashboardPage        = lazy(() => import('@/pages/Dashboard').then((m) => ({ default: m.DashboardPage })));
 const FoodsPage            = lazy(() => import('@/pages/Foods').then((m) => ({ default: m.FoodsPage })));
 const BrandingPage         = lazy(() => import('@/pages/Branding').then((m) => ({ default: m.BrandingPage })));
-const StudentsPage         = lazy(() => import('@/pages/Students').then((m) => ({ default: m.StudentsPage })));
-const StudentDetailPage    = lazy(() => import('@/pages/StudentDetail').then((m) => ({ default: m.StudentDetailPage })));
+const ClientsPage          = lazy(() => import('@/pages/Clients').then((m) => ({ default: m.ClientsPage })));
+const ClientDetailPage     = lazy(() => import('@/pages/ClientDetail').then((m) => ({ default: m.ClientDetailPage })));
 const RoutinesPage         = lazy(() => import('@/pages/Routines').then((m) => ({ default: m.RoutinesPage })));
 const MessagesPage         = lazy(() => import('@/pages/Messages').then((m) => ({ default: m.MessagesPage })));
 const GroupsPage           = lazy(() => import('@/pages/Groups').then((m) => ({ default: m.GroupsPage })));
@@ -33,6 +33,7 @@ const AutoMessagesPage     = lazy(() => import('@/pages/AutoMessages').then((m) 
 const FormsPage            = lazy(() => import('@/pages/Forms').then((m) => ({ default: m.FormsPage })));
 const ConsultationFormPage = lazy(() => import('@/pages/ConsultationForm').then((m) => ({ default: m.ConsultationFormPage })));
 const WaiverSettingsPage   = lazy(() => import('@/pages/WaiverSettings').then((m) => ({ default: m.WaiverSettingsPage })));
+const NotificationSettingsPage = lazy(() => import('@/pages/NotificationSettings').then((m) => ({ default: m.NotificationSettingsPage })));
 const AnnouncementsPage    = lazy(() => import('@/pages/Announcements').then((m) => ({ default: m.AnnouncementsPage })));
 const ChallengesPage       = lazy(() => import('@/pages/Challenges').then((m) => ({ default: m.ChallengesPage })));
 
@@ -85,8 +86,8 @@ function App(): React.JSX.Element {
             <Route path="/groups" element={<GroupsPage />} />
             <Route path="/groups/:id" element={<GroupDetailPage />} />
             <Route path="/challenges" element={<ChallengesPage />} />
-            <Route path="/students" element={<StudentsPage />} />
-            <Route path="/students/:id" element={<StudentDetailPage />} />
+            <Route path="/clients" element={<ClientsPage />} />
+            <Route path="/clients/:id" element={<ClientDetailPage />} />
             <Route path="/payments" element={<PaymentsPage />} />
             <Route path="/payments/planes" element={<ManagePlansPage />} />
             <Route path="/payments/integraciones" element={<PaymentIntegrationsPage />} />
@@ -100,6 +101,7 @@ function App(): React.JSX.Element {
             <Route path="/settings/forms" element={<FormsPage />} />
             <Route path="/settings/forms/:planType" element={<ConsultationFormPage />} />
             <Route path="/settings/waiver" element={<WaiverSettingsPage />} />
+            <Route path="/settings/notifications" element={<NotificationSettingsPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

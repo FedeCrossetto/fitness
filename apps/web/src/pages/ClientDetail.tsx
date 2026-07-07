@@ -18,9 +18,10 @@ import type {
 import { supabase, anyClient } from '@/lib/supabase';
 import { formatWorkoutVolume, summarizeWorkoutForFeed } from '@reset-fitness/shared';
 import { RoutineManager } from '@/components/RoutineManager';
-import { StudentCoachPanel } from '@/components/StudentCoachPanel';
+import { ClientCoachPanel } from '@/components/ClientCoachPanel';
 import { Lightbox, Spinner, ConfirmDialog } from '@/components/ui';
 import { ManualPaymentModal } from '@/components/ManualPaymentModal';
+import { formatMoney } from '@/lib/planPricing';
 import { useToast } from '@/hooks/useToast';
 
 interface WaiverSignature {
@@ -59,7 +60,7 @@ type Profile = Pick<ProfileRow, 'id' | 'full_name' | 'goal' | 'phone' | 'avatar_
   client_status?: 'pending' | 'active';
 };
 
-type StudentSubscription = Pick<SubscriptionRow, 'id' | 'status' | 'expires_at' | 'started_at' | 'mp_preapproval_id'> & {
+type ClientSubscription = Pick<SubscriptionRow, 'id' | 'status' | 'expires_at' | 'started_at' | 'mp_preapproval_id'> & {
   plan_name: string | null;
   /** La frecuencia de facturación elegida fue soft-deleted por el entrenador
    * — el alumno sigue renovando igual, pero ya no está en el catálogo activo. */
@@ -68,6 +69,20 @@ type StudentSubscription = Pick<SubscriptionRow, 'id' | 'status' | 'expires_at' 
    * y el cobro es recurrente por MercadoPago — hay que actualizarlo ahí a mano. */
   price_changed: { current: number; paid: number } | null;
 };
+
+type SubscriptionCharge = {
+  id: string;
+  amount_ars: number | null;
+  status: string | null;
+  charged_at: string;
+  mp_payment_id: string | null;
+};
+
+/** Días que faltan para el próximo vencimiento — negativo si ya venció. */
+function daysUntil(iso: string | null): number | null {
+  if (!iso) return null;
+  return Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000);
+}
 
 function subscriptionStatusLabel(status: SubscriptionRow['status']): string {
   if (status === 'active') return 'Activa';
@@ -82,17 +97,18 @@ function formatExpiry(iso: string | null): string {
   return new Date(iso).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-type Tab = 'resumen' | 'entrenos' | 'nutricion' | 'medidas' | 'fotos' | 'engagement' | 'deslinde' | 'consulta';
+type Tab = 'resumen' | 'entrenos' | 'nutricion' | 'medidas' | 'fotos' | 'engagement' | 'deslinde' | 'consulta' | 'facturacion';
 
 const TABS: { key: Tab; label: string }[] = [
-  { key: 'resumen',    label: 'Resumen'    },
-  { key: 'consulta',   label: 'Consulta'   },
-  { key: 'entrenos',   label: 'Entrenos'   },
-  { key: 'nutricion',  label: 'Nutrición'  },
-  { key: 'medidas',    label: 'Medidas'    },
-  { key: 'fotos',      label: 'Fotos'      },
-  { key: 'engagement', label: 'Engagement' },
-  { key: 'deslinde',   label: 'Deslinde'   },
+  { key: 'resumen',     label: 'Resumen'      },
+  { key: 'consulta',    label: 'Consulta'     },
+  { key: 'entrenos',    label: 'Entrenos'     },
+  { key: 'nutricion',   label: 'Nutrición'    },
+  { key: 'medidas',     label: 'Medidas'      },
+  { key: 'fotos',       label: 'Fotos'        },
+  { key: 'engagement',  label: 'Engagement'   },
+  { key: 'facturacion', label: 'Facturación'  },
+  { key: 'deslinde',    label: 'Deslinde'     },
 ];
 
 const POSITION_LABEL: Record<string, string> = { frente: 'Frente', perfil: 'Perfil', espalda: 'Espalda' };
@@ -120,8 +136,8 @@ function relativeDate(iso: string): string {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function StudentDetailPage(): React.JSX.Element {
-  const { id: studentId } = useParams<{ id: string }>();
+export function ClientDetailPage(): React.JSX.Element {
+  const { id: clientId } = useParams<{ id: string }>();
   const { profile: trainerProfile } = useAuth();
   const { t, i18n } = useTranslation();
   const { showToast } = useToast();
@@ -140,13 +156,15 @@ export function StudentDetailPage(): React.JSX.Element {
   const [consultation, setConsultation] = useState<ConsultationResponse | null | false>(null); // null=loading, false=not submitted
   const [photos, setPhotos]           = useState<ProgressPhotoRow[]>([]);
   const [photoUrls, setPhotoUrls]     = useState<Record<string, string>>({});
-  const [subscription, setSubscription] = useState<StudentSubscription | null>(null);
+  const [subscription, setSubscription] = useState<ClientSubscription | null>(null);
   const [lightbox, setLightbox]       = useState<{ src: string; caption: string } | null>(null);
   const [loading, setLoading]         = useState(true);
   const [manualPayOpen, setManualPayOpen] = useState(false);
   const [plans, setPlans]             = useState<PlanRow[]>([]);
   const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
   const [cancelling, setCancelling]   = useState(false);
+  const [charges, setCharges]         = useState<SubscriptionCharge[]>([]);
+  const [chargesLoading, setChargesLoading] = useState(false);
 
   useEffect(() => {
     if (!trainerProfile?.id) return;
@@ -167,24 +185,24 @@ export function StudentDetailPage(): React.JSX.Element {
   }, [trainerProfile?.id]);
 
   useEffect(() => {
-    if (!studentId) return;
+    if (!clientId) return;
     let active = true;
     void (async () => {
       const [{ data: p }, { data: up }, { data: bm }, { data: wl }, { data: ml }, { data: msgs }, { data: ws }, { data: ic }, { data: cr }, { data: pp }, { data: sub }] = await Promise.all([
-        supabase.from('profiles').select('id, full_name, goal, phone, avatar_url, created_at, client_status, assigned_program_key').eq('id', studentId).maybeSingle(),
-        supabase.from('user_profiles').select('*').eq('user_id', studentId).maybeSingle(),
-        supabase.from('body_measurements').select('*').eq('user_id', studentId).order('date', { ascending: false }).limit(10),
-        supabase.from('workout_logs').select('*').eq('user_id', studentId).order('date', { ascending: false }).limit(20),
-        supabase.from('meal_logs').select('*').eq('user_id', studentId).order('created_at', { ascending: false }).limit(20),
-        supabase.from('messages').select('*').eq('client_id', studentId).order('created_at', { ascending: true }),
-        anyClient.from('waiver_signatures').select('id, full_name, signed_at, signature_data, document_snapshot, document_title').eq('client_id', studentId).maybeSingle(),
-        anyClient.from('image_consent_acceptances').select('id, full_name, accepted_at, document_snapshot, document_title, signature_data, status').eq('client_id', studentId).maybeSingle(),
-        anyClient.from('consultation_responses').select('responses, submitted_at').eq('client_id', studentId).maybeSingle(),
-        supabase.from('progress_photos').select('*').eq('user_id', studentId).order('created_at', { ascending: false }),
+        supabase.from('profiles').select('id, full_name, goal, phone, avatar_url, created_at, client_status, assigned_program_key').eq('id', clientId).maybeSingle(),
+        supabase.from('user_profiles').select('*').eq('user_id', clientId).maybeSingle(),
+        supabase.from('body_measurements').select('*').eq('user_id', clientId).order('date', { ascending: false }).limit(10),
+        supabase.from('workout_logs').select('*').eq('user_id', clientId).order('date', { ascending: false }).limit(20),
+        supabase.from('meal_logs').select('*').eq('user_id', clientId).order('created_at', { ascending: false }).limit(20),
+        supabase.from('messages').select('*').eq('client_id', clientId).order('created_at', { ascending: true }),
+        anyClient.from('waiver_signatures').select('id, full_name, signed_at, signature_data, document_snapshot, document_title').eq('client_id', clientId).maybeSingle(),
+        anyClient.from('image_consent_acceptances').select('id, full_name, accepted_at, document_snapshot, document_title, signature_data, status').eq('client_id', clientId).maybeSingle(),
+        anyClient.from('consultation_responses').select('responses, submitted_at').eq('client_id', clientId).maybeSingle(),
+        supabase.from('progress_photos').select('*').eq('user_id', clientId).order('created_at', { ascending: false }),
         supabase
           .from('subscriptions')
           .select('id, status, expires_at, started_at, plan_id, mp_preapproval_id, amount_ars')
-          .eq('user_id', studentId)
+          .eq('user_id', clientId)
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle(),
@@ -207,23 +225,37 @@ export function StudentDetailPage(): React.JSX.Element {
         if (status === 'active' && row.expires_at && new Date(row.expires_at) < new Date()) {
           status = 'expired';
         }
-        const { data: plan } = await supabase
-          .from('plans')
-          .select('name, deleted_at, price_ars')
-          .eq('id', row.plan_id)
-          .maybeSingle();
+        const [{ data: plan }, { data: override }] = await Promise.all([
+          supabase
+            .from('plans')
+            .select('name, deleted_at, price_ars')
+            .eq('id', row.plan_id)
+            .maybeSingle(),
+          // Precio propio del entrenador para un plan built-in: sin esto, se
+          // comparaba contra el precio crudo del catálogo global en vez de lo
+          // que este entrenador realmente cobra.
+          trainerProfile?.id
+            ? supabase
+                .from('trainer_plan_prices')
+                .select('price_ars')
+                .eq('trainer_id', trainerProfile.id)
+                .eq('plan_id', row.plan_id)
+                .maybeSingle()
+            : Promise.resolve({ data: null }),
+        ]);
         const planRow = plan as { name: string; deleted_at: string | null; price_ars: number } | null;
+        const effectivePrice = (override as { price_ars: number } | null)?.price_ars ?? planRow?.price_ars;
         // El cobro recurrente vive en MercadoPago, no se actualiza solo cuando
-        // el entrenador edita plans.price_ars — flaggeamos para que lo arregle
+        // el entrenador edita el precio — flaggeamos para que lo arregle
         // manualmente allá, solo si hay algo que comparar (amount_ars viejo en
         // null no se flaggea, no hay dato confiable) y el cobro es recurrente.
         const priceChanged =
           status === 'active' &&
           row.mp_preapproval_id &&
           row.amount_ars != null &&
-          planRow &&
-          Number(planRow.price_ars) !== Number(row.amount_ars)
-            ? { current: Number(planRow.price_ars), paid: Number(row.amount_ars) }
+          effectivePrice != null &&
+          Number(effectivePrice) !== Number(row.amount_ars)
+            ? { current: Number(effectivePrice), paid: Number(row.amount_ars) }
             : null;
         setSubscription({
           id: row.id,
@@ -241,7 +273,7 @@ export function StudentDetailPage(): React.JSX.Element {
       setLoading(false);
     })();
     return () => { active = false; };
-  }, [studentId]);
+  }, [clientId]);
 
   // Bucket privado: firmamos las URLs de las fotos de progreso.
   useEffect(() => {
@@ -286,11 +318,11 @@ export function StudentDetailPage(): React.JSX.Element {
   }, [workouts, completedW, messages]);
 
   const reloadSubscription = useCallback(async () => {
-    if (!studentId) return;
+    if (!clientId) return;
     const { data: sub } = await supabase
       .from('subscriptions')
       .select('id, status, expires_at, started_at, plan_id, mp_status, mp_preapproval_id, amount_ars')
-      .eq('user_id', studentId)
+      .eq('user_id', clientId)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -303,15 +335,26 @@ export function StudentDetailPage(): React.JSX.Element {
     if (status === 'active' && row.expires_at && new Date(row.expires_at) < new Date()) {
       status = 'expired';
     }
-    const { data: plan } = await supabase.from('plans').select('name, deleted_at, price_ars').eq('id', row.plan_id).maybeSingle();
+    const [{ data: plan }, { data: override }] = await Promise.all([
+      supabase.from('plans').select('name, deleted_at, price_ars').eq('id', row.plan_id).maybeSingle(),
+      trainerProfile?.id
+        ? supabase
+            .from('trainer_plan_prices')
+            .select('price_ars')
+            .eq('trainer_id', trainerProfile.id)
+            .eq('plan_id', row.plan_id)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
     const planRow = plan as { name: string; deleted_at: string | null; price_ars: number } | null;
+    const effectivePrice = (override as { price_ars: number } | null)?.price_ars ?? planRow?.price_ars;
     const priceChanged =
       status === 'active' &&
       row.mp_preapproval_id &&
       row.amount_ars != null &&
-      planRow &&
-      Number(planRow.price_ars) !== Number(row.amount_ars)
-        ? { current: Number(planRow.price_ars), paid: Number(row.amount_ars) }
+      effectivePrice != null &&
+      Number(effectivePrice) !== Number(row.amount_ars)
+        ? { current: Number(effectivePrice), paid: Number(row.amount_ars) }
         : null;
     setSubscription({
       id: row.id,
@@ -323,13 +366,32 @@ export function StudentDetailPage(): React.JSX.Element {
       plan_deleted: !!planRow?.deleted_at,
       price_changed: priceChanged,
     });
-  }, [studentId]);
+  }, [clientId, trainerProfile?.id]);
+
+  // Facturación (por mes): se carga recién al entrar a esa pestaña, no hace
+  // falta pedirla junto con el resto de los datos del cliente.
+  useEffect(() => {
+    if (tab !== 'facturacion' || !subscription?.id) return;
+    let active = true;
+    setChargesLoading(true);
+    void supabase
+      .from('subscription_charges')
+      .select('id, amount_ars, status, charged_at, mp_payment_id')
+      .eq('subscription_id', subscription.id)
+      .order('charged_at', { ascending: false })
+      .then(({ data }) => {
+        if (!active) return;
+        setCharges((data as SubscriptionCharge[] | null) ?? []);
+        setChargesLoading(false);
+      });
+    return () => { active = false; };
+  }, [tab, subscription?.id]);
 
   const onManualPaymentSuccess = useCallback(async () => {
-    if (!studentId) return;
+    if (!clientId) return;
     setProfile((prev) => (prev ? { ...prev, client_status: 'active' } : prev));
     await reloadSubscription();
-  }, [studentId, reloadSubscription]);
+  }, [clientId, reloadSubscription]);
 
   const doCancelSubscription = useCallback(async () => {
     if (!subscription || cancelling) return;
@@ -358,7 +420,7 @@ export function StudentDetailPage(): React.JSX.Element {
   if (!profile) {
     return (
       <div>
-        <Link to="/students" className="back-link">← {t.web.back_to_clients}</Link>
+        <Link to="/clients" className="back-link">← {t.web.back_to_clients}</Link>
         <div className="empty-state"><div className="t">Cliente no encontrado</div></div>
       </div>
     );
@@ -383,7 +445,7 @@ export function StudentDetailPage(): React.JSX.Element {
   return (
     <div className="sd-page">
       {/* ── Back ── */}
-      <Link to="/students" className="back-link">← {t.web.back_to_clients}</Link>
+      <Link to="/clients" className="back-link">← {t.web.back_to_clients}</Link>
 
       {/* ── Header ── */}
       <div className="sd-hero card">
@@ -435,7 +497,7 @@ export function StudentDetailPage(): React.JSX.Element {
               </button>
             ) : (
               <>
-                <button className="btn secondary sd-action" onClick={() => navigate(`/messages?client=${studentId}`)}>
+                <button className="btn secondary sd-action" onClick={() => navigate(`/messages?client=${clientId}`)}>
                   <MessageIcon size={15} /> Enviar mensaje
                 </button>
                 <button className="btn secondary sd-action" onClick={() => setTab('medidas')}>
@@ -633,9 +695,9 @@ export function StudentDetailPage(): React.JSX.Element {
               ) : null}
             </div>
 
-            {studentId ? (
-              <StudentCoachPanel
-                studentId={studentId}
+            {clientId ? (
+              <ClientCoachPanel
+                clientId={clientId}
                 assignedProgramKey={profile.assigned_program_key ?? null}
                 defaultProgramKey={defaultProgramKey}
                 onProgramKeyChange={(key) => setProfile((p) => (p ? { ...p, assigned_program_key: key } : p))}
@@ -647,7 +709,7 @@ export function StudentDetailPage(): React.JSX.Element {
         {/* ENTRENOS */}
         {tab === 'entrenos' && (
           <div>
-            {studentId && <RoutineManager studentId={studentId} />}
+            {clientId && <RoutineManager clientId={clientId} />}
             <div className="card" style={{ marginTop: 16 }}>
               <div className="sd-section-head">
                 <div>
@@ -774,6 +836,11 @@ export function StudentDetailPage(): React.JSX.Element {
         {/* CONSULTA */}
         {tab === 'consulta' && (
           <ConsultationTab data={consultation} />
+        )}
+
+        {/* FACTURACIÓN */}
+        {tab === 'facturacion' && (
+          <BillingTab subscription={subscription} charges={charges} loading={chargesLoading} />
         )}
 
         {/* DESLINDE */}
@@ -1078,9 +1145,9 @@ export function StudentDetailPage(): React.JSX.Element {
         <ManualPaymentModal
           open={manualPayOpen}
           onClose={() => setManualPayOpen(false)}
-          students={[{ id: profile.id, full_name: profile.full_name }]}
+          clients={[{ id: profile.id, full_name: profile.full_name }]}
           plans={plans}
-          initialStudentId={profile.id}
+          initialClientId={profile.id}
           onSuccess={() => void onManualPaymentSuccess()}
         />
       ) : null}
@@ -1339,6 +1406,102 @@ function openEvidencePDF(ws: WaiverSignature, clientName: string): void {
 
   const w = window.open('', '_blank', 'width=900,height=1100');
   if (w) { w.document.write(html); w.document.close(); }
+}
+
+const CHARGE_STATUS_LABEL: Record<string, string> = {
+  approved: 'Pagada',
+  processed: 'Pagada',
+  pending: 'Pendiente',
+  rejected: 'Rechazada',
+  cancelled: 'Cancelada',
+};
+
+function BillingTab({
+  subscription,
+  charges,
+  loading,
+}: {
+  subscription: ClientSubscription | null;
+  charges: SubscriptionCharge[];
+  loading: boolean;
+}): React.JSX.Element {
+  const daysLeft = daysUntil(subscription?.expires_at ?? null);
+  // La alerta de "actualizá el precio en MP" solo importa mientras el ciclo
+  // sigue activo — si ya no hay price_changed no hay nada que avisar acá.
+  const showPriceAlert = !!subscription?.price_changed;
+  const urgent = showPriceAlert && daysLeft != null && daysLeft < 10;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {showPriceAlert ? (
+        <div
+          className="card"
+          style={{
+            borderColor: urgent ? '#dc2626' : '#d97706',
+            background: urgent ? '#fef2f2' : '#fffbeb',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+            <span style={{ fontSize: 20 }}>{urgent ? '🔴' : '⚠️'}</span>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 14.5, color: urgent ? '#991b1b' : '#92400e', marginBottom: 4 }}>
+                El precio de esta frecuencia cambió
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.55 }}>
+                Este cliente paga {formatMoney(subscription!.price_changed!.paid, 'es')} por mes, pero el precio actual
+                de esta frecuencia es {formatMoney(subscription!.price_changed!.current, 'es')}. Debe actualizarse el
+                monto de la suscripción en Mercado Pago
+                {daysLeft != null ? (
+                  <> antes de que renueve{daysLeft >= 0 ? ` en ${daysLeft} día${daysLeft === 1 ? '' : 's'}` : ' — ya venció'}.</>
+                ) : (
+                  <> al finalizar el período actual.</>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="card" style={{ padding: 0 }}>
+        <div style={{ padding: '18px 20px 4px' }}>
+          <div className="section-title">Facturas</div>
+          <p className="muted" style={{ margin: '4px 0 0', fontSize: 12.5 }}>
+            Un cobro por mes de la suscripción recurrente de Mercado Pago. El PDF de la factura se va a generar
+            automáticamente acá ni bien esté listo el conector con el facturador electrónico.
+          </p>
+        </div>
+        {loading ? (
+          <div style={{ padding: 20 }}><Spinner /></div>
+        ) : charges.length === 0 ? (
+          <div className="empty-state">
+            <div className="t">Todavía no hay cobros registrados</div>
+            <p className="muted" style={{ margin: 0 }}>Van a aparecer acá a medida que Mercado Pago confirme cada cobro mensual.</p>
+          </div>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Mes</th>
+                <th>Monto</th>
+                <th>Estado</th>
+                <th>PDF</th>
+              </tr>
+            </thead>
+            <tbody>
+              {charges.map((c) => (
+                <tr key={c.id}>
+                  <td>{new Date(c.charged_at).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' })}</td>
+                  <td className="muted">{c.amount_ars != null ? formatMoney(c.amount_ars, 'es') : '—'}</td>
+                  <td className="muted">{CHARGE_STATUS_LABEL[c.status ?? ''] ?? c.status ?? '—'}</td>
+                  <td><span className="muted" style={{ fontSize: 12.5 }}>No disponible aún</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function WaiverTab({

@@ -4,14 +4,14 @@ import { useTranslation } from '@/hooks/useTranslation';
 import { useToast } from '@/hooks/useToast';
 import type { PlanRow, PlanType } from '@reset-fitness/shared/types/database';
 
-export type ManualPaymentStudent = { id: string; full_name: string | null };
+export type ManualPaymentClient = { id: string; full_name: string | null };
 
 interface ManualPaymentModalProps {
   open: boolean;
   onClose: () => void;
-  students: ManualPaymentStudent[];
+  clients: ManualPaymentClient[];
   plans: PlanRow[];
-  initialStudentId?: string;
+  initialClientId?: string;
   onSuccess?: () => void;
 }
 
@@ -32,15 +32,15 @@ function dateInputToIso(date: string): string {
 export function ManualPaymentModal({
   open,
   onClose,
-  students,
+  clients,
   plans,
-  initialStudentId,
+  initialClientId,
   onSuccess,
 }: ManualPaymentModalProps): React.JSX.Element | null {
   const { t, i18n, language } = useTranslation();
   const { showToast } = useToast();
 
-  const [studentId, setStudentId] = useState('');
+  const [clientId, setClientId] = useState('');
   const [planType, setPlanType] = useState<PlanType>('base');
   const [months, setMonths] = useState(1);
   const [overrideAmount, setOverrideAmount] = useState(false);
@@ -50,12 +50,12 @@ export function ManualPaymentModal({
 
   useEffect(() => {
     if (!open) return;
-    setStudentId(initialStudentId ?? students[0]?.id ?? '');
+    setClientId(initialClientId ?? clients[0]?.id ?? '');
     setPlanType('base');
     setMonths(1);
     setOverrideAmount(false);
     setStartedOn(todayInputValue());
-  }, [open, initialStudentId, students]);
+  }, [open, initialClientId, clients]);
 
   // Meses disponibles para el tipo elegido: catálogo built-in (1-6) +
   // cualquier frecuencia custom que el entrenador haya agregado en
@@ -94,10 +94,10 @@ export function ManualPaymentModal({
 
   const submit = useCallback(async () => {
     const amount = Number(amountArs);
-    if (!studentId || !resolvedPlan || !amount || submitting) return;
+    if (!clientId || !resolvedPlan || !amount || submitting) return;
     setSubmitting(true);
     const { error } = await supabase.rpc('register_manual_payment', {
-      p_client_id: studentId,
+      p_client_id: clientId,
       p_plan_id: resolvedPlan.id,
       p_started_at: dateInputToIso(startedOn),
       p_amount_ars: amount,
@@ -110,31 +110,31 @@ export function ManualPaymentModal({
     showToast('success', t.payments.register_success);
     onClose();
     onSuccess?.();
-  }, [studentId, resolvedPlan, amountArs, startedOn, submitting, showToast, t.payments.register_error, t.payments.register_success, onClose, onSuccess]);
+  }, [clientId, resolvedPlan, amountArs, startedOn, submitting, showToast, t.payments.register_error, t.payments.register_success, onClose, onSuccess]);
 
   if (!open) return null;
 
-  const selectedStudent = students.find((s) => s.id === studentId);
+  const selectedClient = clients.find((s) => s.id === clientId);
 
   return (
     <div className="pay-modal-backdrop" onClick={onClose} role="dialog" aria-modal="true">
       <div className="pay-modal card" onClick={(e) => e.stopPropagation()}>
         <h2 className="payments-panel-title">{t.payments.register_title}</h2>
         <p className="payments-panel-sub" style={{ marginBottom: 18 }}>{t.payments.register_sub}</p>
-        {students.length === 0 ? (
-          <p className="muted" style={{ margin: '8px 0 18px' }}>{t.payments.register_no_students}</p>
+        {clients.length === 0 ? (
+          <p className="muted" style={{ margin: '8px 0 18px' }}>{t.payments.register_no_clients}</p>
         ) : (
           <>
-            {students.length === 1 ? (
+            {clients.length === 1 ? (
               <label className="pay-modal-field">
                 <span>{t.payments.register_student}</span>
-                <div className="pay-modal-fixed-student">{selectedStudent?.full_name ?? '—'}</div>
+                <div className="pay-modal-fixed-client">{selectedClient?.full_name ?? '—'}</div>
               </label>
             ) : (
               <label className="pay-modal-field">
                 <span>{t.payments.register_student}</span>
-                <select value={studentId} onChange={(e) => setStudentId(e.target.value)}>
-                  {students.map((s) => (
+                <select value={clientId} onChange={(e) => setClientId(e.target.value)}>
+                  {clients.map((s) => (
                     <option key={s.id} value={s.id}>{s.full_name ?? '—'}</option>
                   ))}
                 </select>
@@ -211,7 +211,7 @@ export function ManualPaymentModal({
             type="button"
             className="btn"
             onClick={() => void submit()}
-            disabled={submitting || !studentId || !amountArs || students.length === 0}
+            disabled={submitting || !clientId || !amountArs || clients.length === 0}
           >
             {submitting ? '…' : t.payments.register_confirm}
           </button>

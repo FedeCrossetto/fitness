@@ -10,7 +10,7 @@ import { GroupAvatar, UserAvatar } from '@/components/UserAvatar';
 import { uploadCommunityAvatar } from '@/lib/communityImage';
 import { GroupsIcon, PlusIcon, SearchIcon } from '@/components/icons';
 
-type Student = Pick<ProfileRow, 'id' | 'full_name' | 'avatar_url'> & { client_status: 'pending' | 'active' };
+type Client = Pick<ProfileRow, 'id' | 'full_name' | 'avatar_url'> & { client_status: 'pending' | 'active' };
 
 interface CommunityWithCount extends CommunityRow {
   member_count: number;
@@ -30,7 +30,7 @@ export function GroupsPage(): React.JSX.Element {
   const [creating, setCreating] = useState(false);
   const [createImage, setCreateImage] = useState<File | null>(null);
   const [createImagePreview, setCreateImagePreview] = useState<string | null>(null);
-  const [students, setStudents] = useState<Student[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
 
   const { data: groups, loading, error, refetch } = useSupabaseQuery<CommunityWithCount[]>(
     async () => {
@@ -63,7 +63,7 @@ export function GroupsPage(): React.JSX.Element {
     [trainerId],
   );
 
-  const loadStudents = useCallback(async () => {
+  const loadClients = useCallback(async () => {
     if (!trainerId) return;
     const { data } = await supabase
       .from('profiles')
@@ -71,12 +71,12 @@ export function GroupsPage(): React.JSX.Element {
       .eq('trainer_id', trainerId)
       .eq('client_status', 'active')
       .order('full_name');
-    setStudents((data as Student[] | null) ?? []);
+    setClients((data as Client[] | null) ?? []);
   }, [trainerId]);
 
   useEffect(() => {
-    if (createOpen) void loadStudents();
-  }, [createOpen, loadStudents]);
+    if (createOpen) void loadClients();
+  }, [createOpen, loadClients]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -84,7 +84,7 @@ export function GroupsPage(): React.JSX.Element {
     return (groups ?? []).filter((g) => g.name.toLowerCase().includes(q));
   }, [groups, search]);
 
-  const toggleStudent = (id: string) => {
+  const toggleClient = (id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -240,12 +240,12 @@ export function GroupsPage(): React.JSX.Element {
             </div>
             <label className="field-label" style={{ marginTop: 16 }}>Alumnos</label>
             <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 12, padding: 8 }}>
-              {students.length === 0 ? (
+              {clients.length === 0 ? (
                 <p className="muted" style={{ margin: 8 }}>No hay alumnos activos.</p>
               ) : (
-                students.map((s) => (
+                clients.map((s) => (
                   <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 6px', cursor: 'pointer' }}>
-                    <input type="checkbox" checked={selectedIds.has(s.id)} onChange={() => toggleStudent(s.id)} />
+                    <input type="checkbox" checked={selectedIds.has(s.id)} onChange={() => toggleClient(s.id)} />
                     <UserAvatar name={s.full_name} url={s.avatar_url} size="sm" />
                     <span>{s.full_name ?? 'Alumno'}</span>
                   </label>

@@ -513,9 +513,11 @@ export function ManagePlansPage(): React.JSX.Element {
         open={!!deleteTarget}
         title={t.payments.manage_plans_delete_title}
         message={
-          deleteInUseCount && deleteInUseCount > 0
-            ? i18n(t.payments.manage_plans_delete_confirm_in_use, { n: deleteInUseCount })
-            : t.payments.manage_plans_delete_confirm
+          deleteInUseCount === 1
+            ? t.payments.manage_plans_delete_confirm_in_use_one
+            : deleteInUseCount && deleteInUseCount > 1
+              ? i18n(t.payments.manage_plans_delete_confirm_in_use, { n: deleteInUseCount })
+              : t.payments.manage_plans_delete_confirm
         }
         confirmLabel={t.ui.delete}
         cancelLabel={t.ui.cancel}

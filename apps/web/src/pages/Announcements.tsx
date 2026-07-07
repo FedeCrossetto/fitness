@@ -14,7 +14,7 @@ import { FullScreenLoader } from '@/components/ui';
 import { MegaphoneIcon, PlusIcon } from '@/components/icons';
 import { UserAvatar } from '@/components/UserAvatar';
 
-type Student = Pick<ProfileRow, 'id' | 'full_name' | 'avatar_url'>;
+type Client = Pick<ProfileRow, 'id' | 'full_name' | 'avatar_url'>;
 
 function toLocalDatetimeValue(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -44,7 +44,7 @@ export function AnnouncementsPage(): React.JSX.Element {
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [groups, setGroups] = useState<CommunityRow[]>([]);
-  const [students, setStudents] = useState<Student[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -54,7 +54,7 @@ export function AnnouncementsPage(): React.JSX.Element {
   const [sendAtLocal, setSendAtLocal] = useState(() => toLocalDatetimeValue(new Date()));
 
   const groupMap = useMemo(() => new Map(groups.map((g) => [g.id, g.name])), [groups]);
-  const studentMap = useMemo(() => new Map(students.map((s) => [s.id, s.full_name])), [students]);
+  const clientMap = useMemo(() => new Map(clients.map((s) => [s.id, s.full_name])), [clients]);
 
   const loadRows = useCallback(async () => {
     if (!trainerId) return;
@@ -81,7 +81,7 @@ export function AnnouncementsPage(): React.JSX.Element {
 
   const loadOptions = useCallback(async () => {
     if (!trainerId) return;
-    const [{ data: comms }, { data: clients }] = await Promise.all([
+    const [{ data: comms }, { data: clientRows }] = await Promise.all([
       supabase.from('communities').select('*').eq('trainer_id', trainerId).eq('is_active', true).order('name'),
       supabase
         .from('profiles')
@@ -91,7 +91,7 @@ export function AnnouncementsPage(): React.JSX.Element {
         .order('full_name'),
     ]);
     setGroups((comms as CommunityRow[] | null) ?? []);
-    setStudents((clients as Student[] | null) ?? []);
+    setClients((clientRows as Client[] | null) ?? []);
   }, [trainerId]);
 
   useEffect(() => {
@@ -130,7 +130,7 @@ export function AnnouncementsPage(): React.JSX.Element {
       if (names.length > 0) return names.join(', ');
       return i(ap.target_groups_n, { n: row.target_ids.length });
     }
-    const names = row.target_ids.map((id) => studentMap.get(id)).filter(Boolean);
+    const names = row.target_ids.map((id) => clientMap.get(id)).filter(Boolean);
     if (names.length > 0) return names.slice(0, 3).join(', ') + (names.length > 3 ? '…' : '');
     return i(ap.target_clients_n, { n: row.target_ids.length });
   };
@@ -361,10 +361,10 @@ export function AnnouncementsPage(): React.JSX.Element {
 
               {targetType === 'clients' ? (
                 <div className="ann-pick-list">
-                  {students.length === 0 ? (
+                  {clients.length === 0 ? (
                     <p className="muted" style={{ margin: 0, fontSize: 13 }}>No tenés alumnos activos.</p>
                   ) : (
-                    students.map((s) => (
+                    clients.map((s) => (
                       <label key={s.id} className="ann-pick-item">
                         <input type="checkbox" checked={selectedIds.has(s.id)} onChange={() => toggleId(s.id)} />
                         <UserAvatar name={s.full_name} url={s.avatar_url} size="sm" />

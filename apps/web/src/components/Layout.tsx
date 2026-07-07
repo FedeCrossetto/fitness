@@ -86,7 +86,7 @@ export function Layout(): React.JSX.Element {
         { to: '/messages',   label: t.web.messages,              icon: () => <MessageIcon />,   badge: unreadMessages || undefined },
         { to: '/challenges', label: t.web.challenges,            icon: () => <TrophyIcon />     },
         { to: '/groups',     label: t.web.groups,                icon: () => <GroupsIcon />     },
-        { to: '/students',   label: t.web.clients,               icon: () => <UsersIcon />      },
+        { to: '/clients',    label: t.web.clients,               icon: () => <UsersIcon />      },
       ],
     },
     {

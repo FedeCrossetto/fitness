@@ -15,16 +15,16 @@ import { resolveAvatarUrl, initials } from '@/lib/avatarUrl';
 import { ErrorState, LoadingRows } from '@/components/ui';
 import { ChevronRightIcon, SearchIcon, TrashIcon, UsersIcon } from '@/components/icons';
 
-type Student = Pick<ProfileRow, 'id' | 'full_name' | 'goal' | 'created_at' | 'avatar_url'> & {
+type Client = Pick<ProfileRow, 'id' | 'full_name' | 'goal' | 'created_at' | 'avatar_url'> & {
   client_status: 'pending' | 'active';
 };
 
-type StudentPlan =
+type ClientPlan =
   | { kind: 'base'; label: string }
   | { kind: 'mentoria'; label: string }
   | { kind: 'none' };
 
-function PlanBadge({ plan }: { plan: StudentPlan }): React.JSX.Element {
+function PlanBadge({ plan }: { plan: ClientPlan }): React.JSX.Element {
   if (plan.kind === 'none') return <span className="muted">—</span>;
   return (
     <span className={`plan-badge${plan.kind === 'mentoria' ? ' mentoria' : ''}`}>
@@ -63,7 +63,7 @@ function BillingWarningIcons({
   );
 }
 
-function StudentAvatar({ name, url, style }: { name: string | null; url?: string | null; style?: React.CSSProperties }): React.JSX.Element {
+function ClientAvatar({ name, url, style }: { name: string | null; url?: string | null; style?: React.CSSProperties }): React.JSX.Element {
   const resolved = resolveAvatarUrl(url);
   if (resolved) {
     return (
@@ -104,32 +104,33 @@ function ClientRowActions({
   );
 }
 
-export function StudentsPage(): React.JSX.Element {
+export function ClientsPage(): React.JSX.Element {
   const { session } = useAuth();
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { showToast } = useToast();
   const [searchParams] = useSearchParams();
   const userId = session?.user.id;
-  const [students, setStudents] = useState<Student[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [query, setQuery] = useState(searchParams.get('q') ?? '');
   const [tab, setTab] = useState<'active' | 'pending'>(() =>
     searchParams.get('tab') === 'pending' ? 'pending' : 'active',
   );
   const [manualPayOpen, setManualPayOpen] = useState(false);
-  const [manualPayStudentId, setManualPayStudentId] = useState<string | null>(null);
+  const [manualPayClientId, setManualPayClientId] = useState<string | null>(null);
   const [plans, setPlans] = useState<PlanRow[]>([]);
+  const [priceOverrides, setPriceOverrides] = useState<Map<string, number>>(new Map());
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [activeSubByStudent, setActiveSubByStudent] = useState<Map<string, string>>(new Map());
-  const [activeSubExtraByStudent, setActiveSubExtraByStudent] = useState<
+  const [activeSubByClient, setActiveSubByClient] = useState<Map<string, string>>(new Map());
+  const [activeSubExtraByClient, setActiveSubExtraByClient] = useState<
     Map<string, { amount_ars: number | null; mp_preapproval_id: string | null }>
   >(new Map());
-  const [evaluationByStudent, setEvaluationByStudent] = useState<Map<string, { id: string; status: string }>>(new Map());
+  const [evaluationByClient, setEvaluationByClient] = useState<Map<string, { id: string; status: string }>>(new Map());
 
   const inviteLink = inviteCode ? buildInviteLink(inviteCode, getJoinBaseUrl()) : null;
 
@@ -138,7 +139,7 @@ export function StudentsPage(): React.JSX.Element {
     if (searchParams.get('tab') === 'pending') setTab('pending');
   }, [searchParams]);
 
-  const { data: studentsData, loading, error, refetch } = useSupabaseQuery<Student[]>(
+  const { data: clientsData, loading, error, refetch } = useSupabaseQuery<Client[]>(
     async () => {
       const { data, error } = await supabase
         .from('profiles')
@@ -146,28 +147,37 @@ export function StudentsPage(): React.JSX.Element {
         .eq('trainer_id', userId!)
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return (data as Student[] | null) ?? [];
+      return (data as Client[] | null) ?? [];
     },
     [userId],
     { enabled: !!userId },
   );
 
-  useEffect(() => { if (studentsData) setStudents(studentsData); }, [studentsData]);
+  useEffect(() => { if (clientsData) setClients(clientsData); }, [clientsData]);
 
   useEffect(() => {
     if (!userId) return;
     void (async () => {
-      const [{ data: branding }, { data: planRows }] = await Promise.all([
+      const [{ data: branding }, { data: planRows }, { data: overrideRows }] = await Promise.all([
         supabase.from('trainer_branding').select('invite_code').eq('trainer_id', userId).maybeSingle(),
         // Sin filtro de `active`: ManualPaymentModal necesita poder resolver
         // cualquier combinación de Plan × Frecuencia del catálogo, incluidas
         // las que no están habilitadas para el checkout self-service de mobile.
         supabase.from('plans').select('*').order('duration_days'),
+        // Precio propio del entrenador para un plan built-in: sin esto, el
+        // aviso de "precio desactualizado" comparaba contra el precio crudo
+        // del catálogo global en vez de lo que este entrenador realmente cobra.
+        supabase.from('trainer_plan_prices').select('plan_id, price_ars').eq('trainer_id', userId),
       ]);
       if (branding && 'invite_code' in branding) {
         setInviteCode((branding as { invite_code: string }).invite_code);
       }
       setPlans((planRows as PlanRow[] | null) ?? []);
+      setPriceOverrides(
+        new Map(
+          ((overrideRows as { plan_id: string; price_ars: number }[] | null) ?? []).map((o) => [o.plan_id, Number(o.price_ars)]),
+        ),
+      );
     })();
   }, [userId]);
 
@@ -175,14 +185,14 @@ export function StudentsPage(): React.JSX.Element {
   // suscripción activa; "Mentoría 1 a 1" no es una suscripción, es un lead
   // capturado en evaluation_requests (el entrenador lo procesa manualmente).
   useEffect(() => {
-    if (!userId || !studentsData || studentsData.length === 0) return;
-    const studentIds = studentsData.map((s) => s.id);
+    if (!userId || !clientsData || clientsData.length === 0) return;
+    const clientIds = clientsData.map((s) => s.id);
     void (async () => {
       const [{ data: subRows }, { data: evalRows }] = await Promise.all([
         supabase
           .from('subscriptions')
           .select('user_id, plan_id, status, expires_at, created_at, amount_ars, mp_preapproval_id')
-          .in('user_id', studentIds)
+          .in('user_id', clientIds)
           .eq('status', 'active')
           .order('created_at', { ascending: false }),
         supabase
@@ -206,80 +216,81 @@ export function StudentsPage(): React.JSX.Element {
         subMap.set(row.user_id, row.plan_id);
         subExtraMap.set(row.user_id, { amount_ars: row.amount_ars, mp_preapproval_id: row.mp_preapproval_id });
       }
-      setActiveSubByStudent(subMap);
-      setActiveSubExtraByStudent(subExtraMap);
+      setActiveSubByClient(subMap);
+      setActiveSubExtraByClient(subExtraMap);
 
       const evalMap = new Map<string, { id: string; status: string }>();
       for (const row of (evalRows as { id: string; client_id: string; status: string }[] | null) ?? []) {
         if (!evalMap.has(row.client_id)) evalMap.set(row.client_id, { id: row.id, status: row.status });
       }
-      setEvaluationByStudent(evalMap);
+      setEvaluationByClient(evalMap);
     })();
-  }, [userId, studentsData]);
+  }, [userId, clientsData]);
 
-  const planByStudent = useMemo(() => {
-    const map = new Map<string, StudentPlan>();
-    for (const s of students) {
-      const planId = activeSubByStudent.get(s.id);
+  const planByClient = useMemo(() => {
+    const map = new Map<string, ClientPlan>();
+    for (const s of clients) {
+      const planId = activeSubByClient.get(s.id);
       const planRow = planId ? plans.find((p) => p.id === planId) : undefined;
       if (planRow) {
         map.set(s.id, {
           kind: planRow.plan_type === 'mentoria' ? 'mentoria' : 'base',
           label: planRow.plan_type === 'mentoria' ? 'Mentoría 1 a 1' : 'Base',
         });
-      } else if (evaluationByStudent.has(s.id)) {
+      } else if (evaluationByClient.has(s.id)) {
         map.set(s.id, { kind: 'mentoria', label: 'Mentoría 1 a 1' });
       } else {
         map.set(s.id, { kind: 'none' });
       }
     }
     return map;
-  }, [students, activeSubByStudent, evaluationByStudent, plans]);
+  }, [clients, activeSubByClient, evaluationByClient, plans]);
 
   // Frecuencia de facturación de la suscripción activa (solo Activos) —
   // en Pendientes queda en blanco hasta que se active al alumno.
-  const billingByStudent = useMemo(() => {
+  const billingByClient = useMemo(() => {
     const map = new Map<string, string>();
-    for (const s of students) {
-      const planId = activeSubByStudent.get(s.id);
+    for (const s of clients) {
+      const planId = activeSubByClient.get(s.id);
       const planRow = planId ? plans.find((p) => p.id === planId) : undefined;
       if (!planRow) continue;
       const months = Math.max(1, Math.round(planRow.duration_days / 30));
       map.set(s.id, months === 1 ? '1 mes' : `${months} meses`);
     }
     return map;
-  }, [students, activeSubByStudent, plans]);
+  }, [clients, activeSubByClient, plans]);
 
   // Avisos de facturación: frecuencia eliminada (soft-delete) y/o precio
   // desactualizado vs. lo que este alumno paga en su cobro recurrente de MP —
-  // ambos son independientes del texto de billingByStudent, no lo reemplazan.
-  const billingWarningsByStudent = useMemo(() => {
+  // ambos son independientes del texto de billingByClient, no lo reemplazan.
+  const billingWarningsByClient = useMemo(() => {
     const map = new Map<string, { deleted: boolean; priceChanged: { current: number; paid: number } | null }>();
-    for (const s of students) {
-      const planId = activeSubByStudent.get(s.id);
+    for (const s of clients) {
+      const planId = activeSubByClient.get(s.id);
       const planRow = planId ? plans.find((p) => p.id === planId) : undefined;
       if (!planRow) continue;
-      const extra = activeSubExtraByStudent.get(s.id);
+      const extra = activeSubExtraByClient.get(s.id);
+      const effectivePrice = priceOverrides.get(planRow.id) ?? Number(planRow.price_ars);
       const priceChanged =
-        extra?.mp_preapproval_id && extra.amount_ars != null && Number(planRow.price_ars) !== Number(extra.amount_ars)
-          ? { current: Number(planRow.price_ars), paid: Number(extra.amount_ars) }
+        extra?.mp_preapproval_id && extra.amount_ars != null && effectivePrice !== Number(extra.amount_ars)
+          ? { current: effectivePrice, paid: Number(extra.amount_ars) }
           : null;
       map.set(s.id, { deleted: !!planRow.deleted_at, priceChanged });
     }
     return map;
-  }, [students, activeSubByStudent, activeSubExtraByStudent, plans]);
+  }, [clients, activeSubByClient, activeSubExtraByClient, plans, priceOverrides]);
 
-  const markEvaluationCompleted = async (studentId: string) => {
-    const row = evaluationByStudent.get(studentId);
+  const markEvaluationCompleted = async (clientId: string) => {
+    const row = evaluationByClient.get(clientId);
     if (!row) return;
     const { error } = await anyClient.from('evaluation_requests').update({ status: 'completed' }).eq('id', row.id);
     if (error) {
       showToast('error', 'No pudimos actualizar el estado de la reunión.');
       return;
     }
-    setEvaluationByStudent((prev) => {
+    setEvaluationByClient((prev) => {
       const next = new Map(prev);
-      next.set(studentId, { ...row, status: 'completed' });
+      next.set(clientId, { ...row, status: 'completed' });
       return next;
     });
     showToast('success', 'Reunión marcada como hecha');
@@ -293,14 +304,14 @@ export function StudentsPage(): React.JSX.Element {
   };
 
   const openManualPayment = (id: string) => {
-    setManualPayStudentId(id);
+    setManualPayClientId(id);
     setManualPayOpen(true);
   };
 
   const onManualPaymentSuccess = () => {
-    if (!manualPayStudentId) return;
-    setStudents((prev) => prev.map((s) => (
-      s.id === manualPayStudentId ? { ...s, client_status: 'active' } : s
+    if (!manualPayClientId) return;
+    setClients((prev) => prev.map((s) => (
+      s.id === manualPayClientId ? { ...s, client_status: 'active' } : s
     )));
     void refetch();
   };
@@ -310,7 +321,7 @@ export function StudentsPage(): React.JSX.Element {
     setDeleteError(null);
     const result = await deleteClientAccount(id);
     if (result.ok) {
-      setStudents((prev) => prev.filter((s) => s.id !== id));
+      setClients((prev) => prev.filter((s) => s.id !== id));
       setConfirmDeleteId(null);
       showToast('success', 'Cliente eliminado');
     } else {
@@ -319,10 +330,10 @@ export function StudentsPage(): React.JSX.Element {
     setDeletingId(null);
   };
 
-  const clientToDelete = confirmDeleteId ? students.find((s) => s.id === confirmDeleteId) : null;
+  const clientToDelete = confirmDeleteId ? clients.find((s) => s.id === confirmDeleteId) : null;
 
-  const active  = useMemo(() => students.filter((s) => s.client_status === 'active'), [students]);
-  const pending = useMemo(() => students.filter((s) => s.client_status === 'pending'), [students]);
+  const active  = useMemo(() => clients.filter((s) => s.client_status === 'active'), [clients]);
+  const pending = useMemo(() => clients.filter((s) => s.client_status === 'pending'), [clients]);
   const current = tab === 'active' ? active : pending;
 
   const filtered = useMemo(() => {
@@ -335,7 +346,7 @@ export function StudentsPage(): React.JSX.Element {
 
   return (
     <div>
-      <div className="students-page-header">
+      <div className="clients-page-header">
         <div>
           <h1 className="page-title">{t.web.clients}</h1>
           <p className="page-sub">{t.web.clients_sub}</p>
@@ -395,20 +406,20 @@ export function StudentsPage(): React.JSX.Element {
       )}
 
       {/* Tabs */}
-      <div className="students-tabs">
+      <div className="clients-tabs">
         <button
-          className={`students-tab${tab === 'active' ? ' active' : ''}`}
+          className={`clients-tab${tab === 'active' ? ' active' : ''}`}
           onClick={() => setTab('active')}
         >
           Activos
-          <span className="students-tab-count">{active.length}</span>
+          <span className="clients-tab-count">{active.length}</span>
         </button>
         <button
-          className={`students-tab${tab === 'pending' ? ' active' : ''}`}
+          className={`clients-tab${tab === 'pending' ? ' active' : ''}`}
           onClick={() => setTab('pending')}
         >
           Pendientes
-          {pending.length > 0 && <span className="students-tab-count pending">{pending.length}</span>}
+          {pending.length > 0 && <span className="clients-tab-count pending">{pending.length}</span>}
         </button>
       </div>
 
@@ -436,11 +447,11 @@ export function StudentsPage(): React.JSX.Element {
             <span className="empty-ico"><UsersIcon size={22} /></span>
             <div className="t">
               {tab === 'active'
-                ? (students.length === 0 ? 'Todavía no hay alumnos' : 'Sin resultados')
+                ? (clients.length === 0 ? 'Todavía no hay alumnos' : 'Sin resultados')
                 : 'Sin clientes pendientes'}
             </div>
             <p className="muted" style={{ margin: 0 }}>
-              {tab === 'active' && students.length === 0
+              {tab === 'active' && clients.length === 0
                 ? 'Compartí tu código de invitación para que se sumen al registrarse.'
                 : tab === 'pending'
                   ? 'Cuando un alumno se registre aparecerá aquí para que lo apruebes.'
@@ -462,10 +473,10 @@ export function StudentsPage(): React.JSX.Element {
             </thead>
             <tbody>
               {filtered.map((s) => (
-                <tr key={s.id} className="row-clickable" onClick={() => navigate(`/students/${s.id}`)}>
+                <tr key={s.id} className="row-clickable" onClick={() => navigate(`/clients/${s.id}`)}>
                   <td>
                     <div className="cell-user">
-                      <StudentAvatar name={s.full_name} url={s.avatar_url} />
+                      <ClientAvatar name={s.full_name} url={s.avatar_url} />
                       <div>
                         <div className="cell-name">{s.full_name ?? 'Alumno'}</div>
                         <div className="cell-sub">Acceso completo</div>
@@ -473,15 +484,15 @@ export function StudentsPage(): React.JSX.Element {
                     </div>
                   </td>
                   <td className="muted">{s.goal ?? '—'}</td>
-                  <td><PlanBadge plan={planByStudent.get(s.id) ?? { kind: 'none' }} /></td>
+                  <td><PlanBadge plan={planByClient.get(s.id) ?? { kind: 'none' }} /></td>
                   <td className="muted">
-                    {billingByStudent.get(s.id) ?? '—'}
-                    <BillingWarningIcons warnings={billingWarningsByStudent.get(s.id)} t={t} i18n={i18n} />
+                    {billingByClient.get(s.id) ?? '—'}
+                    <BillingWarningIcons warnings={billingWarningsByClient.get(s.id)} t={t} i18n={i18n} />
                   </td>
                   <td className="muted">{timeAgo(s.created_at)}</td>
                   <td>
                     <ClientRowActions
-                      onOpen={() => navigate(`/students/${s.id}`)}
+                      onOpen={() => navigate(`/clients/${s.id}`)}
                       onDelete={() => { setDeleteError(null); setConfirmDeleteId(s.id); }}
                     />
                   </td>
@@ -507,7 +518,7 @@ export function StudentsPage(): React.JSX.Element {
                 <tr key={s.id}>
                   <td>
                     <div className="cell-user">
-                      <StudentAvatar name={s.full_name} url={s.avatar_url} style={!s.avatar_url ? { background: '#fef3c7', color: '#92400e' } : undefined} />
+                      <ClientAvatar name={s.full_name} url={s.avatar_url} style={!s.avatar_url ? { background: '#fef3c7', color: '#92400e' } : undefined} />
                       <div>
                         <div className="cell-name">{s.full_name ?? 'Nuevo alumno'}</div>
                         <div className="cell-sub">Esperando aprobación</div>
@@ -515,12 +526,12 @@ export function StudentsPage(): React.JSX.Element {
                     </div>
                   </td>
                   <td className="muted">{s.goal ?? '—'}</td>
-                  <td><PlanBadge plan={planByStudent.get(s.id) ?? { kind: 'none' }} /></td>
+                  <td><PlanBadge plan={planByClient.get(s.id) ?? { kind: 'none' }} /></td>
                   <td className="muted">—</td>
                   <td className="muted">{timeAgo(s.created_at)}</td>
                   <td>
                     <div className="client-pending-actions">
-                      {planByStudent.get(s.id)?.kind === 'mentoria' && evaluationByStudent.get(s.id)?.status !== 'completed' ? (
+                      {planByClient.get(s.id)?.kind === 'mentoria' && evaluationByClient.get(s.id)?.status !== 'completed' ? (
                         <button
                           className="btn secondary sm"
                           onClick={() => void markEvaluationCompleted(s.id)}
@@ -535,7 +546,7 @@ export function StudentsPage(): React.JSX.Element {
                         Activar
                       </button>
                       <ClientRowActions
-                        onOpen={() => navigate(`/students/${s.id}`)}
+                        onOpen={() => navigate(`/clients/${s.id}`)}
                         onDelete={() => { setDeleteError(null); setConfirmDeleteId(s.id); }}
                       />
                     </div>
@@ -615,24 +626,24 @@ export function StudentsPage(): React.JSX.Element {
           box-shadow: 0 24px 80px rgba(0,0,0,.25); min-width: 300px;
         }
 
-        .students-page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 4px; }
-        .students-tabs { display: flex; gap: 0; margin-bottom: 16px; border-bottom: 2px solid var(--border); }
-        .students-tab {
+        .clients-page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 4px; }
+        .clients-tabs { display: flex; gap: 0; margin-bottom: 16px; border-bottom: 2px solid var(--border); }
+        .clients-tab {
           display: flex; align-items: center; gap: 7px;
           padding: 9px 18px; font-size: 13.5px; font-weight: 600;
           color: var(--text-tertiary); background: none; border: none; cursor: pointer;
           border-bottom: 2px solid transparent; margin-bottom: -2px;
           transition: color 150ms;
         }
-        .students-tab:hover { color: var(--text-primary); }
-        .students-tab.active { color: var(--text-primary); border-bottom-color: var(--primary); }
-        .students-tab-count {
+        .clients-tab:hover { color: var(--text-primary); }
+        .clients-tab.active { color: var(--text-primary); border-bottom-color: var(--primary); }
+        .clients-tab-count {
           min-width: 20px; height: 18px; padding: 0 5px;
           background: var(--surface-elevated); color: var(--text-secondary);
           border-radius: 9px; font-size: 11px; font-weight: 700;
           display: flex; align-items: center; justify-content: center;
         }
-        .students-tab-count.pending {
+        .clients-tab-count.pending {
           background: var(--brand-lime-soft);
           color: color-mix(in srgb, var(--brand-lime) 72%, #0C0C0C);
         }
@@ -673,9 +684,9 @@ export function StudentsPage(): React.JSX.Element {
       <ManualPaymentModal
         open={manualPayOpen}
         onClose={() => setManualPayOpen(false)}
-        students={students.filter((s) => s.id === manualPayStudentId).map((s) => ({ id: s.id, full_name: s.full_name }))}
+        clients={clients.filter((s) => s.id === manualPayClientId).map((s) => ({ id: s.id, full_name: s.full_name }))}
         plans={plans}
-        initialStudentId={manualPayStudentId ?? undefined}
+        initialClientId={manualPayClientId ?? undefined}
         onSuccess={onManualPaymentSuccess}
       />
     </div>
