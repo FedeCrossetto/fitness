@@ -2909,7 +2909,7 @@ tr.row-clickable.dragging { opacity: 0.55; }
 .pay-modal-field input { cursor: text; }
 .pay-modal-field input:disabled { opacity: 0.6; cursor: not-allowed; }
 .pay-modal-field select:focus, .pay-modal-field input:focus { outline: none; border-color: var(--text-tertiary); }
-.pay-modal-fixed-student {
+.pay-modal-fixed-client {
   padding: 10px 12px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);

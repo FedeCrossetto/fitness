@@ -65,7 +65,7 @@ export function SettingsPage(): React.JSX.Element {
     { icon: <BookOpenIcon size={20} />, title: cs.sec_consultation.title, desc: cs.sec_consultation.desc, action: cs.sec_consultation.action, to: '/settings/forms' },
     { icon: <CheckIcon size={20} />, title: cs.sec_waiver.title, desc: cs.sec_waiver.desc, action: cs.sec_waiver.action, to: '/settings/waiver' },
     { icon: <CreditCardIcon size={20} />, title: cs.sec_subscription.title, desc: cs.sec_subscription.desc, action: cs.sec_subscription.action },
-    { icon: <BellIcon size={20} />, title: cs.sec_notifications.title, desc: cs.sec_notifications.desc, action: cs.sec_notifications.action },
+    { icon: <BellIcon size={20} />, title: cs.sec_notifications.title, desc: cs.sec_notifications.desc, action: cs.sec_notifications.action, to: '/settings/notifications' },
     { icon: <SettingsIcon size={20} />, title: cs.sec_privacy.title, desc: cs.sec_privacy.desc, action: cs.sec_privacy.action },
   ], [cs]);
 
