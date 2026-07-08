@@ -47,6 +47,9 @@ export function NetworkBanner(): React.JSX.Element | null {
     setOffline(!online);
   };
 
+  // Chequeo único al montar; `check` no está memoizado y agregarlo a deps
+  // reiniciaría este efecto en cada render.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { void check(true); }, []);
   useAppActive(() => { void check(); });
 

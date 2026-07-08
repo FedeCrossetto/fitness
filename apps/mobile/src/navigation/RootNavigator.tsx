@@ -94,6 +94,10 @@ export function RootNavigator(): React.JSX.Element {
     setMentoriaWaiting(null);
     void hasPendingMentoriaEvaluation(profile.id).then((v) => { if (active) setMentoriaWaiting(v); });
     return () => { active = false; };
+  // Deps en campos primitivos de `profile`, no el objeto entero — evita
+  // re-disparar la consulta cuando el store emite una referencia nueva sin
+  // cambios reales en los campos que le importan a este efecto.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.id, profile?.client_status, evaluationGateVersion]);
 
   // Deslinde + consentimiento de imagen + formulario de consulta, unificados en
@@ -164,6 +168,9 @@ export function RootNavigator(): React.JSX.Element {
     if (!userId || !profile?.id) return;
     if (needsOnboarding || needsTrainerLink(profile) || isPendingActivation(profile)) return;
     void syncPushRegistration(userId);
+  // Deps en campos primitivos de `profile`, no el objeto entero — mismo
+  // motivo que el efecto anterior.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.user.id, profile?.id, profile?.trainer_id, profile?.client_status, needsOnboarding]);
 
   useEffect(() => {
@@ -175,6 +182,9 @@ export function RootNavigator(): React.JSX.Element {
     void useInboxStore.getState().loadInbox(userId, profile.trainer_id);
     const unsubscribe = useInboxStore.getState().subscribeInbox(userId, profile.trainer_id);
     return unsubscribe;
+  // Deps en campos primitivos de `profile`, no el objeto entero — mismo
+  // motivo que los efectos anteriores.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.user.id, profile?.id, profile?.trainer_id, profile?.role, profile?.client_status, needsOnboarding]);
 
   const computeActivation = useCallback(async () => {

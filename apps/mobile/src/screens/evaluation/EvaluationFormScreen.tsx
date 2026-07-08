@@ -135,6 +135,9 @@ export function EvaluationFormScreen({ onBack, onSubmitted }: EvaluationFormScre
       return;
     }
     onSubmitted();
+  // `validate` no está memoizada y solo lee `form` (ya en deps) — agregarla
+  // no cambiaría el comportamiento, solo recrearía el callback de más.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form, profile?.id, profile?.trainer_id, onSubmitted]);
 
   const later = form.shareBodyLater;

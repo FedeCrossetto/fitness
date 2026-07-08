@@ -78,6 +78,10 @@ export function ExercisePreviewSheet({
     return () => {
       active = false;
     };
+  // Deps a propósito en los campos primitivos de `fallback`, no el objeto —
+  // si el padre pasa un literal inline, un objeto nuevo en cada render
+  // dispararía este fetch en loop aunque el contenido no haya cambiado.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, exerciseId, fallback?.name, fallback?.image_url]);
 
   const title = exercise?.name ?? fallback?.name ?? '';

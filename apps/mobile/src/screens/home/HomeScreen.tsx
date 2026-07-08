@@ -161,7 +161,7 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
         void syncAutoGoal(userId, 'steps', todaySteps);
       }
     }
-  }, [userId, activeDate, loadGoalsToday, loadNutritionDay, loadHydration, loadProgram, loadRecentLogs, setSteps, syncAutoGoal]);
+  }, [userId, activeDate, loadGoalsToday, loadNutritionDay, loadHydration, loadProgram, loadRecentLogs, loadMeasurements, loadPhotos, setSteps, syncAutoGoal]);
 
   useEffect(() => {
     if (!userId) return;

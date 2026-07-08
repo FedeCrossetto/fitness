@@ -238,7 +238,7 @@ export function ProfileScreen({ navigation, route }: Props): React.JSX.Element {
     } finally {
       setUploadingAvatar(false);
     }
-  }, [userId, uploadingAvatar, refreshProfile]);
+  }, [userId, uploadingAvatar, refreshProfile, t]);
 
   const onConnectHealth = useCallback(async () => {
     if (!Device.isDevice) {
@@ -333,7 +333,7 @@ export function ProfileScreen({ navigation, route }: Props): React.JSX.Element {
       { text: t.profile.cancel, style: 'cancel' },
       { text: t.profile.sign_out, style: 'destructive', onPress: () => void signOut() },
     ]);
-  }, [signOut]);
+  }, [signOut, t]);
 
   const subscriptionActive = hasActiveAccess(subscription);
   const planName = subscription?.plan_name;

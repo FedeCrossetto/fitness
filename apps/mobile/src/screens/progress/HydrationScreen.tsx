@@ -98,7 +98,7 @@ export function HydrationScreen(): React.JSX.Element {
         useUiStore.getState().showToast('success', t.hydration.met_toast);
       }
     },
-    [userId, addWater]
+    [userId, addWater, t]
   );
 
   const openGoalSheet = useCallback(() => {
@@ -120,7 +120,7 @@ export function HydrationScreen(): React.JSX.Element {
     hapticSuccess();
     useUiStore.getState().showToast('success', t.hydration.updated_toast);
     setGoalSheetVisible(false);
-  }, [userId, goalInput, setHydrationGoal]);
+  }, [userId, goalInput, setHydrationGoal, t]);
 
   const isLoading = hydrationLoading && hydration === null;
 

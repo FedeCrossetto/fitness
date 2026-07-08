@@ -360,6 +360,9 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
     } else if (offStatus === 'done') {
       offAlertShown.current = null;
     }
+  // `loadOff` no está memoizada; solo se usa dentro del onPress del alert
+  // (no en el cuerpo del efecto), agregarla dispararía el efecto de más.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [barcode, offStatus, t, scanAgain]);
 
   // Cargar alimentos personales al editar catálogo

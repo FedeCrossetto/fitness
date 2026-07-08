@@ -110,6 +110,8 @@ export function WaiverScreen({
       return;
     }
     onSigned();
+  // `saveSignature` no está memoizada; sus deps reales ya están listadas acá.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fullName, strokes, profile?.id, trainerId, onSigned, config.body, config.title, t]);
 
   const topPad = embedded ? spacing.md : insets.top + spacing.lg;

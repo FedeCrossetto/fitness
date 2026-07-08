@@ -79,6 +79,9 @@ export function HomeMacroProgressCard({
       duration: 900,
       easing: Easing.out(Easing.cubic),
     });
+  // animProgress es un SharedValue (ref estable de Reanimated) — no dispara
+  // re-render y no debe entrar en deps, es el patrón estándar de la librería.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kcalProgress]);
 
   const animPathProps = useAnimatedProps(() => ({

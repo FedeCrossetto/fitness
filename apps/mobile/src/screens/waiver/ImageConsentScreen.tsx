@@ -132,6 +132,9 @@ export function ImageConsentScreen({
     }
     setStatus('accepted');
     onAccepted();
+  // `saveResponse` no está memoizada; sus deps reales (profile?.id, trainerId,
+  // config, fullName) ya están listadas acá.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fullName, strokes, profile?.id, trainerId, onAccepted, config.body, config.title, t]);
 
   const handleSkip = useCallback(async () => {
@@ -148,6 +151,8 @@ export function ImageConsentScreen({
       setStatus('declined');
     }
     onSkip();
+  // `saveResponse` no está memoizada; sus deps reales ya están listadas acá.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.id, onSkip, trainerId, config.body, config.title, t]);
 
   const topPad = embedded ? spacing.md : insets.top + spacing.lg;
