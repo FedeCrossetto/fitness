@@ -150,6 +150,33 @@ export interface ExerciseRow {
   updated_at: string;
 }
 
+export interface ProgramFolderRow {
+  id: string;
+  trainer_id: string;
+  name: string;
+  created_at: string;
+}
+
+/** Metadata de un programa de la Librería. Por debajo sigue siendo un grupo
+ * de `training_phases` con `program_key === this.program_key` — ver comentario
+ * en la migración 20260708010000_program_library.sql. */
+export interface ProgramRow {
+  id: string;
+  trainer_id: string;
+  program_key: string;
+  name: string;
+  note: string | null;
+  duration_weeks: number | null;
+  start_date: string | null;
+  /** null = plantilla compartida; con valor = clon personalizado de ese cliente. */
+  client_id: string | null;
+  /** Si es un clon personalizado, el programa plantilla del que se copió. */
+  source_program_id: string | null;
+  folder_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface TrainingPhaseRow {
   id: string;
   program_key: string | null;
@@ -358,7 +385,11 @@ export interface PlanRow {
   description: string | null;
   price_ars: number;
   duration_days: number;
-  plan_type: PlanType;
+  /** 'base' | 'mentoria' son los tipos built-in con lógica propia (gating de
+   * mobile, formulario de consulta). Un entrenador puede crear tipos propios
+   * desde /payments/planes — esos solo se gestionan/asignan a mano (Manage
+   * Plans + pago manual), no aparecen en el selector de checkout de mobile. */
+  plan_type: string;
   active: boolean | null;
   created_at: string;
   /** null = plan built-in (catálogo global). Si tiene valor, es una
@@ -385,7 +416,7 @@ export interface TrainerPlanPriceRow {
 
 export interface TrainerPlanGroupSettingsRow {
   trainer_id: string;
-  plan_type: PlanType;
+  plan_type: string;
   /** Nombre custom para el grupo (ej. "Base" → "Plan Estándar"). Null = usar
    * el label por defecto. */
   display_name: string | null;
@@ -581,6 +612,8 @@ export interface Database {
       daily_goals: TableDef<DailyGoalRow, 'user_id' | 'text'>;
       workout_logs: TableDef<WorkoutLogRow, 'user_id'>;
       exercises: TableDef<ExerciseRow, 'name'>;
+      programs: TableDef<ProgramRow, 'trainer_id' | 'program_key' | 'name'>;
+      program_folders: TableDef<ProgramFolderRow, 'trainer_id' | 'name'>;
       training_phases: TableDef<TrainingPhaseRow, 'name'>;
       workouts: TableDef<WorkoutRow, 'title'>;
       workout_exercises: TableDef<WorkoutExerciseRow, 'workout_id' | 'exercise_id'>;
@@ -703,6 +736,10 @@ export interface Database {
       account_exists: {
         Args: { p_user_id: string };
         Returns: boolean;
+      };
+      clone_program: {
+        Args: { p_program_id: string; p_new_name: string; p_client_id?: string | null };
+        Returns: string;
       };
     };
     Enums: Record<string, never>;

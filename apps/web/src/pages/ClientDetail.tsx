@@ -18,6 +18,7 @@ import type {
 import { supabase, anyClient } from '@/lib/supabase';
 import { formatWorkoutVolume, summarizeWorkoutForFeed, TERMS_VERSION, APP_TERMS_URL } from '@reset-fitness/shared';
 import { RoutineManager } from '@/components/RoutineManager';
+import { ProgramAssignment } from '@/components/ProgramAssignment';
 import { ClientCoachPanel } from '@/components/ClientCoachPanel';
 import { Lightbox, Spinner, ConfirmDialog } from '@/components/ui';
 import { ManualPaymentModal } from '@/components/ManualPaymentModal';
@@ -714,6 +715,7 @@ export function ClientDetailPage(): React.JSX.Element {
         {/* ENTRENOS */}
         {tab === 'entrenos' && (
           <div>
+            {clientId && <ProgramAssignment clientId={clientId} />}
             {clientId && <RoutineManager clientId={clientId} />}
             <div className="card" style={{ marginTop: 16 }}>
               <div className="sd-section-head">

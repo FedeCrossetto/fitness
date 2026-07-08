@@ -11,12 +11,14 @@ import { BookOpenIcon, TeamIcon, PlusIcon, TrashIcon } from '@/components/icons'
 import { formatInputPrice, formatMoney, mergePlans, type PlanWithPrice } from '@/lib/planPricing';
 
 type PlanGroup = {
-  type: PlanType;
+  type: string;
   label: string;
   icon: React.ReactNode;
   items: PlanWithPrice[];
   groupActive: boolean;
 };
+
+const BUILT_IN_TYPES: PlanType[] = ['base', 'mentoria'];
 
 const MAX_MONTHS = 12;
 const STANDARD_MONTHS = [1, 3, 6, 12];
@@ -29,7 +31,7 @@ export function ManagePlansPage(): React.JSX.Element {
 
   const [plans, setPlans] = useState<PlanWithPrice[]>([]);
   const [savingPlanId, setSavingPlanId] = useState<string | null>(null);
-  const [openType, setOpenType] = useState<PlanType | null>(null);
+  const [openType, setOpenType] = useState<string | null>(null);
   const [addingOpen, setAddingOpen] = useState(false);
   const [newMonths, setNewMonths] = useState('');
   const [newPrice, setNewPrice] = useState('');
@@ -42,14 +44,18 @@ export function ManagePlansPage(): React.JSX.Element {
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [saveTarget, setSaveTarget] = useState<PlanWithPrice | null>(null);
   const [toggleTarget, setToggleTarget] = useState<PlanWithPrice | null>(null);
-  const [groupSettings, setGroupSettings] = useState<Map<PlanType, TrainerPlanGroupSettingsRow>>(new Map());
-  const [renamingType, setRenamingType] = useState<PlanType | null>(null);
+  const [groupSettings, setGroupSettings] = useState<Map<string, TrainerPlanGroupSettingsRow>>(new Map());
+  const [renamingType, setRenamingType] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
   const [renaming, setRenaming] = useState(false);
-  const [groupToggleTarget, setGroupToggleTarget] = useState<PlanType | null>(null);
-  const [togglingGroup, setTogglingGroup] = useState(false);
-  const [groupDeleteTarget, setGroupDeleteTarget] = useState<PlanType | null>(null);
+  const [groupToggleTarget, setGroupToggleTarget] = useState<string | null>(null);
+  const [groupDeleteTarget, setGroupDeleteTarget] = useState<string | null>(null);
   const [deletingGroup, setDeletingGroup] = useState(false);
+  const [togglingGroup, setTogglingGroup] = useState(false);
+  const [createPlanOpen, setCreatePlanOpen] = useState(false);
+  const [newPlanName, setNewPlanName] = useState('');
+  const [newPlanPrice, setNewPlanPrice] = useState('');
+  const [creatingPlan, setCreatingPlan] = useState(false);
 
   const { data, loading, error, refetch } = useSupabaseQuery<PlanWithPrice[]>(
     async () => {
@@ -124,19 +130,26 @@ export function ManagePlansPage(): React.JSX.Element {
   }, [userId, showToast, t.payments.price_error, t.payments.price_saved]);
 
   const groups = useMemo<PlanGroup[]>(() => {
-    const byType = (type: PlanType) => plans.filter((p) => p.plan_type === type);
-    const defs: { type: PlanType; label: string; icon: React.ReactNode }[] = [
-      { type: 'base', label: t.payments.manage_plans_group_base, icon: <BookOpenIcon size={18} /> },
-      { type: 'mentoria', label: t.payments.manage_plans_group_mentoria, icon: <TeamIcon size={18} /> },
-    ];
-    return defs
-      .filter((d) => !groupSettings.get(d.type)?.deleted_at)
-      .map((d) => ({
-        type: d.type,
-        label: groupSettings.get(d.type)?.display_name || d.label,
-        icon: d.icon,
-        items: byType(d.type),
-        groupActive: groupSettings.get(d.type)?.active ?? true,
+    const byType = (type: string) => plans.filter((p) => p.plan_type === type);
+    const builtInLabel: Record<string, string> = {
+      base: t.payments.manage_plans_group_base,
+      mentoria: t.payments.manage_plans_group_mentoria,
+    };
+    const builtInIcon: Record<string, React.ReactNode> = {
+      base: <BookOpenIcon size={18} />,
+      mentoria: <TeamIcon size={18} />,
+    };
+    // Todos los plan_type presentes en el catálogo, más los built-in aunque
+    // no tengan frecuencias todavía (para que sigan apareciendo vacíos).
+    const allTypes = Array.from(new Set([...BUILT_IN_TYPES, ...plans.map((p) => p.plan_type)]));
+    return allTypes
+      .filter((type) => !groupSettings.get(type)?.deleted_at)
+      .map((type) => ({
+        type,
+        label: groupSettings.get(type)?.display_name || builtInLabel[type] || type,
+        icon: builtInIcon[type] ?? <BookOpenIcon size={18} />,
+        items: byType(type),
+        groupActive: groupSettings.get(type)?.active ?? true,
       }));
   }, [plans, groupSettings, t.payments.manage_plans_group_base, t.payments.manage_plans_group_mentoria]);
 
@@ -275,7 +288,7 @@ export function ManagePlansPage(): React.JSX.Element {
     setRenamingType(null);
   }, [userId, renamingType, renaming, renameDraft, groupSettings, showToast, t.payments.manage_plans_group_rename_error, t.payments.manage_plans_group_rename_success]);
 
-  const toggleGroupActive = useCallback(async (type: PlanType) => {
+  const toggleGroupActive = useCallback(async (type: string) => {
     if (!userId || togglingGroup) return;
     const existing = groupSettings.get(type);
     const nextActive = !(existing?.active ?? true);
@@ -310,8 +323,10 @@ export function ManagePlansPage(): React.JSX.Element {
     showToast('success', nextActive ? t.payments.manage_plans_visibility_on : t.payments.manage_plans_visibility_off);
   }, [userId, togglingGroup, groupSettings, showToast, t.payments.manage_plans_visibility_error, t.payments.manage_plans_visibility_on, t.payments.manage_plans_visibility_off]);
 
+  /** Eliminar plan completo — solo para plan_type no-estándar (no built-in);
+   * Base y Mentoría 1-1 nunca se pueden borrar del todo, solo ocultar. */
   const confirmDeleteGroup = useCallback(async () => {
-    if (!userId || !groupDeleteTarget || deletingGroup) return;
+    if (!userId || !groupDeleteTarget || deletingGroup || (BUILT_IN_TYPES as string[]).includes(groupDeleteTarget)) return;
     const type = groupDeleteTarget;
     const existing = groupSettings.get(type);
     setDeletingGroup(true);
@@ -347,6 +362,45 @@ export function ManagePlansPage(): React.JSX.Element {
     setGroupDeleteTarget(null);
     closeModal();
   }, [userId, groupDeleteTarget, deletingGroup, groupSettings, showToast, t.payments.manage_plans_group_delete_error, t.payments.manage_plans_group_delete_success]);
+
+  /** Crea un plan nuevo con lo mínimo — nombre + precio mensual — y arma de
+   * una las 4 frecuencias estándar (1/3/6/12 meses, sin descuento por ahora:
+   * total = mensual × meses, el entrenador lo ajusta después). Todas arrancan
+   * inactivas (no visibles en mobile) hasta que el entrenador las revise. */
+  const createPlan = useCallback(async () => {
+    if (!userId || creatingPlan) return;
+    const name = newPlanName.trim();
+    const monthly = Number(newPlanPrice);
+    if (!name || !monthly || monthly <= 0) return;
+
+    setCreatingPlan(true);
+    const planType = `custom_${crypto.randomUUID().slice(0, 8)}`;
+    const rows = STANDARD_MONTHS.map((months) => ({
+      trainer_id: userId,
+      plan_type: planType,
+      name: `${name} — ${months === 1 ? '1 mes' : `${months} meses`}`,
+      description: `Acceso completo por ${months === 1 ? '1 mes' : `${months} meses`}`,
+      price_ars: monthly * months,
+      duration_days: months * 30,
+      active: false,
+    }));
+    const { error: insertError } = await supabase.from('plans').insert(rows);
+    if (insertError) {
+      setCreatingPlan(false);
+      showToast('error', 'No pudimos crear el plan.');
+      return;
+    }
+    await supabase.from('trainer_plan_group_settings').upsert(
+      { trainer_id: userId, plan_type: planType, display_name: name, active: true, updated_at: new Date().toISOString() },
+      { onConflict: 'trainer_id,plan_type' },
+    );
+    setCreatingPlan(false);
+    setCreatePlanOpen(false);
+    setNewPlanName('');
+    setNewPlanPrice('');
+    showToast('success', 'Plan creado con las 4 frecuencias estándar (revisá los precios antes de activarlas).');
+    void refetch();
+  }, [userId, creatingPlan, newPlanName, newPlanPrice, showToast, refetch]);
 
   const openDeleteConfirm = useCallback(async (plan: PlanWithPrice) => {
     setCheckingDeleteId(plan.id);
@@ -403,8 +457,15 @@ export function ManagePlansPage(): React.JSX.Element {
   return (
     <div>
       <Link to="/payments" className="back-link">← {t.web.back_to_payments}</Link>
-      <h1 className="page-title">{t.payments.manage_plans_title}</h1>
-      <p className="page-sub">{t.payments.manage_plans_sub}</p>
+      <div className="row-between">
+        <div>
+          <h1 className="page-title">{t.payments.manage_plans_title}</h1>
+          <p className="page-sub">{t.payments.manage_plans_sub}</p>
+        </div>
+        <button type="button" className="btn primary" onClick={() => setCreatePlanOpen(true)}>
+          <PlusIcon size={15} /> Crear plan
+        </button>
+      </div>
 
       {error ? (
         <ErrorState message={t.payments.load_error} onRetry={refetch} />
@@ -440,8 +501,8 @@ export function ManagePlansPage(): React.JSX.Element {
                     </span>
                   </div>
                 </div>
-                <div style={{ fontWeight: 650, fontSize: 16, marginBottom: 6, opacity: group.groupActive ? 1 : 0.6 }}>{group.label}</div>
-                <div style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>
+                <div style={{ fontWeight: 650, fontSize: 16, marginBottom: 6, opacity: group.groupActive ? 1 : 0.6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{group.label}</div>
+                <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {min === max ? formatMoney(min, language) : `${formatMoney(min, language)} – ${formatMoney(max, language)}`}
                 </div>
               </div>
@@ -488,9 +549,11 @@ export function ManagePlansPage(): React.JSX.Element {
                 >
                   {openGroup.groupActive ? t.payments.manage_plans_group_hide : t.payments.manage_plans_group_show}
                 </button>
-                <button type="button" className="btn danger-outline sm" onClick={() => setGroupDeleteTarget(openGroup.type)}>
-                  {t.payments.manage_plans_group_delete}
-                </button>
+                {!(BUILT_IN_TYPES as string[]).includes(openGroup.type) ? (
+                  <button type="button" className="btn danger-outline sm" onClick={() => setGroupDeleteTarget(openGroup.type)}>
+                    {t.payments.manage_plans_group_delete}
+                  </button>
+                ) : null}
                 <button type="button" className="btn secondary sm" onClick={closeModal}>
                   {t.payments.manage_plans_close}
                 </button>
@@ -765,6 +828,46 @@ export function ManagePlansPage(): React.JSX.Element {
         onCancel={() => setGroupDeleteTarget(null)}
         danger
       />
+
+      {createPlanOpen && (
+        <div className="invite-qr-backdrop" onClick={() => setCreatePlanOpen(false)}>
+          <div className="add-client-modal" onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 4 }}>Crear plan</div>
+            <p className="muted" style={{ fontSize: 12.5, margin: '0 0 16px' }}>
+              Se crean de una las 4 frecuencias estándar (1, 3, 6 y 12 meses), inactivas hasta que revises los precios.
+            </p>
+            <div className="add-client-section-label">Nombre</div>
+            <input
+              className="add-client-email-input"
+              style={{ width: '100%', marginBottom: 14 }}
+              placeholder="Ej: Plan Premium"
+              value={newPlanName}
+              onChange={(e) => setNewPlanName(e.target.value)}
+              autoFocus
+            />
+            <div className="add-client-section-label">Precio mensual (ARS)</div>
+            <input
+              className="add-client-email-input"
+              style={{ width: '100%' }}
+              type="number"
+              min={1}
+              value={newPlanPrice}
+              onChange={(e) => setNewPlanPrice(e.target.value)}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
+              <button type="button" className="btn secondary" onClick={() => setCreatePlanOpen(false)}>Cancelar</button>
+              <button
+                type="button"
+                className="btn primary"
+                disabled={!newPlanName.trim() || !newPlanPrice || creatingPlan}
+                onClick={() => void createPlan()}
+              >
+                {creatingPlan ? 'Creando…' : 'Crear'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style>{`
         .manage-plans-modal { width: 100%; max-width: 800px; margin: 0; box-shadow: var(--shadow-hover); max-height: 85vh; overflow-y: auto; }

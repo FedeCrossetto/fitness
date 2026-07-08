@@ -41,7 +41,7 @@ export function VerifyEmailScreen({ navigation, route }: Props): React.JSX.Eleme
   // volver a recuperarlo. Con inputs reales en su posición real, el sistema
   // operativo maneja foco/selección/pegado de forma nativa, sin necesidad de
   // ningún truco de opacidad ni z-index.
-  const inputRefs = useRef<Array<TextInput | null>>([]);
+  const inputRefs = useRef<(TextInput | null)[]>([]);
 
   // Cuenta regresiva para reenviar
   useEffect(() => {

@@ -21,7 +21,10 @@ const FoodsPage            = lazy(() => import('@/pages/Foods').then((m) => ({ d
 const BrandingPage         = lazy(() => import('@/pages/Branding').then((m) => ({ default: m.BrandingPage })));
 const ClientsPage          = lazy(() => import('@/pages/Clients').then((m) => ({ default: m.ClientsPage })));
 const ClientDetailPage     = lazy(() => import('@/pages/ClientDetail').then((m) => ({ default: m.ClientDetailPage })));
-const RoutinesPage         = lazy(() => import('@/pages/Routines').then((m) => ({ default: m.RoutinesPage })));
+const ProgramLibraryPage   = lazy(() => import('@/pages/ProgramLibrary').then((m) => ({ default: m.ProgramLibraryPage })));
+const ProgramEditorPage    = lazy(() => import('@/pages/ProgramEditor').then((m) => ({ default: m.ProgramEditorPage })));
+const RoutineEditorPage    = lazy(() => import('@/pages/RoutineEditor').then((m) => ({ default: m.RoutineEditorPage })));
+const ExerciseLibraryPage  = lazy(() => import('@/pages/ExerciseLibrary').then((m) => ({ default: m.ExerciseLibraryPage })));
 const MessagesPage         = lazy(() => import('@/pages/Messages').then((m) => ({ default: m.MessagesPage })));
 const GroupsPage           = lazy(() => import('@/pages/Groups').then((m) => ({ default: m.GroupsPage })));
 const GroupDetailPage      = lazy(() => import('@/pages/GroupDetail').then((m) => ({ default: m.GroupDetailPage })));
@@ -91,7 +94,11 @@ function App(): React.JSX.Element {
             <Route path="/payments" element={<PaymentsPage />} />
             <Route path="/payments/planes" element={<ManagePlansPage />} />
             <Route path="/payments/integraciones" element={<PaymentIntegrationsPage />} />
-            <Route path="/routines" element={<RoutinesPage />} />
+            <Route path="/programs" element={<ProgramLibraryPage />} />
+            <Route path="/programs/:id" element={<ProgramEditorPage />} />
+            <Route path="/routines/:id" element={<RoutineEditorPage />} />
+            <Route path="/exercises" element={<ExerciseLibraryPage />} />
+            <Route path="/routines" element={<Navigate to="/programs" replace />} />
             <Route path="/foods" element={<FoodsPage />} />
             <Route path="/branding" element={<BrandingPage />} />
             <Route path="/scheduling" element={<Navigate to="/" replace />} />

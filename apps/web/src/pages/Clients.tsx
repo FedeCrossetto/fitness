@@ -425,8 +425,19 @@ export function ClientsPage(): React.JSX.Element {
 
   const clientToDelete = confirmDeleteId ? clients.find((s) => s.id === confirmDeleteId) : null;
 
-  const active  = useMemo(() => clients.filter((s) => s.client_status === 'active'), [clients]);
-  const pending = useMemo(() => clients.filter((s) => s.client_status === 'pending'), [clients]);
+  // "Activos" = aprobado por el entrenador Y tiene un plan real asignado
+  // (no solo client_status='active'). Un cliente aprobado sin suscripción
+  // real cae en "Sin plan activo" junto con los pending — evita que aparezca
+  // en Activos con "—" en la columna Plan sin explicación.
+  const hasRealPlan = (id: string) => (planByClient.get(id)?.kind ?? 'none') !== 'none';
+  const active  = useMemo(
+    () => clients.filter((s) => s.client_status === 'active' && hasRealPlan(s.id)),
+    [clients, planByClient],
+  );
+  const pending = useMemo(
+    () => clients.filter((s) => s.client_status === 'pending' || (s.client_status === 'active' && !hasRealPlan(s.id))),
+    [clients, planByClient],
+  );
   // Cualquier cliente (activo o pendiente) con una solicitud de Mentoría 1 a 1
   // sin resolver — incluye tanto al que recién se registra eligiendo Mentoría
   // como al que ya paga Plan Base y pide el upgrade desde el perfil. Se queda acá
@@ -672,7 +683,7 @@ export function ClientsPage(): React.JSX.Element {
                       <ClientAvatar name={s.full_name} url={s.avatar_url} style={!s.avatar_url ? { background: '#fef3c7', color: '#92400e' } : undefined} />
                       <div>
                         <div className="cell-name">{s.full_name ?? 'Nuevo alumno'}</div>
-                        <div className="cell-sub">Esperando aprobación</div>
+                        <div className="cell-sub">{s.client_status === 'active' ? 'Sin plan activo' : 'Esperando aprobación'}</div>
                       </div>
                     </div>
                   </td>
@@ -819,13 +830,6 @@ export function ClientsPage(): React.JSX.Element {
         .invite-link-input:focus { outline: none; border-color: var(--border-strong); color: var(--text-primary); }
         .invite-banner-btns { display: flex; gap: 8px; flex-shrink: 0; }
 
-        /* Modal backdrop (reutilizado por Add Client) */
-        .invite-qr-backdrop {
-          position: fixed; inset: 0; z-index: 9999;
-          background: rgba(0,0,0,.45); backdrop-filter: blur(4px);
-          display: flex; align-items: center; justify-content: center;
-        }
-
         .clients-page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 4px; }
         .clients-tabs { display: flex; gap: 0; margin-bottom: 16px; border-bottom: 2px solid var(--border); }
         .clients-tab {
@@ -837,16 +841,6 @@ export function ClientsPage(): React.JSX.Element {
         }
         .clients-tab:hover { color: var(--text-primary); }
         .clients-tab.active { color: var(--text-primary); border-bottom-color: var(--primary); }
-        .clients-tab-count {
-          min-width: 20px; height: 18px; padding: 0 5px;
-          background: var(--surface-elevated); color: var(--text-secondary);
-          border-radius: 9px; font-size: 11px; font-weight: 700;
-          display: flex; align-items: center; justify-content: center;
-        }
-        .clients-tab-count.pending {
-          background: var(--brand-lime-soft);
-          color: color-mix(in srgb, var(--brand-lime) 72%, #0C0C0C);
-        }
         .plan-badge {
           display: inline-flex; align-items: center;
           padding: 3px 9px; border-radius: 999px;
@@ -872,59 +866,10 @@ export function ClientsPage(): React.JSX.Element {
         .last7-cell.active { background: var(--primary); }
         .last7-cell.active .last7-letter { color: color-mix(in srgb, var(--primary-contrast, #fff) 80%, transparent); }
         .last7-cell.active .last7-num { color: var(--primary-contrast, #fff); }
-        .btn.sm { font-size: 12px; padding: 5px 12px; }
-
-        /* Kebab menu por fila — look & feel: app.hevycoach.com/clients */
-        .client-row-menu { position: relative; display: inline-flex; justify-content: flex-end; }
-        .client-row-kebab {
-          display: inline-flex; align-items: center; justify-content: center;
-          width: 32px; height: 32px; border: none; background: transparent;
-          color: var(--text-tertiary); border-radius: 8px; cursor: pointer;
-          transition: background 140ms ease, color 140ms ease;
-        }
-        .client-row-kebab:hover { background: var(--surface-elevated); color: var(--text-primary); }
-        .client-row-menu-backdrop { position: fixed; inset: 0; z-index: 20; }
-        .client-row-menu-pop {
-          position: absolute; top: calc(100% + 4px); right: 0; z-index: 21;
-          background: var(--surface); border: 1px solid var(--border);
-          border-radius: var(--radius); box-shadow: var(--shadow-hover);
-          min-width: 200px; padding: 6px; display: flex; flex-direction: column; gap: 2px;
-        }
-        .client-row-menu-item {
-          display: flex; align-items: center; gap: 10px;
-          padding: 9px 10px; font-size: 13px; font-weight: 500;
-          color: var(--text-primary); background: none; border: none; border-radius: 8px;
-          cursor: pointer; text-align: left; white-space: nowrap;
-        }
-        .client-row-menu-item:hover { background: var(--surface-elevated); }
-        .client-row-menu-item.danger { color: #dc2626; }
-        .client-row-menu-item.danger:hover { background: #fef2f2; }
 
         .client-pending-actions {
           display: flex; align-items: center; gap: 8px; justify-content: flex-end;
         }
-        .btn.danger {
-          background: #fef2f2; color: #b91c1c; border: 1.5px solid #fecaca;
-        }
-        .btn.danger:hover { background: #fee2e2; opacity: 1; }
-
-        /* Add Client modal */
-        .add-client-modal {
-          background: var(--surface); border-radius: var(--radius-lg); padding: 28px;
-          box-shadow: 0 24px 80px rgba(0,0,0,.25); width: 100%; max-width: 440px;
-        }
-        .add-client-section-label {
-          font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
-          color: var(--text-tertiary); margin-bottom: 8px;
-        }
-        .add-client-email-row { display: flex; gap: 8px; }
-        .add-client-email-input {
-          flex: 1; padding: 10px 12px; border-radius: var(--radius-sm);
-          border: 1px solid var(--border-strong); background: var(--bg);
-          color: var(--text-primary); font-size: 13.5px;
-        }
-        .add-client-email-input:focus { outline: none; border-color: var(--text-secondary); }
-        .add-client-btn { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
       `}</style>
 
       <ManualPaymentModal

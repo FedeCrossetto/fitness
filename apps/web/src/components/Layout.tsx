@@ -100,7 +100,8 @@ export function Layout(): React.JSX.Element {
     {
       section: t.web.nav_library,
       items: [
-        { to: '/routines', label: t.web.program, icon: () => <DumbbellIcon />,  subheading: t.web.nav_training  },
+        { to: '/programs', label: t.web.program, icon: () => <DumbbellIcon />,  subheading: t.web.nav_training  },
+        { to: '/exercises', label: t.web.exercises_library, icon: () => <DumbbellIcon /> },
         { to: '/foods',    label: t.web.foods,   icon: () => <NutritionIcon />, subheading: t.web.nav_nutrition, badge: pendingFoodCount || undefined },
       ],
     },
