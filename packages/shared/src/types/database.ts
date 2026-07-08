@@ -227,6 +227,8 @@ export interface TrainingDayRow {
   day_type: WorkoutType;
   workout_id: string | null;
   sort_order: number;
+  /** Día de semana recurrente asignado (0=Lunes..6=Domingo), o null si no tiene uno fijo. */
+  day_of_week: number | null;
   created_at: string;
   updated_at: string;
 }

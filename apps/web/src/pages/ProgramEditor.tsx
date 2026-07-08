@@ -11,15 +11,18 @@ import type {
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/useToast';
-import { Spinner } from '@/components/ui';
+import { Spinner, ConfirmDialog } from '@/components/ui';
 import { PlusIcon } from '@/components/icons';
 import { AssignProgramModal } from '@/components/AssignProgramModal';
+import { CardMenu } from '@/components/CardMenu';
 
 type CatalogExercise = Pick<ExerciseRow, 'id' | 'name' | 'image_url' | 'target_muscles'>;
 type WorkoutExerciseWithExercise = WorkoutExerciseRow & { exercise: CatalogExercise | null };
 type DayWithWorkout = TrainingDayRow & {
   workout: (WorkoutRow & { exercises: WorkoutExerciseWithExercise[] }) | null;
 };
+
+const WEEKDAY_NAMES = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 
 /** Un programa nuevo siempre tiene una única fase contenedora (invisible acá) —
  * ver comentario en la migración 20260708010000_program_library.sql. Si por
@@ -37,6 +40,10 @@ export function ProgramEditorPage(): React.JSX.Element {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [assignOpen, setAssignOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<DayWithWorkout | null>(null);
+  const [copyTarget, setCopyTarget] = useState<DayWithWorkout | null>(null);
+  const [copyPrograms, setCopyPrograms] = useState<ProgramRow[]>([]);
+  const [assignDayTarget, setAssignDayTarget] = useState<DayWithWorkout | null>(null);
 
   const [nameDraft, setNameDraft] = useState('');
   const [noteDraft, setNoteDraft] = useState('');
@@ -114,17 +121,127 @@ export function ProgramEditorPage(): React.JSX.Element {
     await load();
   };
 
-  const deleteRoutine = async (day: DayWithWorkout) => {
-    if (!confirm('¿Eliminar esta rutina?')) return;
+  const confirmDeleteRoutine = async () => {
+    if (!deleteTarget) return;
+    const day = deleteTarget;
     if (day.workout) await supabase.from('workout_exercises').delete().eq('workout_id', day.workout.id);
     await supabase.from('training_days').delete().eq('id', day.id);
     if (day.workout) await supabase.from('workouts').delete().eq('id', day.workout.id);
+    setDeleteTarget(null);
     await load();
   };
 
   const renameRoutine = async (dayId: string, title: string) => {
     await supabase.from('training_days').update({ title }).eq('id', dayId);
     setDays((prev) => prev.map((d) => (d.id === dayId ? { ...d, title } : d)));
+  };
+
+  const duplicateRoutine = async (day: DayWithWorkout) => {
+    if (!trainerId || !phaseId) return;
+    const nextNumber = days.reduce((m, d) => Math.max(m, d.day_number), 0) + 1;
+    const { data: workout, error: wErr } = await supabase
+      .from('workouts')
+      .insert({ trainer_id: trainerId, title: `${day.title} (copia)`, workout_type: day.day_type, blocks: day.workout?.blocks ?? 1 })
+      .select('id')
+      .single();
+    if (wErr || !workout) { showToast('error', 'No pudimos duplicar la rutina.'); return; }
+    const newWorkoutId = (workout as { id: string }).id;
+    const exercises = day.workout?.exercises ?? [];
+    if (exercises.length > 0) {
+      await supabase.from('workout_exercises').insert(
+        exercises.map((we) => ({
+          workout_id: newWorkoutId,
+          exercise_id: we.exercise_id,
+          sort_order: we.sort_order,
+          sets: we.sets,
+          reps: we.reps,
+          weight_kg: we.weight_kg,
+          rest_seconds: we.rest_seconds,
+        })),
+      );
+    }
+    await supabase.from('training_days').insert({
+      phase_id: phaseId,
+      day_number: nextNumber,
+      title: `${day.title} (copia)`,
+      day_type: day.day_type,
+      workout_id: newWorkoutId,
+      sort_order: days.length,
+    });
+    showToast('success', 'Rutina duplicada.');
+    await load();
+  };
+
+  const openCopyToProgram = async (day: DayWithWorkout) => {
+    if (!trainerId) return;
+    setCopyTarget(day);
+    const { data } = await supabase
+      .from('programs')
+      .select('*')
+      .eq('trainer_id', trainerId)
+      .neq('id', program?.id ?? '')
+      .order('name');
+    setCopyPrograms((data as ProgramRow[] | null) ?? []);
+  };
+
+  const copyRoutineToProgram = async (targetProgram: ProgramRow) => {
+    if (!copyTarget || !trainerId) return;
+    const day = copyTarget;
+    let { data: phaseRows } = await supabase
+      .from('training_phases')
+      .select('*')
+      .eq('program_key', targetProgram.program_key)
+      .order('sort_order')
+      .limit(1);
+    let targetPhase = ((phaseRows as TrainingPhaseRow[] | null) ?? [])[0];
+    if (!targetPhase) {
+      const { data: created } = await supabase
+        .from('training_phases')
+        .insert({ program_key: targetProgram.program_key, trainer_id: trainerId, phase_number: 1, name: targetProgram.name, sort_order: 0, is_active: true })
+        .select()
+        .single();
+      targetPhase = created as TrainingPhaseRow;
+    }
+    const { data: existingDays } = await supabase.from('training_days').select('day_number').eq('phase_id', targetPhase.id);
+    const nextNumber = ((existingDays as { day_number: number }[] | null) ?? []).reduce((m, d) => Math.max(m, d.day_number), 0) + 1;
+
+    const { data: workout, error: wErr } = await supabase
+      .from('workouts')
+      .insert({ trainer_id: trainerId, title: day.title, workout_type: day.day_type, blocks: day.workout?.blocks ?? 1 })
+      .select('id')
+      .single();
+    if (wErr || !workout) { showToast('error', 'No pudimos copiar la rutina.'); return; }
+    const newWorkoutId = (workout as { id: string }).id;
+    const exercises = day.workout?.exercises ?? [];
+    if (exercises.length > 0) {
+      await supabase.from('workout_exercises').insert(
+        exercises.map((we) => ({
+          workout_id: newWorkoutId,
+          exercise_id: we.exercise_id,
+          sort_order: we.sort_order,
+          sets: we.sets,
+          reps: we.reps,
+          weight_kg: we.weight_kg,
+          rest_seconds: we.rest_seconds,
+        })),
+      );
+    }
+    await supabase.from('training_days').insert({
+      phase_id: targetPhase.id,
+      day_number: nextNumber,
+      title: day.title,
+      day_type: day.day_type,
+      workout_id: newWorkoutId,
+      sort_order: 0,
+    });
+    setCopyTarget(null);
+    showToast('success', `Rutina copiada a "${targetProgram.name}".`);
+  };
+
+  const assignToDay = async (day: DayWithWorkout, weekday: number | null) => {
+    await supabase.from('training_days').update({ day_of_week: weekday }).eq('id', day.id);
+    setDays((prev) => prev.map((d) => (d.id === day.id ? { ...d, day_of_week: weekday } : d)));
+    setAssignDayTarget(null);
   };
 
   const duplicateProgram = async () => {
@@ -234,7 +351,10 @@ export function ProgramEditorPage(): React.JSX.Element {
                 day={day}
                 onOpen={() => navigate(`/routines/${day.id}`)}
                 onRename={(title) => void renameRoutine(day.id, title)}
-                onDelete={() => void deleteRoutine(day)}
+                onDuplicate={() => void duplicateRoutine(day)}
+                onDelete={() => setDeleteTarget(day)}
+                onCopyToProgram={() => void openCopyToProgram(day)}
+                onAssignDay={() => setAssignDayTarget(day)}
               />
             ))
           )}
@@ -261,6 +381,65 @@ export function ProgramEditorPage(): React.JSX.Element {
       </div>
 
       {assignOpen && <AssignProgramModal program={program} onClose={() => setAssignOpen(false)} />}
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Eliminar rutina"
+        message={`¿Eliminar "${deleteTarget?.title}"? Esta acción no se puede deshacer.`}
+        confirmLabel="Eliminar"
+        cancelLabel="Cancelar"
+        onConfirm={() => void confirmDeleteRoutine()}
+        onCancel={() => setDeleteTarget(null)}
+        danger
+      />
+
+      {copyTarget && (
+        <div className="invite-qr-backdrop" onClick={() => setCopyTarget(null)}>
+          <div className="add-client-modal" onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 16 }}>Copiar "{copyTarget.title}" a…</div>
+            {copyPrograms.length === 0 ? (
+              <p className="muted">No hay otros programas todavía.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 320, overflowY: 'auto' }}>
+                {copyPrograms.map((p) => (
+                  <button key={p.id} type="button" className="client-row-menu-item" onClick={() => void copyRoutineToProgram(p)}>{p.name}</button>
+                ))}
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 20 }}>
+              <button type="button" className="btn secondary" onClick={() => setCopyTarget(null)}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {assignDayTarget && (
+        <div className="invite-qr-backdrop" onClick={() => setAssignDayTarget(null)}>
+          <div className="add-client-modal" onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 16 }}>Asignar día — "{assignDayTarget.title}"</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {WEEKDAY_NAMES.map((name, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  className={`client-row-menu-item${assignDayTarget.day_of_week === i ? ' danger' : ''}`}
+                  onClick={() => void assignToDay(assignDayTarget, i)}
+                >
+                  {name}
+                </button>
+              ))}
+              {assignDayTarget.day_of_week !== null && (
+                <button type="button" className="client-row-menu-item" onClick={() => void assignToDay(assignDayTarget, null)}>
+                  Quitar día asignado
+                </button>
+              )}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 20 }}>
+              <button type="button" className="btn secondary" onClick={() => setAssignDayTarget(null)}>Cerrar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -278,14 +457,21 @@ function RoutineCard({
   day,
   onOpen,
   onRename,
+  onDuplicate,
   onDelete,
+  onCopyToProgram,
+  onAssignDay,
 }: {
   day: DayWithWorkout;
   onOpen: () => void;
   onRename: (title: string) => void;
+  onDuplicate: () => void;
   onDelete: () => void;
+  onCopyToProgram: () => void;
+  onAssignDay: () => void;
 }): React.JSX.Element {
   const [title, setTitle] = useState(day.title);
+  const [menuOpen, setMenuOpen] = useState(false);
   const exercises = [...(day.workout?.exercises ?? [])].sort((a, b) => a.sort_order - b.sort_order);
 
   return (
@@ -299,14 +485,20 @@ function RoutineCard({
           onChange={(e) => setTitle(e.target.value)}
           onBlur={() => title.trim() && title !== day.title && onRename(title.trim())}
         />
-        <button
-          type="button"
-          className="icon-btn sm"
-          title="Eliminar rutina"
-          onClick={(e) => { e.stopPropagation(); onDelete(); }}
-        >
-          ✕
-        </button>
+        {day.day_of_week !== null && (
+          <span className="badge solid gray" style={{ flexShrink: 0 }}>{WEEKDAY_NAMES[day.day_of_week]}</span>
+        )}
+        <CardMenu
+          open={menuOpen}
+          onToggle={() => setMenuOpen((v) => !v)}
+          items={[
+            { label: 'Edit routine', onClick: onOpen },
+            { label: 'Duplicate routine', onClick: onDuplicate },
+            { label: 'Copy routine to program', onClick: onCopyToProgram },
+            { label: 'Assign to specific day', onClick: onAssignDay },
+            { label: 'Delete routine', onClick: onDelete, danger: true },
+          ]}
+        />
       </div>
       {exercises.length === 0 ? (
         <p className="muted" style={{ margin: '10px 0 0', fontSize: 12.5 }}>Sin ejercicios — abrí la rutina para agregarlos.</p>

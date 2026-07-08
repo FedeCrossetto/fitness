@@ -6,49 +6,14 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/useToast';
 import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
 import { ErrorState, LoadingRows, EmptyState, ConfirmDialog } from '@/components/ui';
-import { DumbbellIcon, PlusIcon, SearchIcon, MoreVerticalIcon } from '@/components/icons';
+import { DumbbellIcon, PlusIcon, SearchIcon } from '@/components/icons';
 import { AssignProgramModal } from '@/components/AssignProgramModal';
+import { CardMenu } from '@/components/CardMenu';
 
 type ProgramWithPreview = ProgramRow & { dayTitles: string[] };
 
 function newProgramKey(): string {
   return `program_${crypto.randomUUID()}`;
-}
-
-/** Menú kebab reutilizado del patrón de Clients.tsx. */
-function CardMenu({
-  open,
-  onToggle,
-  items,
-}: {
-  open: boolean;
-  onToggle: () => void;
-  items: { label: string; onClick: () => void; danger?: boolean }[];
-}): React.JSX.Element {
-  return (
-    <div className="client-row-menu" onClick={(e) => e.stopPropagation()}>
-      <button type="button" className="client-row-kebab" onClick={onToggle} aria-label="Más opciones">
-        <MoreVerticalIcon size={18} />
-      </button>
-      {open && (
-        <>
-          <div className="client-row-menu-backdrop" onClick={onToggle} />
-          <div className="client-row-menu-pop">
-            {items.map((item) => (
-              <button
-                key={item.label}
-                type="button"
-                className={`client-row-menu-item${item.danger ? ' danger' : ''}`}
-                onClick={() => { onToggle(); item.onClick(); }}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  );
 }
 
 export function ProgramLibraryPage(): React.JSX.Element {
@@ -69,6 +34,13 @@ export function ProgramLibraryPage(): React.JSX.Element {
   const [deleteTarget, setDeleteTarget] = useState<ProgramRow | null>(null);
   const [moveTarget, setMoveTarget] = useState<ProgramRow | null>(null);
   const [assignTarget, setAssignTarget] = useState<ProgramRow | null>(null);
+  const [folderMenuOpenId, setFolderMenuOpenId] = useState<string | null>(null);
+  const [renameFolderTarget, setRenameFolderTarget] = useState<ProgramFolderRow | null>(null);
+  const [renameFolderName, setRenameFolderName] = useState('');
+  const [deleteFolderTarget, setDeleteFolderTarget] = useState<ProgramFolderRow | null>(null);
+  const [createFolderId, setCreateFolderId] = useState<string | null>(null);
+  const [draggedProgramId, setDraggedProgramId] = useState<string | null>(null);
+  const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
 
   const { data, loading, error, refetch } = useSupabaseQuery<ProgramWithPreview[]>(
     async () => {
@@ -161,6 +133,7 @@ export function ProgramLibraryPage(): React.JSX.Element {
         program_key: programKey,
         name: newName.trim(),
         duration_weeks: durationWeeks,
+        folder_id: createFolderId,
       })
       .select()
       .single();
@@ -181,6 +154,7 @@ export function ProgramLibraryPage(): React.JSX.Element {
     });
     setCreating(false);
     setCreateOpen(false);
+    setCreateFolderId(null);
     setNewName('');
     setNewDuration('4');
     showToast('success', 'Programa creado.');
@@ -244,12 +218,61 @@ export function ProgramLibraryPage(): React.JSX.Element {
     void refetch();
   };
 
-  const deleteFolder = async (folderId: string) => {
-    if (!confirm('¿Eliminar esta carpeta? Los programas que tenga vuelven a "Mis Programas".')) return;
+  const confirmDeleteFolder = async () => {
+    if (!deleteFolderTarget) return;
+    const folderId = deleteFolderTarget.id;
     await supabase.from('programs').update({ folder_id: null }).eq('folder_id', folderId);
     await supabase.from('program_folders').delete().eq('id', folderId);
     setFolders((prev) => prev.filter((f) => f.id !== folderId));
+    setDeleteFolderTarget(null);
+    showToast('success', 'Carpeta eliminada.');
     void refetch();
+  };
+
+  const renameFolder = async () => {
+    if (!renameFolderTarget || !renameFolderName.trim()) return;
+    const name = renameFolderName.trim();
+    await supabase.from('program_folders').update({ name }).eq('id', renameFolderTarget.id);
+    setFolders((prev) => prev.map((f) => (f.id === renameFolderTarget.id ? { ...f, name } : f)));
+    setRenameFolderTarget(null);
+    setRenameFolderName('');
+    showToast('success', 'Carpeta renombrada.');
+  };
+
+  const duplicateFolder = async (folder: ProgramFolderRow) => {
+    const { data: inserted } = await supabase
+      .from('program_folders')
+      .insert({ trainer_id: userId!, name: `${folder.name} (copia)` })
+      .select()
+      .single();
+    if (!inserted) {
+      showToast('error', 'No pudimos duplicar la carpeta.');
+      return;
+    }
+    const newFolder = inserted as ProgramFolderRow;
+    setFolders((prev) => [...prev, newFolder]);
+    const items = grouped.get(folder.id) ?? [];
+    for (const p of items) {
+      const { data: cloneId } = await supabase.rpc('clone_program', {
+        p_program_id: p.id,
+        p_new_name: p.name,
+        p_client_id: null,
+      });
+      if (cloneId) {
+        await supabase.from('programs').update({ folder_id: newFolder.id }).eq('id', cloneId);
+      }
+    }
+    showToast('success', 'Carpeta duplicada.');
+    void refetch();
+  };
+
+  const onDropOnFolder = async (folderId: string | null) => {
+    setDragOverFolderId(null);
+    if (!draggedProgramId) return;
+    const program = programs.find((p) => p.id === draggedProgramId);
+    setDraggedProgramId(null);
+    if (!program || program.folder_id === folderId) return;
+    await moveToFolder(program, folderId);
   };
 
   return (
@@ -261,7 +284,7 @@ export function ProgramLibraryPage(): React.JSX.Element {
         </div>
       </div>
 
-      <div className="table-toolbar" style={{ border: 'none', padding: '14px 0' }}>
+      <div className="table-toolbar" style={{ border: 'none', padding: '8px 0 14px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div className="search-field">
             <SearchIcon size={16} />
@@ -295,31 +318,46 @@ export function ProgramLibraryPage(): React.JSX.Element {
         <>
           {[{ id: null as string | null, name: 'Mis Programas' }, ...folders.map((f) => ({ id: f.id, name: f.name }))].map((group) => {
             const items = grouped.get(group.id) ?? [];
+            const folderRow = group.id ? folders.find((f) => f.id === group.id) ?? null : null;
             return (
-              <div key={group.id ?? 'root'} style={{ marginBottom: 24 }}>
+              <div
+                key={group.id ?? 'root'}
+                style={{ marginBottom: 24 }}
+                onDragOver={(e) => { e.preventDefault(); setDragOverFolderId(group.id ?? 'root'); }}
+                onDragLeave={() => setDragOverFolderId((prev) => (prev === (group.id ?? 'root') ? null : prev))}
+                onDrop={(e) => { e.preventDefault(); void onDropOnFolder(group.id); }}
+              >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>
                     {group.name} <span className="clients-tab-count" style={{ marginLeft: 6 }}>{items.length}</span>
                   </div>
-                  {group.id !== null && (
-                    <button
-                      type="button"
-                      className="client-row-menu-item danger"
-                      style={{ padding: '4px 8px' }}
-                      onClick={() => void deleteFolder(group.id!)}
-                    >
-                      Eliminar carpeta
-                    </button>
+                  {group.id !== null && folderRow && (
+                    <CardMenu
+                      open={folderMenuOpenId === folderRow.id}
+                      onToggle={() => setFolderMenuOpenId((prev) => (prev === folderRow.id ? null : folderRow.id))}
+                      items={[
+                        { label: 'Crear programa', onClick: () => { setCreateFolderId(folderRow.id); setCreateOpen(true); } },
+                        { label: 'Renombrar carpeta', onClick: () => { setRenameFolderTarget(folderRow); setRenameFolderName(folderRow.name); } },
+                        { label: 'Duplicar carpeta', onClick: () => void duplicateFolder(folderRow) },
+                        { label: 'Eliminar carpeta', onClick: () => setDeleteFolderTarget(folderRow), danger: true },
+                      ]}
+                    />
                   )}
                 </div>
                 {items.length === 0 ? (
-                  <div className="card" style={{ padding: 16 }}>
+                  <div
+                    className={`card program-drop-zone${dragOverFolderId === (group.id ?? 'root') ? ' drag-over' : ''}`}
+                    style={{ padding: 16 }}
+                  >
                     <p className="muted" style={{ margin: 0, fontSize: 12.5 }}>
-                      {group.id === null ? 'Sin programas todavía.' : 'Sin programas en esta carpeta — movelos con "Mover a carpeta".'}
+                      {group.id === null ? 'Sin programas todavía.' : 'Arrastrá un programa acá, o movelo con "Mover a carpeta".'}
                     </p>
                   </div>
                 ) : (
-                <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+                <div
+                  className={`grid program-drop-zone${dragOverFolderId === (group.id ?? 'root') ? ' drag-over' : ''}`}
+                  style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}
+                >
                   {items.map((p) => (
                     <div
                       key={p.id}
@@ -327,6 +365,9 @@ export function ProgramLibraryPage(): React.JSX.Element {
                       onClick={() => navigate(`/programs/${p.id}`)}
                       role="button"
                       tabIndex={0}
+                      draggable
+                      onDragStart={() => setDraggedProgramId(p.id)}
+                      onDragEnd={() => { setDraggedProgramId(null); setDragOverFolderId(null); }}
                     >
                       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                         <div style={{ fontWeight: 650, fontSize: 15 }}>{p.name}</div>
@@ -403,10 +444,29 @@ export function ProgramLibraryPage(): React.JSX.Element {
               onChange={(e) => setNewDuration(e.target.value)}
             />
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
-              <button type="button" className="btn secondary" onClick={() => setCreateOpen(false)}>Cancelar</button>
+              <button type="button" className="btn secondary" onClick={() => { setCreateOpen(false); setCreateFolderId(null); }}>Cancelar</button>
               <button type="button" className="btn primary" disabled={!newName.trim() || creating} onClick={() => void createProgram()}>
                 {creating ? 'Creando…' : 'Crear'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {renameFolderTarget && (
+        <div className="invite-qr-backdrop" onClick={() => setRenameFolderTarget(null)}>
+          <div className="add-client-modal" onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 16 }}>Renombrar carpeta</div>
+            <input
+              className="add-client-email-input"
+              style={{ width: '100%' }}
+              value={renameFolderName}
+              onChange={(e) => setRenameFolderName(e.target.value)}
+              autoFocus
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
+              <button type="button" className="btn secondary" onClick={() => setRenameFolderTarget(null)}>Cancelar</button>
+              <button type="button" className="btn primary" disabled={!renameFolderName.trim()} onClick={() => void renameFolder()}>Guardar</button>
             </div>
           </div>
         </div>
@@ -459,8 +519,22 @@ export function ProgramLibraryPage(): React.JSX.Element {
         danger
       />
 
+      <ConfirmDialog
+        open={!!deleteFolderTarget}
+        title="Eliminar carpeta"
+        message={`¿Eliminar "${deleteFolderTarget?.name}"? Los programas que tenga vuelven a "Mis Programas".`}
+        confirmLabel="Eliminar"
+        cancelLabel="Cancelar"
+        onConfirm={() => void confirmDeleteFolder()}
+        onCancel={() => setDeleteFolderTarget(null)}
+        danger
+      />
+
       <style>{`
         .program-card { cursor: pointer; margin-bottom: 0; position: relative; }
+        .program-card[draggable="true"] { cursor: grab; }
+        .program-drop-zone { transition: background-color 0.15s, outline 0.15s; border-radius: 12px; }
+        .program-drop-zone.drag-over { background-color: rgba(59,130,246,0.06); outline: 2px dashed var(--accent, #3b82f6); outline-offset: 4px; }
       `}</style>
     </div>
   );

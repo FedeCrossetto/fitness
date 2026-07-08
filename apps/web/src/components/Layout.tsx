@@ -2,18 +2,18 @@ import React, { useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useTranslation } from '@/hooks/useTranslation';
-import { useUnreadMessages } from '@/hooks/useUnreadMessages';
 import { usePendingFoodCount } from '@/hooks/usePendingFoodCount';
 import { useBrandingHead, useTrainerBranding } from '@/hooks/useTrainerBranding';
 import { ConfirmDialog } from '@/components/ui';
 import { LANGUAGES, APP_TERMS_URL } from '@reset-fitness/shared';
 import {
   GridIcon, BrushIcon, UsersIcon, LogOutIcon,
-  MessageIcon, GroupsIcon, CreditCardIcon,
+  GroupsIcon, CreditCardIcon,
   DumbbellIcon, NutritionIcon, SettingsIcon, ChevronDownIcon, ChevronRightIcon,
   MegaphoneIcon, TrophyIcon, PuzzleIcon, BookOpenIcon,
 } from '@/components/icons';
 import { resolveAvatarUrl, initials } from '@/lib/avatarUrl';
+import { FloatingChatWidget } from '@/components/FloatingChatWidget';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -51,7 +51,6 @@ function Avatar({ name, url, size = 'md', title }: { name?: string | null; url?:
 export function Layout(): React.JSX.Element {
   const { profile, signOut, isAdmin, isTrainer } = useAuth();
   const { t, language, setLanguage } = useTranslation();
-  const unreadMessages = useUnreadMessages();
   const pendingFoodCount = usePendingFoodCount();
   const { appName: appBrandName, logoUrl } = useTrainerBranding();
   useBrandingHead(appBrandName, logoUrl);
@@ -83,7 +82,6 @@ export function Layout(): React.JSX.Element {
       section: t.web.nav_main,
       items: [
         { to: '/',           label: t.web.overview,    end: true, icon: () => <GridIcon />       },
-        { to: '/messages',   label: t.web.messages,              icon: () => <MessageIcon />,   badge: unreadMessages || undefined },
         { to: '/challenges', label: t.web.challenges,            icon: () => <TrophyIcon />     },
         { to: '/groups',     label: t.web.groups,                icon: () => <GroupsIcon />     },
         { to: '/clients',    label: t.web.clients,               icon: () => <UsersIcon />      },
@@ -274,6 +272,8 @@ export function Layout(): React.JSX.Element {
           <Outlet />
         </div>
       </main>
+
+      {!location.pathname.startsWith('/messages') && <FloatingChatWidget />}
     </div>
   );
 }
