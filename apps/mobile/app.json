@@ -116,8 +116,25 @@
       "supabaseUrl": "",
       "supabaseAnonKey": "",
       "eas": {
-        "projectId": "5f5437a0-ea00-47a8-b6e1-daa2dff037c0"
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "bundleIdentifier": "com.fedecrossetto.resetfitness.widget",
+                  "targetName": "ResetFitnessActivity"
+                },
+                {
+                  "bundleIdentifier": "com.fedecrossetto.resetfitness.widget",
+                  "targetName": "ResetFitnessActivity"
+                }
+              ]
+            }
+          }
+        },
+        "projectId": "c21db82e-9809-4edb-bfa1-bbe00dc2b75c"
       }
-    }
+    },
+    "owner": "ser.sebas"
   }
 }

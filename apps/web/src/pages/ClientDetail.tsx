@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useTranslation } from '@/hooks/useTranslation';
 import { MessageIcon, PlusIcon, DumbbellIcon, ChevronRightIcon } from '@/components/icons';
@@ -16,7 +16,7 @@ import type {
   PlanRow,
 } from '@reset-fitness/shared/types/database';
 import { supabase, anyClient } from '@/lib/supabase';
-import { formatWorkoutVolume, summarizeWorkoutForFeed } from '@reset-fitness/shared';
+import { formatWorkoutVolume, summarizeWorkoutForFeed, TERMS_VERSION, APP_TERMS_URL } from '@reset-fitness/shared';
 import { RoutineManager } from '@/components/RoutineManager';
 import { ClientCoachPanel } from '@/components/ClientCoachPanel';
 import { Lightbox, Spinner, ConfirmDialog } from '@/components/ui';
@@ -56,7 +56,7 @@ interface ConsultationResponse {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type Profile = Pick<ProfileRow, 'id' | 'full_name' | 'goal' | 'phone' | 'avatar_url' | 'created_at' | 'assigned_program_key'> & {
+type Profile = Pick<ProfileRow, 'id' | 'full_name' | 'goal' | 'phone' | 'avatar_url' | 'created_at' | 'assigned_program_key' | 'terms_accepted_at' | 'terms_version'> & {
   client_status?: 'pending' | 'active';
 };
 
@@ -108,8 +108,9 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'fotos',       label: 'Fotos'        },
   { key: 'engagement',  label: 'Engagement'   },
   { key: 'facturacion', label: 'Facturación'  },
-  { key: 'deslinde',    label: 'Deslinde'     },
+  { key: 'deslinde',    label: 'Legal'        },
 ];
+const TAB_KEYS = new Set<Tab>(TABS.map((t) => t.key));
 
 const POSITION_LABEL: Record<string, string> = { frente: 'Frente', perfil: 'Perfil', espalda: 'Espalda' };
 
@@ -142,7 +143,11 @@ export function ClientDetailPage(): React.JSX.Element {
   const { t, i18n } = useTranslation();
   const { showToast } = useToast();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<Tab>('resumen');
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab');
+  const [tab, setTab] = useState<Tab>(
+    initialTab && TAB_KEYS.has(initialTab as Tab) ? (initialTab as Tab) : 'resumen',
+  );
   const [defaultProgramKey, setDefaultProgramKey] = useState('default');
 
   const [profile, setProfile]         = useState<Profile | null>(null);
@@ -189,7 +194,7 @@ export function ClientDetailPage(): React.JSX.Element {
     let active = true;
     void (async () => {
       const [{ data: p }, { data: up }, { data: bm }, { data: wl }, { data: ml }, { data: msgs }, { data: ws }, { data: ic }, { data: cr }, { data: pp }, { data: sub }] = await Promise.all([
-        supabase.from('profiles').select('id, full_name, goal, phone, avatar_url, created_at, client_status, assigned_program_key').eq('id', clientId).maybeSingle(),
+        supabase.from('profiles').select('id, full_name, goal, phone, avatar_url, created_at, client_status, assigned_program_key, terms_accepted_at, terms_version').eq('id', clientId).maybeSingle(),
         supabase.from('user_profiles').select('*').eq('user_id', clientId).maybeSingle(),
         supabase.from('body_measurements').select('*').eq('user_id', clientId).order('date', { ascending: false }).limit(10),
         supabase.from('workout_logs').select('*').eq('user_id', clientId).order('date', { ascending: false }).limit(20),
@@ -845,7 +850,7 @@ export function ClientDetailPage(): React.JSX.Element {
 
         {/* DESLINDE */}
         {tab === 'deslinde' && (
-          <WaiverTab sig={waiverSig} imageConsent={imageConsent} />
+          <WaiverTab sig={waiverSig} imageConsent={imageConsent} profile={profile} />
         )}
 
         {/* ENGAGEMENT */}
@@ -1014,21 +1019,21 @@ export function ClientDetailPage(): React.JSX.Element {
           .sd-last-workout { flex-direction: column; padding: 14px 16px 16px; }
         }
 
-        /* Tabs — segmented control */
+        /* Tabs — underlined nav (look & feel: app.hevycoach.com/clients/:id) */
         .sd-tabs {
-          display: inline-flex; gap: 3px; margin-bottom: 24px; overflow-x: auto;
-          padding: 4px; background: var(--surface-elevated);
-          border: 1px solid var(--border); border-radius: 14px; max-width: 100%;
+          display: flex; gap: 22px; margin-bottom: 24px; overflow-x: auto;
+          border-bottom: 1px solid var(--border); max-width: 100%;
         }
         .sd-tab {
           display: flex; align-items: center; gap: 6px;
-          padding: 8px 15px; font-size: 13px; font-weight: 600;
+          padding: 10px 2px; font-size: 13.5px; font-weight: 600;
           color: var(--text-tertiary); background: none; border: none; cursor: pointer;
-          border-radius: 10px; white-space: nowrap;
-          transition: color 150ms, background 150ms, box-shadow 150ms;
+          white-space: nowrap; flex-shrink: 0;
+          border-bottom: 2px solid transparent; margin-bottom: -1px;
+          transition: color 150ms, border-color 150ms;
         }
         .sd-tab:hover { color: var(--text-primary); }
-        .sd-tab.active { color: var(--text-primary); background: var(--surface); box-shadow: var(--card-shadow); }
+        .sd-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
 
         .sd-content { min-height: 300px; }
         .sd-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
@@ -1507,9 +1512,11 @@ function BillingTab({
 function WaiverTab({
   sig,
   imageConsent,
+  profile,
 }: {
   sig: WaiverSignature | null | false;
   imageConsent: ImageConsentAcceptance | null | false;
+  profile: Profile | null;
 }): React.JSX.Element {
   const isSigned = sig !== null && sig !== false;
   const ws = isSigned ? (sig as WaiverSignature) : null;
@@ -1519,6 +1526,40 @@ function WaiverTab({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+    {/* Términos y condiciones */}
+    <div className="card">
+      <div className="section-title" style={{ marginBottom: 16 }}>Términos y condiciones</div>
+      {profile?.terms_accepted_at ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ width: 34, height: 34, borderRadius: '50%', background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>✓</span>
+          <div>
+            <div style={{ fontWeight: 700, color: '#16a34a', fontSize: 15 }}>Aceptados</div>
+            <div style={{ fontSize: 12.5, color: 'var(--text-tertiary)' }}>
+              {new Date(profile.terms_accepted_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              {' · '}
+              <a href={APP_TERMS_URL} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)' }}>
+                Ver documento{profile.terms_version ? ` (v. ${profile.terms_version})` : ''}
+              </a>
+              {profile.terms_version && profile.terms_version !== TERMS_VERSION ? (
+                <span style={{ color: '#ca8a04' }}> · hay una versión más nueva</span>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ width: 34, height: 34, borderRadius: '50%', background: '#fef9c3', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>!</span>
+          <div>
+            <div style={{ fontWeight: 700, color: '#ca8a04', fontSize: 15 }}>No registrado</div>
+            <div style={{ fontSize: 12.5, color: 'var(--text-tertiary)' }}>
+              Esta cuenta se creó antes de que empezáramos a registrar la aceptación de Términos y Condiciones.
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 20 }}>
 
       {/* Status card */}

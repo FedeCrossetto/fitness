@@ -11,3 +11,4 @@ export * from './training/workoutSession';
 export * from './training/exerciseDisplay';
 export * from './training/bodyZones';
 export * from './progress/bodyMeasurementValidation';
+export * from './legal/termsAndConditions';

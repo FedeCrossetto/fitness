@@ -31,6 +31,7 @@ import {
 import { isValidOnboardingPhone } from '../auth/OnboardingScreen';
 import { ONBOARDING_GENDERS } from '../auth/onboardingConstants';
 import { EMPTY_EVALUATION, EVALUATION_GOALS, type EvaluationFormData } from './evaluationTypes';
+import { useTabBarScrollPadding } from '../../hooks/useTabBarScrollPadding';
 
 interface EvaluationFormScreenProps {
   onBack: () => void;
@@ -47,6 +48,7 @@ interface EvaluationFormScreenProps {
  */
 export function EvaluationFormScreen({ onBack, onSubmitted }: EvaluationFormScreenProps): React.JSX.Element {
   const insets = useSafeAreaInsets();
+  const scrollBottom = useTabBarScrollPadding();
   const profile = useAuthStore((s) => s.profile);
   const session = useAuthStore((s) => s.session);
 
@@ -144,7 +146,7 @@ export function EvaluationFormScreen({ onBack, onSubmitted }: EvaluationFormScre
           ref={scrollRef}
           contentContainerStyle={[
             styles.content,
-            { paddingTop: insets.top + spacing.md, paddingBottom: insets.bottom + spacing.xl },
+            { paddingTop: insets.top + spacing.md, paddingBottom: scrollBottom },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}

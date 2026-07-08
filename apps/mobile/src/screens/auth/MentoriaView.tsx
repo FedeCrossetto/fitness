@@ -26,7 +26,13 @@ export const MENTORIA_FEATURES: { text: string; bold?: boolean }[] = [
 /** Tarjeta completa de "Mentoría 1 a 1" — usada tanto en el gate de activación
  * (SubscriptionPlansScreen) como en la pantalla de upgrade post-login
  * (MentoriaUpgradeScreen), para no duplicar copy/estilo entre ambas. */
-export function MentoriaView({ onRequestEvaluation }: { onRequestEvaluation: () => void }): React.JSX.Element {
+export function MentoriaView({
+  onRequestEvaluation,
+  alreadyApplied = false,
+}: {
+  onRequestEvaluation: () => void;
+  alreadyApplied?: boolean;
+}): React.JSX.Element {
   return (
     <View style={styles.tabContent}>
       {/* Banner transformacion */}
@@ -105,12 +111,13 @@ export function MentoriaView({ onRequestEvaluation }: { onRequestEvaluation: () 
 
         {/* CTA */}
         <TouchableOpacity
-          style={[styles.ctaBtn, { backgroundColor: ORANGE }]}
-          activeOpacity={0.85}
+          style={[styles.ctaBtn, { backgroundColor: ORANGE }, alreadyApplied && styles.ctaBtnDisabled]}
+          activeOpacity={alreadyApplied ? 1 : 0.85}
+          disabled={alreadyApplied}
           onPress={onRequestEvaluation}
         >
           <AppText variant="caps11" color={authColors.background} style={styles.ctaText}>
-            SOLICITAR EVALUACIÓN
+            {alreadyApplied ? 'YA APLICASTE · AGUARDÁ CONTACTO' : 'SOLICITAR EVALUACIÓN'}
           </AppText>
         </TouchableOpacity>
       </View>
@@ -142,6 +149,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   ctaText: { letterSpacing: 2.5, fontWeight: '800' },
+  ctaBtnDisabled: { opacity: 0.5 },
 
   // Mentoría
   mentoriaBanner: {

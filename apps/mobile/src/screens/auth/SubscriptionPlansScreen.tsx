@@ -23,6 +23,7 @@ import { EvaluationFormScreen } from '../evaluation/EvaluationFormScreen';
 import { EvaluationScheduleScreen } from '../evaluation/EvaluationScheduleScreen';
 import { EvaluationThankYouScreen } from '../evaluation/EvaluationThankYouScreen';
 import { MentoriaView, ORANGE, BASE_COMPLEMENTS } from './MentoriaView';
+import { openTermsAndConditions } from '../../lib/legalLinks';
 
 const H_PAD = 20;
 const CARD_WIDTH = 108;
@@ -501,7 +502,17 @@ export function SubscriptionPlansScreen(): React.JSX.Element {
         {/* Footer */}
         <View style={styles.footer}>
           <AppText variant="body12" color={authColors.textTertiary} style={styles.terms}>
-            Al seleccionar un plan aceptás nuestros términos de servicio y políticas de privacidad. Todos los planes incluyen actualizaciones constantes del Método R3SET.
+            Al seleccionar un plan aceptás nuestros{' '}
+            <AppText
+              variant="body12"
+              color={authColors.textTertiary}
+              style={styles.termsLink}
+              onPress={openTermsAndConditions}
+              suppressHighlighting
+            >
+              términos y condiciones
+            </AppText>
+            {' '}y políticas de privacidad. Todos los planes incluyen actualizaciones constantes del Método R3SET.
           </AppText>
           <Pressable onPress={() => void signOut()} style={styles.signOutBtn}>
             <AppText variant="body12" color={authColors.textTertiary}>
@@ -647,6 +658,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   terms: { textAlign: 'center', lineHeight: 16, maxWidth: 300 },
+  termsLink: { textDecorationLine: 'underline' },
   signOutBtn: { paddingVertical: 4 },
 
   // Frequency carousel (tarjetas horizontales swipeables)

@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { HomeStackParamList } from '../../types/navigation';
 import { layout, spacing } from '../../theme';
@@ -11,6 +12,8 @@ import { EvaluationFormScreen } from '../evaluation/EvaluationFormScreen';
 import { EvaluationScheduleScreen } from '../evaluation/EvaluationScheduleScreen';
 import { EvaluationThankYouScreen } from '../evaluation/EvaluationThankYouScreen';
 import { useTabBarScrollPadding } from '../../hooks/useTabBarScrollPadding';
+import { useAuthStore } from '../../stores/authStore';
+import { hasPendingMentoriaEvaluation } from '../../services/evaluationGate';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'MentoriaUpgrade'>;
 
@@ -23,12 +26,23 @@ export function MentoriaUpgradeScreen({ navigation }: Props): React.JSX.Element 
   const insets = useSafeAreaInsets();
   const scrollBottom = useTabBarScrollPadding();
   const [evalFlowStep, setEvalFlowStep] = useState<EvalFlowStep>(null);
+  const profile = useAuthStore((s) => s.profile);
+  const [alreadyApplied, setAlreadyApplied] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!profile?.id) return;
+      let active = true;
+      void hasPendingMentoriaEvaluation(profile.id).then((v) => { if (active) setAlreadyApplied(v); });
+      return () => { active = false; };
+    }, [profile?.id])
+  );
 
   if (evalFlowStep === 'form') {
     return (
       <EvaluationFormScreen
         onBack={() => setEvalFlowStep(null)}
-        onSubmitted={() => setEvalFlowStep('schedule')}
+        onSubmitted={() => { setAlreadyApplied(true); setEvalFlowStep('schedule'); }}
       />
     );
   }
@@ -68,7 +82,10 @@ export function MentoriaUpgradeScreen({ navigation }: Props): React.JSX.Element 
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingTop: spacing.md, paddingBottom: scrollBottom }}
       >
-        <MentoriaView onRequestEvaluation={() => setEvalFlowStep('form')} />
+        <MentoriaView
+          onRequestEvaluation={() => setEvalFlowStep('form')}
+          alreadyApplied={alreadyApplied}
+        />
       </ScrollView>
     </View>
   );

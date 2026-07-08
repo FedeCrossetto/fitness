@@ -20,6 +20,7 @@ import { useTabBarScrollPadding } from '../../hooks/useTabBarScrollPadding';
 import { useStepsAutoSync } from '../../hooks/useStepsAutoSync';
 import { useBiometricLock } from '../../hooks/useBiometricLock';
 import { ORANGE } from '../auth/MentoriaView';
+import { hasPendingMentoriaEvaluation } from '../../services/evaluationGate';
 import { GarminSyncCard } from '../../components/health/GarminSyncCard';
 import { NUTRITION_MACRO_COLORS } from '../../components/nutrition/nutritionTheme';
 import * as Device from 'expo-device';
@@ -145,9 +146,19 @@ export function ProfileScreen({ navigation, route }: Props): React.JSX.Element {
   const scrollBottom = useTabBarScrollPadding();
   useStepsAutoSync(userId, syncAutoGoal);
 
+  useFocusEffect(
+    useCallback(() => {
+      if (!profile?.id) return;
+      let active = true;
+      void hasPendingMentoriaEvaluation(profile.id).then((v) => { if (active) setMentoriaApplied(v); });
+      return () => { active = false; };
+    }, [profile?.id])
+  );
+
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [subscription, setSubscription] = useState<SubscriptionWithPlan | null>(null);
   const [subLoading, setSubLoading] = useState(true);
+  const [mentoriaApplied, setMentoriaApplied] = useState(false);
   const [reminders, setReminders] = useState<Record<ReminderKey, boolean>>({
     agua: false,
     entreno: false,
@@ -661,26 +672,31 @@ export function ProfileScreen({ navigation, route }: Props): React.JSX.Element {
         {profile?.role === 'client' && subscriptionActive ? (
           <Pressable
             accessibilityRole="button"
+            disabled={mentoriaApplied}
             onPress={() => navigation.navigate('MentoriaUpgrade')}
-            style={styles.mentoriaUpsell}
+            style={[styles.mentoriaUpsell, mentoriaApplied && styles.mentoriaUpsellDisabled]}
           >
             <View style={styles.mentoriaUpsellHeader}>
-              <Ionicons name="ribbon" size={18} color={ORANGE} />
+              <Ionicons name={mentoriaApplied ? 'checkmark-circle' : 'ribbon'} size={18} color={ORANGE} />
               <AppText variant="caps11" color={ORANGE} style={styles.mentoriaUpsellCategory}>
-                OPCIÓN PREMIUM
+                {mentoriaApplied ? 'MENTORÍA 1 A 1' : 'OPCIÓN PREMIUM'}
               </AppText>
             </View>
             <AppText variant="body16SemiBold" color={colors.text.primary}>
-              ¿Buscás resultados 100% personalizados?
+              {mentoriaApplied ? 'Aplicaste a Mentoría 1 a 1' : '¿Buscás resultados 100% personalizados?'}
             </AppText>
             <AppText variant="body13" color={colors.text.secondary} style={styles.mentoriaUpsellSub}>
-              Si necesitás un acompañamiento diario y una estrategia diseñada exclusivamente para vos, la Mentoría 1 a 1 es tu mejor opción.
+              {mentoriaApplied
+                ? 'Ya recibimos tu solicitud. Aguardá a que te contactemos para coordinar la charla personalizada.'
+                : 'Si necesitás un acompañamiento diario y una estrategia diseñada exclusivamente para vos, la Mentoría 1 a 1 es tu mejor opción.'}
             </AppText>
-            <View style={styles.mentoriaUpsellBtn}>
-              <AppText variant="caps11" color={ORANGE} style={styles.mentoriaUpsellBtnText}>
-                VER MENTORÍA 1 A 1
-              </AppText>
-            </View>
+            {!mentoriaApplied ? (
+              <View style={styles.mentoriaUpsellBtn}>
+                <AppText variant="caps11" color={ORANGE} style={styles.mentoriaUpsellBtnText}>
+                  VER MENTORÍA 1 A 1
+                </AppText>
+              </View>
+            ) : null}
           </Pressable>
         ) : null}
 
@@ -819,6 +835,7 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     backgroundColor: 'rgba(255,115,74,0.05)',
     gap: spacing.xs,
   },
+  mentoriaUpsellDisabled: { opacity: 0.7 },
   mentoriaUpsellHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   mentoriaUpsellCategory: { letterSpacing: 1.5 },
   mentoriaUpsellSub: { lineHeight: 19 },

@@ -12,7 +12,7 @@ import {
   savePendingInviteCode,
   type InvitePreview,
 } from '@/lib/inviteClient';
-import { buildAppDeepLink } from '@reset-fitness/shared';
+import { buildAppDeepLink, APP_TERMS_URL } from '@reset-fitness/shared';
 
 const APK_URL = import.meta.env.VITE_ANDROID_APK_URL as string | undefined;
 const TESTFLIGHT_URL = import.meta.env.VITE_IOS_TESTFLIGHT_URL as string | undefined;
@@ -306,7 +306,10 @@ export function JoinPage(): React.JSX.Element {
         </form>
 
         <p className="join-foot muted">
-          Al registrarte aceptás vincular tu cuenta con este entrenador.
+          Al registrarte aceptás vincular tu cuenta con este entrenador y nuestros{' '}
+          <a href={APP_TERMS_URL} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)' }}>
+            términos y condiciones
+          </a>.
           Tu solicitud quedará pendiente hasta que te active.
         </p>
       </div>

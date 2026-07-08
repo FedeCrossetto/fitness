@@ -24,6 +24,8 @@ export const layout = {
   minHitTarget: 44,
   /** Altura de la tab bar custom */
   tabBarHeight: 72,
+  /** Margen de la tab bar flotante respecto a los bordes y al home indicator */
+  tabBarFloatingMargin: spacing.sm,
 } as const;
 
 export const shadows = {

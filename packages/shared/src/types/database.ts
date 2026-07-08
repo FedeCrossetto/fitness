@@ -34,6 +34,11 @@ export interface ProfileRow {
   locale: string;
   /** Programa de entrenamiento asignado por el coach (training_phases.program_key). */
   assigned_program_key: string | null;
+  /** Momento de creación de cuenta = aceptación implícita de los Términos y
+   * Condiciones (sin checkbox — ver TERMS_VERSION en legal/termsAndConditions.ts).
+   * Null para cuentas creadas antes de que este registro existiera. */
+  terms_accepted_at: string | null;
+  terms_version: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -378,6 +383,19 @@ export interface TrainerPlanPriceRow {
   deleted_at: string | null;
 }
 
+export interface TrainerPlanGroupSettingsRow {
+  trainer_id: string;
+  plan_type: PlanType;
+  /** Nombre custom para el grupo (ej. "Base" → "Plan Estándar"). Null = usar
+   * el label por defecto. */
+  display_name: string | null;
+  active: boolean;
+  /** Soft-delete del grupo completo (todas las frecuencias de ese plan_type
+   * para este entrenador quedan ocultas en gestión y checkout). */
+  deleted_at: string | null;
+  updated_at: string;
+}
+
 export interface SubscriptionRow {
   id: string;
   user_id: string;
@@ -578,6 +596,7 @@ export interface Database {
       push_tokens: TableDef<PushTokenRow, 'user_id' | 'expo_token'>;
       plans: TableDef<PlanRow, 'name' | 'price_ars' | 'duration_days' | 'plan_type'>;
       trainer_plan_prices: TableDef<TrainerPlanPriceRow, 'trainer_id' | 'plan_id' | 'price_ars'>;
+      trainer_plan_group_settings: TableDef<TrainerPlanGroupSettingsRow, 'trainer_id' | 'plan_type'>;
       subscriptions: TableDef<SubscriptionRow, 'user_id' | 'plan_id'>;
       routines: TableDef<RoutineRow, 'client_id' | 'name'>;
       routine_exercises: TableDef<RoutineExerciseRow, 'routine_id' | 'name'>;

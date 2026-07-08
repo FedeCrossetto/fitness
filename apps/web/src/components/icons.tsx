@@ -241,3 +241,13 @@ export function TeamIcon({ size = 18, className }: IconProps): React.JSX.Element
     </svg>
   );
 }
+
+export function MoreVerticalIcon({ size = 18, className }: IconProps): React.JSX.Element {
+  return (
+    <svg {...base(size, className)} fill="currentColor" stroke="none">
+      <circle cx="12" cy="5" r="1.9" />
+      <circle cx="12" cy="12" r="1.9" />
+      <circle cx="12" cy="19" r="1.9" />
+    </svg>
+  );
+}

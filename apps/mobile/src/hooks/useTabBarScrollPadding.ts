@@ -1,10 +1,15 @@
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { layout, spacing } from '../theme';
 
-/** Altura total de la tab bar flotante (fila + safe area inferior). */
+/** Distancia de la tab bar flotante al borde inferior (debe coincidir con TabBar.tsx). */
+export function tabBarBottomOffset(insetBottom: number): number {
+  return Math.max(insetBottom - spacing.sm, spacing.sm);
+}
+
+/** Altura total ocupada por la tab bar flotante desde el borde inferior (offset + alto). */
 export function useTabBarInset(): number {
   const insets = useSafeAreaInsets();
-  return layout.tabBarHeight + Math.max(insets.bottom, spacing.xs);
+  return layout.tabBarHeight + tabBarBottomOffset(insets.bottom);
 }
 
 /** Espacio inferior para ScrollView en pantallas con tab bar flotante + home indicator. */

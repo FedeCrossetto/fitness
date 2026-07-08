@@ -6,7 +6,7 @@ import { useUnreadMessages } from '@/hooks/useUnreadMessages';
 import { usePendingFoodCount } from '@/hooks/usePendingFoodCount';
 import { useBrandingHead, useTrainerBranding } from '@/hooks/useTrainerBranding';
 import { ConfirmDialog } from '@/components/ui';
-import { LANGUAGES } from '@reset-fitness/shared';
+import { LANGUAGES, APP_TERMS_URL } from '@reset-fitness/shared';
 import {
   GridIcon, BrushIcon, UsersIcon, LogOutIcon,
   MessageIcon, GroupsIcon, CreditCardIcon,
@@ -235,6 +235,11 @@ export function Layout(): React.JSX.Element {
               <LogOutIcon size={16} />
             </button>
           </div>
+          {!sc && (
+            <a href={APP_TERMS_URL} target="_blank" rel="noopener noreferrer" className="sidebar-legal-link">
+              {t.web.terms_and_conditions}
+            </a>
+          )}
         </div>
       </aside>
 

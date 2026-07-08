@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import type { PlanRow, PlanType } from '@reset-fitness/shared/types/database';
+import type { PlanRow, PlanType, TrainerPlanGroupSettingsRow } from '@reset-fitness/shared/types/database';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -15,6 +15,7 @@ type PlanGroup = {
   label: string;
   icon: React.ReactNode;
   items: PlanWithPrice[];
+  groupActive: boolean;
 };
 
 const MAX_MONTHS = 12;
@@ -41,22 +42,35 @@ export function ManagePlansPage(): React.JSX.Element {
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [saveTarget, setSaveTarget] = useState<PlanWithPrice | null>(null);
   const [toggleTarget, setToggleTarget] = useState<PlanWithPrice | null>(null);
+  const [groupSettings, setGroupSettings] = useState<Map<PlanType, TrainerPlanGroupSettingsRow>>(new Map());
+  const [renamingType, setRenamingType] = useState<PlanType | null>(null);
+  const [renameDraft, setRenameDraft] = useState('');
+  const [renaming, setRenaming] = useState(false);
+  const [groupToggleTarget, setGroupToggleTarget] = useState<PlanType | null>(null);
+  const [togglingGroup, setTogglingGroup] = useState(false);
+  const [groupDeleteTarget, setGroupDeleteTarget] = useState<PlanType | null>(null);
+  const [deletingGroup, setDeletingGroup] = useState(false);
 
   const { data, loading, error, refetch } = useSupabaseQuery<PlanWithPrice[]>(
     async () => {
       // RLS ya filtra a los planes built-in (trainer_id null) + los custom
       // del propio entrenador.
-      const [{ data: planRows, error: plansError }, { data: overrideRows, error: overridesError }] = await Promise.all([
+      const [{ data: planRows, error: plansError }, { data: overrideRows, error: overridesError }, { data: groupRows, error: groupError }] = await Promise.all([
         supabase.from('plans').select('*').is('deleted_at', null).order('plan_type').order('duration_days'),
         supabase.from('trainer_plan_prices').select('plan_id, price_ars, active, deleted_at').eq('trainer_id', userId!),
+        supabase.from('trainer_plan_group_settings').select('*').eq('trainer_id', userId!),
       ]);
       if (plansError) throw plansError;
       if (overridesError) throw overridesError;
+      if (groupError) throw groupError;
       const overrides = (overrideRows as { plan_id: string; price_ars: number; active: boolean; deleted_at: string | null }[] | null) ?? [];
       // Frecuencias que este entrenador "borró" (built-in ocultas vía override
       // con deleted_at) — no se muestran en la gestión.
       const deletedForTrainer = new Set(overrides.filter((o) => o.deleted_at).map((o) => o.plan_id));
       const visiblePlans = ((planRows as PlanRow[] | null) ?? []).filter((p) => !deletedForTrainer.has(p.id));
+      setGroupSettings(
+        new Map(((groupRows as TrainerPlanGroupSettingsRow[] | null) ?? []).map((g) => [g.plan_type, g])),
+      );
       return mergePlans(visiblePlans, overrides);
     },
     [userId],
@@ -111,11 +125,20 @@ export function ManagePlansPage(): React.JSX.Element {
 
   const groups = useMemo<PlanGroup[]>(() => {
     const byType = (type: PlanType) => plans.filter((p) => p.plan_type === type);
-    return [
-      { type: 'base', label: t.payments.manage_plans_group_base, icon: <BookOpenIcon size={18} />, items: byType('base') },
-      { type: 'mentoria', label: t.payments.manage_plans_group_mentoria, icon: <TeamIcon size={18} />, items: byType('mentoria') },
+    const defs: { type: PlanType; label: string; icon: React.ReactNode }[] = [
+      { type: 'base', label: t.payments.manage_plans_group_base, icon: <BookOpenIcon size={18} /> },
+      { type: 'mentoria', label: t.payments.manage_plans_group_mentoria, icon: <TeamIcon size={18} /> },
     ];
-  }, [plans, t.payments.manage_plans_group_base, t.payments.manage_plans_group_mentoria]);
+    return defs
+      .filter((d) => !groupSettings.get(d.type)?.deleted_at)
+      .map((d) => ({
+        type: d.type,
+        label: groupSettings.get(d.type)?.display_name || d.label,
+        icon: d.icon,
+        items: byType(d.type),
+        groupActive: groupSettings.get(d.type)?.active ?? true,
+      }));
+  }, [plans, groupSettings, t.payments.manage_plans_group_base, t.payments.manage_plans_group_mentoria]);
 
   const openGroup = groups.find((g) => g.type === openType) ?? null;
 
@@ -211,6 +234,120 @@ export function ManagePlansPage(): React.JSX.Element {
     setNewVisible(true);
   }, [userId, openGroup, adding, newMonths, newPrice, newVisible, showToast, t.payments.manage_plans_add_freq_duplicate, t.payments.manage_plans_add_freq_error, t.payments.manage_plans_add_freq_success]);
 
+  const openRename = useCallback((group: PlanGroup) => {
+    setRenameDraft(group.label);
+    setRenamingType(group.type);
+  }, []);
+
+  const saveRename = useCallback(async () => {
+    if (!userId || !renamingType || renaming) return;
+    const name = renameDraft.trim();
+    setRenaming(true);
+    const existing = groupSettings.get(renamingType);
+    const { error: renameError } = await supabase.from('trainer_plan_group_settings').upsert(
+      {
+        trainer_id: userId,
+        plan_type: renamingType,
+        display_name: name || null,
+        active: existing?.active ?? true,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'trainer_id,plan_type' },
+    );
+    setRenaming(false);
+    if (renameError) {
+      showToast('error', t.payments.manage_plans_group_rename_error);
+      return;
+    }
+    setGroupSettings((prev) => {
+      const next = new Map(prev);
+      next.set(renamingType, {
+        trainer_id: userId,
+        plan_type: renamingType,
+        display_name: name || null,
+        active: existing?.active ?? true,
+        deleted_at: existing?.deleted_at ?? null,
+        updated_at: new Date().toISOString(),
+      });
+      return next;
+    });
+    showToast('success', t.payments.manage_plans_group_rename_success);
+    setRenamingType(null);
+  }, [userId, renamingType, renaming, renameDraft, groupSettings, showToast, t.payments.manage_plans_group_rename_error, t.payments.manage_plans_group_rename_success]);
+
+  const toggleGroupActive = useCallback(async (type: PlanType) => {
+    if (!userId || togglingGroup) return;
+    const existing = groupSettings.get(type);
+    const nextActive = !(existing?.active ?? true);
+    setTogglingGroup(true);
+    const { error: toggleError } = await supabase.from('trainer_plan_group_settings').upsert(
+      {
+        trainer_id: userId,
+        plan_type: type,
+        display_name: existing?.display_name ?? null,
+        active: nextActive,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'trainer_id,plan_type' },
+    );
+    setTogglingGroup(false);
+    if (toggleError) {
+      showToast('error', t.payments.manage_plans_visibility_error);
+      return;
+    }
+    setGroupSettings((prev) => {
+      const next = new Map(prev);
+      next.set(type, {
+        trainer_id: userId,
+        plan_type: type,
+        display_name: existing?.display_name ?? null,
+        active: nextActive,
+        deleted_at: existing?.deleted_at ?? null,
+        updated_at: new Date().toISOString(),
+      });
+      return next;
+    });
+    showToast('success', nextActive ? t.payments.manage_plans_visibility_on : t.payments.manage_plans_visibility_off);
+  }, [userId, togglingGroup, groupSettings, showToast, t.payments.manage_plans_visibility_error, t.payments.manage_plans_visibility_on, t.payments.manage_plans_visibility_off]);
+
+  const confirmDeleteGroup = useCallback(async () => {
+    if (!userId || !groupDeleteTarget || deletingGroup) return;
+    const type = groupDeleteTarget;
+    const existing = groupSettings.get(type);
+    setDeletingGroup(true);
+    const { error: deleteError } = await supabase.from('trainer_plan_group_settings').upsert(
+      {
+        trainer_id: userId,
+        plan_type: type,
+        display_name: existing?.display_name ?? null,
+        active: false,
+        deleted_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'trainer_id,plan_type' },
+    );
+    setDeletingGroup(false);
+    if (deleteError) {
+      showToast('error', t.payments.manage_plans_group_delete_error);
+      return;
+    }
+    setGroupSettings((prev) => {
+      const next = new Map(prev);
+      next.set(type, {
+        trainer_id: userId,
+        plan_type: type,
+        display_name: existing?.display_name ?? null,
+        active: false,
+        deleted_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+      return next;
+    });
+    showToast('success', t.payments.manage_plans_group_delete_success);
+    setGroupDeleteTarget(null);
+    closeModal();
+  }, [userId, groupDeleteTarget, deletingGroup, groupSettings, showToast, t.payments.manage_plans_group_delete_error, t.payments.manage_plans_group_delete_success]);
+
   const openDeleteConfirm = useCallback(async (plan: PlanWithPrice) => {
     setCheckingDeleteId(plan.id);
     const { count, error: countError } = await supabase
@@ -292,13 +429,18 @@ export function ManagePlansPage(): React.JSX.Element {
                   <div className="stat-ico" style={{ background: 'var(--surface-elevated)' }}>
                     {group.icon}
                   </div>
-                  <span className="badge solid gray">
-                    {group.items.length === 1
-                      ? t.payments.manage_plans_freq_count_one
-                      : i18n(t.payments.manage_plans_freq_count, { n: group.items.length })}
-                  </span>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {!group.groupActive ? (
+                      <span className="badge solid gray">{t.payments.manage_plans_group_hidden_badge}</span>
+                    ) : null}
+                    <span className="badge solid gray">
+                      {group.items.length === 1
+                        ? t.payments.manage_plans_freq_count_one
+                        : i18n(t.payments.manage_plans_freq_count, { n: group.items.length })}
+                    </span>
+                  </div>
                 </div>
-                <div style={{ fontWeight: 650, fontSize: 16, marginBottom: 6 }}>{group.label}</div>
+                <div style={{ fontWeight: 650, fontSize: 16, marginBottom: 6, opacity: group.groupActive ? 1 : 0.6 }}>{group.label}</div>
                 <div style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>
                   {min === max ? formatMoney(min, language) : `${formatMoney(min, language)} – ${formatMoney(max, language)}`}
                 </div>
@@ -311,11 +453,48 @@ export function ManagePlansPage(): React.JSX.Element {
       {openGroup ? (
         <div className="pay-modal-backdrop" onClick={closeModal} role="dialog" aria-modal="true">
           <div className="card manage-plans-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="payments-panel-head" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '0 0 16px' }}>
-              <h2 className="payments-panel-title">{openGroup.label}</h2>
-              <button type="button" className="btn secondary sm" onClick={closeModal}>
-                {t.payments.manage_plans_close}
-              </button>
+            <div className="payments-panel-head" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '0 0 16px', gap: 12 }}>
+              {renamingType === openGroup.type ? (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flex: 1 }}>
+                  <input
+                    autoFocus
+                    className="manage-plans-add-input"
+                    style={{ marginTop: 0, maxWidth: 260 }}
+                    value={renameDraft}
+                    placeholder={t.payments.manage_plans_rename_placeholder}
+                    onChange={(e) => setRenameDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') void saveRename(); if (e.key === 'Escape') setRenamingType(null); }}
+                  />
+                  <button type="button" className="btn sm" disabled={renaming || !renameDraft.trim()} onClick={() => void saveRename()}>
+                    {renaming ? '…' : t.ui.confirm}
+                  </button>
+                  <button type="button" className="btn secondary sm" onClick={() => setRenamingType(null)}>
+                    {t.ui.cancel}
+                  </button>
+                </div>
+              ) : (
+                <h2 className="payments-panel-title">{openGroup.label}</h2>
+              )}
+              <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                {renamingType !== openGroup.type ? (
+                  <button type="button" className="btn secondary sm" onClick={() => openRename(openGroup)}>
+                    {t.payments.manage_plans_rename}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="btn secondary sm"
+                  onClick={() => setGroupToggleTarget(openGroup.type)}
+                >
+                  {openGroup.groupActive ? t.payments.manage_plans_group_hide : t.payments.manage_plans_group_show}
+                </button>
+                <button type="button" className="btn danger-outline sm" onClick={() => setGroupDeleteTarget(openGroup.type)}>
+                  {t.payments.manage_plans_group_delete}
+                </button>
+                <button type="button" className="btn secondary sm" onClick={closeModal}>
+                  {t.payments.manage_plans_close}
+                </button>
+              </div>
             </div>
 
             <div className="payments-plans-row">
@@ -556,6 +735,35 @@ export function ManagePlansPage(): React.JSX.Element {
           if (plan) void toggleVisible(plan);
         }}
         onCancel={() => setToggleTarget(null)}
+      />
+
+      <ConfirmDialog
+        open={!!groupToggleTarget}
+        title={t.payments.manage_plans_group_visibility_confirm_title}
+        message={
+          groups.find((g) => g.type === groupToggleTarget)?.groupActive
+            ? t.payments.manage_plans_group_visibility_confirm_hide
+            : t.payments.manage_plans_group_visibility_confirm_show
+        }
+        confirmLabel={t.ui.confirm}
+        cancelLabel={t.ui.cancel}
+        onConfirm={() => {
+          const type = groupToggleTarget;
+          setGroupToggleTarget(null);
+          if (type) void toggleGroupActive(type);
+        }}
+        onCancel={() => setGroupToggleTarget(null)}
+      />
+
+      <ConfirmDialog
+        open={!!groupDeleteTarget}
+        title={t.payments.manage_plans_group_delete_title}
+        message={t.payments.manage_plans_group_delete_confirm}
+        confirmLabel={t.ui.delete}
+        cancelLabel={t.ui.cancel}
+        onConfirm={() => void confirmDeleteGroup()}
+        onCancel={() => setGroupDeleteTarget(null)}
+        danger
       />
 
       <style>{`

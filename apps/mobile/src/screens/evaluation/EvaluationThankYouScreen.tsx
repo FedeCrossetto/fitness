@@ -7,6 +7,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { authColors } from '../auth/authScreenTheme';
 import { AuthButton } from '../auth/authUi';
 import { EvaluationProcessCard } from './EvaluationProcessCard';
+import { useTabBarScrollPadding } from '../../hooks/useTabBarScrollPadding';
 
 interface Props {
   /** Botón principal — varía según de dónde se llegó: "Continuar a la app"
@@ -18,6 +19,7 @@ interface Props {
 /** Confirmación final, mismo contenido que alegerezcoach.com/es/evaluacion/gracias. */
 export function EvaluationThankYouScreen({ primaryAction }: Props): React.JSX.Element {
   const insets = useSafeAreaInsets();
+  const scrollBottom = useTabBarScrollPadding();
   const signOut = useAuthStore((s) => s.signOut);
 
   const onSignOut = () => {
@@ -30,7 +32,7 @@ export function EvaluationThankYouScreen({ primaryAction }: Props): React.JSX.El
   return (
     <View style={styles.flex}>
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.xl, paddingBottom: insets.bottom + spacing.xl }]}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.xl, paddingBottom: scrollBottom }]}
         showsVerticalScrollIndicator={false}
       >
         <EvaluationProcessCard

@@ -6,6 +6,7 @@ import { useToast } from '@/hooks/useToast';
 import { Link } from 'react-router-dom';
 import { LANGUAGES } from '@reset-fitness/shared';
 import { supabase } from '@/lib/supabase';
+import { resolveAvatarUrl } from '@/lib/avatarUrl';
 
 type SettingsSection = {
   icon: React.ReactNode;
@@ -57,6 +58,7 @@ export function SettingsPage(): React.JSX.Element {
   const { showToast } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const avatarSrc = resolveAvatarUrl(profile?.avatar_url);
 
   const SECTIONS = useMemo<SettingsSection[]>(() => [
     { icon: <UsersIcon size={20} />, title: cs.sec_profile.title, desc: cs.sec_profile.desc, action: cs.sec_profile.action },
@@ -132,12 +134,12 @@ export function SettingsPage(): React.JSX.Element {
             width: 56,
             height: 56,
             fontSize: 20,
-            padding: profile?.avatar_url ? 0 : undefined,
-            overflow: profile?.avatar_url ? 'hidden' : undefined,
+            padding: avatarSrc ? 0 : undefined,
+            overflow: avatarSrc ? 'hidden' : undefined,
           }}
         >
-          {profile?.avatar_url
-            ? <img src={profile.avatar_url} alt={profile.full_name ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          {avatarSrc
+            ? <img src={avatarSrc} alt={profile?.full_name ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             : initials(profile?.full_name)
           }
         </div>

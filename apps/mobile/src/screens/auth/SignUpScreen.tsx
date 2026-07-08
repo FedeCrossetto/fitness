@@ -19,6 +19,7 @@ import { fetchInvitePreview, readPendingInviteCode } from '../../services/invite
 import type { AuthStackParamList } from '../../types/navigation';
 import { authColors } from './authScreenTheme';
 import { AuthButton, AuthErrorBox, AuthInput, AuthSocialLoginCard } from './authUi';
+import { openTermsAndConditions } from '../../lib/legalLinks';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'SignUp'>;
 type CodeStatus = 'idle' | 'loading' | 'valid' | 'invalid';
@@ -236,6 +237,20 @@ export function SignUpScreen({ navigation, route }: Props): React.JSX.Element {
               style={styles.cta}
             />
 
+            <AppText variant="body12" color={authColors.textTertiary} align="center" style={styles.terms}>
+              Al crear tu cuenta aceptás nuestros{' '}
+              <AppText
+                variant="body12"
+                color={authColors.textTertiary}
+                style={styles.termsLink}
+                onPress={openTermsAndConditions}
+                suppressHighlighting
+              >
+                términos y condiciones
+              </AppText>
+              .
+            </AppText>
+
             <View style={styles.dividerRow}>
               <View style={styles.divider} />
               <AppText variant="caps11" color={authColors.textDisabled}>O</AppText>
@@ -298,6 +313,8 @@ const styles = StyleSheet.create({
 
   field:  { marginBottom: spacing.md },
   cta:    { marginTop: spacing.xs },
+  terms:  { marginTop: spacing.md, lineHeight: 16 },
+  termsLink: { textDecorationLine: 'underline' },
   dividerRow: {
     flexDirection: 'row',
     alignItems: 'center',
