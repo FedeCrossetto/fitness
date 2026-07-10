@@ -242,6 +242,23 @@ export function TeamIcon({ size = 18, className }: IconProps): React.JSX.Element
   );
 }
 
+export function FolderIcon({ size = 18, className }: IconProps): React.JSX.Element {
+  return (
+    <svg {...base(size, className)}>
+      <path d="M4 20a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5l2 2.5h7a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2z" />
+    </svg>
+  );
+}
+
+export function TrendingUpIcon({ size = 18, className }: IconProps): React.JSX.Element {
+  return (
+    <svg {...base(size, className)}>
+      <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
+      <polyline points="16 7 22 7 22 13" />
+    </svg>
+  );
+}
+
 export function MoreVerticalIcon({ size = 18, className }: IconProps): React.JSX.Element {
   return (
     <svg {...base(size, className)} fill="currentColor" stroke="none">

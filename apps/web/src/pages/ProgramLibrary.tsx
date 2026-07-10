@@ -6,7 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/useToast';
 import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
 import { ErrorState, LoadingRows, EmptyState, ConfirmDialog } from '@/components/ui';
-import { DumbbellIcon, PlusIcon, SearchIcon } from '@/components/icons';
+import { DumbbellIcon, PlusIcon, SearchIcon, FolderIcon, ChevronDownIcon } from '@/components/icons';
 import { AssignProgramModal } from '@/components/AssignProgramModal';
 import { CardMenu } from '@/components/CardMenu';
 
@@ -41,6 +41,15 @@ export function ProgramLibraryPage(): React.JSX.Element {
   const [createFolderId, setCreateFolderId] = useState<string | null>(null);
   const [draggedProgramId, setDraggedProgramId] = useState<string | null>(null);
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [tab, setTab] = useState<'library' | 'custom'>('library');
+
+  const toggleFolder = (key: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
 
   const { data, loading, error, refetch } = useSupabaseQuery<ProgramWithPreview[]>(
     async () => {
@@ -275,36 +284,98 @@ export function ProgramLibraryPage(): React.JSX.Element {
     await moveToFolder(program, folderId);
   };
 
+  const renderProgramRow = (p: ProgramWithPreview) => (
+    <div
+      key={p.id}
+      className={`prog-row${draggedProgramId === p.id ? ' dragging' : ''}`}
+      onClick={() => navigate(`/programs/${p.id}`)}
+      role="button"
+      tabIndex={0}
+      draggable
+      onDragStart={() => setDraggedProgramId(p.id)}
+      onDragEnd={() => { setDraggedProgramId(null); setDragOverFolderId(null); }}
+    >
+      <div className="prog-row-main">
+        <div className="prog-row-title">{p.name}</div>
+        {p.dayTitles.length > 0 ? (
+          <div className="prog-row-badges">
+            {p.dayTitles.map((title, i) => (
+              <span key={i} className="day-chip">{title}</span>
+            ))}
+          </div>
+        ) : (
+          <p className="muted" style={{ margin: '8px 0 0', fontSize: 13 }}>Sin rutinas todavía</p>
+        )}
+      </div>
+      <div className="prog-row-side">
+        {p.duration_weeks ? <span className="prog-row-duration">Duración {p.duration_weeks} semanas</span> : null}
+        <CardMenu
+          open={menuOpenId === p.id}
+          onToggle={() => setMenuOpenId((prev) => (prev === p.id ? null : p.id))}
+          items={[
+            { label: 'Asignar a clientes', onClick: () => setAssignTarget(p) },
+            { label: 'Editar programa', onClick: () => navigate(`/programs/${p.id}`) },
+            { label: 'Duplicar programa', onClick: () => void duplicateProgram(p) },
+            { label: 'Mover a carpeta', onClick: () => setMoveTarget(p) },
+            { label: 'Eliminar programa', onClick: () => setDeleteTarget(p), danger: true },
+          ]}
+        />
+      </div>
+    </div>
+  );
+
   return (
     <div>
-      <div className="row-between">
+      <div className="hevy-head">
         <div>
-          <h1 className="page-title">Programas</h1>
+          <h1 className="page-title">Biblioteca de programas</h1>
           <p className="page-sub">Organizá tus programas y rutinas reutilizables.</p>
         </div>
       </div>
 
-      <div className="table-toolbar" style={{ border: 'none', padding: '8px 0 14px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div className="lib-tabs">
+        <button type="button" className={`lib-tab${tab === 'library' ? ' active' : ''}`} onClick={() => setTab('library')}>
+          Mi biblioteca
+        </button>
+        {customized.length > 0 && (
+          <button type="button" className={`lib-tab${tab === 'custom' ? ' active' : ''}`} onClick={() => setTab('custom')}>
+            Personalizados por cliente
+          </button>
+        )}
+      </div>
+
+      {tab === 'library' && (
+        <div className="hevy-toolbar">
           <div className="search-field">
             <SearchIcon size={16} />
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar programas…" />
           </div>
+          <div className="hevy-toolbar-actions">
+            <button type="button" className="btn secondary" onClick={() => setFolderModalOpen(true)}>
+              <FolderIcon size={15} /> Nueva carpeta
+            </button>
+            <button type="button" className="btn blue" onClick={() => setCreateOpen(true)}>
+              <PlusIcon size={15} /> Crear programa
+            </button>
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button type="button" className="btn secondary" onClick={() => setFolderModalOpen(true)}>
-            + Nueva carpeta
-          </button>
-          <button type="button" className="btn primary" onClick={() => setCreateOpen(true)}>
-            <PlusIcon size={15} /> Crear programa
-          </button>
-        </div>
-      </div>
+      )}
 
       {error ? (
         <ErrorState message={error} onRetry={refetch} />
       ) : loading ? (
         <div className="card" style={{ padding: 16 }}><LoadingRows rows={4} /></div>
+      ) : tab === 'custom' ? (
+        <div className="folder-body">
+          {customized.map((p) => (
+            <div key={p.id} className="prog-row" onClick={() => navigate(`/programs/${p.id}`)} role="button" tabIndex={0}>
+              <div className="prog-row-main">
+                <div className="prog-row-title">{p.name}</div>
+                <p className="muted" style={{ margin: '8px 0 0', fontSize: 13 }}>Personalizado — no afecta la plantilla original</p>
+              </div>
+            </div>
+          ))}
+        </div>
       ) : templates.length === 0 ? (
         <div className="card">
           <EmptyState
@@ -319,18 +390,22 @@ export function ProgramLibraryPage(): React.JSX.Element {
           {[{ id: null as string | null, name: 'Mis Programas' }, ...folders.map((f) => ({ id: f.id, name: f.name }))].map((group) => {
             const items = grouped.get(group.id) ?? [];
             const folderRow = group.id ? folders.find((f) => f.id === group.id) ?? null : null;
+            const key = group.id ?? 'root';
+            const isCollapsed = collapsed.has(key);
+            const isDragOver = dragOverFolderId === key;
             return (
               <div
-                key={group.id ?? 'root'}
-                style={{ marginBottom: 24 }}
-                onDragOver={(e) => { e.preventDefault(); setDragOverFolderId(group.id ?? 'root'); }}
-                onDragLeave={() => setDragOverFolderId((prev) => (prev === (group.id ?? 'root') ? null : prev))}
+                key={key}
+                className="folder-sec"
+                onDragOver={(e) => { e.preventDefault(); setDragOverFolderId(key); }}
+                onDragLeave={() => setDragOverFolderId((prev) => (prev === key ? null : prev))}
                 onDrop={(e) => { e.preventDefault(); void onDropOnFolder(group.id); }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>
-                    {group.name} <span className="clients-tab-count" style={{ marginLeft: 6 }}>{items.length}</span>
-                  </div>
+                <div className="folder-head" onClick={() => toggleFolder(key)}>
+                  <span className="folder-head-ico"><FolderIcon size={18} /></span>
+                  <span className="folder-head-name">{group.name}</span>
+                  <span className="count-chip">{items.length}</span>
+                  <span className="folder-head-spacer" />
                   {group.id !== null && folderRow && (
                     <CardMenu
                       open={folderMenuOpenId === folderRow.id}
@@ -343,81 +418,31 @@ export function ProgramLibraryPage(): React.JSX.Element {
                       ]}
                     />
                   )}
-                </div>
-                {items.length === 0 ? (
-                  <div
-                    className={`card program-drop-zone${dragOverFolderId === (group.id ?? 'root') ? ' drag-over' : ''}`}
-                    style={{ padding: 16 }}
+                  <span
+                    className={`folder-chevron${isCollapsed ? ' collapsed' : ''}`}
+                    onClick={(e) => { e.stopPropagation(); toggleFolder(key); }}
                   >
-                    <p className="muted" style={{ margin: 0, fontSize: 12.5 }}>
-                      {group.id === null ? 'Sin programas todavía.' : 'Arrastrá un programa acá, o movelo con "Mover a carpeta".'}
-                    </p>
-                  </div>
-                ) : (
-                <div
-                  className={`grid program-drop-zone${dragOverFolderId === (group.id ?? 'root') ? ' drag-over' : ''}`}
-                  style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}
-                >
-                  {items.map((p) => (
-                    <div
-                      key={p.id}
-                      className="card program-card"
-                      onClick={() => navigate(`/programs/${p.id}`)}
-                      role="button"
-                      tabIndex={0}
-                      draggable
-                      onDragStart={() => setDraggedProgramId(p.id)}
-                      onDragEnd={() => { setDraggedProgramId(null); setDragOverFolderId(null); }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                        <div style={{ fontWeight: 650, fontSize: 15 }}>{p.name}</div>
-                        <CardMenu
-                          open={menuOpenId === p.id}
-                          onToggle={() => setMenuOpenId((prev) => (prev === p.id ? null : p.id))}
-                          items={[
-                            { label: 'Asignar a clientes', onClick: () => setAssignTarget(p) },
-                            { label: 'Editar programa', onClick: () => navigate(`/programs/${p.id}`) },
-                            { label: 'Duplicar programa', onClick: () => void duplicateProgram(p) },
-                            { label: 'Mover a carpeta', onClick: () => setMoveTarget(p) },
-                            { label: 'Eliminar programa', onClick: () => setDeleteTarget(p), danger: true },
-                          ]}
-                        />
-                      </div>
-                      {p.dayTitles.length > 0 ? (
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
-                          {p.dayTitles.map((title, i) => (
-                            <span key={i} className="badge solid gray">{title}</span>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="muted" style={{ marginTop: 10, fontSize: 12.5 }}>Sin rutinas todavía</p>
-                      )}
-                      {p.duration_weeks ? (
-                        <div className="muted" style={{ marginTop: 10, fontSize: 12 }}>Duración {p.duration_weeks} semanas</div>
-                      ) : null}
-                    </div>
-                  ))}
+                    <ChevronDownIcon size={18} />
+                  </span>
                 </div>
+                {!isCollapsed && (
+                  <div className="folder-body">
+                    {items.length === 0 ? (
+                      <div className={`prog-drop${isDragOver ? ' drag-over' : ''}`}>
+                        {group.id === null ? (
+                          <>Sin programas todavía. <button type="button" className="link-blue" onClick={() => setCreateOpen(true)}>Crear programa</button></>
+                        ) : (
+                          <>Arrastrá y soltá un programa acá<br /><span style={{ fontSize: 13 }}>o <button type="button" className="link-blue" onClick={() => { setCreateFolderId(group.id); setCreateOpen(true); }}>Crear programa</button></span></>
+                        )}
+                      </div>
+                    ) : (
+                      items.map(renderProgramRow)
+                    )}
+                  </div>
                 )}
               </div>
             );
           })}
-
-          {customized.length > 0 && (
-            <div style={{ marginBottom: 24 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 10 }}>
-                Programas personalizados por cliente <span className="clients-tab-count" style={{ marginLeft: 6 }}>{customized.length}</span>
-              </div>
-              <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
-                {customized.map((p) => (
-                  <div key={p.id} className="card program-card" onClick={() => navigate(`/programs/${p.id}`)} role="button" tabIndex={0}>
-                    <div style={{ fontWeight: 650, fontSize: 15 }}>{p.name}</div>
-                    <p className="muted" style={{ marginTop: 6, fontSize: 12 }}>Personalizado — no afecta la plantilla original</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </>
       )}
 

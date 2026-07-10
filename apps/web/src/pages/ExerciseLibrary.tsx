@@ -3,6 +3,7 @@ import type { ExerciseRow } from '@reset-fitness/shared/types/database';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/useToast';
 import { DumbbellIcon, PlusIcon, SearchIcon } from '@/components/icons';
+import { ExerciseDetailModal } from '@/components/ExerciseDetailModal';
 
 /** Catálogo de ejercicios — búsqueda + detalle simple. La creación de un
  * ejercicio propio pide solo el nombre (sin editor de músculos/equipo/
@@ -58,83 +59,39 @@ export function ExerciseLibraryPage(): React.JSX.Element {
         </button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: 20, marginTop: 16 }}>
-        <div className="card" style={{ padding: 14 }}>
-          <div className="search-field" style={{ width: '100%', marginBottom: 12 }}>
-            <SearchIcon size={16} />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar ejercicios…" />
-          </div>
-          <div style={{ maxHeight: 560, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {loading ? (
-              <div className="muted" style={{ padding: 12 }}>Buscando…</div>
-            ) : results.length === 0 ? (
-              <div className="muted" style={{ padding: 12 }}>Sin resultados.</div>
-            ) : (
-              results.map((ex) => (
-                <button
-                  key={ex.id}
-                  type="button"
-                  className="picker-row"
-                  onClick={() => setSelected(ex)}
-                  style={selected?.id === ex.id ? { background: 'var(--surface-elevated)' } : undefined}
+      <div className="card" style={{ padding: 16, marginTop: 16 }}>
+        <div className="search-field" style={{ width: '100%', maxWidth: 420, marginBottom: 16 }}>
+          <SearchIcon size={16} />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar ejercicios…" />
+        </div>
+        {loading ? (
+          <div className="muted" style={{ padding: 12 }}>Buscando…</div>
+        ) : results.length === 0 ? (
+          <div className="muted" style={{ padding: 12 }}>Sin resultados.</div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 4 }}>
+            {results.map((ex) => (
+              <button key={ex.id} type="button" className="picker-row" onClick={() => setSelected(ex)}>
+                <div
+                  className="ex-thumb ex-thumb-icon"
+                  aria-hidden
+                  style={ex.image_url ? { backgroundImage: `url(${ex.image_url})` } : undefined}
                 >
-                  <div className="ex-thumb ex-thumb-icon" aria-hidden><DumbbellIcon size={14} /></div>
-                  <div className="ex-info">
-                    <span className="ex-name">{ex.name}</span>
-                    {ex.target_muscles?.length ? <span className="muted ex-sub">{ex.target_muscles.join(', ')}</span> : null}
-                  </div>
-                </button>
-              ))
-            )}
+                  {ex.image_url ? null : <DumbbellIcon size={14} />}
+                </div>
+                <div className="ex-info">
+                  <span className="ex-name">{ex.name}</span>
+                  {ex.target_muscles?.length ? <span className="muted ex-sub">{ex.target_muscles.join(', ')}</span> : null}
+                </div>
+              </button>
+            ))}
           </div>
-        </div>
-
-        <div className="card">
-          {selected ? (
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
-                <div className="ex-thumb ex-thumb-icon" style={{ width: 56, height: 56 }} aria-hidden><DumbbellIcon size={24} /></div>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 18 }}>{selected.name}</div>
-                  {selected.body_part ? <div className="muted" style={{ fontSize: 13 }}>{selected.body_part}</div> : null}
-                </div>
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20 }}>
-                {selected.target_muscles?.length ? (
-                  <div>
-                    <div className="add-client-section-label">Músculos objetivo</div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
-                      {selected.target_muscles.map((m) => <span key={m} className="badge solid gray">{m}</span>)}
-                    </div>
-                  </div>
-                ) : null}
-                {selected.equipment?.length ? (
-                  <div>
-                    <div className="add-client-section-label">Equipo</div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
-                      {selected.equipment.map((eq) => <span key={eq} className="badge solid gray">{eq}</span>)}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-              {selected.instructions?.length ? (
-                <div style={{ marginTop: 20 }}>
-                  <div className="add-client-section-label">Instrucciones</div>
-                  <ol style={{ margin: '8px 0 0', paddingLeft: 20, fontSize: 13.5, color: 'var(--text-secondary)', lineHeight: 1.8 }}>
-                    {selected.instructions.map((step, i) => <li key={i}>{step}</li>)}
-                  </ol>
-                </div>
-              ) : null}
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 300, gap: 10 }}>
-              <DumbbellIcon size={28} />
-              <div style={{ fontWeight: 650 }}>Elegí un ejercicio</div>
-              <p className="muted" style={{ margin: 0 }}>Empezá seleccionando uno de la lista.</p>
-            </div>
-          )}
-        </div>
+        )}
       </div>
+
+      {selected && (
+        <ExerciseDetailModal exercise={selected} onClose={() => setSelected(null)} />
+      )}
 
       {createOpen && (
         <div className="invite-qr-backdrop" onClick={() => setCreateOpen(false)}>

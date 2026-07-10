@@ -1,9 +1,15 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { ExerciseRow, TrainingDayRow, TrainingPhaseRow, WorkoutExerciseRow, WorkoutRow } from '@reset-fitness/shared/types/database';
 import { supabase } from '@/lib/supabase';
 import { Spinner } from '@/components/ui';
-import { DumbbellIcon } from '@/components/icons';
+import { DumbbellIcon, PlusIcon, TrendingUpIcon } from '@/components/icons';
+import { ExerciseDetailModal } from '@/components/ExerciseDetailModal';
+
+const REST_OPTIONS: [number, string][] = [
+  [0, 'Off'], [30, '00:30'], [45, '00:45'], [60, '01:00'], [90, '01:30'],
+  [120, '02:00'], [180, '03:00'], [240, '04:00'], [300, '05:00'],
+];
 
 type CatalogExercise = Pick<ExerciseRow, 'id' | 'name' | 'image_url' | 'target_muscles' | 'equipment'>;
 type WorkoutExerciseWithExercise = WorkoutExerciseRow & { exercise: CatalogExercise | null };
@@ -22,6 +28,12 @@ export function RoutineEditorPage(): React.JSX.Element {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [titleDraft, setTitleDraft] = useState('');
+  const [detailExercise, setDetailExercise] = useState<ExerciseRow | null>(null);
+
+  const openDetail = async (exerciseId: string) => {
+    const { data } = await supabase.from('exercises').select('*').eq('id', exerciseId).maybeSingle();
+    if (data) setDetailExercise(data as ExerciseRow);
+  };
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -100,27 +112,31 @@ export function RoutineEditorPage(): React.JSX.Element {
 
   const exercises = [...(day.workout?.exercises ?? [])].sort((a, b) => a.sort_order - b.sort_order);
 
+  const backTo = programId ? `/programs/${programId}` : '/programs';
+
   return (
     <div>
-      <Link to={programId ? `/programs/${programId}` : '/programs'} className="back-link">← Volver al programa</Link>
+      <div className="prog-editor-head">
+        <Link to={backTo} className="prog-editor-back" aria-label="Volver al programa">←</Link>
+        <h1 className="prog-editor-title">Editar rutina</h1>
+        <span className="prog-editor-back" style={{ cursor: 'default', color: 'var(--hevy-blue)', borderColor: 'var(--hevy-blue-soft)' }} aria-hidden>
+          <TrendingUpIcon size={18} />
+        </span>
+      </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 20, alignItems: 'start', marginTop: 8 }}>
+      <div className="prog-editor-grid" style={{ gridTemplateColumns: 'minmax(0,1fr) 360px' }}>
         <div>
-          <h1 className="page-title" style={{ marginBottom: 16 }}>Editar Rutina</h1>
-
-          <div className="card" style={{ marginBottom: 16 }}>
-            <div className="add-client-section-label">Título de la rutina</div>
-            <input
-              className="add-client-email-input"
-              style={{ width: '100%' }}
-              value={titleDraft}
-              onChange={(e) => setTitleDraft(e.target.value)}
-              onBlur={() => void saveTitle(titleDraft)}
-            />
-          </div>
+          <div className="field-label">Título de la rutina</div>
+          <input
+            className="hevy-input"
+            style={{ marginBottom: 20 }}
+            value={titleDraft}
+            onChange={(e) => setTitleDraft(e.target.value)}
+            onBlur={() => void saveTitle(titleDraft)}
+          />
 
           {exercises.length === 0 ? (
-            <div className="card"><p className="muted" style={{ margin: 0 }}>Todavía no agregaste ejercicios. Elegí uno del panel de la derecha.</p></div>
+            <div className="prog-drop">Todavía no agregaste ejercicios.<br /><span style={{ fontSize: 13 }}>Elegí uno del panel de la derecha.</span></div>
           ) : (
             exercises.map((we, index) => (
               <ExerciseCard
@@ -132,13 +148,18 @@ export function RoutineEditorPage(): React.JSX.Element {
                 onRemove={() => void removeExercise(we.id)}
                 onMoveUp={() => void moveExercise(index, index - 1)}
                 onMoveDown={() => void moveExercise(index, index + 1)}
+                onOpenDetail={() => we.exercise && void openDetail(we.exercise.id)}
               />
             ))
           )}
         </div>
 
-        <ExercisePickerPanel onPick={(ex) => void addExercise(ex)} />
+        <ExercisePickerPanel onPick={(ex) => void addExercise(ex)} onDetail={(id) => void openDetail(id)} />
       </div>
+
+      {detailExercise && (
+        <ExerciseDetailModal exercise={detailExercise} onClose={() => setDetailExercise(null)} />
+      )}
     </div>
   );
 }
@@ -151,6 +172,7 @@ function ExerciseCard({
   onRemove,
   onMoveUp,
   onMoveDown,
+  onOpenDetail,
 }: {
   we: WorkoutExerciseWithExercise;
   index: number;
@@ -159,68 +181,81 @@ function ExerciseCard({
   onRemove: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
+  onOpenDetail: () => void;
 }): React.JSX.Element {
+  const thumbStyle = we.exercise?.image_url ? { backgroundImage: `url(${we.exercise.image_url})` } : undefined;
   return (
-    <div className="card" style={{ marginBottom: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div className="ex-thumb ex-thumb-icon" aria-hidden><DumbbellIcon size={16} /></div>
-          <span style={{ fontWeight: 650, fontSize: 14.5 }}>{we.exercise?.name ?? 'Ejercicio'}</span>
+    <div className="rex-card">
+      <div className="rex-head">
+        <div className="rex-thumb" style={thumbStyle} onClick={onOpenDetail} title="Ver detalle">
+          {we.exercise?.image_url ? null : <DumbbellIcon size={18} />}
         </div>
+        <span className="rex-name" onClick={onOpenDetail}>{we.exercise?.name ?? 'Ejercicio'}</span>
         <div className="ex-move">
           <button type="button" className="icon-btn sm" title="Subir" disabled={index === 0} onClick={onMoveUp}>↑</button>
           <button type="button" className="icon-btn sm" title="Bajar" disabled={index === count - 1} onClick={onMoveDown}>↓</button>
           <button type="button" className="icon-btn sm" title="Quitar" onClick={onRemove}>✕</button>
         </div>
       </div>
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        <Field label="Series" defaultValue={we.sets ?? ''} onBlurNum={(v) => onSave({ sets: v ?? 0 })} />
-        <Field label="Reps" defaultValue={we.reps ?? ''} onBlurStr={(v) => onSave({ reps: v })} />
-        <Field label="Peso (kg)" defaultValue={we.weight_kg ?? ''} onBlurNum={(v) => onSave({ weight_kg: v })} />
-        <Field label="Descanso (seg)" defaultValue={we.rest_seconds ?? ''} onBlurNum={(v) => onSave({ rest_seconds: v })} />
+
+      <div className="rex-resttimer">
+        <label>Descanso:</label>
+        <select
+          className="rex-select"
+          defaultValue={String(we.rest_seconds ?? 0)}
+          onChange={(e) => onSave({ rest_seconds: Number(e.target.value) || null })}
+        >
+          {REST_OPTIONS.map(([secs, label]) => (
+            <option key={secs} value={secs}>{label}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="rex-sets-head">
+        <span>Serie</span>
+        <span>Reps</span>
+        <span>Kg</span>
+        <span>Series</span>
+        <span />
+      </div>
+      <div className="rex-sets-row">
+        <span className="rex-setnum">1</span>
+        <input
+          className="rex-input"
+          defaultValue={we.reps ?? ''}
+          onBlur={(e) => onSave({ reps: e.target.value })}
+        />
+        <input
+          className="rex-input"
+          inputMode="decimal"
+          defaultValue={we.weight_kg ?? ''}
+          onBlur={(e) => onSave({ weight_kg: e.target.value === '' ? null : Number(e.target.value) })}
+        />
+        <input
+          className="rex-input"
+          inputMode="numeric"
+          defaultValue={we.sets ?? ''}
+          onBlur={(e) => onSave({ sets: e.target.value === '' ? 0 : Number(e.target.value) })}
+        />
+        <span />
       </div>
     </div>
   );
 }
 
-function Field({
-  label,
-  defaultValue,
-  onBlurNum,
-  onBlurStr,
-}: {
-  label: string;
-  defaultValue: string | number;
-  onBlurNum?: (v: number | null) => void;
-  onBlurStr?: (v: string) => void;
-}): React.JSX.Element {
-  return (
-    <div>
-      <div className="add-client-section-label" style={{ marginBottom: 4 }}>{label}</div>
-      <input
-        className="add-client-email-input"
-        style={{ width: 100 }}
-        defaultValue={defaultValue}
-        onBlur={(e) => {
-          if (onBlurStr) onBlurStr(e.target.value);
-          if (onBlurNum) onBlurNum(e.target.value === '' ? null : Number(e.target.value));
-        }}
-      />
-    </div>
-  );
-}
-
-function ExercisePickerPanel({ onPick }: { onPick: (ex: CatalogExercise) => void }): React.JSX.Element {
+function ExercisePickerPanel({ onPick, onDetail }: { onPick: (ex: CatalogExercise) => void; onDetail: (id: string) => void }): React.JSX.Element {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<CatalogExercise[]>([]);
   const [loading, setLoading] = useState(false);
+  const [equipment, setEquipment] = useState('');
+  const [muscle, setMuscle] = useState('');
 
   useEffect(() => {
     let active = true;
     setLoading(true);
     const t = setTimeout(() => {
       void (async () => {
-        let q = supabase.from('exercises').select('id, name, image_url, target_muscles, equipment').order('name').limit(60);
+        let q = supabase.from('exercises').select('id, name, image_url, target_muscles, equipment').order('name').limit(200);
         if (query.trim()) q = q.ilike('name', `%${query.trim()}%`);
         const { data } = await q;
         if (!active) return;
@@ -231,30 +266,74 @@ function ExercisePickerPanel({ onPick }: { onPick: (ex: CatalogExercise) => void
     return () => { active = false; clearTimeout(t); };
   }, [query]);
 
+  // Opciones de filtro derivadas de los resultados cargados.
+  const equipmentOpts = useMemo(
+    () => Array.from(new Set(results.flatMap((e) => e.equipment ?? []))).sort(),
+    [results],
+  );
+  const muscleOpts = useMemo(
+    () => Array.from(new Set(results.flatMap((e) => e.target_muscles ?? []))).sort(),
+    [results],
+  );
+  const filtered = results.filter(
+    (e) =>
+      (!equipment || (e.equipment ?? []).includes(equipment)) &&
+      (!muscle || (e.target_muscles ?? []).includes(muscle)),
+  );
+
   return (
-    <div className="card" style={{ position: 'sticky', top: 20 }}>
-      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>Ejercicios</div>
-      <input
-        className="add-client-email-input"
-        style={{ width: '100%', marginBottom: 12 }}
-        placeholder="Buscar ejercicio…"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-      />
-      <div style={{ maxHeight: 480, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
+    <div className="card summary-card">
+      <div className="picker-head">
+        <button type="button" className="link-blue" onClick={() => window.open('/exercises', '_self')}>
+          <PlusIcon size={15} /> Ejercicio personalizado
+        </button>
+      </div>
+      <div className="picker-filters">
+        <select className="picker-select" value={equipment} onChange={(e) => setEquipment(e.target.value)}>
+          <option value="">Equipo</option>
+          {equipmentOpts.map((op) => <option key={op} value={op}>{op}</option>)}
+        </select>
+        <select className="picker-select" value={muscle} onChange={(e) => setMuscle(e.target.value)}>
+          <option value="">Músculos</option>
+          {muscleOpts.map((op) => <option key={op} value={op}>{op}</option>)}
+        </select>
+      </div>
+      <div className="search-field" style={{ width: '100%', marginBottom: 12 }}>
+        <input
+          style={{ width: '100%' }}
+          placeholder="Buscar ejercicios…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+      </div>
+      <div style={{ maxHeight: 520, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
         {loading ? (
           <div className="muted" style={{ padding: 12 }}>Buscando…</div>
-        ) : results.length === 0 ? (
+        ) : filtered.length === 0 ? (
           <div className="muted" style={{ padding: 12 }}>Sin resultados.</div>
         ) : (
-          results.map((ex) => (
-            <button key={ex.id} type="button" className="picker-row" onClick={() => onPick(ex)}>
-              <div className="ex-thumb ex-thumb-icon" aria-hidden><DumbbellIcon size={14} /></div>
+          filtered.map((ex) => (
+            <div key={ex.id} className="picker-row" onClick={() => onDetail(ex.id)}>
+              <div
+                className="ex-thumb ex-thumb-icon"
+                aria-hidden
+                style={ex.image_url ? { backgroundImage: `url(${ex.image_url})` } : undefined}
+              >
+                {ex.image_url ? null : <DumbbellIcon size={14} />}
+              </div>
               <div className="ex-info">
                 <span className="ex-name">{ex.name}</span>
                 {ex.target_muscles?.length ? <span className="muted ex-sub">{ex.target_muscles.join(', ')}</span> : null}
               </div>
-            </button>
+              <button
+                type="button"
+                className="picker-add"
+                onClick={(e) => { e.stopPropagation(); onPick(ex); }}
+                title="Agregar a la rutina"
+              >
+                <PlusIcon size={15} />
+              </button>
+            </div>
           ))
         )}
       </div>

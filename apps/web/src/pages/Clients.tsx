@@ -580,7 +580,7 @@ export function ClientsPage(): React.JSX.Element {
               {loading ? '…' : `${filtered.length} cliente${filtered.length === 1 ? '' : 's'}`}
             </span>
           </div>
-          <button type="button" className="btn primary add-client-btn" onClick={() => setAddClientOpen(true)}>
+          <button type="button" className="btn blue add-client-btn" onClick={() => setAddClientOpen(true)}>
             <PlusIcon size={15} /> Agregar cliente
           </button>
         </div>
@@ -840,7 +840,7 @@ export function ClientsPage(): React.JSX.Element {
           transition: color 150ms;
         }
         .clients-tab:hover { color: var(--text-primary); }
-        .clients-tab.active { color: var(--text-primary); border-bottom-color: var(--primary); }
+        .clients-tab.active { color: var(--hevy-blue); border-bottom-color: var(--hevy-blue); }
         .plan-badge {
           display: inline-flex; align-items: center;
           padding: 3px 9px; border-radius: 999px;
@@ -863,9 +863,9 @@ export function ClientsPage(): React.JSX.Element {
         }
         .last7-letter { font-size: 9px; font-weight: 600; text-transform: uppercase; color: var(--text-tertiary); }
         .last7-num { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
-        .last7-cell.active { background: var(--primary); }
-        .last7-cell.active .last7-letter { color: color-mix(in srgb, var(--primary-contrast, #fff) 80%, transparent); }
-        .last7-cell.active .last7-num { color: var(--primary-contrast, #fff); }
+        .last7-cell.active { background: var(--hevy-blue); }
+        .last7-cell.active .last7-letter { color: rgba(255,255,255,0.8); }
+        .last7-cell.active .last7-num { color: #fff; }
 
         .client-pending-actions {
           display: flex; align-items: center; gap: 8px; justify-content: flex-end;

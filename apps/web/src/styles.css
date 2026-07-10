@@ -44,6 +44,14 @@
   --chat-hover: #1d4ed8;
   --chat-soft: rgba(37, 99, 235, 0.10);
 
+  /* Acento de las pantallas de entrenamiento. Deliberadamente = tinta
+     monocromática del resto de la app (NO azul), para consistencia visual.
+     Se mantiene el nombre --hevy-* para no reescribir las clases que lo usan. */
+  --hevy-blue: var(--accent);
+  --hevy-blue-hover: var(--accent-hover);
+  --hevy-blue-soft: var(--accent-soft);
+  --hevy-blue-on: var(--accent-contrast);
+
   /* Radios generosos, estilo dashboard moderno (cards muy redondeadas). */
   --radius-lg: 24px;
   --radius: 18px;
@@ -1988,6 +1996,10 @@ tr.row-clickable.dragging { opacity: 0.55; }
   transition: background 120ms ease;
 }
 .picker-row:hover { background: var(--surface-elevated); }
+.picker-row .ex-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.picker-row .ex-thumb { width: 40px; height: 40px; flex-shrink: 0; }
+.picker-row .picker-add { opacity: 0; transition: opacity 120ms ease; }
+.picker-row:hover .picker-add { opacity: 1; }
 
 /* ---------- Student detail ---------- */
 .row-clickable { cursor: pointer; }
@@ -3880,3 +3892,313 @@ tr.row-clickable.dragging { opacity: 0.55; }
   background: #fef2f2; color: #b91c1c; border: 1.5px solid #fecaca;
 }
 .btn.danger:hover { background: #fee2e2; opacity: 1; }
+
+/* ════════════════════════════════════════════════════════════════
+   Hevy Coach look & feel — Programas · Rutinas · Clientes
+   Acento azul (--hevy-blue) para los CTAs primarios de entrenamiento.
+   ════════════════════════════════════════════════════════════════ */
+
+/* Botón primario azul (Create Workout Program, Add Routine, Add Client…) */
+.btn.blue {
+  background: var(--hevy-blue);
+  color: var(--hevy-blue-on);
+  border: 1px solid var(--hevy-blue);
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.18);
+}
+.btn.blue:hover { background: var(--hevy-blue-hover); border-color: var(--hevy-blue-hover); box-shadow: 0 4px 14px rgba(37, 99, 235, 0.28); }
+.link-blue {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: none; border: none; cursor: pointer;
+  color: var(--hevy-blue); font: inherit; font-weight: 650; font-size: 13.5px;
+  padding: 0;
+}
+.link-blue:hover { color: var(--hevy-blue-hover); }
+
+/* Encabezado de página: título grande + subtítulo, acción a la derecha */
+.hevy-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.hevy-head .page-sub { margin: 0; }
+
+/* Tabs tipo "My Library / HevyCoach Library" */
+.lib-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+.lib-tab {
+  background: none; border: none; cursor: pointer;
+  padding: 10px 2px; margin-right: 24px; margin-bottom: -1px;
+  font-size: 14px; font-weight: 600; color: var(--text-tertiary);
+  border-bottom: 2px solid transparent; transition: color 140ms ease, border-color 140ms ease;
+}
+.lib-tab:hover { color: var(--text-secondary); }
+.lib-tab.active { color: var(--hevy-blue); border-bottom-color: var(--hevy-blue); }
+
+/* Toolbar: search a la izquierda, acciones a la derecha */
+.hevy-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+.hevy-toolbar .search-field { width: 340px; max-width: 46vw; }
+.hevy-toolbar-actions { display: flex; align-items: center; gap: 10px; }
+
+/* Chip de conteo (círculo gris con número) */
+.count-chip {
+  min-width: 22px; height: 22px; padding: 0 7px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--surface-elevated); color: var(--text-secondary);
+  border-radius: var(--radius-pill); font-size: 12px; font-weight: 700;
+}
+
+/* ── Sección de carpeta colapsable ── */
+.folder-sec { margin-bottom: 10px; }
+.folder-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 4px; cursor: pointer; user-select: none;
+}
+.folder-head-ico { color: var(--text-tertiary); display: flex; flex-shrink: 0; }
+.folder-head-name { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; color: var(--text-primary); }
+.folder-head-spacer { flex: 1; }
+.folder-chevron { color: var(--text-tertiary); display: flex; transition: transform 180ms var(--ease); }
+.folder-chevron.collapsed { transform: rotate(-90deg); }
+.folder-head .client-row-menu { margin-left: 2px; }
+.folder-body { display: flex; flex-direction: column; gap: 10px; padding-bottom: 8px; }
+
+/* Zona de drop (carpeta vacía / drag&drop de programa) */
+.prog-drop {
+  border: 1.5px dashed var(--border-strong); border-radius: var(--radius);
+  background: var(--surface); padding: 28px 20px; text-align: center;
+  color: var(--text-secondary); font-size: 14px; transition: background 150ms ease, border-color 150ms ease;
+}
+.prog-drop.drag-over { background: var(--hevy-blue-soft); border-color: var(--hevy-blue); }
+.prog-drop b { font-weight: 650; color: var(--text-primary); }
+
+/* ── Fila de programa (list-row, no card en grilla) ── */
+.prog-row {
+  display: flex; align-items: flex-start; gap: 16px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--card-shadow);
+  padding: 18px 20px; cursor: pointer;
+  transition: border-color 150ms var(--ease), box-shadow 150ms var(--ease), transform 150ms var(--ease);
+}
+.prog-row:hover { border-color: var(--border-strong); box-shadow: var(--shadow); transform: translateY(-1px); }
+.prog-row[draggable="true"] { cursor: grab; }
+.prog-row.dragging { opacity: 0.5; }
+.prog-row-main { flex: 1; min-width: 0; }
+.prog-row-title { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; color: var(--text-primary); }
+.prog-row-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.prog-row-side { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.prog-row-duration { font-size: 13px; color: var(--text-tertiary); white-space: nowrap; }
+.day-chip {
+  display: inline-flex; align-items: center;
+  padding: 4px 10px; border-radius: var(--radius-pill);
+  background: var(--surface-elevated); color: var(--text-secondary);
+  font-size: 12px; font-weight: 550; white-space: nowrap;
+}
+
+/* ── Program Editor (Edit Program Template) ── */
+.prog-editor-grid { display: grid; grid-template-columns: minmax(0,1fr) 320px; gap: 24px; align-items: start; }
+@media (max-width: 1040px) { .prog-editor-grid { grid-template-columns: 1fr; } }
+.prog-editor-head { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
+.prog-editor-back {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 38px; height: 38px; flex-shrink: 0;
+  border-radius: var(--radius-pill); border: 1px solid var(--border-strong);
+  background: var(--surface); color: var(--text-secondary); cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+}
+.prog-editor-back:hover { background: var(--surface-elevated); color: var(--text-primary); }
+.prog-editor-title { font-size: 24px; font-weight: 750; letter-spacing: -0.02em; margin: 0; flex: 1; }
+.field-label { font-size: 13.5px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px; }
+.hevy-input {
+  width: 100%; padding: 11px 14px; font-size: 14px;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--text-primary);
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.hevy-input::placeholder { color: var(--text-tertiary); }
+.hevy-input:focus { outline: none; border-color: var(--hevy-blue); box-shadow: 0 0 0 3px var(--hevy-blue-soft); }
+textarea.hevy-input { resize: vertical; min-height: 88px; line-height: 1.5; }
+.prog-fields-row { display: grid; grid-template-columns: minmax(0,1fr) 200px; gap: 16px; }
+@media (max-width: 560px) { .prog-fields-row { grid-template-columns: 1fr; } }
+
+.routines-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 26px 0 14px; }
+.routines-bar-title { display: flex; align-items: center; gap: 10px; font-size: 19px; font-weight: 700; letter-spacing: -0.01em; }
+
+/* Fila de rutina dentro del editor de programa */
+.routine-row {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--card-shadow);
+  padding: 18px 20px; margin-bottom: 12px; cursor: pointer;
+  transition: border-color 150ms var(--ease), box-shadow 150ms var(--ease);
+}
+.routine-row:hover { border-color: var(--border-strong); box-shadow: var(--shadow); }
+.routine-row-head { display: flex; align-items: center; gap: 10px; }
+.routine-row-title { flex: 1; min-width: 0; font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
+.routine-row-ex { margin-top: 10px; font-size: 13px; color: var(--text-tertiary); line-height: 1.75; }
+.routine-row-ex .n { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+
+/* Sidebar Summary (resumen del programa) */
+.summary-card { position: sticky; top: 20px; }
+.summary-title { font-size: 16px; font-weight: 700; margin-bottom: 16px; }
+
+/* ── Routine Editor (picker azul) ── */
+.picker-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.picker-filters { display: flex; gap: 8px; margin-bottom: 12px; }
+.picker-select {
+  flex: 1; min-width: 0; padding: 9px 12px; font-size: 13px;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--text-secondary); cursor: pointer;
+}
+.picker-select:focus { outline: none; border-color: var(--hevy-blue); }
+.picker-add {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; flex-shrink: 0; border-radius: var(--radius-pill);
+  background: var(--hevy-blue); color: #fff; border: none; cursor: pointer;
+  transition: background 140ms ease;
+}
+.picker-add:hover { background: var(--hevy-blue-hover); }
+
+/* Clientes: celda de día activo en azul Hevy + pill de estado */
+.last7-cell.active { background: var(--hevy-blue); }
+.last7-cell.active .last7-letter { color: rgba(255,255,255,0.8); }
+.last7-cell.active .last7-num { color: #fff; }
+.clients-tab.active { border-bottom-color: var(--hevy-blue); color: var(--hevy-blue); }
+.status-pill {
+  display: inline-flex; align-items: center; padding: 4px 12px;
+  border-radius: var(--radius-pill); font-size: 12.5px; font-weight: 600;
+  background: var(--surface-elevated); color: var(--text-secondary);
+}
+.status-pill.active { background: var(--hevy-blue-soft); color: var(--hevy-blue); }
+.status-pill.pending { background: var(--surface-elevated); color: var(--text-tertiary); }
+
+/* Duración: combobox (input + datalist) con flechita */
+.combo-wrap { position: relative; }
+.combo-wrap::after {
+  content: ''; position: absolute; right: 12px; top: 50%; width: 8px; height: 8px;
+  border-right: 2px solid var(--text-tertiary); border-bottom: 2px solid var(--text-tertiary);
+  transform: translateY(-70%) rotate(45deg); pointer-events: none;
+}
+.combo-wrap .hevy-input { padding-right: 30px; }
+
+/* Badge "datos simulados" */
+.mock-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 8px; border-radius: var(--radius-pill);
+  font-size: 10px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase;
+  background: rgba(250, 204, 21, 0.16); color: #a16207;
+  border: 1px solid rgba(250, 204, 21, 0.35);
+}
+
+/* Tabla "Set Count Per Muscle Group" del resumen */
+.msum-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin: 22px 0 4px;
+}
+.msum-title { font-size: 14px; font-weight: 700; }
+.msum-thead {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 10px; margin: 6px -10px 0; border-radius: var(--radius-sm);
+  background: var(--surface-elevated);
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--text-tertiary);
+}
+.msum-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 9px 0; border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.msum-row:last-child { border-bottom: none; }
+.msum-row .m { color: var(--text-secondary); }
+.msum-row .s { font-weight: 700; font-variant-numeric: tabular-nums; }
+.msum-row.zero .m, .msum-row.zero .s { color: var(--text-tertiary); }
+
+/* ── Routine Editor: card de ejercicio estilo Hevy ── */
+.rex-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--card-shadow);
+  padding: 18px 20px; margin-bottom: 14px;
+}
+.rex-head { display: flex; align-items: center; gap: 12px; }
+.rex-thumb {
+  width: 44px; height: 44px; flex-shrink: 0; border-radius: var(--radius-sm);
+  background-color: var(--surface-elevated); background-size: cover; background-position: center;
+  border: 1px solid var(--border); display: flex; align-items: center; justify-content: center;
+  color: var(--text-tertiary); cursor: pointer;
+}
+.rex-name { flex: 1; min-width: 0; font-size: 15.5px; font-weight: 700; letter-spacing: -0.01em; cursor: pointer; }
+.rex-name:hover { text-decoration: underline; }
+.rex-resttimer { display: flex; align-items: center; gap: 8px; margin: 14px 0 4px; }
+.rex-resttimer label { font-size: 12.5px; color: var(--text-secondary); font-weight: 600; }
+.rex-select {
+  padding: 6px 10px; font-size: 13px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-primary); cursor: pointer;
+}
+.rex-select:focus { outline: none; border-color: var(--text-secondary); }
+.rex-sets-head, .rex-sets-row {
+  display: grid; grid-template-columns: 48px 1fr 1fr 1fr 32px; gap: 8px; align-items: center;
+}
+.rex-sets-head {
+  padding: 8px 4px; margin-top: 10px; border-bottom: 1px solid var(--border);
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-tertiary);
+}
+.rex-sets-row { padding: 8px 4px; }
+.rex-setnum {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 28px; border-radius: 7px; background: var(--surface-elevated);
+  font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.rex-input {
+  width: 100%; padding: 6px 8px; font-size: 13px; text-align: center;
+  border: 1px solid var(--border); border-radius: 7px; background: var(--bg); color: var(--text-primary);
+}
+.rex-input:focus { outline: none; border-color: var(--text-secondary); }
+
+/* ════════ Modal de detalle de ejercicio (estilo Hevy) ════════ */
+.exdetail-modal {
+  width: 100%; max-width: 1000px; max-height: 88vh;
+  background: var(--surface); border-radius: var(--radius-lg);
+  box-shadow: 0 24px 80px rgba(0,0,0,.3); overflow: hidden;
+  display: grid; grid-template-columns: 340px 1fr; grid-template-rows: 1fr auto;
+}
+@media (max-width: 720px) { .exdetail-modal { grid-template-columns: 1fr; max-height: 92vh; } }
+.exdetail-left {
+  grid-row: 1 / 2; padding: 28px; border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+@media (max-width: 720px) { .exdetail-left { border-right: none; border-bottom: 1px solid var(--border); } }
+.exdetail-title { font-size: 24px; font-weight: 750; letter-spacing: -0.02em; margin: 0 0 18px; }
+.exdetail-img {
+  width: 100%; aspect-ratio: 1 / 1; border-radius: var(--radius);
+  background: var(--surface-elevated); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center; color: var(--text-tertiary);
+  overflow: hidden; margin-bottom: 18px;
+}
+.exdetail-img img { width: 100%; height: 100%; object-fit: cover; }
+.exdetail-meta { font-size: 14px; line-height: 1.7; }
+.exdetail-meta .k { font-weight: 700; color: var(--text-primary); }
+.exdetail-meta .v { color: var(--text-secondary); }
+.exdetail-right { grid-row: 1 / 2; display: flex; flex-direction: column; min-height: 0; }
+.exdetail-rhead {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 24px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.exdetail-rhead h3 { margin: 0; font-size: 17px; font-weight: 700; }
+.exdetail-close-x {
+  background: none; border: none; cursor: pointer; color: var(--text-tertiary);
+  width: 32px; height: 32px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center;
+}
+.exdetail-close-x:hover { background: var(--surface-elevated); color: var(--text-primary); }
+.exdetail-body { padding: 20px 24px; overflow-y: auto; flex: 1; min-height: 0; }
+.exdetail-section-title { font-size: 15px; font-weight: 700; margin: 0 0 6px; }
+.exdetail-step { display: flex; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--border); }
+.exdetail-step:last-child { border-bottom: none; }
+.exdetail-step-n {
+  flex-shrink: 0; width: 30px; height: 30px; border-radius: 50%;
+  background: var(--surface-elevated); color: var(--text-secondary);
+  display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700;
+}
+.exdetail-step-t { font-size: 14px; line-height: 1.55; color: var(--text-primary); padding-top: 4px; }
+.exdetail-attach { display: flex; align-items: center; gap: 12px; margin-top: 8px; color: var(--text-tertiary); font-size: 14px; }
+.exdetail-attach-ico {
+  width: 40px; height: 40px; border-radius: var(--radius-sm); flex-shrink: 0;
+  background: var(--surface-elevated); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+}
+.exdetail-foot {
+  grid-column: 1 / -1; grid-row: 2 / 3;
+  display: flex; justify-content: flex-end; gap: 10px;
+  padding: 16px 24px; border-top: 1px solid var(--border); background: var(--surface);
+}

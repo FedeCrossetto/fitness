@@ -24,6 +24,18 @@ type DayWithWorkout = TrainingDayRow & {
 
 const WEEKDAY_NAMES = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 
+/** Distribución de series por grupo muscular — DATOS SIMULADOS (mock).
+ * Reemplazar por el cálculo real (a partir de exercise.target_muscles ya
+ * disponible en `summary.muscleRows`) cuando el catálogo tenga el mapeo de
+ * músculos completo. El header "Datos simulados" marca esta sección. */
+const MOCK_MUSCLE_SETS: [string, number][] = [
+  ['Abdominales', 24], ['Abductores', 0], ['Aductores', 0], ['Bíceps', 18],
+  ['Gemelos', 2], ['Cardio', 6], ['Pecho', 12], ['Antebrazos', 6],
+  ['Cuerpo completo', 0], ['Glúteos', 4], ['Isquiotibiales', 6], ['Dorsales', 10],
+  ['Lumbares', 2], ['Cuello', 0], ['Otros', 0], ['Cuádriceps', 6],
+  ['Hombros', 18], ['Trapecios', 2], ['Tríceps', 20], ['Espalda alta', 12],
+];
+
 /** Un programa nuevo siempre tiene una única fase contenedora (invisible acá) —
  * ver comentario en la migración 20260708010000_program_library.sql. Si por
  * algún motivo no existe todavía, se crea al cargar. */
@@ -285,65 +297,70 @@ export function ProgramEditorPage(): React.JSX.Element {
 
   return (
     <div>
-      <Link to="/programs" className="back-link">← Volver a programas</Link>
+      <div className="prog-editor-head">
+        <button type="button" className="prog-editor-back" onClick={() => navigate('/programs')} aria-label="Volver a programas">←</button>
+        <h1 className="prog-editor-title">Editar programa</h1>
+        <button type="button" className="btn secondary sm" onClick={() => void duplicateProgram()}>Duplicar</button>
+        <button type="button" className="btn blue sm" onClick={() => setAssignOpen(true)}>Asignar programa</button>
+      </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 20, alignItems: 'start', marginTop: 8 }}>
+      <div className="prog-editor-grid">
         <div>
-          <div className="row-between" style={{ marginBottom: 16 }}>
-            <h1 className="page-title" style={{ margin: 0 }}>Editar Programa</h1>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button type="button" className="btn secondary sm" onClick={() => void duplicateProgram()}>Duplicar programa</button>
-              <button type="button" className="btn primary sm" onClick={() => setAssignOpen(true)}>Asignar programa</button>
+          <div className="prog-fields-row">
+            <div>
+              <div className="field-label">Título del programa</div>
+              <input
+                className="hevy-input"
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value)}
+                onBlur={() => nameDraft.trim() && nameDraft !== program.name && void saveProgramField({ name: nameDraft.trim() })}
+              />
             </div>
-          </div>
-
-          <div className="card" style={{ marginBottom: 16 }}>
-            <div className="add-client-section-label">Título del programa</div>
-            <input
-              className="add-client-email-input"
-              style={{ width: '100%', marginBottom: 14 }}
-              value={nameDraft}
-              onChange={(e) => setNameDraft(e.target.value)}
-              onBlur={() => nameDraft.trim() && nameDraft !== program.name && void saveProgramField({ name: nameDraft.trim() })}
-            />
-            <div style={{ display: 'flex', gap: 14 }}>
-              <div style={{ flex: 1 }}>
-                <div className="add-client-section-label">Duración (semanas)</div>
+            <div>
+              <div className="field-label">Duración del programa</div>
+              <div className="combo-wrap">
                 <input
-                  className="add-client-email-input"
-                  style={{ width: '100%' }}
-                  type="number"
-                  min={1}
+                  className="hevy-input"
+                  list="dur-weeks"
+                  inputMode="numeric"
+                  placeholder="Ej: 6 semanas"
                   value={durationDraft}
-                  onChange={(e) => setDurationDraft(e.target.value)}
+                  onChange={(e) => setDurationDraft(e.target.value.replace(/[^0-9]/g, ''))}
                   onBlur={() => {
-                    const n = Number(durationDraft) || null;
+                    let n = Number(durationDraft) || null;
+                    if (n !== null) n = Math.min(52, Math.max(1, n));
+                    setDurationDraft(n ? String(n) : '');
                     if (n !== program.duration_weeks) void saveProgramField({ duration_weeks: n });
                   }}
                 />
+                <datalist id="dur-weeks">
+                  {Array.from({ length: 52 }, (_, i) => i + 1).map((w) => (
+                    <option key={w} value={w}>{w} {w === 1 ? 'semana' : 'semanas'}{w === 52 ? ' (1 año)' : ''}</option>
+                  ))}
+                </datalist>
               </div>
             </div>
-            <div style={{ marginTop: 14 }}>
-              <div className="add-client-section-label">Nota del programa</div>
-              <textarea
-                className="add-client-email-input"
-                style={{ width: '100%', minHeight: 70, resize: 'vertical' }}
-                value={noteDraft}
-                onChange={(e) => setNoteDraft(e.target.value)}
-                onBlur={() => noteDraft !== (program.note ?? '') && void saveProgramField({ note: noteDraft || null })}
-              />
-            </div>
+          </div>
+          <div style={{ marginTop: 16 }}>
+            <div className="field-label">Nota del programa</div>
+            <textarea
+              className="hevy-input"
+              placeholder="Agregá una breve descripción del programa"
+              value={noteDraft}
+              onChange={(e) => setNoteDraft(e.target.value)}
+              onBlur={() => noteDraft !== (program.note ?? '') && void saveProgramField({ note: noteDraft || null })}
+            />
           </div>
 
-          <div className="row-between" style={{ marginBottom: 12 }}>
-            <div style={{ fontWeight: 700, fontSize: 15 }}>Rutinas <span className="clients-tab-count" style={{ marginLeft: 6 }}>{sortedDays.length}</span></div>
-            <button type="button" className="btn primary sm" onClick={() => void addRoutine()}>
+          <div className="routines-bar">
+            <div className="routines-bar-title">Rutinas <span className="count-chip">{sortedDays.length}</span></div>
+            <button type="button" className="btn blue sm" onClick={() => void addRoutine()}>
               <PlusIcon size={14} /> Agregar rutina
             </button>
           </div>
 
           {sortedDays.length === 0 ? (
-            <div className="card"><p className="muted" style={{ margin: 0 }}>Este programa no tiene rutinas todavía.</p></div>
+            <div className="prog-drop">Este programa no tiene rutinas todavía. <button type="button" className="link-blue" onClick={() => void addRoutine()}>Agregar rutina</button></div>
           ) : (
             sortedDays.map((day) => (
               <RoutineCard
@@ -360,23 +377,25 @@ export function ProgramEditorPage(): React.JSX.Element {
           )}
         </div>
 
-        <div className="card">
-          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16 }}>Resumen</div>
+        <div className="card summary-card">
+          <div className="summary-title">Resumen</div>
           <SummaryRow label="Total de ejercicios" value={summary.totalExercises} />
           <SummaryRow label="Total de series" value={summary.totalSets} />
-          {summary.muscleRows.length > 0 && (
-            <>
-              <div style={{ fontWeight: 650, fontSize: 12.5, color: 'var(--text-tertiary)', marginTop: 18, marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                Series por grupo muscular
-              </div>
-              {summary.muscleRows.map(([muscle, sets]) => (
-                <div key={muscle} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '5px 0', borderBottom: '1px solid var(--border)' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>{muscle}</span>
-                  <span style={{ fontWeight: 600 }}>{sets}</span>
-                </div>
-              ))}
-            </>
-          )}
+
+          <div className="msum-head">
+            <span className="msum-title">Series por grupo muscular</span>
+            <span className="mock-badge" title="Datos de ejemplo — reemplazar por el cálculo real cuando el catálogo tenga el mapeo de músculos.">Datos simulados</span>
+          </div>
+          <div className="msum-thead">
+            <span>Grupo muscular</span>
+            <span>Series</span>
+          </div>
+          {MOCK_MUSCLE_SETS.map(([muscle, sets]) => (
+            <div key={muscle} className={`msum-row${sets === 0 ? ' zero' : ''}`}>
+              <span className="m">{muscle}</span>
+              <span className="s">{sets}</span>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -475,36 +494,37 @@ function RoutineCard({
   const exercises = [...(day.workout?.exercises ?? [])].sort((a, b) => a.sort_order - b.sort_order);
 
   return (
-    <div className="card" style={{ marginBottom: 12, cursor: 'pointer' }} onClick={onOpen}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+    <div className="routine-row" onClick={onOpen}>
+      <div className="routine-row-head">
         <input
-          className="inline-input"
-          style={{ fontWeight: 650, fontSize: 14.5 }}
+          className="inline-input routine-row-title"
           value={title}
           onClick={(e) => e.stopPropagation()}
           onChange={(e) => setTitle(e.target.value)}
           onBlur={() => title.trim() && title !== day.title && onRename(title.trim())}
         />
         {day.day_of_week !== null && (
-          <span className="badge solid gray" style={{ flexShrink: 0 }}>{WEEKDAY_NAMES[day.day_of_week]}</span>
+          <span className="day-chip" style={{ flexShrink: 0 }}>{WEEKDAY_NAMES[day.day_of_week]}</span>
         )}
         <CardMenu
           open={menuOpen}
           onToggle={() => setMenuOpen((v) => !v)}
           items={[
-            { label: 'Edit routine', onClick: onOpen },
-            { label: 'Duplicate routine', onClick: onDuplicate },
-            { label: 'Copy routine to program', onClick: onCopyToProgram },
-            { label: 'Assign to specific day', onClick: onAssignDay },
-            { label: 'Delete routine', onClick: onDelete, danger: true },
+            { label: 'Editar rutina', onClick: onOpen },
+            { label: 'Duplicar rutina', onClick: onDuplicate },
+            { label: 'Copiar rutina a programa', onClick: onCopyToProgram },
+            { label: 'Asignar a un día', onClick: onAssignDay },
+            { label: 'Eliminar rutina', onClick: onDelete, danger: true },
           ]}
         />
       </div>
       {exercises.length === 0 ? (
-        <p className="muted" style={{ margin: '10px 0 0', fontSize: 12.5 }}>Sin ejercicios — abrí la rutina para agregarlos.</p>
+        <p className="muted" style={{ margin: '10px 0 0', fontSize: 13 }}>Sin ejercicios — abrí la rutina para agregarlos.</p>
       ) : (
-        <div className="muted" style={{ marginTop: 8, fontSize: 12.5, lineHeight: 1.7 }}>
-          {exercises.map((we) => `${we.sets ?? 0}× ${we.exercise?.name ?? 'Ejercicio'}`).join(' · ')}
+        <div className="routine-row-ex">
+          {exercises.map((we) => (
+            <div key={we.id}><span className="n">{we.sets ?? 0}×</span> {we.exercise?.name ?? 'Ejercicio'}</div>
+          ))}
         </div>
       )}
     </div>
