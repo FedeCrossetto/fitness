@@ -3954,7 +3954,14 @@ tr.row-clickable.dragging { opacity: 0.55; }
 .folder-chevron { color: var(--text-tertiary); display: flex; transition: transform 180ms var(--ease); }
 .folder-chevron.collapsed { transform: rotate(-90deg); }
 .folder-head .client-row-menu { margin-left: 2px; }
+.folder-head.drag-target { background: var(--hevy-blue-soft); border-radius: var(--radius-sm); }
 .folder-body { display: flex; flex-direction: column; gap: 10px; padding-bottom: 8px; }
+
+/* Cursor global durante un drag manual (programas y rutinas) — al no usar
+   HTML5 draggable nativo, sí podemos forzar el cursor "manito cerrada" en
+   toda la página mientras se arrastra una card. */
+body.is-dragging-card,
+body.is-dragging-card * { cursor: grabbing !important; user-select: none !important; }
 
 /* Zona de drop (carpeta vacía / drag&drop de programa) */
 .prog-drop {
@@ -3974,8 +3981,28 @@ tr.row-clickable.dragging { opacity: 0.55; }
   transition: border-color 150ms var(--ease), box-shadow 150ms var(--ease), transform 150ms var(--ease);
 }
 .prog-row:hover { border-color: var(--border-strong); box-shadow: var(--shadow); transform: translateY(-1px); }
-.prog-row[draggable="true"] { cursor: grab; }
-.prog-row.dragging { opacity: 0.5; }
+/* Card original mientras se arrastra: queda como hueco/placeholder (el clon
+   flotante `.drag-ghost` es el que sigue al cursor). */
+.prog-row.dragging {
+  background: var(--surface-elevated); border-style: dashed; border-color: var(--border-strong);
+  box-shadow: none; transform: none; opacity: 1;
+}
+.prog-row.dragging > * { visibility: hidden; }
+/* Clon flotante que sigue al cursor durante el drag */
+.drag-ghost {
+  border-radius: var(--radius);
+  box-shadow: 0 16px 40px rgba(16, 24, 32, 0.22) !important;
+  cursor: grabbing;
+  opacity: 0.97;
+}
+.prog-row-grip {
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; align-self: center;
+  width: 16px; color: var(--text-tertiary);
+  opacity: 0; transition: opacity 120ms ease; cursor: grab;
+}
+.prog-row:hover .prog-row-grip { opacity: 1; }
+.prog-row.dragging .prog-row-grip { opacity: 1; cursor: grabbing; }
 .prog-row-main { flex: 1; min-width: 0; }
 .prog-row-title { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; color: var(--text-primary); }
 .prog-row-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
@@ -4025,7 +4052,19 @@ textarea.hevy-input { resize: vertical; min-height: 88px; line-height: 1.5; }
   transition: border-color 150ms var(--ease), box-shadow 150ms var(--ease);
 }
 .routine-row:hover { border-color: var(--border-strong); box-shadow: var(--shadow); }
+.routine-row.dragging {
+  background: var(--surface-elevated); border-style: dashed; border-color: var(--border-strong);
+  box-shadow: none; opacity: 1;
+}
+.routine-row.dragging > * { visibility: hidden; }
 .routine-row-head { display: flex; align-items: center; gap: 10px; }
+.routine-row-grip {
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; width: 16px; color: var(--text-tertiary);
+  opacity: 0; transition: opacity 120ms ease; cursor: grab;
+}
+.routine-row:hover .routine-row-grip { opacity: 1; }
+.routine-row.dragging .routine-row-grip { opacity: 1; cursor: grabbing; }
 .routine-row-title { flex: 1; min-width: 0; font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
 .routine-row-ex { margin-top: 10px; font-size: 13px; color: var(--text-tertiary); line-height: 1.75; }
 .routine-row-ex .n { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
@@ -4064,14 +4103,33 @@ textarea.hevy-input { resize: vertical; min-height: 88px; line-height: 1.5; }
 .status-pill.active { background: var(--hevy-blue-soft); color: var(--hevy-blue); }
 .status-pill.pending { background: var(--surface-elevated); color: var(--text-tertiary); }
 
-/* Duración: combobox (input + datalist) con flechita */
-.combo-wrap { position: relative; }
-.combo-wrap::after {
-  content: ''; position: absolute; right: 12px; top: 50%; width: 8px; height: 8px;
-  border-right: 2px solid var(--text-tertiary); border-bottom: 2px solid var(--text-tertiary);
-  transform: translateY(-70%) rotate(45deg); pointer-events: none;
+/* Duración del programa: dropdown custom (no <select> nativo) */
+.dur-select { position: relative; }
+.dur-select-trigger {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; text-align: left; cursor: pointer;
 }
-.combo-wrap .hevy-input { padding-right: 30px; }
+.dur-select-trigger:focus { outline: none; border-color: var(--hevy-blue); box-shadow: 0 0 0 3px var(--hevy-blue-soft); }
+.dur-select-chevron { color: var(--text-tertiary); flex-shrink: 0; transition: transform 140ms var(--ease); }
+.dur-select-trigger.open .dur-select-chevron { transform: rotate(180deg); }
+.dur-select-trigger.open { border-color: var(--hevy-blue); box-shadow: 0 0 0 3px var(--hevy-blue-soft); }
+.dur-select-backdrop { position: fixed; inset: 0; z-index: 40; }
+.dur-select-list {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 41;
+  max-height: 280px; overflow-y: auto;
+  background: var(--surface); border: 1px solid var(--border-strong);
+  border-radius: var(--radius); box-shadow: var(--shadow-hover);
+  padding: 6px; display: flex; flex-direction: column; gap: 1px;
+}
+.dur-select-opt {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 8px 10px; border-radius: var(--radius-sm);
+  font-size: 13.5px; color: var(--text-primary); background: none; border: none;
+  cursor: pointer; text-align: left; white-space: nowrap;
+}
+.dur-select-opt:hover { background: var(--surface-elevated); }
+.dur-select-opt.active { background: var(--hevy-blue-soft); color: var(--hevy-blue); font-weight: 650; }
+.dur-select-opt svg { flex-shrink: 0; }
 
 /* Badge "datos simulados" */
 .mock-badge {

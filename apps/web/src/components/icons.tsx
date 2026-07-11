@@ -259,6 +259,19 @@ export function TrendingUpIcon({ size = 18, className }: IconProps): React.JSX.E
   );
 }
 
+export function GripIcon({ size = 18, className }: IconProps): React.JSX.Element {
+  return (
+    <svg {...base(size, className)} fill="currentColor" stroke="none">
+      <circle cx="9" cy="5" r="1.6" />
+      <circle cx="15" cy="5" r="1.6" />
+      <circle cx="9" cy="12" r="1.6" />
+      <circle cx="15" cy="12" r="1.6" />
+      <circle cx="9" cy="19" r="1.6" />
+      <circle cx="15" cy="19" r="1.6" />
+    </svg>
+  );
+}
+
 export function MoreVerticalIcon({ size = 18, className }: IconProps): React.JSX.Element {
   return (
     <svg {...base(size, className)} fill="currentColor" stroke="none">

@@ -174,7 +174,10 @@ export function SettingsPage(): React.JSX.Element {
               key={lang.code}
               type="button"
               className={`lang-btn${language === lang.code ? ' active' : ''}`}
-              onClick={() => setLanguage(lang.code)}
+              onClick={() => {
+                setLanguage(lang.code);
+                if (session?.user.id) void supabase.from('profiles').update({ locale: lang.code }).eq('id', session.user.id);
+              }}
               title={lang.label}
             >
               {lang.flag} {lang.code.toUpperCase()}

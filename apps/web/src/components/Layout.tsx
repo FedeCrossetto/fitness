@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useTranslation } from '@/hooks/useTranslation';
 import { usePendingFoodCount } from '@/hooks/usePendingFoodCount';
 import { useBrandingHead, useTrainerBranding } from '@/hooks/useTrainerBranding';
 import { ConfirmDialog } from '@/components/ui';
-import { LANGUAGES, APP_TERMS_URL } from '@reset-fitness/shared';
+import { APP_TERMS_URL } from '@reset-fitness/shared';
+import type { Language } from '@reset-fitness/shared';
 import {
   GridIcon, BrushIcon, UsersIcon, LogOutIcon,
   GroupsIcon, CreditCardIcon,
@@ -51,6 +52,17 @@ function Avatar({ name, url, size = 'md', title }: { name?: string | null; url?:
 export function Layout(): React.JSX.Element {
   const { profile, signOut, isAdmin, isTrainer } = useAuth();
   const { t, language, setLanguage } = useTranslation();
+
+  // Idioma es una preferencia del entrenador guardada en profiles.locale —
+  // se sincroniza una sola vez al cargar el perfil (el toggle vive en /settings).
+  const syncedProfileId = useRef<string | null>(null);
+  useEffect(() => {
+    if (!profile || syncedProfileId.current === profile.id) return;
+    syncedProfileId.current = profile.id;
+    if ((profile.locale === 'en' || profile.locale === 'es') && profile.locale !== language) {
+      setLanguage(profile.locale as Language);
+    }
+  }, [profile, language, setLanguage]);
   const pendingFoodCount = usePendingFoodCount();
   const { appName: appBrandName, logoUrl } = useTrainerBranding();
   useBrandingHead(appBrandName, logoUrl);
@@ -247,19 +259,6 @@ export function Layout(): React.JSX.Element {
         <div className="topbar">
           <div className="topbar-spacer" />
           <div className="topbar-actions">
-            {/* Language toggle */}
-            <div className="lang-toggle" role="group" aria-label="Language">
-              {LANGUAGES.map((lang) => (
-                <button
-                  key={lang.code}
-                  className={`lang-btn${language === lang.code ? ' active' : ''}`}
-                  onClick={() => setLanguage(lang.code)}
-                  title={lang.label}
-                >
-                  {lang.flag} {lang.code.toUpperCase()}
-                </button>
-              ))}
-            </div>
             <div className="topbar-user" onClick={() => navigate('/settings')} role="button" tabIndex={0}>
               <Avatar name={profile?.full_name} url={profile?.avatar_url} size="sm" />
               <span className="topbar-username">{profile?.full_name ?? 'Entrenador'}</span>

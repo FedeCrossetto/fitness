@@ -12,9 +12,10 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/useToast';
 import { Spinner, ConfirmDialog } from '@/components/ui';
-import { PlusIcon } from '@/components/icons';
+import { PlusIcon, ChevronDownIcon, CheckIcon, GripIcon } from '@/components/icons';
 import { AssignProgramModal } from '@/components/AssignProgramModal';
 import { CardMenu } from '@/components/CardMenu';
+import { createDragGhost } from '@/lib/dragGhost';
 
 type CatalogExercise = Pick<ExerciseRow, 'id' | 'name' | 'image_url' | 'target_muscles'>;
 type WorkoutExerciseWithExercise = WorkoutExerciseRow & { exercise: CatalogExercise | null };
@@ -53,6 +54,7 @@ export function ProgramEditorPage(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [assignOpen, setAssignOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<DayWithWorkout | null>(null);
+  const [draggedDayIndex, setDraggedDayIndex] = useState<number | null>(null);
   const [copyTarget, setCopyTarget] = useState<DayWithWorkout | null>(null);
   const [copyPrograms, setCopyPrograms] = useState<ProgramRow[]>([]);
   const [assignDayTarget, setAssignDayTarget] = useState<DayWithWorkout | null>(null);
@@ -146,6 +148,61 @@ export function ProgramEditorPage(): React.JSX.Element {
   const renameRoutine = async (dayId: string, title: string) => {
     await supabase.from('training_days').update({ title }).eq('id', dayId);
     setDays((prev) => prev.map((d) => (d.id === dayId ? { ...d, title } : d)));
+  };
+
+  const reorderRoutines = async (fromIndex: number, toIndex: number) => {
+    const items = [...days].sort((a, b) => a.day_number - b.day_number);
+    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= items.length || toIndex >= items.length) return;
+    const [moved] = items.splice(fromIndex, 1);
+    items.splice(toIndex, 0, moved);
+    const renumbered = items.map((d, i) => ({ ...d, day_number: i + 1 }));
+    setDays(renumbered);
+    await Promise.all(renumbered.map((d) => supabase.from('training_days').update({ day_number: d.day_number }).eq('id', d.id)));
+  };
+
+  // Drag manual (misma técnica que ProgramLibrary) para reordenar rutinas
+  // dentro del programa — control total del cursor, sin HTML5 draggable.
+  const startRoutineDrag = (e: React.MouseEvent, fromIndex: number) => {
+    // Se puede iniciar el drag agarrando cualquier parte de la card (no solo
+    // el grip, muy chico para acertar) — excepto controles interactivos.
+    if (e.button !== 0) return;
+    if ((e.target as HTMLElement).closest('input, textarea, button, .client-row-menu')) return;
+    const card = (e.target as HTMLElement).closest<HTMLElement>('.routine-row');
+    if (!card) return;
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let toIndex = fromIndex;
+    let moved = false;
+    let ghost: ReturnType<typeof createDragGhost> | null = null;
+
+    const onMove = (ev: MouseEvent) => {
+      if (!moved) {
+        if (Math.abs(ev.clientX - startX) < 5 && Math.abs(ev.clientY - startY) < 5) return;
+        moved = true;
+        setDraggedDayIndex(fromIndex);
+        document.body.classList.add('is-dragging-card');
+        ghost = createDragGhost(card, { clientX: startX, clientY: startY });
+      }
+      ghost?.move(ev);
+      const el = document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null;
+      const row = el?.closest<HTMLElement>('[data-routine-index]');
+      if (row) toIndex = Number(row.dataset.routineIndex);
+    };
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      if (!moved) return;
+      ghost?.destroy();
+      document.body.classList.remove('is-dragging-card');
+      setDraggedDayIndex(null);
+      const suppress = (ce: MouseEvent) => { ce.stopPropagation(); ce.preventDefault(); };
+      window.addEventListener('click', suppress, { capture: true });
+      setTimeout(() => window.removeEventListener('click', suppress, { capture: true }), 300);
+      if (toIndex !== fromIndex) void reorderRoutines(fromIndex, toIndex);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
   };
 
   const duplicateRoutine = async (day: DayWithWorkout) => {
@@ -317,28 +374,15 @@ export function ProgramEditorPage(): React.JSX.Element {
               />
             </div>
             <div>
-              <div className="field-label">Duración del programa</div>
-              <div className="combo-wrap">
-                <input
-                  className="hevy-input"
-                  list="dur-weeks"
-                  inputMode="numeric"
-                  placeholder="Ej: 6 semanas"
-                  value={durationDraft}
-                  onChange={(e) => setDurationDraft(e.target.value.replace(/[^0-9]/g, ''))}
-                  onBlur={() => {
-                    let n = Number(durationDraft) || null;
-                    if (n !== null) n = Math.min(52, Math.max(1, n));
-                    setDurationDraft(n ? String(n) : '');
-                    if (n !== program.duration_weeks) void saveProgramField({ duration_weeks: n });
-                  }}
-                />
-                <datalist id="dur-weeks">
-                  {Array.from({ length: 52 }, (_, i) => i + 1).map((w) => (
-                    <option key={w} value={w}>{w} {w === 1 ? 'semana' : 'semanas'}{w === 52 ? ' (1 año)' : ''}</option>
-                  ))}
-                </datalist>
-              </div>
+              <div className="field-label">Duración</div>
+              <DurationSelect
+                value={durationDraft}
+                onChange={(next) => {
+                  setDurationDraft(next);
+                  const n = next ? Number(next) : null;
+                  if (n !== program.duration_weeks) void saveProgramField({ duration_weeks: n });
+                }}
+              />
             </div>
           </div>
           <div style={{ marginTop: 16 }}>
@@ -362,16 +406,19 @@ export function ProgramEditorPage(): React.JSX.Element {
           {sortedDays.length === 0 ? (
             <div className="prog-drop">Este programa no tiene rutinas todavía. <button type="button" className="link-blue" onClick={() => void addRoutine()}>Agregar rutina</button></div>
           ) : (
-            sortedDays.map((day) => (
+            sortedDays.map((day, index) => (
               <RoutineCard
                 key={day.id}
                 day={day}
+                index={index}
+                dragging={draggedDayIndex === index}
                 onOpen={() => navigate(`/routines/${day.id}`)}
                 onRename={(title) => void renameRoutine(day.id, title)}
                 onDuplicate={() => void duplicateRoutine(day)}
                 onDelete={() => setDeleteTarget(day)}
                 onCopyToProgram={() => void openCopyToProgram(day)}
                 onAssignDay={() => setAssignDayTarget(day)}
+                onDragStart={(e) => startRoutineDrag(e, index)}
               />
             ))
           )}
@@ -463,6 +510,46 @@ export function ProgramEditorPage(): React.JSX.Element {
   );
 }
 
+const DURATION_OPTIONS = ['', ...Array.from({ length: 52 }, (_, i) => String(i + 1))];
+
+function durationLabel(v: string): string {
+  if (!v) return 'Sin límite';
+  const n = Number(v);
+  return `${n} ${n === 1 ? 'semana' : 'semanas'}`;
+}
+
+/** Dropdown custom (no <select> nativo) — look & feel de app.hevycoach.com:
+ * trigger con chevron, lista scrolleable con fila activa resaltada. */
+function DurationSelect({ value, onChange }: { value: string; onChange: (v: string) => void }): React.JSX.Element {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="dur-select">
+      <button type="button" className={`hevy-input dur-select-trigger${open ? ' open' : ''}`} onClick={() => setOpen((v) => !v)}>
+        <span>{durationLabel(value)}</span>
+        <ChevronDownIcon size={16} className="dur-select-chevron" />
+      </button>
+      {open && (
+        <>
+          <div className="dur-select-backdrop" onClick={() => setOpen(false)} />
+          <div className="dur-select-list">
+            {DURATION_OPTIONS.map((opt) => (
+              <button
+                key={opt || 'unlimited'}
+                type="button"
+                className={`dur-select-opt${opt === value ? ' active' : ''}`}
+                onClick={() => { onChange(opt); setOpen(false); }}
+              >
+                {durationLabel(opt)}
+                {opt === value && <CheckIcon size={14} />}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function SummaryRow({ label, value }: { label: string; value: number }): React.JSX.Element {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
@@ -474,28 +561,42 @@ function SummaryRow({ label, value }: { label: string; value: number }): React.J
 
 function RoutineCard({
   day,
+  index,
+  dragging,
   onOpen,
   onRename,
   onDuplicate,
   onDelete,
   onCopyToProgram,
   onAssignDay,
+  onDragStart,
 }: {
   day: DayWithWorkout;
+  index: number;
+  dragging: boolean;
   onOpen: () => void;
   onRename: (title: string) => void;
   onDuplicate: () => void;
   onDelete: () => void;
   onCopyToProgram: () => void;
   onAssignDay: () => void;
+  onDragStart: (e: React.MouseEvent) => void;
 }): React.JSX.Element {
   const [title, setTitle] = useState(day.title);
   const [menuOpen, setMenuOpen] = useState(false);
   const exercises = [...(day.workout?.exercises ?? [])].sort((a, b) => a.sort_order - b.sort_order);
 
   return (
-    <div className="routine-row" onClick={onOpen}>
+    <div
+      className={`routine-row${dragging ? ' dragging' : ''}`}
+      onClick={onOpen}
+      onMouseDown={onDragStart}
+      data-routine-index={index}
+    >
       <div className="routine-row-head">
+        <span className="routine-row-grip" aria-hidden>
+          <GripIcon size={16} />
+        </span>
         <input
           className="inline-input routine-row-title"
           value={title}

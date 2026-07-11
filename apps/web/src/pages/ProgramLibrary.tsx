@@ -6,9 +6,10 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/useToast';
 import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
 import { ErrorState, LoadingRows, EmptyState, ConfirmDialog } from '@/components/ui';
-import { DumbbellIcon, PlusIcon, SearchIcon, FolderIcon, ChevronDownIcon } from '@/components/icons';
+import { DumbbellIcon, PlusIcon, SearchIcon, FolderIcon, ChevronDownIcon, GripIcon } from '@/components/icons';
 import { AssignProgramModal } from '@/components/AssignProgramModal';
 import { CardMenu } from '@/components/CardMenu';
+import { createDragGhost } from '@/lib/dragGhost';
 
 type ProgramWithPreview = ProgramRow & { dayTitles: string[] };
 
@@ -222,9 +223,11 @@ export function ProgramLibraryPage(): React.JSX.Element {
   };
 
   const moveToFolder = async (program: ProgramRow, folderId: string | null) => {
-    await supabase.from('programs').update({ folder_id: folderId }).eq('id', program.id);
+    // Update optimista: movemos la card en el estado local sin re-fetchear
+    // (evita el parpadeo del skeleton al soltar en otra carpeta).
+    setPrograms((prev) => prev.map((p) => (p.id === program.id ? { ...p, folder_id: folderId } : p)));
     setMoveTarget(null);
-    void refetch();
+    await supabase.from('programs').update({ folder_id: folderId }).eq('id', program.id);
   };
 
   const confirmDeleteFolder = async () => {
@@ -275,13 +278,60 @@ export function ProgramLibraryPage(): React.JSX.Element {
     void refetch();
   };
 
-  const onDropOnFolder = async (folderId: string | null) => {
-    setDragOverFolderId(null);
-    if (!draggedProgramId) return;
-    const program = programs.find((p) => p.id === draggedProgramId);
-    setDraggedProgramId(null);
-    if (!program || program.folder_id === folderId) return;
-    await moveToFolder(program, folderId);
+  // Drag manual (sin HTML5 draggable) — nos da control total del cursor
+  // (manito abierta al agarrar, cerrada mientras se arrastra) y evita el
+  // límite del navegador de no poder cambiar el cursor durante un drag nativo.
+  const startProgramDrag = (e: React.MouseEvent, program: ProgramWithPreview) => {
+    // Se puede iniciar el drag agarrando cualquier parte de la card (no solo
+    // el grip, muy chico para acertar) — excepto controles interactivos.
+    if (e.button !== 0) return;
+    if ((e.target as HTMLElement).closest('input, textarea, button, .client-row-menu')) return;
+    const card = (e.target as HTMLElement).closest<HTMLElement>('.prog-row');
+    if (!card) return;
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let overFolderId: string | null | undefined; // undefined = ningún destino válido bajo el cursor
+    let moved = false;
+    let ghost: ReturnType<typeof createDragGhost> | null = null;
+
+    const onMove = (ev: MouseEvent) => {
+      // Umbral: recién arrancamos el drag tras mover unos px (así un click
+      // simple sigue navegando al programa).
+      if (!moved) {
+        if (Math.abs(ev.clientX - startX) < 5 && Math.abs(ev.clientY - startY) < 5) return;
+        moved = true;
+        setDraggedProgramId(program.id);
+        document.body.classList.add('is-dragging-card');
+        ghost = createDragGhost(card, { clientX: startX, clientY: startY });
+      }
+      ghost?.move(ev);
+      const el = document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null;
+      const sec = el?.closest<HTMLElement>('[data-folder-key]');
+      const key = sec?.dataset.folderKey;
+      overFolderId = key === undefined ? undefined : key === 'root' ? null : key;
+      setDragOverFolderId(key ?? null);
+    };
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      if (!moved) return;
+      ghost?.destroy();
+      document.body.classList.remove('is-dragging-card');
+      setDraggedProgramId(null);
+      setDragOverFolderId(null);
+      // Suprimimos el click que dispara el mouseup post-drag (evita navegar).
+      // Auto-removible: si el drop fue sobre otra carpeta no se dispara ningún
+      // click, así que el listener se limpia solo a los 300ms.
+      const suppress = (ce: MouseEvent) => { ce.stopPropagation(); ce.preventDefault(); };
+      window.addEventListener('click', suppress, { capture: true });
+      setTimeout(() => window.removeEventListener('click', suppress, { capture: true }), 300);
+      if (overFolderId !== undefined && overFolderId !== program.folder_id) {
+        void moveToFolder(program, overFolderId);
+      }
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
   };
 
   const renderProgramRow = (p: ProgramWithPreview) => (
@@ -289,12 +339,13 @@ export function ProgramLibraryPage(): React.JSX.Element {
       key={p.id}
       className={`prog-row${draggedProgramId === p.id ? ' dragging' : ''}`}
       onClick={() => navigate(`/programs/${p.id}`)}
+      onMouseDown={(e) => startProgramDrag(e, p)}
       role="button"
       tabIndex={0}
-      draggable
-      onDragStart={() => setDraggedProgramId(p.id)}
-      onDragEnd={() => { setDraggedProgramId(null); setDragOverFolderId(null); }}
     >
+      <span className="prog-row-grip" aria-hidden>
+        <GripIcon size={16} />
+      </span>
       <div className="prog-row-main">
         <div className="prog-row-title">{p.name}</div>
         {p.dayTitles.length > 0 ? (
@@ -394,14 +445,8 @@ export function ProgramLibraryPage(): React.JSX.Element {
             const isCollapsed = collapsed.has(key);
             const isDragOver = dragOverFolderId === key;
             return (
-              <div
-                key={key}
-                className="folder-sec"
-                onDragOver={(e) => { e.preventDefault(); setDragOverFolderId(key); }}
-                onDragLeave={() => setDragOverFolderId((prev) => (prev === key ? null : prev))}
-                onDrop={(e) => { e.preventDefault(); void onDropOnFolder(group.id); }}
-              >
-                <div className="folder-head" onClick={() => toggleFolder(key)}>
+              <div key={key} className="folder-sec" data-folder-key={key}>
+                <div className={`folder-head${isDragOver ? ' drag-target' : ''}`} onClick={() => toggleFolder(key)}>
                   <span className="folder-head-ico"><FolderIcon size={18} /></span>
                   <span className="folder-head-name">{group.name}</span>
                   <span className="count-chip">{items.length}</span>

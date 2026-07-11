@@ -79,6 +79,7 @@
     "seed:food-icons": "node scripts/seed-food-icons.mjs",
     "seed:exercisedb": "node scripts/seed-exercisedb.mjs",
     "seed:wger": "node scripts/seed-wger.mjs",
+    "seed:hevy": "node scripts/seed-hevy-catalog.mjs",
     "seed:link-demo-exercises": "node scripts/seed-link-demo-exercises.mjs",
     "seed:training-media": "node scripts/seed-wger.mjs && node scripts/seed-exercisedb.mjs && node scripts/seed-link-demo-exercises.mjs",
     "sync:body-zones": "node scripts/sync-body-zone-assets.mjs",
