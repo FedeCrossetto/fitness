@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { ExerciseRow, TrainingDayRow, TrainingPhaseRow, WorkoutExerciseRow, WorkoutRow, WorkoutSet } from '@reset-fitness/shared/types/database';
 import { supabase } from '@/lib/supabase';
@@ -35,6 +35,9 @@ export function RoutineEditorPage(): React.JSX.Element {
   const [titleDraft, setTitleDraft] = useState('');
   const [detailExercise, setDetailExercise] = useState<ExerciseRow | null>(null);
   const [draggedExIndex, setDraggedExIndex] = useState<number | null>(null);
+  // Índice donde se insertaría el ejercicio arrastrado desde el picker —
+  // pinta una card fantasma (hueco) en ese lugar de la lista mientras se arrastra.
+  const [pickerDropIndex, setPickerDropIndex] = useState<number | null>(null);
 
   const openDetail = async (exerciseId: string) => {
     const { data } = await supabase.from('exercises').select('*').eq('id', exerciseId).maybeSingle();
@@ -74,13 +77,19 @@ export function RoutineEditorPage(): React.JSX.Element {
     setDay((prev) => (prev ? { ...prev, title: title.trim() } : prev));
   };
 
-  const addExercise = async (exercise: CatalogExercise) => {
+  const addExercise = async (exercise: CatalogExercise, insertAt?: number) => {
     if (!day?.workout) return;
-    const nextOrder = day.workout.exercises?.length ?? 0;
+    const items = currentOrder();
+    const at = insertAt === undefined ? items.length : Math.max(0, Math.min(insertAt, items.length));
+    // Corremos el sort_order de los que quedan después del punto de inserción.
+    const toShift = items.slice(at);
+    if (toShift.length > 0) {
+      await Promise.all(toShift.map((it, i) => supabase.from('workout_exercises').update({ sort_order: at + 1 + i }).eq('id', it.id)));
+    }
     await supabase.from('workout_exercises').insert({
       workout_id: day.workout.id,
       exercise_id: exercise.id,
-      sort_order: nextOrder,
+      sort_order: at,
       sets: 3,
       reps: '10',
     });
@@ -163,31 +172,40 @@ export function RoutineEditorPage(): React.JSX.Element {
             onBlur={() => void saveTitle(titleDraft)}
           />
 
-          {exercises.length === 0 ? (
-            <div className="prog-drop">Todavía no agregaste ejercicios.<br /><span style={{ fontSize: 13 }}>Elegí uno del panel de la derecha.</span></div>
+          {exercises.length === 0 && pickerDropIndex === null ? (
+            <div className="prog-drop">Todavía no agregaste ejercicios.<br /><span style={{ fontSize: 13 }}>Elegí uno del panel de la derecha o arrastralo acá.</span></div>
           ) : (
-            exercises.map((we, index) => (
-              <ExerciseCard
-                key={we.id}
-                we={we}
-                index={index}
-                dragging={draggedExIndex === index}
-                onSave={(patch) => void saveExercise(we.id, patch)}
-                onRemove={() => void removeExercise(we.id)}
-                onMoveUp={() => void moveExercise(index, index - 1)}
-                onMoveDown={() => void moveExercise(index, index + 1)}
-                onOpenDetail={() => we.exercise && void openDetail(we.exercise.id)}
-                onDragStart={(e) => startSortableDrag({
-                  event: e, index, cardSelector: '.rex-card', dataAttr: 'exIndex',
-                  move: reorderExercisesLocal, commit: () => void commitExerciseOrder(),
-                  setDragIndex: setDraggedExIndex,
-                })}
-              />
-            ))
+            <>
+              {pickerDropIndex === 0 && <div className="rex-card rex-card-placeholder" aria-hidden />}
+              {exercises.map((we, index) => (
+                <Fragment key={we.id}>
+                  <ExerciseCard
+                    we={we}
+                    index={index}
+                    dragging={draggedExIndex === index}
+                    onSave={(patch) => void saveExercise(we.id, patch)}
+                    onRemove={() => void removeExercise(we.id)}
+                    onMoveUp={() => void moveExercise(index, index - 1)}
+                    onMoveDown={() => void moveExercise(index, index + 1)}
+                    onOpenDetail={() => we.exercise && void openDetail(we.exercise.id)}
+                    onDragStart={(e) => startSortableDrag({
+                      event: e, index, cardSelector: '.rex-card', dataAttr: 'exIndex',
+                      move: reorderExercisesLocal, commit: () => void commitExerciseOrder(),
+                      setDragIndex: setDraggedExIndex,
+                    })}
+                  />
+                  {pickerDropIndex === index + 1 && <div className="rex-card rex-card-placeholder" aria-hidden />}
+                </Fragment>
+              ))}
+            </>
           )}
         </div>
 
-        <ExercisePickerPanel onPick={(ex) => void addExercise(ex)} onDetail={(id) => void openDetail(id)} />
+        <ExercisePickerPanel
+          onPick={(ex, insertAt) => void addExercise(ex, insertAt)}
+          onDetail={(id) => void openDetail(id)}
+          onDragOverIndex={setPickerDropIndex}
+        />
       </div>
 
       {detailExercise && (
@@ -319,12 +337,34 @@ function ExerciseCard({
   );
 }
 
-function ExercisePickerPanel({ onPick, onDetail }: { onPick: (ex: CatalogExercise) => void; onDetail: (id: string) => void }): React.JSX.Element {
+function ExercisePickerPanel({
+  onPick,
+  onDetail,
+  onDragOverIndex,
+}: {
+  onPick: (ex: CatalogExercise, insertAt?: number) => void;
+  onDetail: (id: string) => void;
+  onDragOverIndex: (index: number | null) => void;
+}): React.JSX.Element {
   const { language } = useTranslation();
   const navigate = useNavigate();
 
-  // Drag desde el picker hacia la rutina: se arrastra la fila y, si se suelta
-  // sobre la columna de la rutina ([data-routine-drop]), se agrega el ejercicio.
+  // Calcula en qué índice de la rutina se insertaría el ejercicio según la
+  // posición del cursor respecto a las cards existentes (mitad de arriba →
+  // antes de esa card; mitad de abajo → después). Sin cards debajo → al final.
+  const computeInsertIndex = (clientY: number): number => {
+    const cards = Array.from(document.querySelectorAll<HTMLElement>('[data-routine-drop] [data-ex-index]'));
+    for (const card of cards) {
+      const rect = card.getBoundingClientRect();
+      const mid = rect.top + rect.height / 2;
+      if (clientY < mid) return Number(card.dataset.exIndex);
+    }
+    return cards.length;
+  };
+
+  // Drag desde el picker hacia la rutina: se arrastra la fila, se muestra
+  // una card fantasma "hueco" en la posición de inserción (igual que al
+  // reordenar), y al soltar sobre la columna de la rutina se agrega ahí.
   const startPickerDrag = (e: React.MouseEvent, ex: CatalogExercise) => {
     if (e.button !== 0) return;
     if ((e.target as HTMLElement).closest('.picker-add')) return; // el + tiene su propio click
@@ -333,8 +373,9 @@ function ExercisePickerPanel({ onPick, onDetail }: { onPick: (ex: CatalogExercis
     const startX = e.clientX, startY = e.clientY;
     let moved = false;
     let ghost: ReturnType<typeof createDragGhost> | null = null;
-    let overDrop: HTMLElement | null = null;
-    const clearHighlight = () => document.querySelectorAll('.routine-drop-col.drop-target').forEach((el) => el.classList.remove('drop-target'));
+    let overDrop = false;
+    let lastIndex = 0;
+
     const onMove = (ev: MouseEvent) => {
       if (!moved) {
         if (Math.abs(ev.clientX - startX) < 5 && Math.abs(ev.clientY - startY) < 5) return;
@@ -344,25 +385,23 @@ function ExercisePickerPanel({ onPick, onDetail }: { onPick: (ex: CatalogExercis
       }
       ghost?.move(ev);
       const el = document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null;
-      const drop = el?.closest<HTMLElement>('[data-routine-drop]') ?? null;
-      if (drop !== overDrop) {
-        clearHighlight();
-        drop?.classList.add('drop-target');
-        overDrop = drop;
-      }
+      const dropCol = el?.closest<HTMLElement>('[data-routine-drop]') ?? null;
+      overDrop = !!dropCol;
+      if (dropCol) lastIndex = computeInsertIndex(ev.clientY);
+      onDragOverIndex(dropCol ? lastIndex : null);
     };
     const onUp = () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
       if (!moved) return;
       ghost?.destroy();
-      clearHighlight();
       document.body.classList.remove('is-dragging-card');
       // Suprimir el click que abre el detalle tras el drag.
       const suppress = (ce: MouseEvent) => { ce.stopPropagation(); ce.preventDefault(); };
       window.addEventListener('click', suppress, { capture: true });
       setTimeout(() => window.removeEventListener('click', suppress, { capture: true }), 300);
-      if (overDrop) onPick(ex);
+      if (overDrop) onPick(ex, lastIndex);
+      onDragOverIndex(null);
     };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
