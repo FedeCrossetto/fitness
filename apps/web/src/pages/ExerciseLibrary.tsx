@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ExerciseRow } from '@reset-fitness/shared/types/database';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/useToast';
@@ -21,21 +21,28 @@ export function ExerciseLibraryPage(): React.JSX.Element {
   const [newName, setNewName] = useState('');
   const [creating, setCreating] = useState(false);
 
+  // Cargamos todo el catálogo una vez y filtramos en cliente, así la búsqueda
+  // matchea tanto el nombre en inglés como el traducido al español.
   useEffect(() => {
     let active = true;
     setLoading(true);
-    const t = setTimeout(() => {
-      void (async () => {
-        let q = supabase.from('exercises').select('*').order('name').limit(80);
-        if (query.trim()) q = q.ilike('name', `%${query.trim()}%`);
-        const { data } = await q;
-        if (!active) return;
-        setResults((data as ExerciseRow[] | null) ?? []);
-        setLoading(false);
-      })();
-    }, 200);
-    return () => { active = false; clearTimeout(t); };
-  }, [query]);
+    void (async () => {
+      const { data } = await supabase.from('exercises').select('*').order('name').limit(1000);
+      if (!active) return;
+      setResults((data as ExerciseRow[] | null) ?? []);
+      setLoading(false);
+    })();
+    return () => { active = false; };
+  }, []);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const withName = results.map((ex) => ({ ex, label: localizedExercise(ex, language).name }));
+    const list = !q
+      ? withName
+      : withName.filter(({ ex, label }) => label.toLowerCase().includes(q) || ex.name.toLowerCase().includes(q));
+    return list.sort((a, b) => a.label.localeCompare(b.label));
+  }, [results, query, language]);
 
   const createExercise = async () => {
     if (!newName.trim() || creating) return;
@@ -69,11 +76,11 @@ export function ExerciseLibraryPage(): React.JSX.Element {
         </div>
         {loading ? (
           <div className="muted" style={{ padding: 12 }}>Buscando…</div>
-        ) : results.length === 0 ? (
+        ) : filtered.length === 0 ? (
           <div className="muted" style={{ padding: 12 }}>Sin resultados.</div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 4 }}>
-            {results.map((ex) => (
+            {filtered.map(({ ex, label }) => (
               <button key={ex.id} type="button" className="picker-row" onClick={() => setSelected(ex)}>
                 <div
                   className="ex-thumb ex-thumb-icon"
@@ -83,7 +90,7 @@ export function ExerciseLibraryPage(): React.JSX.Element {
                   {ex.image_url ? null : <DumbbellIcon size={14} />}
                 </div>
                 <div className="ex-info">
-                  <span className="ex-name">{ex.name}</span>
+                  <span className="ex-name">{label}</span>
                   {(() => { const m = localizedExercise(ex, language).muscle; return m && m !== '—' ? <span className="muted ex-sub">{m}</span> : null; })()}
                 </div>
               </button>

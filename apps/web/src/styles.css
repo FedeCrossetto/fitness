@@ -4169,7 +4169,19 @@ textarea.hevy-input { resize: vertical; min-height: 88px; line-height: 1.5; }
   border-radius: var(--radius); box-shadow: var(--card-shadow);
   padding: 18px 20px; margin-bottom: 14px;
 }
+.rex-card.dragging {
+  background: var(--surface-elevated); border-style: dashed; border-color: var(--border-strong);
+  box-shadow: none; opacity: 1;
+}
+.rex-card.dragging > * { visibility: hidden; }
 .rex-head { display: flex; align-items: center; gap: 12px; }
+.rex-grip {
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; width: 16px; color: var(--text-tertiary);
+  opacity: 0; transition: opacity 120ms ease; cursor: grab;
+}
+.rex-card:hover .rex-grip { opacity: 1; }
+.rex-card.dragging .rex-grip { opacity: 1; cursor: grabbing; }
 .rex-thumb {
   width: 44px; height: 44px; flex-shrink: 0; border-radius: var(--radius-sm);
   background-color: var(--surface-elevated); background-size: cover; background-position: center;

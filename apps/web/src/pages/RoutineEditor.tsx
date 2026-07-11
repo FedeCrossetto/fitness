@@ -3,8 +3,9 @@ import { Link, useParams } from 'react-router-dom';
 import type { ExerciseRow, TrainingDayRow, TrainingPhaseRow, WorkoutExerciseRow, WorkoutRow } from '@reset-fitness/shared/types/database';
 import { supabase } from '@/lib/supabase';
 import { Spinner } from '@/components/ui';
-import { DumbbellIcon, PlusIcon, TrendingUpIcon } from '@/components/icons';
+import { DumbbellIcon, PlusIcon, TrendingUpIcon, GripIcon } from '@/components/icons';
 import { ExerciseDetailModal } from '@/components/ExerciseDetailModal';
+import { startSortableDrag } from '@/lib/sortableDrag';
 
 const REST_OPTIONS: [number, string][] = [
   [0, 'Off'], [30, '00:30'], [45, '00:45'], [60, '01:00'], [90, '01:30'],
@@ -29,6 +30,7 @@ export function RoutineEditorPage(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [titleDraft, setTitleDraft] = useState('');
   const [detailExercise, setDetailExercise] = useState<ExerciseRow | null>(null);
+  const [draggedExIndex, setDraggedExIndex] = useState<number | null>(null);
 
   const openDetail = async (exerciseId: string) => {
     const { data } = await supabase.from('exercises').select('*').eq('id', exerciseId).maybeSingle();
@@ -90,14 +92,34 @@ export function RoutineEditorPage(): React.JSX.Element {
     await load();
   };
 
-  const moveExercise = async (from: number, to: number) => {
-    if (!day?.workout) return;
-    const items = [...day.workout.exercises].sort((a, b) => a.sort_order - b.sort_order);
-    if (to < 0 || to >= items.length) return;
+  const currentOrder = () => [...(day?.workout?.exercises ?? [])].sort((a, b) => a.sort_order - b.sort_order);
+
+  // Reordena SOLO el estado local (vista en vivo mientras se arrastra).
+  const reorderExercisesLocal = (from: number, to: number) => {
+    setDay((prev) => {
+      if (!prev?.workout) return prev;
+      const items = [...prev.workout.exercises].sort((a, b) => a.sort_order - b.sort_order);
+      if (to < 0 || to >= items.length || from === to) return prev;
+      const [removed] = items.splice(from, 1);
+      items.splice(to, 0, removed);
+      return { ...prev, workout: { ...prev.workout, exercises: items.map((it, idx) => ({ ...it, sort_order: idx })) } };
+    });
+  };
+
+  // Persiste el orden actual (al soltar el drag).
+  const commitExerciseOrder = async () => {
+    const items = currentOrder();
+    await Promise.all(items.map((it, idx) => supabase.from('workout_exercises').update({ sort_order: idx }).eq('id', it.id)));
+  };
+
+  // Reorden con flechas ↑/↓ (accesible): computa y persiste el array directo.
+  const moveExercise = (from: number, to: number) => {
+    const items = currentOrder();
+    if (to < 0 || to >= items.length || from === to) return;
     const [removed] = items.splice(from, 1);
     items.splice(to, 0, removed);
-    await Promise.all(items.map((it, idx) => supabase.from('workout_exercises').update({ sort_order: idx }).eq('id', it.id)));
-    await load();
+    setDay((prev) => (prev?.workout ? { ...prev, workout: { ...prev.workout, exercises: items.map((it, idx) => ({ ...it, sort_order: idx })) } } : prev));
+    void Promise.all(items.map((it, idx) => supabase.from('workout_exercises').update({ sort_order: idx }).eq('id', it.id)));
   };
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 64 }}><Spinner size={28} /></div>;
@@ -144,11 +166,17 @@ export function RoutineEditorPage(): React.JSX.Element {
                 we={we}
                 index={index}
                 count={exercises.length}
+                dragging={draggedExIndex === index}
                 onSave={(patch) => void saveExercise(we.id, patch)}
                 onRemove={() => void removeExercise(we.id)}
                 onMoveUp={() => void moveExercise(index, index - 1)}
                 onMoveDown={() => void moveExercise(index, index + 1)}
                 onOpenDetail={() => we.exercise && void openDetail(we.exercise.id)}
+                onDragStart={(e) => startSortableDrag({
+                  event: e, index, cardSelector: '.rex-card', dataAttr: 'exIndex',
+                  move: reorderExercisesLocal, commit: () => void commitExerciseOrder(),
+                  setDragIndex: setDraggedExIndex,
+                })}
               />
             ))
           )}
@@ -168,25 +196,30 @@ function ExerciseCard({
   we,
   index,
   count,
+  dragging,
   onSave,
   onRemove,
   onMoveUp,
   onMoveDown,
   onOpenDetail,
+  onDragStart,
 }: {
   we: WorkoutExerciseWithExercise;
   index: number;
   count: number;
+  dragging: boolean;
   onSave: (patch: Partial<Pick<WorkoutExerciseRow, 'sets' | 'reps' | 'rest_seconds' | 'weight_kg'>>) => void;
   onRemove: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
   onOpenDetail: () => void;
+  onDragStart: (e: React.MouseEvent) => void;
 }): React.JSX.Element {
   const thumbStyle = we.exercise?.image_url ? { backgroundImage: `url(${we.exercise.image_url})` } : undefined;
   return (
-    <div className="rex-card">
+    <div className={`rex-card${dragging ? ' dragging' : ''}`} data-ex-index={index} onMouseDown={onDragStart}>
       <div className="rex-head">
+        <span className="rex-grip" aria-hidden><GripIcon size={16} /></span>
         <div className="rex-thumb" style={thumbStyle} onClick={onOpenDetail} title="Ver detalle">
           {we.exercise?.image_url ? null : <DumbbellIcon size={18} />}
         </div>

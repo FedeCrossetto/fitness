@@ -86,7 +86,7 @@ export function ExercisePreviewSheet({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, exerciseId, fallback?.name, fallback?.image_url]);
 
-  const title = exercise?.name ?? fallback?.name ?? '';
+  const title = (exercise ? localizedExercise(exercise, language).name : null) ?? fallback?.name ?? '';
   const imageUrl = exercise?.image_url ?? fallback?.image_url ?? null;
   const showImage = canShowExerciseImage(imageUrl, exercise?.external_source);
   const loc = exercise ? localizedExercise(exercise, language) : { instructions: [], muscle: null };

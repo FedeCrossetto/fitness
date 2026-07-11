@@ -1,0 +1,1654 @@
+{
+ "hevy-ab-scissors": {
+  "es": "Tijeras Abdominales",
+  "en": "Ab Scissors"
+ },
+ "hevy-ab-wheel": {
+  "es": "Rueda Abdominal",
+  "en": "Ab Wheel"
+ },
+ "hevy-bicycle-crunch": {
+  "es": "Abdominal Bicicleta",
+  "en": "Bicycle Crunch"
+ },
+ "hevy-bicycle-crunch-raised-legs": {
+  "es": "Abdominal Bicicleta con Piernas Elevadas",
+  "en": "Bicycle Crunch Raised Legs"
+ },
+ "hevy-cable-core-palloff-press": {
+  "es": "Press Pallof en Polea",
+  "en": "Cable Core Palloff Press"
+ },
+ "hevy-cable-crunch": {
+  "es": "Abdominal en Polea",
+  "en": "Cable Crunch"
+ },
+ "hevy-cable-twist-down-to-up": {
+  "es": "Giro en Polea (de abajo hacia arriba)",
+  "en": "Cable Twist (Down to up)"
+ },
+ "hevy-cable-twist-up-to-down": {
+  "es": "Giro en Polea (de arriba hacia abajo)",
+  "en": "Cable Twist (Up to down)"
+ },
+ "hevy-crunch": {
+  "es": "Abdominal Crunch",
+  "en": "Crunch"
+ },
+ "hevy-crunch-machine": {
+  "es": "Abdominal Crunch (Máquina)",
+  "en": "Crunch (Machine)"
+ },
+ "hevy-crunch-weighted": {
+  "es": "Abdominal Crunch (con Peso)",
+  "en": "Crunch (Weighted)"
+ },
+ "hevy-dead-bug": {
+  "es": "Dead Bug",
+  "en": "Dead Bug"
+ },
+ "hevy-decline-crunch": {
+  "es": "Abdominal Declinado",
+  "en": "Decline Crunch"
+ },
+ "hevy-decline-crunch-weighted": {
+  "es": "Abdominal Declinado (con Peso)",
+  "en": "Decline Crunch (Weighted)"
+ },
+ "hevy-dragon-flag": {
+  "es": "Dragon Flag",
+  "en": "Dragon Flag"
+ },
+ "hevy-dragonfly": {
+  "es": "Dragonfly",
+  "en": "Dragonfly"
+ },
+ "hevy-elbow-to-knee": {
+  "es": "Codo a Rodilla",
+  "en": "Elbow to Knee"
+ },
+ "hevy-flutter-kicks": {
+  "es": "Patadas de Aleteo",
+  "en": "Flutter Kicks"
+ },
+ "hevy-hanging-knee-raise": {
+  "es": "Elevación de Rodillas Colgado",
+  "en": "Hanging Knee Raise"
+ },
+ "hevy-hanging-leg-raise": {
+  "es": "Elevación de Piernas Colgado",
+  "en": "Hanging Leg Raise"
+ },
+ "hevy-heel-taps": {
+  "es": "Toques de Talón",
+  "en": "Heel Taps"
+ },
+ "hevy-hollow-rock": {
+  "es": "Hollow Rock",
+  "en": "Hollow Rock"
+ },
+ "hevy-jack-knife-suspension": {
+  "es": "Navaja (TRX)",
+  "en": "Jack Knife (Suspension)"
+ },
+ "hevy-jackknife-sit-up": {
+  "es": "Abdominal Navaja",
+  "en": "Jackknife Sit Up"
+ },
+ "hevy-knee-raise-parallel-bars": {
+  "es": "Elevación de Rodillas en Paralelas",
+  "en": "Knee Raise Parallel Bars"
+ },
+ "hevy-l-sit-hold": {
+  "es": "L-Sit Isométrico",
+  "en": "L-Sit Hold"
+ },
+ "hevy-landmine-180": {
+  "es": "Landmine 180",
+  "en": "Landmine 180"
+ },
+ "hevy-leg-raise-parallel-bars": {
+  "es": "Elevación de Piernas en Paralelas",
+  "en": "Leg Raise Parallel Bars"
+ },
+ "hevy-lying-knee-raise": {
+  "es": "Elevación de Rodillas Acostado",
+  "en": "Lying Knee Raise"
+ },
+ "hevy-lying-leg-raise": {
+  "es": "Elevación de Piernas Acostado",
+  "en": "Lying Leg Raise"
+ },
+ "hevy-oblique-crunch": {
+  "es": "Abdominal Oblicuo",
+  "en": "Oblique Crunch"
+ },
+ "hevy-plank": {
+  "es": "Plancha",
+  "en": "Plank"
+ },
+ "hevy-reverse-crunch": {
+  "es": "Abdominal Invertido",
+  "en": "Reverse Crunch"
+ },
+ "hevy-reverse-plank": {
+  "es": "Plancha Invertida",
+  "en": "Reverse Plank"
+ },
+ "hevy-russian-twist-bodyweight": {
+  "es": "Giro Ruso (Peso Corporal)",
+  "en": "Russian Twist (Bodyweight)"
+ },
+ "hevy-russian-twist-weighted": {
+  "es": "Giro Ruso (con Peso)",
+  "en": "Russian Twist (Weighted)"
+ },
+ "hevy-side-bend": {
+  "es": "Flexión Lateral de Tronco",
+  "en": "Side Bend"
+ },
+ "hevy-side-bend-dumbbell": {
+  "es": "Flexión Lateral de Tronco (Mancuerna)",
+  "en": "Side Bend (Dumbbell)"
+ },
+ "hevy-side-plank": {
+  "es": "Plancha Lateral",
+  "en": "Side Plank"
+ },
+ "hevy-sit-up": {
+  "es": "Abdominal Completo",
+  "en": "Sit Up"
+ },
+ "hevy-sit-up-weighted": {
+  "es": "Abdominal Completo (con Peso)",
+  "en": "Sit Up (Weighted)"
+ },
+ "hevy-spiderman": {
+  "es": "Plancha Spiderman",
+  "en": "Spiderman"
+ },
+ "hevy-toe-touch": {
+  "es": "Toque de Puntas",
+  "en": "Toe Touch"
+ },
+ "hevy-toes-to-bar": {
+  "es": "Puntas a la Barra",
+  "en": "Toes to Bar"
+ },
+ "hevy-torso-rotation": {
+  "es": "Rotación de Tronco",
+  "en": "Torso Rotation"
+ },
+ "hevy-v-up": {
+  "es": "Abdominal en V",
+  "en": "V Up"
+ },
+ "hevy-arnold-press-dumbbell": {
+  "es": "Press Arnold (Mancuerna)",
+  "en": "Arnold Press (Dumbbell)"
+ },
+ "hevy-band-pullaparts": {
+  "es": "Aperturas con Banda",
+  "en": "Band Pullaparts"
+ },
+ "hevy-chest-supported-reverse-fly-dumbbell": {
+  "es": "Aperturas Invertidas con Apoyo de Pecho (Mancuerna)",
+  "en": "Chest Supported Reverse Fly (Dumbbell)"
+ },
+ "hevy-chest-supported-y-raise-dumbbell": {
+  "es": "Elevación en Y con Apoyo de Pecho (Mancuerna)",
+  "en": "Chest Supported Y Raise (Dumbbell)"
+ },
+ "hevy-face-pull": {
+  "es": "Face Pull",
+  "en": "Face Pull"
+ },
+ "hevy-front-raise-band": {
+  "es": "Elevación Frontal (Banda)",
+  "en": "Front Raise (Band)"
+ },
+ "hevy-front-raise-barbell": {
+  "es": "Elevación Frontal (Barra)",
+  "en": "Front Raise (Barbell)"
+ },
+ "hevy-front-raise-cable": {
+  "es": "Elevación Frontal (Polea)",
+  "en": "Front Raise (Cable)"
+ },
+ "hevy-front-raise-dumbbell": {
+  "es": "Elevación Frontal (Mancuerna)",
+  "en": "Front Raise (Dumbbell)"
+ },
+ "hevy-front-raise-suspension": {
+  "es": "Elevación Frontal (TRX)",
+  "en": "Front Raise (Suspension)"
+ },
+ "hevy-handstand-push-up": {
+  "es": "Flexión en Parada de Manos",
+  "en": "Handstand Push Up"
+ },
+ "hevy-kettlebell-shoulder-press": {
+  "es": "Press de Hombros con Kettlebell",
+  "en": "Kettlebell Shoulder Press"
+ },
+ "hevy-lateral-raise-band": {
+  "es": "Elevaciones Laterales (Banda)",
+  "en": "Lateral Raise (Band)"
+ },
+ "hevy-lateral-raise-cable": {
+  "es": "Elevaciones Laterales (Polea)",
+  "en": "Lateral Raise (Cable)"
+ },
+ "hevy-lateral-raise-dumbbell": {
+  "es": "Elevaciones Laterales (Mancuerna)",
+  "en": "Lateral Raise (Dumbbell)"
+ },
+ "hevy-lateral-raise-machine": {
+  "es": "Elevaciones Laterales (Máquina)",
+  "en": "Lateral Raise (Machine)"
+ },
+ "hevy-overhead-press-barbell": {
+  "es": "Press Militar (Barra)",
+  "en": "Overhead Press (Barbell)"
+ },
+ "hevy-overhead-press-dumbbell": {
+  "es": "Press Militar (Mancuerna)",
+  "en": "Overhead Press (Dumbbell)"
+ },
+ "hevy-overhead-press-smith-machine": {
+  "es": "Press Militar (Máquina Smith)",
+  "en": "Overhead Press (Smith Machine)"
+ },
+ "hevy-pike-pushup": {
+  "es": "Flexión Pica",
+  "en": "Pike Pushup"
+ },
+ "hevy-plate-front-raise": {
+  "es": "Elevación Frontal con Disco",
+  "en": "Plate Front Raise"
+ },
+ "hevy-push-press": {
+  "es": "Push Press",
+  "en": "Push Press"
+ },
+ "hevy-rear-delt-reverse-fly-cable": {
+  "es": "Aperturas Invertidas (Deltoides Posterior) (Polea)",
+  "en": "Rear Delt Reverse Fly (Cable)"
+ },
+ "hevy-rear-delt-reverse-fly-dumbbell": {
+  "es": "Aperturas Invertidas (Deltoides Posterior) (Mancuerna)",
+  "en": "Rear Delt Reverse Fly (Dumbbell)"
+ },
+ "hevy-rear-delt-reverse-fly-machine": {
+  "es": "Aperturas Invertidas (Deltoides Posterior) (Máquina)",
+  "en": "Rear Delt Reverse Fly (Machine)"
+ },
+ "hevy-reverse-fly-single-arm-cable": {
+  "es": "Apertura Invertida a Un Brazo (Polea)",
+  "en": "Reverse Fly Single Arm (Cable)"
+ },
+ "hevy-seated-lateral-raise-dumbbell": {
+  "es": "Elevaciones Laterales Sentado (Mancuerna)",
+  "en": "Seated Lateral Raise (Dumbbell)"
+ },
+ "hevy-seated-overhead-press-barbell": {
+  "es": "Press Militar Sentado (Barra)",
+  "en": "Seated Overhead Press (Barbell)"
+ },
+ "hevy-seated-overhead-press-dumbbell": {
+  "es": "Press Militar Sentado (Mancuerna)",
+  "en": "Seated Overhead Press (Dumbbell)"
+ },
+ "hevy-seated-shoulder-press-machine": {
+  "es": "Press de Hombros Sentado (Máquina)",
+  "en": "Seated Shoulder Press (Machine)"
+ },
+ "hevy-shoulder-press-dumbbell": {
+  "es": "Press de Hombros (Mancuerna)",
+  "en": "Shoulder Press (Dumbbell)"
+ },
+ "hevy-shoulder-press-machine-plates": {
+  "es": "Press de Hombros (Máquina (Discos))",
+  "en": "Shoulder Press (Machine Plates)"
+ },
+ "hevy-shoulder-taps": {
+  "es": "Toques de Hombro",
+  "en": "Shoulder Taps"
+ },
+ "hevy-single-arm-landmine-press-barbell": {
+  "es": "Press Landmine a Un Brazo (Barra)",
+  "en": "Single Arm Landmine Press (Barbell)"
+ },
+ "hevy-single-arm-lateral-raise-cable": {
+  "es": "Elevación Lateral a Un Brazo (Polea)",
+  "en": "Single Arm Lateral Raise (Cable)"
+ },
+ "hevy-standing-military-press-barbell": {
+  "es": "Press Militar de Pie (Barra)",
+  "en": "Standing Military Press (Barbell)"
+ },
+ "hevy-upright-row-barbell": {
+  "es": "Remo al Mentón (Barra)",
+  "en": "Upright Row (Barbell)"
+ },
+ "hevy-upright-row-cable": {
+  "es": "Remo al Mentón (Polea)",
+  "en": "Upright Row (Cable)"
+ },
+ "hevy-upright-row-dumbbell": {
+  "es": "Remo al Mentón (Mancuerna)",
+  "en": "Upright Row (Dumbbell)"
+ },
+ "hevy-21s-bicep-curl": {
+  "es": "Curl de Bíceps 21s",
+  "en": "21s Bicep Curl"
+ },
+ "hevy-bicep-curl-barbell": {
+  "es": "Curl de Bíceps (Barra)",
+  "en": "Bicep Curl (Barbell)"
+ },
+ "hevy-bicep-curl-cable": {
+  "es": "Curl de Bíceps (Polea)",
+  "en": "Bicep Curl (Cable)"
+ },
+ "hevy-bicep-curl-dumbbell": {
+  "es": "Curl de Bíceps (Mancuerna)",
+  "en": "Bicep Curl (Dumbbell)"
+ },
+ "hevy-bicep-curl-machine": {
+  "es": "Curl de Bíceps (Máquina)",
+  "en": "Bicep Curl (Machine)"
+ },
+ "hevy-bicep-curl-suspension": {
+  "es": "Curl de Bíceps (TRX)",
+  "en": "Bicep Curl (Suspension)"
+ },
+ "hevy-concentration-curl": {
+  "es": "Curl Concentrado",
+  "en": "Concentration Curl"
+ },
+ "hevy-cross-body-hammer-curl": {
+  "es": "Curl Martillo Cruzado",
+  "en": "Cross Body Hammer Curl"
+ },
+ "hevy-drag-curl": {
+  "es": "Curl Drag",
+  "en": "Drag Curl"
+ },
+ "hevy-ez-bar-biceps-curl": {
+  "es": "Curl de Bíceps con Barra Z",
+  "en": "EZ Bar Biceps Curl"
+ },
+ "hevy-hammer-curl-band": {
+  "es": "Curl Martillo (Banda)",
+  "en": "Hammer Curl (Band)"
+ },
+ "hevy-hammer-curl-cable": {
+  "es": "Curl Martillo (Polea)",
+  "en": "Hammer Curl (Cable)"
+ },
+ "hevy-hammer-curl-dumbbell": {
+  "es": "Curl Martillo (Mancuerna)",
+  "en": "Hammer Curl (Dumbbell)"
+ },
+ "hevy-kettlebell-curl": {
+  "es": "Curl con Kettlebell",
+  "en": "Kettlebell Curl"
+ },
+ "hevy-overhead-curl-cable": {
+  "es": "Curl por Encima de la Cabeza (Polea)",
+  "en": "Overhead Curl (Cable)"
+ },
+ "hevy-pinwheel-curl-dumbbell": {
+  "es": "Curl Pinwheel (Mancuerna)",
+  "en": "Pinwheel Curl (Dumbbell)"
+ },
+ "hevy-plate-curl": {
+  "es": "Curl con Disco",
+  "en": "Plate Curl"
+ },
+ "hevy-preacher-curl-barbell": {
+  "es": "Curl en Banco Scott (Barra)",
+  "en": "Preacher Curl (Barbell)"
+ },
+ "hevy-preacher-curl-dumbbell": {
+  "es": "Curl en Banco Scott (Mancuerna)",
+  "en": "Preacher Curl (Dumbbell)"
+ },
+ "hevy-preacher-curl-machine": {
+  "es": "Curl en Banco Scott (Máquina)",
+  "en": "Preacher Curl (Machine)"
+ },
+ "hevy-reverse-curl-barbell": {
+  "es": "Curl Invertido (Barra)",
+  "en": "Reverse Curl (Barbell)"
+ },
+ "hevy-reverse-curl-cable": {
+  "es": "Curl Invertido (Polea)",
+  "en": "Reverse Curl (Cable)"
+ },
+ "hevy-reverse-curl-dumbbell": {
+  "es": "Curl Invertido (Mancuerna)",
+  "en": "Reverse Curl (Dumbbell)"
+ },
+ "hevy-reverse-grip-concentration-curl": {
+  "es": "Curl Concentrado Agarre Invertido",
+  "en": "Reverse Grip Concentration Curl"
+ },
+ "hevy-rope-cable-curl": {
+  "es": "Curl con Soga en Polea",
+  "en": "Rope Cable Curl"
+ },
+ "hevy-seated-incline-curl-dumbbell": {
+  "es": "Curl Inclinado Sentado (Mancuerna)",
+  "en": "Seated Incline Curl (Dumbbell)"
+ },
+ "hevy-single-arm-curl-cable": {
+  "es": "Curl a Un Brazo (Polea)",
+  "en": "Single Arm Curl (Cable)"
+ },
+ "hevy-spider-curl-barbell": {
+  "es": "Curl Spider (Barra)",
+  "en": "Spider Curl (Barbell)"
+ },
+ "hevy-spider-curl-dumbbell": {
+  "es": "Curl Spider (Mancuerna)",
+  "en": "Spider Curl (Dumbbell)"
+ },
+ "hevy-zottman-curl-dumbbell": {
+  "es": "Curl Zottman (Mancuerna)",
+  "en": "Zottman Curl (Dumbbell)"
+ },
+ "hevy-bench-dip": {
+  "es": "Fondos en Banco",
+  "en": "Bench Dip"
+ },
+ "hevy-bench-press-close-grip-barbell": {
+  "es": "Press de Banca Agarre Cerrado (Barra)",
+  "en": "Bench Press - Close Grip (Barbell)"
+ },
+ "hevy-diamond-push-up": {
+  "es": "Flexión Diamante",
+  "en": "Diamond Push Up"
+ },
+ "hevy-floor-triceps-dip": {
+  "es": "Fondos de Tríceps en el Piso",
+  "en": "Floor Triceps Dip"
+ },
+ "hevy-jm-press-barbell": {
+  "es": "Press JM (Barra)",
+  "en": "JM Press (Barbell)"
+ },
+ "hevy-seated-dip-machine": {
+  "es": "Máquina de Fondos Sentado",
+  "en": "Seated Dip Machine"
+ },
+ "hevy-seated-triceps-press": {
+  "es": "Press de Tríceps Sentado",
+  "en": "Seated Triceps Press"
+ },
+ "hevy-single-arm-tricep-extension-dumbbell": {
+  "es": "Extensión de Tríceps a Un Brazo (Mancuerna)",
+  "en": "Single Arm Tricep Extension (Dumbbell)"
+ },
+ "hevy-single-arm-triceps-pushdown-cable": {
+  "es": "Extensión de Tríceps en Polea a Un Brazo (Polea)",
+  "en": "Single Arm Triceps Pushdown (Cable)"
+ },
+ "hevy-skullcrusher-barbell": {
+  "es": "Press Francés (Barra)",
+  "en": "Skullcrusher (Barbell)"
+ },
+ "hevy-skullcrusher-dumbbell": {
+  "es": "Press Francés (Mancuerna)",
+  "en": "Skullcrusher (Dumbbell)"
+ },
+ "hevy-triceps-dip": {
+  "es": "Fondos de Tríceps",
+  "en": "Triceps Dip"
+ },
+ "hevy-triceps-dip-assisted": {
+  "es": "Fondos de Tríceps (Asistida)",
+  "en": "Triceps Dip (Assisted)"
+ },
+ "hevy-triceps-dip-weighted": {
+  "es": "Fondos de Tríceps (con Peso)",
+  "en": "Triceps Dip (Weighted)"
+ },
+ "hevy-triceps-extension-barbell": {
+  "es": "Extensión de Tríceps (Barra)",
+  "en": "Triceps Extension (Barbell)"
+ },
+ "hevy-triceps-extension-cable": {
+  "es": "Extensión de Tríceps (Polea)",
+  "en": "Triceps Extension (Cable)"
+ },
+ "hevy-triceps-extension-dumbbell": {
+  "es": "Extensión de Tríceps (Mancuerna)",
+  "en": "Triceps Extension (Dumbbell)"
+ },
+ "hevy-triceps-extension-machine": {
+  "es": "Extensión de Tríceps (Máquina)",
+  "en": "Triceps Extension (Machine)"
+ },
+ "hevy-triceps-extension-suspension": {
+  "es": "Extensión de Tríceps (TRX)",
+  "en": "Triceps Extension (Suspension)"
+ },
+ "hevy-triceps-kickback-cable": {
+  "es": "Patada de Tríceps (Polea)",
+  "en": "Triceps Kickback (Cable)"
+ },
+ "hevy-triceps-kickback-dumbbell": {
+  "es": "Patada de Tríceps (Mancuerna)",
+  "en": "Triceps Kickback (Dumbbell)"
+ },
+ "hevy-triceps-pressdown": {
+  "es": "Extensión de Tríceps en Polea",
+  "en": "Triceps Pressdown"
+ },
+ "hevy-triceps-pushdown": {
+  "es": "Extensión de Tríceps en Polea",
+  "en": "Triceps Pushdown"
+ },
+ "hevy-triceps-rope-pushdown": {
+  "es": "Extensión de Tríceps con Soga",
+  "en": "Triceps Rope Pushdown"
+ },
+ "hevy-behind-the-back-bicep-wrist-curl-barbell": {
+  "es": "Curl de Muñeca por Detrás de la Espalda (Barra)",
+  "en": "Behind the Back Bicep Wrist Curl (Barbell)"
+ },
+ "hevy-seated-palms-up-wrist-curl": {
+  "es": "Curl de Muñeca Palmas Arriba Sentado",
+  "en": "Seated Palms Up Wrist Curl"
+ },
+ "hevy-seated-wrist-extension-barbell": {
+  "es": "Extensión de Muñeca Sentado (Barra)",
+  "en": "Seated Wrist Extension (Barbell)"
+ },
+ "hevy-wrist-roller": {
+  "es": "Enrollador de Muñeca",
+  "en": "Wrist Roller"
+ },
+ "hevy-assisted-pistol-squats": {
+  "es": "Sentadilla Pistol Asistida",
+  "en": "Assisted Pistol Squats"
+ },
+ "hevy-box-jump": {
+  "es": "Salto al Cajón",
+  "en": "Box Jump"
+ },
+ "hevy-box-squat-barbell": {
+  "es": "Sentadilla al Cajón (Barra)",
+  "en": "Box Squat (Barbell)"
+ },
+ "hevy-bulgarian-split-squat": {
+  "es": "Sentadilla Búlgara",
+  "en": "Bulgarian Split Squat"
+ },
+ "hevy-curtsy-lunge-dumbbell": {
+  "es": "Zancada Cruzada (Mancuerna)",
+  "en": "Curtsy Lunge (Dumbbell)"
+ },
+ "hevy-dumbbell-step-up": {
+  "es": "Subida al Cajón con Mancuernas",
+  "en": "Dumbbell Step Up"
+ },
+ "hevy-frog-jumps": {
+  "es": "Saltos de Rana",
+  "en": "Frog Jumps"
+ },
+ "hevy-front-squat": {
+  "es": "Sentadilla Frontal",
+  "en": "Front Squat"
+ },
+ "hevy-full-squat": {
+  "es": "Sentadilla Profunda",
+  "en": "Full Squat"
+ },
+ "hevy-goblet-squat": {
+  "es": "Sentadilla Goblet",
+  "en": "Goblet Squat"
+ },
+ "hevy-hack-squat": {
+  "es": "Sentadilla Hack",
+  "en": "Hack Squat"
+ },
+ "hevy-hack-squat-machine": {
+  "es": "Sentadilla Hack (Máquina)",
+  "en": "Hack Squat (Machine)"
+ },
+ "hevy-jump-squat": {
+  "es": "Sentadilla con Salto",
+  "en": "Jump Squat"
+ },
+ "hevy-jumping-lunge": {
+  "es": "Zancada con Salto",
+  "en": "Jumping Lunge"
+ },
+ "hevy-kettlebell-goblet-squat": {
+  "es": "Sentadilla Goblet con Kettlebell",
+  "en": "Kettlebell Goblet Squat"
+ },
+ "hevy-lateral-box-jump": {
+  "es": "Salto Lateral al Cajón",
+  "en": "Lateral Box Jump"
+ },
+ "hevy-lateral-lunge": {
+  "es": "Zancada Lateral",
+  "en": "Lateral Lunge"
+ },
+ "hevy-lateral-squat": {
+  "es": "Sentadilla Lateral",
+  "en": "Lateral Squat"
+ },
+ "hevy-leg-extension-machine": {
+  "es": "Extensión de Cuádriceps (Máquina)",
+  "en": "Leg Extension (Machine)"
+ },
+ "hevy-leg-press-machine": {
+  "es": "Prensa de Piernas (Máquina)",
+  "en": "Leg Press (Machine)"
+ },
+ "hevy-leg-press-horizontal-machine": {
+  "es": "Prensa Horizontal (Máquina)",
+  "en": "Leg Press Horizontal (Machine)"
+ },
+ "hevy-lunge": {
+  "es": "Zancada",
+  "en": "Lunge"
+ },
+ "hevy-lunge-barbell": {
+  "es": "Zancada (Barra)",
+  "en": "Lunge (Barbell)"
+ },
+ "hevy-lunge-dumbbell": {
+  "es": "Zancada (Mancuerna)",
+  "en": "Lunge (Dumbbell)"
+ },
+ "hevy-overhead-dumbbell-lunge": {
+  "es": "Zancada con Mancuerna sobre la Cabeza",
+  "en": "Overhead Dumbbell Lunge"
+ },
+ "hevy-pause-squat-barbell": {
+  "es": "Sentadilla con Pausa (Barra)",
+  "en": "Pause Squat (Barbell)"
+ },
+ "hevy-pendulum-squat-machine": {
+  "es": "Sentadilla Pendular (Máquina)",
+  "en": "Pendulum Squat (Machine)"
+ },
+ "hevy-pistol-squat": {
+  "es": "Sentadilla Pistol",
+  "en": "Pistol Squat"
+ },
+ "hevy-reverse-lunge": {
+  "es": "Zancada Hacia Atrás",
+  "en": "Reverse Lunge"
+ },
+ "hevy-reverse-lunge-barbell": {
+  "es": "Zancada Hacia Atrás (Barra)",
+  "en": "Reverse Lunge (Barbell)"
+ },
+ "hevy-reverse-lunge-dumbbell": {
+  "es": "Zancada Hacia Atrás (Mancuerna)",
+  "en": "Reverse Lunge (Dumbbell)"
+ },
+ "hevy-single-leg-extensions": {
+  "es": "Extensión de Cuádriceps a Una Pierna",
+  "en": "Single Leg Extensions"
+ },
+ "hevy-single-leg-press-machine": {
+  "es": "Prensa a Una Pierna (Máquina)",
+  "en": "Single Leg Press (Machine)"
+ },
+ "hevy-sissy-squat-weighted": {
+  "es": "Sentadilla Sissy (con Peso)",
+  "en": "Sissy Squat (Weighted)"
+ },
+ "hevy-split-squat-dumbbell": {
+  "es": "Sentadilla Split (Mancuerna)",
+  "en": "Split Squat (Dumbbell)"
+ },
+ "hevy-squat-band": {
+  "es": "Sentadilla (Banda)",
+  "en": "Squat (Band)"
+ },
+ "hevy-squat-barbell": {
+  "es": "Sentadilla (Barra)",
+  "en": "Squat (Barbell)"
+ },
+ "hevy-squat-bodyweight": {
+  "es": "Sentadilla (Peso Corporal)",
+  "en": "Squat (Bodyweight)"
+ },
+ "hevy-squat-dumbbell": {
+  "es": "Sentadilla (Mancuerna)",
+  "en": "Squat (Dumbbell)"
+ },
+ "hevy-squat-machine": {
+  "es": "Sentadilla (Máquina)",
+  "en": "Squat (Machine)"
+ },
+ "hevy-squat-smith-machine": {
+  "es": "Sentadilla (Máquina Smith)",
+  "en": "Squat (Smith Machine)"
+ },
+ "hevy-squat-suspension": {
+  "es": "Sentadilla (TRX)",
+  "en": "Squat (Suspension)"
+ },
+ "hevy-step-up": {
+  "es": "Subida al Cajón",
+  "en": "Step Up"
+ },
+ "hevy-sumo-squat": {
+  "es": "Sentadilla Sumo",
+  "en": "Sumo Squat"
+ },
+ "hevy-sumo-squat-barbell": {
+  "es": "Sentadilla Sumo (Barra)",
+  "en": "Sumo Squat (Barbell)"
+ },
+ "hevy-sumo-squat-dumbbell": {
+  "es": "Sentadilla Sumo (Mancuerna)",
+  "en": "Sumo Squat (Dumbbell)"
+ },
+ "hevy-sumo-squat-kettlebell": {
+  "es": "Sentadilla Sumo (Kettlebell)",
+  "en": "Sumo Squat (Kettlebell)"
+ },
+ "hevy-walking-lunge": {
+  "es": "Zancada Caminando",
+  "en": "Walking Lunge"
+ },
+ "hevy-walking-lunge-dumbbell": {
+  "es": "Zancada Caminando (Mancuerna)",
+  "en": "Walking Lunge (Dumbbell)"
+ },
+ "hevy-wall-sit": {
+  "es": "Sentadilla Isométrica en Pared",
+  "en": "Wall Sit"
+ },
+ "hevy-zercher-squat": {
+  "es": "Sentadilla Zercher",
+  "en": "Zercher Squat"
+ },
+ "hevy-glute-ham-raise": {
+  "es": "Elevación Femoral (GHR)",
+  "en": "Glute Ham Raise"
+ },
+ "hevy-good-morning-barbell": {
+  "es": "Buenos Días (Barra)",
+  "en": "Good Morning (Barbell)"
+ },
+ "hevy-lying-leg-curl-machine": {
+  "es": "Curl Femoral Acostado (Máquina)",
+  "en": "Lying Leg Curl (Machine)"
+ },
+ "hevy-nordic-hamstrings-curls": {
+  "es": "Curl Nórdico de Femoral",
+  "en": "Nordic Hamstrings Curls"
+ },
+ "hevy-romanian-deadlift-barbell": {
+  "es": "Peso Muerto Rumano (Barra)",
+  "en": "Romanian Deadlift (Barbell)"
+ },
+ "hevy-romanian-deadlift-dumbbell": {
+  "es": "Peso Muerto Rumano (Mancuerna)",
+  "en": "Romanian Deadlift (Dumbbell)"
+ },
+ "hevy-seated-leg-curl-machine": {
+  "es": "Curl Femoral Sentado (Máquina)",
+  "en": "Seated Leg Curl (Machine)"
+ },
+ "hevy-single-leg-romanian-deadlift-barbell": {
+  "es": "Peso Muerto Rumano a Una Pierna (Barra)",
+  "en": "Single Leg Romanian Deadlift (Barbell)"
+ },
+ "hevy-single-leg-romanian-deadlift-dumbbell": {
+  "es": "Peso Muerto Rumano a Una Pierna (Mancuerna)",
+  "en": "Single Leg Romanian Deadlift (Dumbbell)"
+ },
+ "hevy-standing-leg-curls": {
+  "es": "Curl Femoral de Pie",
+  "en": "Standing Leg Curls"
+ },
+ "hevy-straight-leg-deadlift": {
+  "es": "Peso Muerto con Piernas Rectas",
+  "en": "Straight Leg Deadlift"
+ },
+ "hevy-calf-extension-machine": {
+  "es": "Extensión de Gemelos (Máquina)",
+  "en": "Calf Extension (Machine)"
+ },
+ "hevy-calf-press-machine": {
+  "es": "Press de Gemelos (Máquina)",
+  "en": "Calf Press (Machine)"
+ },
+ "hevy-seated-calf-raise": {
+  "es": "Elevación de Gemelos Sentado",
+  "en": "Seated Calf Raise"
+ },
+ "hevy-single-leg-standing-calf-raise": {
+  "es": "Elevación de Gemelo a Una Pierna de Pie",
+  "en": "Single Leg Standing Calf Raise"
+ },
+ "hevy-single-leg-standing-calf-raise-barbell": {
+  "es": "Elevación de Gemelo a Una Pierna de Pie (Barra)",
+  "en": "Single Leg Standing Calf Raise (Barbell)"
+ },
+ "hevy-single-leg-standing-calf-raise-dumbbell": {
+  "es": "Elevación de Gemelo a Una Pierna de Pie (Mancuerna)",
+  "en": "Single Leg Standing Calf Raise (Dumbbell)"
+ },
+ "hevy-single-leg-standing-calf-raise-machine": {
+  "es": "Elevación de Gemelo a Una Pierna de Pie (Máquina)",
+  "en": "Single Leg Standing Calf Raise (Machine)"
+ },
+ "hevy-standing-calf-raise": {
+  "es": "Elevación de Gemelos de Pie",
+  "en": "Standing Calf Raise"
+ },
+ "hevy-standing-calf-raise-barbell": {
+  "es": "Elevación de Gemelos de Pie (Barra)",
+  "en": "Standing Calf Raise (Barbell)"
+ },
+ "hevy-standing-calf-raise-dumbbell": {
+  "es": "Elevación de Gemelos de Pie (Mancuerna)",
+  "en": "Standing Calf Raise (Dumbbell)"
+ },
+ "hevy-standing-calf-raise-machine": {
+  "es": "Elevación de Gemelos de Pie (Máquina)",
+  "en": "Standing Calf Raise (Machine)"
+ },
+ "hevy-standing-calf-raise-smith": {
+  "es": "Elevación de Gemelos de Pie (Smith)",
+  "en": "Standing Calf Raise (Smith)"
+ },
+ "hevy-bird-dog": {
+  "es": "Bird Dog",
+  "en": "Bird Dog"
+ },
+ "hevy-cable-pull-through": {
+  "es": "Pull Through en Polea",
+  "en": "Cable Pull Through"
+ },
+ "hevy-clamshell": {
+  "es": "Almeja",
+  "en": "Clamshell"
+ },
+ "hevy-deadlift-band": {
+  "es": "Peso Muerto (Banda)",
+  "en": "Deadlift (Band)"
+ },
+ "hevy-deadlift-barbell": {
+  "es": "Peso Muerto (Barra)",
+  "en": "Deadlift (Barbell)"
+ },
+ "hevy-deadlift-dumbbell": {
+  "es": "Peso Muerto (Mancuerna)",
+  "en": "Deadlift (Dumbbell)"
+ },
+ "hevy-deadlift-smith-machine": {
+  "es": "Peso Muerto (Máquina Smith)",
+  "en": "Deadlift (Smith Machine)"
+ },
+ "hevy-deadlift-trap-bar": {
+  "es": "Peso Muerto (Barra Hexagonal)",
+  "en": "Deadlift (Trap bar)"
+ },
+ "hevy-fire-hydrants": {
+  "es": "Patada Lateral en Cuadrupedia",
+  "en": "Fire Hydrants"
+ },
+ "hevy-frog-pumps-dumbbell": {
+  "es": "Puente de Glúteo Rana (Mancuerna)",
+  "en": "Frog Pumps (Dumbbell)"
+ },
+ "hevy-glute-bridge": {
+  "es": "Puente de Glúteo",
+  "en": "Glute Bridge"
+ },
+ "hevy-glute-kickback-machine": {
+  "es": "Patada de Glúteo (Máquina)",
+  "en": "Glute Kickback (Machine)"
+ },
+ "hevy-glute-kickback-on-floor": {
+  "es": "Patada de Glúteo en el Piso",
+  "en": "Glute Kickback on Floor"
+ },
+ "hevy-hip-thrust": {
+  "es": "Empuje de Cadera",
+  "en": "Hip Thrust"
+ },
+ "hevy-hip-thrust-barbell": {
+  "es": "Empuje de Cadera (Barra)",
+  "en": "Hip Thrust (Barbell)"
+ },
+ "hevy-hip-thrust-machine": {
+  "es": "Empuje de Cadera (Máquina)",
+  "en": "Hip Thrust (Machine)"
+ },
+ "hevy-lateral-band-walks": {
+  "es": "Caminata Lateral con Banda",
+  "en": "Lateral Band Walks"
+ },
+ "hevy-lateral-leg-raises": {
+  "es": "Elevaciones Laterales de Pierna",
+  "en": "Lateral Leg Raises"
+ },
+ "hevy-reverse-hyperextension": {
+  "es": "Hiperextensión Inversa",
+  "en": "Reverse Hyperextension"
+ },
+ "hevy-single-leg-glute-bridge": {
+  "es": "Puente de Glúteo a Una Pierna",
+  "en": "Single Leg Glute Bridge"
+ },
+ "hevy-single-leg-hip-thrust": {
+  "es": "Empuje de Cadera a Una Pierna",
+  "en": "Single Leg Hip Thrust"
+ },
+ "hevy-single-leg-hip-thrust-dumbbell": {
+  "es": "Empuje de Cadera a Una Pierna (Mancuerna)",
+  "en": "Single Leg Hip Thrust (Dumbbell)"
+ },
+ "hevy-standing-cable-glute-kickbacks": {
+  "es": "Patada de Glúteo en Polea de Pie",
+  "en": "Standing Cable Glute Kickbacks"
+ },
+ "hevy-sumo-deadlift": {
+  "es": "Peso Muerto Sumo",
+  "en": "Sumo Deadlift"
+ },
+ "hevy-hip-abduction-machine": {
+  "es": "Abducción de Cadera (Máquina)",
+  "en": "Hip Abduction (Machine)"
+ },
+ "hevy-hip-adduction-machine": {
+  "es": "Aducción de Cadera (Máquina)",
+  "en": "Hip Adduction (Machine)"
+ },
+ "hevy-chin-up": {
+  "es": "Dominada Supina",
+  "en": "Chin Up"
+ },
+ "hevy-chin-up-assisted": {
+  "es": "Dominada Supina (Asistida)",
+  "en": "Chin Up (Assisted)"
+ },
+ "hevy-chin-up-weighted": {
+  "es": "Dominada Supina (con Peso)",
+  "en": "Chin Up (Weighted)"
+ },
+ "hevy-dumbbell-row": {
+  "es": "Remo con Mancuerna",
+  "en": "Dumbbell Row"
+ },
+ "hevy-iso-lateral-high-row-machine": {
+  "es": "Remo Alto Iso-Lateral (Máquina)",
+  "en": "Iso-Lateral High Row (Machine)"
+ },
+ "hevy-kipping-pull-up": {
+  "es": "Dominada Kipping",
+  "en": "Kipping Pull Up"
+ },
+ "hevy-kneeling-pulldown-band": {
+  "es": "Jalón Arrodillado (band)",
+  "en": "Kneeling Pulldown (band)"
+ },
+ "hevy-lat-pulldown-band": {
+  "es": "Jalón al Pecho (Banda)",
+  "en": "Lat Pulldown (Band)"
+ },
+ "hevy-lat-pulldown-cable": {
+  "es": "Jalón al Pecho (Polea)",
+  "en": "Lat Pulldown (Cable)"
+ },
+ "hevy-lat-pulldown-machine": {
+  "es": "Jalón al Pecho (Máquina)",
+  "en": "Lat Pulldown (Machine)"
+ },
+ "hevy-lat-pulldown-close-grip-cable": {
+  "es": "Jalón al Pecho Agarre Cerrado (Polea)",
+  "en": "Lat Pulldown - Close Grip (Cable)"
+ },
+ "hevy-negative-pull-up": {
+  "es": "Dominada Negativa",
+  "en": "Negative Pull Up"
+ },
+ "hevy-pull-up": {
+  "es": "Dominada",
+  "en": "Pull Up"
+ },
+ "hevy-pull-up-assisted": {
+  "es": "Dominada (Asistida)",
+  "en": "Pull Up (Assisted)"
+ },
+ "hevy-pull-up-band": {
+  "es": "Dominada (Banda)",
+  "en": "Pull Up (Band)"
+ },
+ "hevy-pull-up-weighted": {
+  "es": "Dominada (con Peso)",
+  "en": "Pull Up (Weighted)"
+ },
+ "hevy-pullover-dumbbell": {
+  "es": "Pullover (Mancuerna)",
+  "en": "Pullover (Dumbbell)"
+ },
+ "hevy-pullover-machine": {
+  "es": "Pullover (Máquina)",
+  "en": "Pullover (Machine)"
+ },
+ "hevy-reverse-grip-lat-pulldown-cable": {
+  "es": "Jalón al Pecho Agarre Supino (Polea)",
+  "en": "Reverse Grip Lat Pulldown (Cable)"
+ },
+ "hevy-rope-straight-arm-pulldown": {
+  "es": "Jalón con Brazos Rectos y Soga",
+  "en": "Rope Straight Arm Pulldown"
+ },
+ "hevy-single-arm-lat-pulldown": {
+  "es": "Jalón al Pecho a Un Brazo",
+  "en": "Single Arm Lat Pulldown"
+ },
+ "hevy-sternum-pull-up-gironda": {
+  "es": "Dominada al Esternón (Gironda) (Gironda)",
+  "en": "Sternum Pull up (Gironda)"
+ },
+ "hevy-straight-arm-lat-pulldown-cable": {
+  "es": "Jalón con Brazos Rectos (Polea)",
+  "en": "Straight Arm Lat Pulldown (Cable)"
+ },
+ "hevy-wide-pull-up": {
+  "es": "Dominada Agarre Ancho",
+  "en": "Wide Pull Up"
+ },
+ "hevy-bent-over-row-band": {
+  "es": "Remo Inclinado (Banda)",
+  "en": "Bent Over Row (Band)"
+ },
+ "hevy-bent-over-row-barbell": {
+  "es": "Remo Inclinado (Barra)",
+  "en": "Bent Over Row (Barbell)"
+ },
+ "hevy-bent-over-row-dumbbell": {
+  "es": "Remo Inclinado (Mancuerna)",
+  "en": "Bent Over Row (Dumbbell)"
+ },
+ "hevy-chest-supported-incline-row-dumbbell": {
+  "es": "Remo Inclinado con Apoyo de Pecho (Mancuerna)",
+  "en": "Chest Supported Incline Row (Dumbbell)"
+ },
+ "hevy-dead-hang": {
+  "es": "Colgado en Barra",
+  "en": "Dead Hang"
+ },
+ "hevy-gorilla-row-kettlebell": {
+  "es": "Remo Gorila (Kettlebell)",
+  "en": "Gorilla Row (Kettlebell)"
+ },
+ "hevy-inverted-row": {
+  "es": "Remo Invertido",
+  "en": "Inverted Row"
+ },
+ "hevy-iso-lateral-low-row": {
+  "es": "Remo Bajo Iso-Lateral",
+  "en": "Iso-Lateral Low Row"
+ },
+ "hevy-iso-lateral-row-machine": {
+  "es": "Remo Iso-Lateral (Máquina)",
+  "en": "Iso-Lateral Row (Machine)"
+ },
+ "hevy-landmine-row": {
+  "es": "Remo Landmine",
+  "en": "Landmine Row"
+ },
+ "hevy-low-row-suspension": {
+  "es": "Remo Bajo (TRX)",
+  "en": "Low Row (Suspension)"
+ },
+ "hevy-meadows-rows-barbell": {
+  "es": "Remo Meadows (Barra)",
+  "en": "Meadows Rows (Barbell)"
+ },
+ "hevy-pendlay-row-barbell": {
+  "es": "Remo Pendlay (Barra)",
+  "en": "Pendlay Row (Barbell)"
+ },
+ "hevy-rack-pull": {
+  "es": "Rack Pull",
+  "en": "Rack Pull"
+ },
+ "hevy-renegade-row-dumbbell": {
+  "es": "Remo Renegado (Mancuerna)",
+  "en": "Renegade Row (Dumbbell)"
+ },
+ "hevy-scapular-pull-ups": {
+  "es": "Dominadas Escapulares",
+  "en": "Scapular Pull Ups"
+ },
+ "hevy-seated-cable-row-bar-grip": {
+  "es": "Remo Sentado en Polea (Barra)",
+  "en": "Seated Cable Row - Bar Grip"
+ },
+ "hevy-seated-cable-row-bar-wide-grip": {
+  "es": "Remo Sentado en Polea (Barra Ancha)",
+  "en": "Seated Cable Row - Bar Wide Grip"
+ },
+ "hevy-seated-cable-row-v-grip-cable": {
+  "es": "Remo Sentado en Polea (Agarre V) (Polea)",
+  "en": "Seated Cable Row - V Grip (Cable)"
+ },
+ "hevy-seated-row-machine": {
+  "es": "Remo Sentado (Máquina)",
+  "en": "Seated Row (Machine)"
+ },
+ "hevy-single-arm-cable-row": {
+  "es": "Remo en Polea a Un Brazo",
+  "en": "Single Arm Cable Row"
+ },
+ "hevy-t-bar-row": {
+  "es": "Remo en Barra T",
+  "en": "T Bar Row"
+ },
+ "hevy-shrug-barbell": {
+  "es": "Encogimiento de Hombros (Barra)",
+  "en": "Shrug (Barbell)"
+ },
+ "hevy-shrug-cable": {
+  "es": "Encogimiento de Hombros (Polea)",
+  "en": "Shrug (Cable)"
+ },
+ "hevy-shrug-dumbbell": {
+  "es": "Encogimiento de Hombros (Mancuerna)",
+  "en": "Shrug (Dumbbell)"
+ },
+ "hevy-shrug-machine": {
+  "es": "Encogimiento de Hombros (Máquina)",
+  "en": "Shrug (Machine)"
+ },
+ "hevy-shrug-smith-machine": {
+  "es": "Encogimiento de Hombros (Máquina Smith)",
+  "en": "Shrug (Smith Machine)"
+ },
+ "hevy-back-extension-hyperextension": {
+  "es": "Extensión Lumbar (Hyperextension)",
+  "en": "Back Extension (Hyperextension)"
+ },
+ "hevy-back-extension-machine": {
+  "es": "Extensión Lumbar (Máquina)",
+  "en": "Back Extension (Machine)"
+ },
+ "hevy-back-extension-weighted-hyperextension": {
+  "es": "Extensión Lumbar (Weighted Hyperextension)",
+  "en": "Back Extension (Weighted Hyperextension)"
+ },
+ "hevy-superman": {
+  "es": "Superman",
+  "en": "Superman"
+ },
+ "hevy-around-the-world": {
+  "es": "Círculos con Mancuernas",
+  "en": "Around The World"
+ },
+ "hevy-bench-press-barbell": {
+  "es": "Press de Banca (Barra)",
+  "en": "Bench Press (Barbell)"
+ },
+ "hevy-bench-press-cable": {
+  "es": "Press de Banca (Polea)",
+  "en": "Bench Press (Cable)"
+ },
+ "hevy-bench-press-dumbbell": {
+  "es": "Press de Banca (Mancuerna)",
+  "en": "Bench Press (Dumbbell)"
+ },
+ "hevy-bench-press-smith-machine": {
+  "es": "Press de Banca (Máquina Smith)",
+  "en": "Bench Press (Smith Machine)"
+ },
+ "hevy-bench-press-wide-grip-barbell": {
+  "es": "Press de Banca Agarre Ancho (Barra)",
+  "en": "Bench Press - Wide Grip (Barbell)"
+ },
+ "hevy-butterfly-pec-deck": {
+  "es": "Contractor de Pecho (Pec Deck)",
+  "en": "Butterfly (Pec Deck)"
+ },
+ "hevy-cable-fly-crossovers": {
+  "es": "Cruces en Polea",
+  "en": "Cable Fly Crossovers"
+ },
+ "hevy-chest-dip": {
+  "es": "Fondos de Pecho",
+  "en": "Chest Dip"
+ },
+ "hevy-chest-dip-assisted": {
+  "es": "Fondos de Pecho (Asistida)",
+  "en": "Chest Dip (Assisted)"
+ },
+ "hevy-chest-dip-weighted": {
+  "es": "Fondos de Pecho (con Peso)",
+  "en": "Chest Dip (Weighted)"
+ },
+ "hevy-chest-fly-band": {
+  "es": "Aperturas de Pecho (Banda)",
+  "en": "Chest Fly (Band)"
+ },
+ "hevy-chest-fly-dumbbell": {
+  "es": "Aperturas de Pecho (Mancuerna)",
+  "en": "Chest Fly (Dumbbell)"
+ },
+ "hevy-chest-fly-machine": {
+  "es": "Aperturas de Pecho (Máquina)",
+  "en": "Chest Fly (Machine)"
+ },
+ "hevy-chest-fly-suspension": {
+  "es": "Aperturas de Pecho (TRX)",
+  "en": "Chest Fly (Suspension)"
+ },
+ "hevy-chest-press-band": {
+  "es": "Press de Pecho (Banda)",
+  "en": "Chest Press (Band)"
+ },
+ "hevy-chest-press-machine": {
+  "es": "Press de Pecho (Máquina)",
+  "en": "Chest Press (Machine)"
+ },
+ "hevy-clap-push-ups": {
+  "es": "Flexiones con Aplauso",
+  "en": "Clap Push Ups"
+ },
+ "hevy-decline-bench-press-barbell": {
+  "es": "Press de Banca Declinado (Barra)",
+  "en": "Decline Bench Press (Barbell)"
+ },
+ "hevy-decline-bench-press-dumbbell": {
+  "es": "Press de Banca Declinado (Mancuerna)",
+  "en": "Decline Bench Press (Dumbbell)"
+ },
+ "hevy-decline-bench-press-machine": {
+  "es": "Press de Banca Declinado (Máquina)",
+  "en": "Decline Bench Press (Machine)"
+ },
+ "hevy-decline-bench-press-smith-machine": {
+  "es": "Press de Banca Declinado (Máquina Smith)",
+  "en": "Decline Bench Press (Smith Machine)"
+ },
+ "hevy-decline-chest-fly-dumbbell": {
+  "es": "Aperturas Declinadas (Mancuerna)",
+  "en": "Decline Chest Fly (Dumbbell)"
+ },
+ "hevy-decline-push-up": {
+  "es": "Flexión Declinada",
+  "en": "Decline Push Up"
+ },
+ "hevy-dumbbell-squeeze-press": {
+  "es": "Press Squeeze con Mancuernas",
+  "en": "Dumbbell Squeeze Press"
+ },
+ "hevy-floor-press-barbell": {
+  "es": "Press en el Piso (Barra)",
+  "en": "Floor Press (Barbell)"
+ },
+ "hevy-floor-press-dumbbell": {
+  "es": "Press en el Piso (Mancuerna)",
+  "en": "Floor Press (Dumbbell)"
+ },
+ "hevy-hex-press-dumbbell": {
+  "es": "Press Hex (Mancuerna)",
+  "en": "Hex Press (Dumbbell)"
+ },
+ "hevy-incline-bench-press-barbell": {
+  "es": "Press de Banca Inclinado (Barra)",
+  "en": "Incline Bench Press (Barbell)"
+ },
+ "hevy-incline-bench-press-dumbbell": {
+  "es": "Press de Banca Inclinado (Mancuerna)",
+  "en": "Incline Bench Press (Dumbbell)"
+ },
+ "hevy-incline-bench-press-smith-machine": {
+  "es": "Press de Banca Inclinado (Máquina Smith)",
+  "en": "Incline Bench Press (Smith Machine)"
+ },
+ "hevy-incline-chest-fly-dumbbell": {
+  "es": "Aperturas Inclinadas (Mancuerna)",
+  "en": "Incline Chest Fly (Dumbbell)"
+ },
+ "hevy-incline-chest-press-machine": {
+  "es": "Press de Pecho Inclinado (Máquina)",
+  "en": "Incline Chest Press (Machine)"
+ },
+ "hevy-incline-push-ups": {
+  "es": "Flexiones Inclinadas",
+  "en": "Incline Push Ups"
+ },
+ "hevy-iso-lateral-chest-press-machine": {
+  "es": "Press de Pecho Iso-Lateral (Máquina)",
+  "en": "Iso-Lateral Chest Press (Machine)"
+ },
+ "hevy-kneeling-push-up": {
+  "es": "Flexión de Rodillas",
+  "en": "Kneeling Push Up"
+ },
+ "hevy-low-cable-fly-crossovers": {
+  "es": "Cruces en Polea Baja",
+  "en": "Low Cable Fly Crossovers"
+ },
+ "hevy-one-arm-push-up": {
+  "es": "Flexión a Un Brazo",
+  "en": "One Arm Push Up"
+ },
+ "hevy-plank-pushup": {
+  "es": "Plancha a Flexión",
+  "en": "Plank Pushup"
+ },
+ "hevy-plate-press": {
+  "es": "Press con Disco",
+  "en": "Plate Press"
+ },
+ "hevy-plate-squeeze-svend-press": {
+  "es": "Press Squeeze con Disco (Svend) (Svend Press)",
+  "en": "Plate Squeeze (Svend Press)"
+ },
+ "hevy-push-up": {
+  "es": "Flexión de Brazos",
+  "en": "Push Up"
+ },
+ "hevy-push-up-weighted": {
+  "es": "Flexión de Brazos (con Peso)",
+  "en": "Push Up (Weighted)"
+ },
+ "hevy-push-up-close-grip": {
+  "es": "Flexión Agarre Cerrado",
+  "en": "Push Up - Close Grip"
+ },
+ "hevy-ring-dips": {
+  "es": "Fondos en Anillas",
+  "en": "Ring Dips"
+ },
+ "hevy-seated-chest-flys-cable": {
+  "es": "Aperturas de Pecho Sentado (Polea)",
+  "en": "Seated Chest Flys (Cable)"
+ },
+ "hevy-single-arm-cable-crossover": {
+  "es": "Cruce en Polea a Un Brazo",
+  "en": "Single Arm Cable Crossover"
+ },
+ "hevy-aerobics": {
+  "es": "Aeróbic",
+  "en": "Aerobics"
+ },
+ "hevy-air-bike": {
+  "es": "Bicicleta de Aire",
+  "en": "Air Bike"
+ },
+ "hevy-battle-ropes": {
+  "es": "Sogas de Batalla",
+  "en": "Battle Ropes"
+ },
+ "hevy-boxing": {
+  "es": "Boxeo",
+  "en": "Boxing"
+ },
+ "hevy-climbing": {
+  "es": "Escalada",
+  "en": "Climbing"
+ },
+ "hevy-cycling": {
+  "es": "Ciclismo",
+  "en": "Cycling"
+ },
+ "hevy-elliptical-trainer": {
+  "es": "Elíptica",
+  "en": "Elliptical Trainer"
+ },
+ "hevy-hiit": {
+  "es": "HIIT",
+  "en": "HIIT"
+ },
+ "hevy-hiking": {
+  "es": "Senderismo",
+  "en": "Hiking"
+ },
+ "hevy-jump-rope": {
+  "es": "Soga",
+  "en": "Jump Rope"
+ },
+ "hevy-rowing-machine": {
+  "es": "Máquina de Remo",
+  "en": "Rowing Machine"
+ },
+ "hevy-running": {
+  "es": "Correr",
+  "en": "Running"
+ },
+ "hevy-skating": {
+  "es": "Patinaje",
+  "en": "Skating"
+ },
+ "hevy-skiing": {
+  "es": "Esquí",
+  "en": "Skiing"
+ },
+ "hevy-snowboarding": {
+  "es": "Snowboard",
+  "en": "Snowboarding"
+ },
+ "hevy-spinning": {
+  "es": "Spinning",
+  "en": "Spinning"
+ },
+ "hevy-sprints": {
+  "es": "Sprints",
+  "en": "Sprints"
+ },
+ "hevy-stair-machine-floors": {
+  "es": "Máquina Escaladora (Floors)",
+  "en": "Stair Machine (Floors)"
+ },
+ "hevy-stair-machine-steps": {
+  "es": "Máquina Escaladora (Steps)",
+  "en": "Stair Machine (Steps)"
+ },
+ "hevy-swimming": {
+  "es": "Natación",
+  "en": "Swimming"
+ },
+ "hevy-treadmill": {
+  "es": "Cinta",
+  "en": "Treadmill"
+ },
+ "hevy-walking": {
+  "es": "Caminar",
+  "en": "Walking"
+ },
+ "hevy-lying-neck-curls": {
+  "es": "Flexión de Cuello Acostado",
+  "en": "Lying Neck Curls"
+ },
+ "hevy-lying-neck-curls-weighted": {
+  "es": "Flexión de Cuello Acostado (con Peso)",
+  "en": "Lying Neck Curls (Weighted)"
+ },
+ "hevy-lying-neck-extension": {
+  "es": "Extensión de Cuello Acostado",
+  "en": "Lying Neck Extension"
+ },
+ "hevy-lying-neck-extension-weighted": {
+  "es": "Extensión de Cuello Acostado (con Peso)",
+  "en": "Lying Neck Extension (Weighted)"
+ },
+ "hevy-ball-slams": {
+  "es": "Golpes con Balón",
+  "en": "Ball Slams"
+ },
+ "hevy-burpee": {
+  "es": "Burpee",
+  "en": "Burpee"
+ },
+ "hevy-burpee-over-the-bar": {
+  "es": "Burpee sobre la Barra",
+  "en": "Burpee Over the Bar"
+ },
+ "hevy-clean": {
+  "es": "Cargada",
+  "en": "Clean"
+ },
+ "hevy-clean-and-jerk": {
+  "es": "Cargada y Envión",
+  "en": "Clean and Jerk"
+ },
+ "hevy-clean-and-press": {
+  "es": "Cargada y Press",
+  "en": "Clean and Press"
+ },
+ "hevy-clean-pull": {
+  "es": "Tirón de Cargada",
+  "en": "Clean Pull"
+ },
+ "hevy-deadlift-high-pull": {
+  "es": "Peso Muerto con Tirón Alto",
+  "en": "Deadlift High Pull"
+ },
+ "hevy-downward-dog": {
+  "es": "Perro Boca Abajo",
+  "en": "Downward Dog"
+ },
+ "hevy-dumbbell-snatch": {
+  "es": "Arranque con Mancuerna",
+  "en": "Dumbbell Snatch"
+ },
+ "hevy-farmers-walk": {
+  "es": "Caminata del Granjero",
+  "en": "Farmers Walk"
+ },
+ "hevy-front-lever-hold": {
+  "es": "Front Lever Isométrico",
+  "en": "Front Lever Hold"
+ },
+ "hevy-front-lever-raise": {
+  "es": "Elevación de Front Lever",
+  "en": "Front Lever Raise"
+ },
+ "hevy-handstand-hold": {
+  "es": "Parada de Manos Isométrica",
+  "en": "Handstand Hold"
+ },
+ "hevy-hang-clean": {
+  "es": "Cargada desde Suspensión",
+  "en": "Hang Clean"
+ },
+ "hevy-hang-snatch": {
+  "es": "Arranque desde Suspensión",
+  "en": "Hang Snatch"
+ },
+ "hevy-high-knee-skips": {
+  "es": "Skipping con Rodillas Altas",
+  "en": "High Knee Skips"
+ },
+ "hevy-high-knees": {
+  "es": "Rodillas Altas",
+  "en": "High Knees"
+ },
+ "hevy-jump-shrug": {
+  "es": "Encogimiento con Salto",
+  "en": "Jump Shrug"
+ },
+ "hevy-jumping-jack": {
+  "es": "Salto de Tijera",
+  "en": "Jumping Jack"
+ },
+ "hevy-kettlebell-clean": {
+  "es": "Cargada con Kettlebell",
+  "en": "Kettlebell Clean"
+ },
+ "hevy-kettlebell-high-pull": {
+  "es": "Tirón Alto con Kettlebell",
+  "en": "Kettlebell High Pull"
+ },
+ "hevy-kettlebell-snatch": {
+  "es": "Arranque con Kettlebell",
+  "en": "Kettlebell Snatch"
+ },
+ "hevy-kettlebell-swing": {
+  "es": "Swing con Kettlebell",
+  "en": "Kettlebell Swing"
+ },
+ "hevy-kettlebell-turkish-get-up": {
+  "es": "Turkish Get Up con Kettlebell",
+  "en": "Kettlebell Turkish Get Up"
+ },
+ "hevy-landmine-squat-and-press": {
+  "es": "Sentadilla y Press Landmine",
+  "en": "Landmine Squat and Press"
+ },
+ "hevy-mountain-climber": {
+  "es": "Escalador",
+  "en": "Mountain Climber"
+ },
+ "hevy-muscle-up": {
+  "es": "Muscle Up",
+  "en": "Muscle Up"
+ },
+ "hevy-overhead-squat": {
+  "es": "Sentadilla Overhead",
+  "en": "Overhead Squat"
+ },
+ "hevy-pilates": {
+  "es": "Pilates",
+  "en": "Pilates"
+ },
+ "hevy-power-clean": {
+  "es": "Cargada de Potencia",
+  "en": "Power Clean"
+ },
+ "hevy-power-snatch": {
+  "es": "Arranque de Potencia",
+  "en": "Power Snatch"
+ },
+ "hevy-press-under": {
+  "es": "Press Under",
+  "en": "Press Under"
+ },
+ "hevy-sled-push": {
+  "es": "Empuje de Trineo",
+  "en": "Sled Push"
+ },
+ "hevy-snatch": {
+  "es": "Arranque",
+  "en": "Snatch"
+ },
+ "hevy-split-jerk": {
+  "es": "Envión en Tijera",
+  "en": "Split Jerk"
+ },
+ "hevy-squat-row": {
+  "es": "Sentadilla con Remo",
+  "en": "Squat Row"
+ },
+ "hevy-thruster-barbell": {
+  "es": "Thruster (Barra)",
+  "en": "Thruster (Barbell)"
+ },
+ "hevy-thruster-kettlebell": {
+  "es": "Thruster (Kettlebell)",
+  "en": "Thruster (Kettlebell)"
+ },
+ "hevy-wall-ball": {
+  "es": "Wall Ball",
+  "en": "Wall Ball"
+ },
+ "hevy-warm-up": {
+  "es": "Entrada en Calor",
+  "en": "Warm Up"
+ },
+ "hevy-yoga": {
+  "es": "Yoga",
+  "en": "Yoga"
+ }
+}

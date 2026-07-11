@@ -33,10 +33,10 @@ export function ExerciseDetailModal({
     <div className="invite-qr-backdrop" onClick={onClose}>
       <div className="exdetail-modal" onClick={(e) => e.stopPropagation()}>
         <div className="exdetail-left">
-          <h2 className="exdetail-title">{exercise.name}</h2>
+          <h2 className="exdetail-title">{loc.name}</h2>
           <div className="exdetail-img">
             {exercise.image_url ? (
-              <img src={exercise.image_url} alt={exercise.name} />
+              <img src={exercise.image_url} alt={loc.name} />
             ) : (
               <DumbbellIcon size={48} />
             )}

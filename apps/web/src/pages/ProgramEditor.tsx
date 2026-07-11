@@ -15,7 +15,7 @@ import { Spinner, ConfirmDialog } from '@/components/ui';
 import { PlusIcon, ChevronDownIcon, CheckIcon, GripIcon } from '@/components/icons';
 import { AssignProgramModal } from '@/components/AssignProgramModal';
 import { CardMenu } from '@/components/CardMenu';
-import { createDragGhost } from '@/lib/dragGhost';
+import { startSortableDrag } from '@/lib/sortableDrag';
 
 type CatalogExercise = Pick<ExerciseRow, 'id' | 'name' | 'image_url' | 'target_muscles'>;
 type WorkoutExerciseWithExercise = WorkoutExerciseRow & { exercise: CatalogExercise | null };
@@ -150,60 +150,25 @@ export function ProgramEditorPage(): React.JSX.Element {
     setDays((prev) => prev.map((d) => (d.id === dayId ? { ...d, title } : d)));
   };
 
-  const reorderRoutines = async (fromIndex: number, toIndex: number) => {
+  // Reorden con card fantasma y reordenamiento visual en vivo (helper compartido).
+  const reorderRoutinesLocal = (from: number, to: number) => {
+    setDays((prev) => {
+      const items = [...prev].sort((a, b) => a.day_number - b.day_number);
+      if (from === to || from < 0 || to < 0 || from >= items.length || to >= items.length) return prev;
+      const [moved] = items.splice(from, 1);
+      items.splice(to, 0, moved);
+      return items.map((d, i) => ({ ...d, day_number: i + 1 }));
+    });
+  };
+  const commitRoutineOrder = async () => {
     const items = [...days].sort((a, b) => a.day_number - b.day_number);
-    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= items.length || toIndex >= items.length) return;
-    const [moved] = items.splice(fromIndex, 1);
-    items.splice(toIndex, 0, moved);
-    const renumbered = items.map((d, i) => ({ ...d, day_number: i + 1 }));
-    setDays(renumbered);
-    await Promise.all(renumbered.map((d) => supabase.from('training_days').update({ day_number: d.day_number }).eq('id', d.id)));
+    await Promise.all(items.map((d, i) => supabase.from('training_days').update({ day_number: i + 1 }).eq('id', d.id)));
   };
-
-  // Drag manual (misma técnica que ProgramLibrary) para reordenar rutinas
-  // dentro del programa — control total del cursor, sin HTML5 draggable.
-  const startRoutineDrag = (e: React.MouseEvent, fromIndex: number) => {
-    // Se puede iniciar el drag agarrando cualquier parte de la card (no solo
-    // el grip, muy chico para acertar) — excepto controles interactivos.
-    if (e.button !== 0) return;
-    if ((e.target as HTMLElement).closest('input, textarea, button, .client-row-menu')) return;
-    const card = (e.target as HTMLElement).closest<HTMLElement>('.routine-row');
-    if (!card) return;
-
-    const startX = e.clientX;
-    const startY = e.clientY;
-    let toIndex = fromIndex;
-    let moved = false;
-    let ghost: ReturnType<typeof createDragGhost> | null = null;
-
-    const onMove = (ev: MouseEvent) => {
-      if (!moved) {
-        if (Math.abs(ev.clientX - startX) < 5 && Math.abs(ev.clientY - startY) < 5) return;
-        moved = true;
-        setDraggedDayIndex(fromIndex);
-        document.body.classList.add('is-dragging-card');
-        ghost = createDragGhost(card, { clientX: startX, clientY: startY });
-      }
-      ghost?.move(ev);
-      const el = document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null;
-      const row = el?.closest<HTMLElement>('[data-routine-index]');
-      if (row) toIndex = Number(row.dataset.routineIndex);
-    };
-    const onUp = () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-      if (!moved) return;
-      ghost?.destroy();
-      document.body.classList.remove('is-dragging-card');
-      setDraggedDayIndex(null);
-      const suppress = (ce: MouseEvent) => { ce.stopPropagation(); ce.preventDefault(); };
-      window.addEventListener('click', suppress, { capture: true });
-      setTimeout(() => window.removeEventListener('click', suppress, { capture: true }), 300);
-      if (toIndex !== fromIndex) void reorderRoutines(fromIndex, toIndex);
-    };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-  };
+  const startRoutineDrag = (e: React.MouseEvent, fromIndex: number) =>
+    startSortableDrag({
+      event: e, index: fromIndex, cardSelector: '.routine-row', dataAttr: 'routineIndex',
+      move: reorderRoutinesLocal, commit: () => void commitRoutineOrder(), setDragIndex: setDraggedDayIndex,
+    });
 
   const duplicateRoutine = async (day: DayWithWorkout) => {
     if (!trainerId || !phaseId) return;
