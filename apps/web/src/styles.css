@@ -4228,7 +4228,6 @@ textarea.hevy-input { resize: vertical; min-height: 88px; line-height: 1.5; }
   font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-tertiary);
 }
 .rex-sets3-row { padding: 6px 4px; }
-.rex-sets3-row:nth-child(even) { background: var(--surface-elevated); border-radius: 8px; }
 .rex-set-x {
   display: inline-flex; align-items: center; justify-content: center;
   width: 28px; height: 28px; border: none; background: none; cursor: pointer;
