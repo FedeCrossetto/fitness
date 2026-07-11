@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { ExerciseRow, TrainingDayRow, TrainingPhaseRow, WorkoutExerciseRow, WorkoutRow } from '@reset-fitness/shared/types/database';
 import { supabase } from '@/lib/supabase';
 import { Spinner } from '@/components/ui';
@@ -282,6 +282,7 @@ function ExerciseCard({
 
 function ExercisePickerPanel({ onPick, onDetail }: { onPick: (ex: CatalogExercise) => void; onDetail: (id: string) => void }): React.JSX.Element {
   const { language } = useTranslation();
+  const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<CatalogExercise[]>([]);
   const [loading, setLoading] = useState(true);
@@ -322,7 +323,7 @@ function ExercisePickerPanel({ onPick, onDetail }: { onPick: (ex: CatalogExercis
   return (
     <div className="card summary-card">
       <div className="picker-head">
-        <button type="button" className="link-blue" onClick={() => window.open('/exercises', '_self')}>
+        <button type="button" className="link-blue" onClick={() => navigate('/exercises')}>
           <PlusIcon size={15} /> Ejercicio personalizado
         </button>
       </div>
