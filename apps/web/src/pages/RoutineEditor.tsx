@@ -6,13 +6,15 @@ import { Spinner } from '@/components/ui';
 import { DumbbellIcon, PlusIcon, TrendingUpIcon, GripIcon } from '@/components/icons';
 import { ExerciseDetailModal } from '@/components/ExerciseDetailModal';
 import { startSortableDrag } from '@/lib/sortableDrag';
+import { useTranslation } from '@/hooks/useTranslation';
+import { localizedExercise } from '@/lib/exerciseI18n';
 
 const REST_OPTIONS: [number, string][] = [
   [0, 'Off'], [30, '00:30'], [45, '00:45'], [60, '01:00'], [90, '01:30'],
   [120, '02:00'], [180, '03:00'], [240, '04:00'], [300, '05:00'],
 ];
 
-type CatalogExercise = Pick<ExerciseRow, 'id' | 'name' | 'image_url' | 'target_muscles' | 'equipment'>;
+type CatalogExercise = Pick<ExerciseRow, 'id' | 'name' | 'image_url' | 'target_muscles' | 'equipment' | 'metadata'>;
 type WorkoutExerciseWithExercise = WorkoutExerciseRow & { exercise: CatalogExercise | null };
 type DayWithWorkout = TrainingDayRow & {
   workout: (WorkoutRow & { exercises: WorkoutExerciseWithExercise[] }) | null;
@@ -42,7 +44,7 @@ export function RoutineEditorPage(): React.JSX.Element {
     try {
       const { data, error: dErr } = await supabase
         .from('training_days')
-        .select('*, workout:workouts(*, exercises:workout_exercises(sort_order, *, exercise:exercises(id, name, image_url, target_muscles, equipment))), phase:training_phases(program_key)')
+        .select('*, workout:workouts(*, exercises:workout_exercises(sort_order, *, exercise:exercises(id, name, image_url, target_muscles, equipment, metadata))), phase:training_phases(program_key)')
         .eq('id', id)
         .maybeSingle();
       if (dErr) throw dErr;
@@ -215,7 +217,9 @@ function ExerciseCard({
   onOpenDetail: () => void;
   onDragStart: (e: React.MouseEvent) => void;
 }): React.JSX.Element {
+  const { language } = useTranslation();
   const thumbStyle = we.exercise?.image_url ? { backgroundImage: `url(${we.exercise.image_url})` } : undefined;
+  const exName = we.exercise ? localizedExercise(we.exercise, language).name : 'Ejercicio';
   return (
     <div className={`rex-card${dragging ? ' dragging' : ''}`} data-ex-index={index} onMouseDown={onDragStart}>
       <div className="rex-head">
@@ -223,7 +227,7 @@ function ExerciseCard({
         <div className="rex-thumb" style={thumbStyle} onClick={onOpenDetail} title="Ver detalle">
           {we.exercise?.image_url ? null : <DumbbellIcon size={18} />}
         </div>
-        <span className="rex-name" onClick={onOpenDetail}>{we.exercise?.name ?? 'Ejercicio'}</span>
+        <span className="rex-name" onClick={onOpenDetail}>{exName}</span>
         <div className="ex-move">
           <button type="button" className="icon-btn sm" title="Subir" disabled={index === 0} onClick={onMoveUp}>↑</button>
           <button type="button" className="icon-btn sm" title="Bajar" disabled={index === count - 1} onClick={onMoveDown}>↓</button>
@@ -277,42 +281,43 @@ function ExerciseCard({
 }
 
 function ExercisePickerPanel({ onPick, onDetail }: { onPick: (ex: CatalogExercise) => void; onDetail: (id: string) => void }): React.JSX.Element {
+  const { language } = useTranslation();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<CatalogExercise[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [equipment, setEquipment] = useState('');
   const [muscle, setMuscle] = useState('');
 
+  // Cargamos todo una vez y filtramos en cliente (busca por nombre ES y EN).
   useEffect(() => {
     let active = true;
-    setLoading(true);
-    const t = setTimeout(() => {
-      void (async () => {
-        let q = supabase.from('exercises').select('id, name, image_url, target_muscles, equipment').order('name').limit(200);
-        if (query.trim()) q = q.ilike('name', `%${query.trim()}%`);
-        const { data } = await q;
-        if (!active) return;
-        setResults((data ?? []) as CatalogExercise[]);
-        setLoading(false);
-      })();
-    }, 200);
-    return () => { active = false; clearTimeout(t); };
-  }, [query]);
+    void (async () => {
+      const { data } = await supabase.from('exercises').select('id, name, image_url, target_muscles, equipment, metadata').order('name').limit(1000);
+      if (!active) return;
+      setResults((data ?? []) as CatalogExercise[]);
+      setLoading(false);
+    })();
+    return () => { active = false; };
+  }, []);
 
-  // Opciones de filtro derivadas de los resultados cargados.
   const equipmentOpts = useMemo(
     () => Array.from(new Set(results.flatMap((e) => e.equipment ?? []))).sort(),
     [results],
   );
   const muscleOpts = useMemo(
-    () => Array.from(new Set(results.flatMap((e) => e.target_muscles ?? []))).sort(),
-    [results],
+    () => Array.from(new Set(results.map((e) => localizedExercise(e, language).muscle).filter((m) => m && m !== '—'))).sort(),
+    [results, language],
   );
-  const filtered = results.filter(
-    (e) =>
-      (!equipment || (e.equipment ?? []).includes(equipment)) &&
-      (!muscle || (e.target_muscles ?? []).includes(muscle)),
-  );
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return results
+      .map((ex) => ({ ex, loc: localizedExercise(ex, language) }))
+      .filter(({ ex, loc }) =>
+        (!q || loc.name.toLowerCase().includes(q) || ex.name.toLowerCase().includes(q)) &&
+        (!equipment || (ex.equipment ?? []).includes(equipment)) &&
+        (!muscle || loc.muscle === muscle))
+      .sort((a, b) => a.loc.name.localeCompare(b.loc.name));
+  }, [results, query, language, equipment, muscle]);
 
   return (
     <div className="card summary-card">
@@ -345,7 +350,7 @@ function ExercisePickerPanel({ onPick, onDetail }: { onPick: (ex: CatalogExercis
         ) : filtered.length === 0 ? (
           <div className="muted" style={{ padding: 12 }}>Sin resultados.</div>
         ) : (
-          filtered.map((ex) => (
+          filtered.map(({ ex, loc }) => (
             <div key={ex.id} className="picker-row" onClick={() => onDetail(ex.id)}>
               <div
                 className="ex-thumb ex-thumb-icon"
@@ -355,8 +360,8 @@ function ExercisePickerPanel({ onPick, onDetail }: { onPick: (ex: CatalogExercis
                 {ex.image_url ? null : <DumbbellIcon size={14} />}
               </div>
               <div className="ex-info">
-                <span className="ex-name">{ex.name}</span>
-                {ex.target_muscles?.length ? <span className="muted ex-sub">{ex.target_muscles.join(', ')}</span> : null}
+                <span className="ex-name">{loc.name}</span>
+                {loc.muscle && loc.muscle !== '—' ? <span className="muted ex-sub">{loc.muscle}</span> : null}
               </div>
               <button
                 type="button"

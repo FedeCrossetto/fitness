@@ -16,8 +16,10 @@ import { PlusIcon, ChevronDownIcon, CheckIcon, GripIcon } from '@/components/ico
 import { AssignProgramModal } from '@/components/AssignProgramModal';
 import { CardMenu } from '@/components/CardMenu';
 import { startSortableDrag } from '@/lib/sortableDrag';
+import { useTranslation } from '@/hooks/useTranslation';
+import { localizedExercise } from '@/lib/exerciseI18n';
 
-type CatalogExercise = Pick<ExerciseRow, 'id' | 'name' | 'image_url' | 'target_muscles'>;
+type CatalogExercise = Pick<ExerciseRow, 'id' | 'name' | 'image_url' | 'target_muscles' | 'metadata'>;
 type WorkoutExerciseWithExercise = WorkoutExerciseRow & { exercise: CatalogExercise | null };
 type DayWithWorkout = TrainingDayRow & {
   workout: (WorkoutRow & { exercises: WorkoutExerciseWithExercise[] }) | null;
@@ -94,7 +96,7 @@ export function ProgramEditorPage(): React.JSX.Element {
 
       const { data: dayRows, error: dErr } = await supabase
         .from('training_days')
-        .select('*, workout:workouts(*, exercises:workout_exercises(sort_order, *, exercise:exercises(id, name, image_url, target_muscles)))')
+        .select('*, workout:workouts(*, exercises:workout_exercises(sort_order, *, exercise:exercises(id, name, image_url, target_muscles, metadata)))')
         .eq('phase_id', phase.id)
         .order('day_number');
       if (dErr) throw dErr;
@@ -547,6 +549,7 @@ function RoutineCard({
   onAssignDay: () => void;
   onDragStart: (e: React.MouseEvent) => void;
 }): React.JSX.Element {
+  const { language } = useTranslation();
   const [title, setTitle] = useState(day.title);
   const [menuOpen, setMenuOpen] = useState(false);
   const exercises = [...(day.workout?.exercises ?? [])].sort((a, b) => a.sort_order - b.sort_order);
@@ -589,7 +592,7 @@ function RoutineCard({
       ) : (
         <div className="routine-row-ex">
           {exercises.map((we) => (
-            <div key={we.id}><span className="n">{we.sets ?? 0}×</span> {we.exercise?.name ?? 'Ejercicio'}</div>
+            <div key={we.id}><span className="n">{we.sets ?? 0}×</span> {we.exercise ? localizedExercise(we.exercise, language).name : 'Ejercicio'}</div>
           ))}
         </div>
       )}
