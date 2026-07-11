@@ -4,12 +4,15 @@ import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/useToast';
 import { DumbbellIcon, PlusIcon, SearchIcon } from '@/components/icons';
 import { ExerciseDetailModal } from '@/components/ExerciseDetailModal';
+import { useTranslation } from '@/hooks/useTranslation';
+import { localizedExercise } from '@/lib/exerciseI18n';
 
 /** Catálogo de ejercicios — búsqueda + detalle simple. La creación de un
  * ejercicio propio pide solo el nombre (sin editor de músculos/equipo/
  * instrucciones en detalle, por ahora — ver conversación de scope). */
 export function ExerciseLibraryPage(): React.JSX.Element {
   const { showToast } = useToast();
+  const { language } = useTranslation();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ExerciseRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -81,7 +84,7 @@ export function ExerciseLibraryPage(): React.JSX.Element {
                 </div>
                 <div className="ex-info">
                   <span className="ex-name">{ex.name}</span>
-                  {ex.target_muscles?.length ? <span className="muted ex-sub">{ex.target_muscles.join(', ')}</span> : null}
+                  {(() => { const m = localizedExercise(ex, language).muscle; return m && m !== '—' ? <span className="muted ex-sub">{m}</span> : null; })()}
                 </div>
               </button>
             ))}

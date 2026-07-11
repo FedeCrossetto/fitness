@@ -6,11 +6,12 @@ import { AppText, BottomSheet, Chip } from '../common';
 import { radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
 import { supabase } from '../../lib/supabase';
 import { useTranslation } from '../../stores/i18nStore';
+import { localizedExercise } from '../../lib/exerciseI18n';
 import type { ExerciseRow } from '../../types/database';
 
 type ExerciseDetail = Pick<
   ExerciseRow,
-  'id' | 'name' | 'image_url' | 'external_source' | 'target_muscles' | 'secondary_muscles' | 'equipment' | 'instructions' | 'body_part'
+  'id' | 'name' | 'image_url' | 'external_source' | 'target_muscles' | 'secondary_muscles' | 'equipment' | 'instructions' | 'body_part' | 'metadata'
 >;
 
 interface ExercisePreviewSheetProps {
@@ -29,7 +30,7 @@ export function ExercisePreviewSheet({
   fallback,
 }: ExercisePreviewSheetProps): React.JSX.Element {
   const { colors } = useTheme();
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
   const styles = useThemedStyles(createStyles);
 
   const [loading, setLoading] = useState(false);
@@ -47,7 +48,7 @@ export function ExercisePreviewSheet({
     void (async () => {
       const { data, error } = await supabase
         .from('exercises')
-        .select('id, name, image_url, external_source, target_muscles, secondary_muscles, equipment, instructions, body_part')
+        .select('id, name, image_url, external_source, target_muscles, secondary_muscles, equipment, instructions, body_part, metadata')
         .eq('id', exerciseId)
         .maybeSingle();
 
@@ -66,6 +67,7 @@ export function ExercisePreviewSheet({
                 equipment: null,
                 instructions: null,
                 body_part: null,
+                metadata: null,
               }
             : null,
         );
@@ -87,6 +89,7 @@ export function ExercisePreviewSheet({
   const title = exercise?.name ?? fallback?.name ?? '';
   const imageUrl = exercise?.image_url ?? fallback?.image_url ?? null;
   const showImage = canShowExerciseImage(imageUrl, exercise?.external_source);
+  const loc = exercise ? localizedExercise(exercise, language) : { instructions: [], muscle: null };
 
   return (
     <BottomSheet visible={visible} onClose={onClose} title={title} subtitle={subtitle}>
@@ -102,17 +105,15 @@ export function ExercisePreviewSheet({
             </View>
           ) : null}
 
-          {(exercise?.target_muscles?.length || exercise?.equipment?.length) ? (
+          {(loc.muscle || exercise?.equipment?.length) ? (
             <View style={styles.section}>
-              {exercise?.target_muscles && exercise.target_muscles.length > 0 ? (
+              {loc.muscle ? (
                 <>
                   <AppText variant="caps12" color={colors.text.tertiary} style={styles.label}>
                     {t.training.target_muscles}
                   </AppText>
                   <View style={styles.chips}>
-                    {exercise.target_muscles.map((item) => (
-                      <Chip key={item} label={item} />
-                    ))}
+                    <Chip label={loc.muscle} />
                   </View>
                 </>
               ) : null}
@@ -131,12 +132,12 @@ export function ExercisePreviewSheet({
             </View>
           ) : null}
 
-          {exercise?.instructions && exercise.instructions.length > 0 ? (
+          {loc.instructions.length > 0 ? (
             <View style={styles.section}>
               <AppText variant="caps12" color={colors.text.tertiary} style={styles.label}>
                 {t.training.instructions}
               </AppText>
-              {exercise.instructions.map((step, index) => (
+              {loc.instructions.map((step, index) => (
                 <View key={`${index}-${step.slice(0, 16)}`} style={styles.stepRow}>
                   <View style={styles.stepNumber}>
                     <AppText variant="body12SemiBold" color={colors.text.secondary}>

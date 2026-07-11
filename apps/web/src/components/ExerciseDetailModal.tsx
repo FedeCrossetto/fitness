@@ -1,10 +1,17 @@
 import type { ExerciseRow } from '@reset-fitness/shared/types/database';
 import { DumbbellIcon } from '@/components/icons';
+import { useTranslation } from '@/hooks/useTranslation';
+import { localizedExercise } from '@/lib/exerciseI18n';
+
+const L = {
+  es: { detail: 'Detalle del ejercicio', equipment: 'Equipo:', muscle: 'Grupo muscular principal:', type: 'Tipo de ejercicio:', instructions: 'Instrucciones', noInstr: 'Este ejercicio no tiene instrucciones cargadas.', attachment: 'Adjunto', watch: 'Ver video', noAttachment: 'No hay adjunto', edit: 'Editar ejercicio', close: 'Cerrar' },
+  en: { detail: 'Exercise Details', equipment: 'Equipment:', muscle: 'Primary Muscle Group:', type: 'Exercise Type:', instructions: 'Instructions', noInstr: 'This exercise has no instructions yet.', attachment: 'Attachment', watch: 'Watch video', noAttachment: 'No attachment', edit: 'Edit exercise', close: 'Close' },
+};
 
 /** Detalle de un ejercicio — mismo layout que app.hevycoach.com:
  * panel izquierdo (imagen + equipo/músculo/tipo) y panel derecho
- * (instrucciones numeradas + adjunto). Reutilizado desde la Librería de
- * ejercicios y desde el editor de rutina. */
+ * (instrucciones numeradas + adjunto). Bilingüe: elige el idioma según la
+ * configuración del coach. Reutilizado desde la Librería y el editor de rutina. */
 export function ExerciseDetailModal({
   exercise,
   onClose,
@@ -14,10 +21,13 @@ export function ExerciseDetailModal({
   onClose: () => void;
   onEdit?: () => void;
 }): React.JSX.Element {
+  const { language } = useTranslation();
+  const t = L[language] ?? L.es;
+  const loc = localizedExercise(exercise, language);
   const equipment = exercise.equipment?.join(', ') || '—';
-  const primaryMuscle = exercise.target_muscles?.[0] ?? exercise.body_part ?? '—';
+  const primaryMuscle = loc.muscle;
   const exerciseType = exercise.exercise_type ?? '—';
-  const steps = exercise.instructions ?? [];
+  const steps = loc.instructions;
 
   return (
     <div className="invite-qr-backdrop" onClick={onClose}>
@@ -32,21 +42,21 @@ export function ExerciseDetailModal({
             )}
           </div>
           <div className="exdetail-meta">
-            <div><span className="k">Equipo: </span><span className="v">{equipment}</span></div>
-            <div><span className="k">Grupo muscular principal:</span></div>
+            <div><span className="k">{t.equipment} </span><span className="v">{equipment}</span></div>
+            <div><span className="k">{t.muscle}</span></div>
             <div className="v" style={{ marginBottom: 8 }}>{primaryMuscle}</div>
-            <div><span className="k">Tipo de ejercicio:</span></div>
+            <div><span className="k">{t.type}</span></div>
             <div className="v">{exerciseType}</div>
           </div>
         </div>
 
         <div className="exdetail-right">
           <div className="exdetail-rhead">
-            <h3>Detalle del ejercicio</h3>
-            <button type="button" className="exdetail-close-x" onClick={onClose} aria-label="Cerrar">✕</button>
+            <h3>{t.detail}</h3>
+            <button type="button" className="exdetail-close-x" onClick={onClose} aria-label={t.close}>✕</button>
           </div>
           <div className="exdetail-body">
-            <div className="exdetail-section-title">Instrucciones</div>
+            <div className="exdetail-section-title">{t.instructions}</div>
             {steps.length > 0 ? (
               steps.map((step, i) => (
                 <div key={i} className="exdetail-step">
@@ -55,16 +65,16 @@ export function ExerciseDetailModal({
                 </div>
               ))
             ) : (
-              <p className="muted" style={{ margin: '4px 0 20px' }}>Este ejercicio no tiene instrucciones cargadas.</p>
+              <p className="muted" style={{ margin: '4px 0 20px' }}>{t.noInstr}</p>
             )}
 
-            <div className="exdetail-section-title" style={{ marginTop: 22 }}>Adjunto</div>
+            <div className="exdetail-section-title" style={{ marginTop: 22 }}>{t.attachment}</div>
             <div className="exdetail-attach">
               <span className="exdetail-attach-ico">▷</span>
               {exercise.video_url ? (
-                <a href={exercise.video_url} target="_blank" rel="noreferrer" style={{ color: 'var(--text-secondary)' }}>Ver video</a>
+                <a href={exercise.video_url} target="_blank" rel="noreferrer" style={{ color: 'var(--text-secondary)' }}>{t.watch}</a>
               ) : (
-                <span>No hay adjunto</span>
+                <span>{t.noAttachment}</span>
               )}
             </div>
           </div>
@@ -72,9 +82,9 @@ export function ExerciseDetailModal({
 
         <div className="exdetail-foot">
           {onEdit && (
-            <button type="button" className="btn secondary" onClick={onEdit}>Editar ejercicio</button>
+            <button type="button" className="btn secondary" onClick={onEdit}>{t.edit}</button>
           )}
-          <button type="button" className="btn primary" onClick={onClose}>Cerrar</button>
+          <button type="button" className="btn primary" onClick={onClose}>{t.close}</button>
         </div>
       </div>
     </div>
