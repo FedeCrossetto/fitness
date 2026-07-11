@@ -4216,6 +4216,32 @@ textarea.hevy-input { resize: vertical; min-height: 88px; line-height: 1.5; }
 }
 .rex-input:focus { outline: none; border-color: var(--text-secondary); }
 
+/* ── Nota + tabla de sets individuales (SET / KG / REPS estilo Hevy) ── */
+.rex-note { margin: 14px 0 4px; }
+.rex-note label { display: block; font-size: 12.5px; color: var(--text-secondary); font-weight: 600; margin-bottom: 6px; }
+.rex-note textarea { min-height: 40px; resize: vertical; }
+.rex-sets3-head, .rex-sets3-row {
+  display: grid; grid-template-columns: 44px 1fr 1fr 32px; gap: 8px; align-items: center;
+}
+.rex-sets3-head {
+  padding: 8px 4px; margin-top: 12px; border-bottom: 1px solid var(--border);
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-tertiary);
+}
+.rex-sets3-row { padding: 6px 4px; }
+.rex-sets3-row:nth-child(even) { background: var(--surface-elevated); border-radius: 8px; }
+.rex-set-x {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border: none; background: none; cursor: pointer;
+  color: var(--text-tertiary); border-radius: 7px; font-size: 13px;
+}
+.rex-set-x:hover { background: var(--surface-hover); color: var(--bad); }
+.rex-add-set {
+  width: 100%; margin-top: 10px; padding: 9px; border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary);
+  font-size: 13px; font-weight: 600; cursor: pointer; transition: background 120ms ease, border-color 120ms ease;
+}
+.rex-add-set:hover { background: var(--surface-elevated); border-color: var(--text-tertiary); color: var(--text-primary); }
+
 /* ════════ Modal de detalle de ejercicio (estilo Hevy) ════════ */
 .exdetail-modal {
   width: 100%; max-width: 1000px; max-height: 88vh;

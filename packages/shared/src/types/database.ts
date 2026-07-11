@@ -173,6 +173,8 @@ export interface ProgramRow {
   /** Si es un clon personalizado, el programa plantilla del que se copió. */
   source_program_id: string | null;
   folder_id: string | null;
+  /** Orden manual en la Biblioteca (drag & drop). Menor = primero. */
+  sort_order: number;
   created_at: string;
   updated_at: string;
 }
@@ -215,8 +217,18 @@ export interface WorkoutExerciseRow {
   weight_kg: number | null;
   tempo: string | null;
   rest_seconds: number | null;
+  /** Sets individuales [{ reps, kg }] (editor de rutina estilo Hevy). Las
+   * columnas sets/reps/weight_kg se mantienen como resumen. */
+  sets_detail: WorkoutSet[];
+  /** Nota fijada del ejercicio en la rutina. */
+  notes: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface WorkoutSet {
+  reps: string | null;
+  kg: number | null;
 }
 
 export interface TrainingDayRow {

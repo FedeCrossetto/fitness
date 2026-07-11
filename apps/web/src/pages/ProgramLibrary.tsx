@@ -58,6 +58,7 @@ export function ProgramLibraryPage(): React.JSX.Element {
         .from('programs')
         .select('*')
         .eq('trainer_id', userId!)
+        .order('sort_order', { ascending: true })
         .order('created_at', { ascending: false });
       if (pErr) throw pErr;
       const programs = (programRows as ProgramRow[] | null) ?? [];
@@ -128,6 +129,7 @@ export function ProgramLibraryPage(): React.JSX.Element {
       list.push(p);
       byFolder.set(key, list);
     }
+    for (const list of byFolder.values()) list.sort((a, b) => a.sort_order - b.sort_order);
     return byFolder;
   }, [filtered]);
 
@@ -278,26 +280,37 @@ export function ProgramLibraryPage(): React.JSX.Element {
     void refetch();
   };
 
-  // Drag manual (sin HTML5 draggable) — nos da control total del cursor
-  // (manito abierta al agarrar, cerrada mientras se arrastra) y evita el
-  // límite del navegador de no poder cambiar el cursor durante un drag nativo.
-  const startProgramDrag = (e: React.MouseEvent, program: ProgramWithPreview) => {
-    // Se puede iniciar el drag agarrando cualquier parte de la card (no solo
-    // el grip, muy chico para acertar) — excepto controles interactivos.
+  // Reordena en vivo dentro de una carpeta (solo estado local).
+  const reorderInFolder = (folderId: string | null, from: number, to: number) => {
+    setPrograms((prev) => {
+      const inFolder = prev.filter((p) => p.folder_id === folderId).sort((a, b) => a.sort_order - b.sort_order);
+      if (from === to || from < 0 || to < 0 || from >= inFolder.length || to >= inFolder.length) return prev;
+      const [moved] = inFolder.splice(from, 1);
+      inFolder.splice(to, 0, moved);
+      const order = new Map(inFolder.map((p, i) => [p.id, i]));
+      return prev.map((p) => (order.has(p.id) ? { ...p, sort_order: order.get(p.id)! } : p));
+    });
+  };
+  const commitFolderOrder = async (folderId: string | null) => {
+    const inFolder = programs.filter((p) => p.folder_id === folderId).sort((a, b) => a.sort_order - b.sort_order);
+    await Promise.all(inFolder.map((p, i) => supabase.from('programs').update({ sort_order: i }).eq('id', p.id)));
+  };
+
+  // Drag manual: reordena en vivo dentro de la carpeta y, si se suelta sobre
+  // OTRA carpeta, mueve el programa ahí (conserva ambos comportamientos).
+  const startProgramDrag = (e: React.MouseEvent, program: ProgramWithPreview, folderKey: string, fromIndex: number) => {
     if (e.button !== 0) return;
     if ((e.target as HTMLElement).closest('input, textarea, button, .client-row-menu')) return;
     const card = (e.target as HTMLElement).closest<HTMLElement>('.prog-row');
     if (!card) return;
 
-    const startX = e.clientX;
-    const startY = e.clientY;
-    let overFolderId: string | null | undefined; // undefined = ningún destino válido bajo el cursor
+    const startX = e.clientX, startY = e.clientY;
+    let currentIndex = fromIndex;
+    let moveFolderTarget: string | null | undefined; // definido solo si el cursor está sobre otra carpeta
     let moved = false;
     let ghost: ReturnType<typeof createDragGhost> | null = null;
 
     const onMove = (ev: MouseEvent) => {
-      // Umbral: recién arrancamos el drag tras mover unos px (así un click
-      // simple sigue navegando al programa).
       if (!moved) {
         if (Math.abs(ev.clientX - startX) < 5 && Math.abs(ev.clientY - startY) < 5) return;
         moved = true;
@@ -307,10 +320,22 @@ export function ProgramLibraryPage(): React.JSX.Element {
       }
       ghost?.move(ev);
       const el = document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null;
-      const sec = el?.closest<HTMLElement>('[data-folder-key]');
-      const key = sec?.dataset.folderKey;
-      overFolderId = key === undefined ? undefined : key === 'root' ? null : key;
-      setDragOverFolderId(key ?? null);
+      const overRow = el?.closest<HTMLElement>('.prog-row');
+      const overKey = el?.closest<HTMLElement>('[data-folder-key]')?.dataset.folderKey;
+      if (overRow && overKey === folderKey) {
+        // Misma carpeta → reorden visual en vivo.
+        const overIndex = Number(overRow.dataset.progIndex);
+        if (!Number.isNaN(overIndex) && overIndex !== currentIndex) {
+          reorderInFolder(program.folder_id, currentIndex, overIndex);
+          currentIndex = overIndex;
+        }
+        moveFolderTarget = undefined;
+        setDragOverFolderId(null);
+      } else if (overKey !== undefined && overKey !== folderKey) {
+        // Otra carpeta → destino de "mover a carpeta".
+        moveFolderTarget = overKey === 'root' ? null : overKey;
+        setDragOverFolderId(overKey);
+      }
     };
     const onUp = () => {
       window.removeEventListener('mousemove', onMove);
@@ -320,26 +345,26 @@ export function ProgramLibraryPage(): React.JSX.Element {
       document.body.classList.remove('is-dragging-card');
       setDraggedProgramId(null);
       setDragOverFolderId(null);
-      // Suprimimos el click que dispara el mouseup post-drag (evita navegar).
-      // Auto-removible: si el drop fue sobre otra carpeta no se dispara ningún
-      // click, así que el listener se limpia solo a los 300ms.
       const suppress = (ce: MouseEvent) => { ce.stopPropagation(); ce.preventDefault(); };
       window.addEventListener('click', suppress, { capture: true });
       setTimeout(() => window.removeEventListener('click', suppress, { capture: true }), 300);
-      if (overFolderId !== undefined && overFolderId !== program.folder_id) {
-        void moveToFolder(program, overFolderId);
+      if (moveFolderTarget !== undefined && moveFolderTarget !== program.folder_id) {
+        void moveToFolder(program, moveFolderTarget);
+      } else if (currentIndex !== fromIndex) {
+        void commitFolderOrder(program.folder_id);
       }
     };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
   };
 
-  const renderProgramRow = (p: ProgramWithPreview) => (
+  const renderProgramRow = (p: ProgramWithPreview, folderKey: string, index: number) => (
     <div
       key={p.id}
       className={`prog-row${draggedProgramId === p.id ? ' dragging' : ''}`}
+      data-prog-index={index}
       onClick={() => navigate(`/programs/${p.id}`)}
-      onMouseDown={(e) => startProgramDrag(e, p)}
+      onMouseDown={(e) => startProgramDrag(e, p, folderKey, index)}
       role="button"
       tabIndex={0}
     >
@@ -481,7 +506,7 @@ export function ProgramLibraryPage(): React.JSX.Element {
                         )}
                       </div>
                     ) : (
-                      items.map(renderProgramRow)
+                      items.map((p, i) => renderProgramRow(p, key, i))
                     )}
                   </div>
                 )}

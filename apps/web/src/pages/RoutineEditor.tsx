@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import type { ExerciseRow, TrainingDayRow, TrainingPhaseRow, WorkoutExerciseRow, WorkoutRow } from '@reset-fitness/shared/types/database';
+import type { ExerciseRow, TrainingDayRow, TrainingPhaseRow, WorkoutExerciseRow, WorkoutRow, WorkoutSet } from '@reset-fitness/shared/types/database';
 import { supabase } from '@/lib/supabase';
 import { Spinner } from '@/components/ui';
 import { DumbbellIcon, PlusIcon, TrendingUpIcon, GripIcon } from '@/components/icons';
 import { ExerciseDetailModal } from '@/components/ExerciseDetailModal';
+import { CardMenu } from '@/components/CardMenu';
 import { startSortableDrag } from '@/lib/sortableDrag';
 import { useTranslation } from '@/hooks/useTranslation';
 import { localizedExercise } from '@/lib/exerciseI18n';
@@ -85,8 +86,10 @@ export function RoutineEditorPage(): React.JSX.Element {
     await load();
   };
 
-  const saveExercise = async (weId: string, patch: Partial<Pick<WorkoutExerciseRow, 'sets' | 'reps' | 'rest_seconds' | 'weight_kg'>>) => {
+  const saveExercise = async (weId: string, patch: Partial<Pick<WorkoutExerciseRow, 'sets' | 'reps' | 'rest_seconds' | 'weight_kg' | 'sets_detail' | 'notes'>>) => {
     await supabase.from('workout_exercises').update(patch).eq('id', weId);
+    // Reflejo local para no perder los cambios al reordenar/re-render.
+    setDay((prev) => (prev?.workout ? { ...prev, workout: { ...prev.workout, exercises: prev.workout.exercises.map((x) => (x.id === weId ? { ...x, ...patch } : x)) } } : prev));
   };
 
   const removeExercise = async (weId: string) => {
@@ -167,7 +170,6 @@ export function RoutineEditorPage(): React.JSX.Element {
                 key={we.id}
                 we={we}
                 index={index}
-                count={exercises.length}
                 dragging={draggedExIndex === index}
                 onSave={(patch) => void saveExercise(we.id, patch)}
                 onRemove={() => void removeExercise(we.id)}
@@ -194,10 +196,15 @@ export function RoutineEditorPage(): React.JSX.Element {
   );
 }
 
+function initialSets(we: WorkoutExerciseWithExercise): WorkoutSet[] {
+  if (we.sets_detail?.length) return we.sets_detail;
+  const n = Math.max(we.sets ?? 1, 1);
+  return Array.from({ length: n }, () => ({ reps: we.reps ?? '', kg: we.weight_kg ?? null }));
+}
+
 function ExerciseCard({
   we,
   index,
-  count,
   dragging,
   onSave,
   onRemove,
@@ -208,9 +215,8 @@ function ExerciseCard({
 }: {
   we: WorkoutExerciseWithExercise;
   index: number;
-  count: number;
   dragging: boolean;
-  onSave: (patch: Partial<Pick<WorkoutExerciseRow, 'sets' | 'reps' | 'rest_seconds' | 'weight_kg'>>) => void;
+  onSave: (patch: Partial<Pick<WorkoutExerciseRow, 'sets' | 'reps' | 'rest_seconds' | 'weight_kg' | 'sets_detail' | 'notes'>>) => void;
   onRemove: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
@@ -220,6 +226,21 @@ function ExerciseCard({
   const { language } = useTranslation();
   const thumbStyle = we.exercise?.image_url ? { backgroundImage: `url(${we.exercise.image_url})` } : undefined;
   const exName = we.exercise ? localizedExercise(we.exercise, language).name : 'Ejercicio';
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [sets, setSets] = useState<WorkoutSet[]>(() => initialSets(we));
+  const [note, setNote] = useState(we.notes ?? '');
+
+  // Persiste el array de sets + un resumen (sets/reps/weight_kg) para compat.
+  const persistSets = (next: WorkoutSet[]) => {
+    setSets(next);
+    const first = next[0];
+    onSave({ sets_detail: next, sets: next.length, reps: first?.reps ?? '', weight_kg: first?.kg ?? null });
+  };
+  const setLocal = (i: number, field: keyof WorkoutSet, value: string) =>
+    setSets((prev) => prev.map((s, idx) => (idx === i ? { ...s, [field]: field === 'kg' ? (value === '' ? null : Number(value)) : value } : s)));
+  const addSet = () => persistSets([...sets, sets.length ? { ...sets[sets.length - 1] } : { reps: '', kg: null }]);
+  const removeSet = (i: number) => persistSets(sets.filter((_, idx) => idx !== i));
+
   return (
     <div className={`rex-card${dragging ? ' dragging' : ''}`} data-ex-index={index} onMouseDown={onDragStart}>
       <div className="rex-head">
@@ -228,11 +249,28 @@ function ExerciseCard({
           {we.exercise?.image_url ? null : <DumbbellIcon size={18} />}
         </div>
         <span className="rex-name" onClick={onOpenDetail}>{exName}</span>
-        <div className="ex-move">
-          <button type="button" className="icon-btn sm" title="Subir" disabled={index === 0} onClick={onMoveUp}>↑</button>
-          <button type="button" className="icon-btn sm" title="Bajar" disabled={index === count - 1} onClick={onMoveDown}>↓</button>
-          <button type="button" className="icon-btn sm" title="Quitar" onClick={onRemove}>✕</button>
-        </div>
+        <CardMenu
+          open={menuOpen}
+          onToggle={() => setMenuOpen((v) => !v)}
+          items={[
+            { label: 'Ver detalle', onClick: onOpenDetail },
+            { label: 'Subir', onClick: onMoveUp },
+            { label: 'Bajar', onClick: onMoveDown },
+            { label: 'Quitar ejercicio', onClick: onRemove, danger: true },
+          ]}
+        />
+      </div>
+
+      <div className="rex-note">
+        <label>Nota</label>
+        <textarea
+          className="hevy-input"
+          rows={1}
+          placeholder="Agregá una nota para este ejercicio"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          onBlur={() => note !== (we.notes ?? '') && onSave({ notes: note || null })}
+        />
       </div>
 
       <div className="rex-resttimer">
@@ -248,34 +286,34 @@ function ExerciseCard({
         </select>
       </div>
 
-      <div className="rex-sets-head">
+      <div className="rex-sets3-head">
         <span>Serie</span>
-        <span>Reps</span>
         <span>Kg</span>
-        <span>Series</span>
+        <span>Reps</span>
         <span />
       </div>
-      <div className="rex-sets-row">
-        <span className="rex-setnum">1</span>
-        <input
-          className="rex-input"
-          defaultValue={we.reps ?? ''}
-          onBlur={(e) => onSave({ reps: e.target.value })}
-        />
-        <input
-          className="rex-input"
-          inputMode="decimal"
-          defaultValue={we.weight_kg ?? ''}
-          onBlur={(e) => onSave({ weight_kg: e.target.value === '' ? null : Number(e.target.value) })}
-        />
-        <input
-          className="rex-input"
-          inputMode="numeric"
-          defaultValue={we.sets ?? ''}
-          onBlur={(e) => onSave({ sets: e.target.value === '' ? 0 : Number(e.target.value) })}
-        />
-        <span />
-      </div>
+      {sets.map((s, i) => (
+        <div className="rex-sets3-row" key={i}>
+          <span className="rex-setnum">{i + 1}</span>
+          <input
+            className="rex-input"
+            inputMode="decimal"
+            placeholder="—"
+            value={s.kg ?? ''}
+            onChange={(e) => setLocal(i, 'kg', e.target.value)}
+            onBlur={() => persistSets(sets)}
+          />
+          <input
+            className="rex-input"
+            placeholder="—"
+            value={s.reps ?? ''}
+            onChange={(e) => setLocal(i, 'reps', e.target.value)}
+            onBlur={() => persistSets(sets)}
+          />
+          <button type="button" className="rex-set-x" title="Quitar serie" onClick={() => removeSet(i)}>✕</button>
+        </div>
+      ))}
+      <button type="button" className="rex-add-set" onClick={addSet}>+ Agregar serie</button>
     </div>
   );
 }
