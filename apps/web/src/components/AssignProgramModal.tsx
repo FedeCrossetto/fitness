@@ -5,8 +5,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/useToast';
 import { resolveAvatarUrl, initials } from '@/lib/avatarUrl';
 
-type ClientOption = Pick<ProfileRow, 'id' | 'full_name' | 'avatar_url' | 'assigned_program_key'>;
-type AssignedInfo = Pick<ProgramRow, 'program_key' | 'name' | 'start_date' | 'duration_weeks'>;
+type ClientOption = Pick<ProfileRow, 'id' | 'full_name' | 'avatar_url'>;
+type AssignedProgramInfo = Pick<ProgramRow, 'id' | 'name' | 'start_date' | 'duration_weeks'>;
 
 const DURATION_OPTIONS = [4, 6, 8, 12, 16];
 const WEEKDAY_LABELS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
@@ -31,11 +31,17 @@ function monthGrid(monthDate: Date): Date[] {
   return Array.from({ length: 42 }, (_, i) => addDays(start, i));
 }
 
+function formatShort(d: Date): string {
+  return d.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
+}
+
 /** Asigna un programa de la librería a uno o más clientes — SIEMPRE clona el
  * programa (una copia individual por cliente vía el RPC clone_program), como
- * "Copy Program to Clients" de Hevy. Con Schedule activado, además guarda
- * start_date/duration_weeks en la copia y bloquea ese rango en el calendario
- * de conflicto; sin Schedule ("unlimited") no bloquea nada. */
+ * "Copy Program to Clients" de Hevy. Un cliente puede tener varios programas
+ * agendados en simultáneo (rangos de fecha distintos) — se bloquea únicamente
+ * si el rango elegido se superpone con uno ya agendado de ese cliente. El
+ * programa "activo hoy" de cada cliente lo resuelve la base automáticamente
+ * (ver resolve_active_program_key). */
 export function AssignProgramModal({
   program,
   onClose,
@@ -46,7 +52,7 @@ export function AssignProgramModal({
   const { profile: trainerProfile } = useAuth();
   const { showToast } = useToast();
   const [clients, setClients] = useState<ClientOption[]>([]);
-  const [assignedInfoByKey, setAssignedInfoByKey] = useState<Map<string, AssignedInfo>>(new Map());
+  const [programsByClient, setProgramsByClient] = useState<Map<string, AssignedProgramInfo[]>>(new Map());
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -57,30 +63,34 @@ export function AssignProgramModal({
   const [startDate, setStartDate] = useState<Date>(new Date());
   const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
 
-  useEffect(() => {
+  const load = async () => {
     if (!trainerProfile?.id) return;
-    void (async () => {
-      const { data } = await supabase
-        .from('profiles')
-        .select('id, full_name, avatar_url, assigned_program_key')
-        .eq('trainer_id', trainerProfile.id)
-        .order('full_name');
-      const clientRows = (data as ClientOption[] | null) ?? [];
-      setClients(clientRows);
+    const { data: clientRows } = await supabase
+      .from('profiles')
+      .select('id, full_name, avatar_url')
+      .eq('trainer_id', trainerProfile.id)
+      .order('full_name');
+    const clientList = (clientRows as ClientOption[] | null) ?? [];
+    setClients(clientList);
 
-      const keys = Array.from(new Set(clientRows.map((c) => c.assigned_program_key).filter((k): k is string => !!k)));
-      if (keys.length > 0) {
-        const { data: assignedRows } = await supabase
-          .from('programs')
-          .select('program_key, name, start_date, duration_weeks')
-          .in('program_key', keys);
-        const map = new Map<string, AssignedInfo>();
-        for (const row of (assignedRows as AssignedInfo[] | null) ?? []) map.set(row.program_key, row);
-        setAssignedInfoByKey(map);
+    if (clientList.length > 0) {
+      const { data: progRows } = await supabase
+        .from('programs')
+        .select('id, client_id, name, start_date, duration_weeks')
+        .in('client_id', clientList.map((c) => c.id));
+      const map = new Map<string, AssignedProgramInfo[]>();
+      for (const row of (progRows as (AssignedProgramInfo & { client_id: string })[] | null) ?? []) {
+        const list = map.get(row.client_id) ?? [];
+        list.push(row);
+        map.set(row.client_id, list);
       }
-      setLoading(false);
-    })();
-  }, [trainerProfile?.id]);
+      for (const list of map.values()) list.sort((a, b) => (a.start_date ?? '').localeCompare(b.start_date ?? ''));
+      setProgramsByClient(map);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => { void load(); }, [trainerProfile?.id]);
 
   const toggle = (id: string) => {
     setSelected((prev) => {
@@ -96,29 +106,51 @@ export function AssignProgramModal({
     return clients.filter((c) => (c.full_name ?? '').toLowerCase().includes(q));
   }, [clients, search]);
 
-  const withoutProgram = useMemo(() => filtered.filter((c) => !c.assigned_program_key), [filtered]);
-  const withProgram = useMemo(() => filtered.filter((c) => !!c.assigned_program_key), [filtered]);
+  const withoutProgram = useMemo(
+    () => filtered.filter((c) => (programsByClient.get(c.id)?.length ?? 0) === 0),
+    [filtered, programsByClient],
+  );
+  const withProgram = useMemo(
+    () => filtered.filter((c) => (programsByClient.get(c.id)?.length ?? 0) > 0),
+    [filtered, programsByClient],
+  );
 
-  // Rangos bloqueados por clientes seleccionados que ya tienen un programa
-  // agendado (start_date + duration_weeks) — solo programas asignados con
-  // Schedule activado bloquean; sin fecha de inicio, no bloquean nada.
+  // Rango propuesto (celeste) — se actualiza en vivo con duración/fecha.
+  const previewRange = useMemo(() => {
+    if (!scheduleEnabled) return null;
+    return { start: startDate, end: addDays(startDate, durationWeeks * 7) };
+  }, [scheduleEnabled, startDate, durationWeeks]);
+
+  // Rangos ya agendados de los clientes SELECCIONADOS (naranja).
   const blockedRanges = useMemo(() => {
     const ranges: { start: Date; end: Date }[] = [];
-    for (const c of withProgram) {
-      if (!selected.has(c.id) || !c.assigned_program_key) continue;
-      const info = assignedInfoByKey.get(c.assigned_program_key);
-      if (!info?.start_date || !info.duration_weeks) continue;
-      const start = new Date(info.start_date);
-      ranges.push({ start, end: addDays(start, info.duration_weeks * 7) });
+    for (const clientId of selected) {
+      for (const info of programsByClient.get(clientId) ?? []) {
+        if (!info.start_date || !info.duration_weeks) continue;
+        const start = new Date(info.start_date);
+        ranges.push({ start, end: addDays(start, info.duration_weeks * 7) });
+      }
     }
     return ranges;
-  }, [withProgram, selected, assignedInfoByKey]);
+  }, [selected, programsByClient]);
+
+  const rangesOverlap = (a: { start: Date; end: Date }, b: { start: Date; end: Date }) => a.start < b.end && b.start < a.end;
 
   const isBlocked = (day: Date) =>
     blockedRanges.some((r) => day >= new Date(r.start.toDateString()) && day < new Date(r.end.toDateString()));
 
+  const isPreviewing = (day: Date) =>
+    !!previewRange && day >= new Date(previewRange.start.toDateString()) && day < new Date(previewRange.end.toDateString());
+
+  // Bloquea la confirmación si el rango elegido choca con algún programa ya
+  // agendado de CUALQUIER cliente seleccionado.
+  const hasConflict = useMemo(() => {
+    if (!previewRange) return false;
+    return blockedRanges.some((r) => rangesOverlap(previewRange, r));
+  }, [previewRange, blockedRanges]);
+
   const assign = async () => {
-    if (selected.size === 0 || saving) return;
+    if (selected.size === 0 || saving || hasConflict) return;
     setSaving(true);
     const isoStart = toIsoDate(startDate);
     await Promise.all(
@@ -135,9 +167,7 @@ export function AssignProgramModal({
           ? { start_date: isoStart, duration_weeks: durationWeeks }
           : { start_date: null };
         await supabase.from('programs').update(update).eq('id', newId);
-        const { data: cloned } = await supabase.from('programs').select('program_key').eq('id', newId).maybeSingle();
-        const newKey = (cloned as { program_key: string } | null)?.program_key;
-        if (newKey) await supabase.from('profiles').update({ assigned_program_key: newKey }).eq('id', id);
+        // profiles.assigned_program_key se recalcula solo (trigger en `programs`).
       }),
     );
     setSaving(false);
@@ -152,18 +182,18 @@ export function AssignProgramModal({
     <div className="invite-qr-backdrop" onClick={onClose}>
       <div className="assign-program-modal" onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-          <div style={{ fontWeight: 700, fontSize: 17 }}>Copy Workout Program to Clients</div>
+          <div style={{ fontWeight: 700, fontSize: 17 }}>Copiar programa a clientes</div>
           <button type="button" className="btn secondary sm" onClick={onClose}>✕</button>
         </div>
         <p className="muted" style={{ fontSize: 12.5, margin: '0 0 16px' }}>
-          Copying "{program.name}" to a client will create individual copies of the program for each client. This
-          copy can be edited through the client's program page.
+          Copiar "{program.name}" a un cliente crea una copia individual del programa para cada uno. Un cliente puede
+          tener varios programas agendados en simultáneo (con fechas distintas) — esta copia se suma a las que ya tenga.
         </p>
 
         <div className="assign-program-body">
           <div className="assign-program-clients">
             <div className="search-field" style={{ marginBottom: 12 }}>
-              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search Client" />
+              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar cliente" />
             </div>
 
             {loading ? (
@@ -174,7 +204,7 @@ export function AssignProgramModal({
               <div style={{ maxHeight: 360, overflowY: 'auto' }}>
                 {withoutProgram.length > 0 && (
                   <>
-                    <div className="assign-program-section-label">Clients without an assigned Program</div>
+                    <div className="assign-program-section-label">Clientes sin programa asignado</div>
                     {withoutProgram.map((c) => (
                       <ClientRow key={c.id} client={c} checked={selected.has(c.id)} onToggle={() => toggle(c.id)} />
                     ))}
@@ -182,14 +212,14 @@ export function AssignProgramModal({
                 )}
                 {withProgram.length > 0 && (
                   <>
-                    <div className="assign-program-section-label" style={{ marginTop: 14 }}>Clients with an assigned Program</div>
+                    <div className="assign-program-section-label" style={{ marginTop: 14 }}>Clientes con programa asignado</div>
                     {withProgram.map((c) => (
                       <ClientRow
                         key={c.id}
                         client={c}
                         checked={selected.has(c.id)}
                         onToggle={() => toggle(c.id)}
-                        subLabel={c.assigned_program_key ? assignedInfoByKey.get(c.assigned_program_key)?.name : undefined}
+                        assignedPrograms={programsByClient.get(c.id) ?? []}
                       />
                     ))}
                   </>
@@ -200,7 +230,7 @@ export function AssignProgramModal({
 
           <div className="assign-program-schedule">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-              <span style={{ fontWeight: 650 }}>Schedule</span>
+              <span style={{ fontWeight: 650 }}>Agendar</span>
               <button
                 type="button"
                 className={`assign-toggle${scheduleEnabled ? ' on' : ''}`}
@@ -213,7 +243,7 @@ export function AssignProgramModal({
 
             {scheduleEnabled ? (
               <>
-                <div className="assign-program-section-label">Duration</div>
+                <div className="assign-program-section-label">Duración</div>
                 <select
                   className="inline-select"
                   style={{ width: '100%', marginBottom: 14 }}
@@ -221,11 +251,11 @@ export function AssignProgramModal({
                   onChange={(e) => setDurationWeeks(Number(e.target.value))}
                 >
                   {DURATION_OPTIONS.map((w) => (
-                    <option key={w} value={w}>{w} weeks</option>
+                    <option key={w} value={w}>{w} semanas</option>
                   ))}
                 </select>
 
-                <div className="assign-program-section-label">Start Date</div>
+                <div className="assign-program-section-label">Fecha de inicio</div>
                 <div className="assign-calendar">
                   <div className="assign-calendar-nav">
                     <button type="button" onClick={() => setCalendarMonth((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1))}>‹</button>
@@ -238,20 +268,33 @@ export function AssignProgramModal({
                   <div className="assign-calendar-grid">
                     {days.map((day, i) => {
                       const inMonth = day.getMonth() === calendarMonth.getMonth();
-                      const isSelected = toIsoDate(day) === toIsoDate(startDate);
+                      const isSelectedDay = toIsoDate(day) === toIsoDate(startDate);
                       const blocked = isBlocked(day);
+                      const previewing = isPreviewing(day);
+                      const conflict = blocked && previewing;
+                      const cls = [
+                        'assign-calendar-day',
+                        !inMonth && 'dim',
+                        isSelectedDay && 'selected',
+                        conflict ? 'conflict' : blocked ? 'blocked' : previewing ? 'previewing' : '',
+                      ].filter(Boolean).join(' ');
                       return (
-                        <button
-                          key={i}
-                          type="button"
-                          className={`assign-calendar-day${inMonth ? '' : ' dim'}${isSelected ? ' selected' : ''}${blocked ? ' blocked' : ''}`}
-                          onClick={() => setStartDate(day)}
-                        >
+                        <button key={i} type="button" className={cls} onClick={() => setStartDate(day)}>
                           {day.getDate()}
                         </button>
                       );
                     })}
                   </div>
+                  <div className="assign-calendar-legend">
+                    <span><i className="dot previewing" /> Este programa</span>
+                    <span><i className="dot blocked" /> Ya agendado</span>
+                  </div>
+                  {hasConflict && (
+                    <p className="assign-conflict-msg">
+                      La fecha elegida se superpone con un programa ya agendado de un cliente seleccionado. Cambiá la
+                      fecha, la duración, o deseleccioná ese cliente.
+                    </p>
+                  )}
                 </div>
               </>
             ) : (
@@ -264,8 +307,8 @@ export function AssignProgramModal({
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
           <button type="button" className="btn secondary" onClick={onClose}>Cancelar</button>
-          <button type="button" className="btn primary" disabled={selected.size === 0 || saving} onClick={() => void assign()}>
-            {saving ? 'Copiando…' : `Copy Program${selected.size > 0 ? ` (${selected.size})` : ''}`}
+          <button type="button" className="btn primary" disabled={selected.size === 0 || saving || hasConflict} onClick={() => void assign()}>
+            {saving ? 'Copiando…' : `Copiar programa${selected.size > 0 ? ` (${selected.size})` : ''}`}
           </button>
         </div>
       </div>
@@ -287,8 +330,15 @@ export function AssignProgramModal({
         .assign-calendar-weekdays { margin-bottom: 4px; text-align: center; font-size: 11px; color: var(--text-tertiary); }
         .assign-calendar-day { border: none; background: none; padding: 6px 0; font-size: 12.5px; border-radius: 6px; cursor: pointer; color: var(--text-primary); }
         .assign-calendar-day.dim { color: var(--text-tertiary); opacity: 0.5; }
+        .assign-calendar-day.previewing { background: rgba(56, 189, 248, 0.28); color: #075985; font-weight: 650; }
         .assign-calendar-day.blocked { background: rgba(249,115,22,0.18); color: #f97316; }
+        .assign-calendar-day.conflict { background: rgba(239,68,68,0.28); color: #b91c1c; font-weight: 650; box-shadow: inset 0 0 0 1.5px rgba(239,68,68,0.6); }
         .assign-calendar-day.selected { background: var(--accent, #3b82f6); color: #fff; }
+        .assign-calendar-legend { display: flex; gap: 14px; margin-top: 10px; font-size: 11.5px; color: var(--text-tertiary); }
+        .assign-calendar-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+        .assign-calendar-legend .dot.previewing { background: rgb(56, 189, 248); }
+        .assign-calendar-legend .dot.blocked { background: #f97316; }
+        .assign-conflict-msg { margin: 10px 0 0; font-size: 12px; color: #b91c1c; line-height: 1.5; }
         @media (max-width: 640px) { .assign-program-body { grid-template-columns: 1fr; } }
       `}</style>
     </div>
@@ -299,27 +349,40 @@ function ClientRow({
   client,
   checked,
   onToggle,
-  subLabel,
+  assignedPrograms,
 }: {
   client: ClientOption;
   checked: boolean;
   onToggle: () => void;
-  subLabel?: string;
+  assignedPrograms?: AssignedProgramInfo[];
 }): React.JSX.Element {
   const resolved = resolveAvatarUrl(client.avatar_url);
   return (
-    <label className="client-row-menu-item" style={{ cursor: 'pointer' }}>
-      <input type="checkbox" checked={checked} onChange={onToggle} style={{ marginRight: 4 }} />
+    <label className="client-row-menu-item" style={{ cursor: 'pointer', alignItems: 'flex-start' }}>
+      <input type="checkbox" checked={checked} onChange={onToggle} style={{ marginRight: 4, marginTop: 3 }} />
       {resolved ? (
-        <span className="avatar sm" style={{ padding: 0, overflow: 'hidden' }}>
+        <span className="avatar sm" style={{ padding: 0, overflow: 'hidden', flexShrink: 0 }}>
           <img src={resolved} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
         </span>
       ) : (
-        <span className="avatar sm">{initials(client.full_name)}</span>
+        <span className="avatar sm" style={{ flexShrink: 0 }}>{initials(client.full_name)}</span>
       )}
-      <span style={{ flex: 1 }}>
+      <span style={{ flex: 1, minWidth: 0 }}>
         {client.full_name ?? 'Alumno'}
-        {subLabel ? <div className="muted" style={{ fontSize: 11 }}>{subLabel}</div> : null}
+        {assignedPrograms && assignedPrograms.length > 0 && (
+          <div style={{ marginTop: 2 }}>
+            {assignedPrograms.map((p) => (
+              <div key={p.id} className="muted" style={{ fontSize: 11, lineHeight: 1.6 }}>
+                {p.name}
+                {p.start_date && p.duration_weeks ? (
+                  <> · {formatShort(new Date(p.start_date))} – {formatShort(addDays(new Date(p.start_date), p.duration_weeks * 7 - 1))}</>
+                ) : (
+                  <> · sin fecha</>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </span>
     </label>
   );

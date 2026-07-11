@@ -111,11 +111,32 @@ export function ProgramLibraryPage(): React.JSX.Element {
   const templates = useMemo(() => programs.filter((p) => !p.client_id), [programs]);
   const customized = useMemo(() => programs.filter((p) => !!p.client_id), [programs]);
 
+  const [clientNameById, setClientNameById] = useState<Map<string, string>>(new Map());
+  useEffect(() => {
+    const clientIds = Array.from(new Set(customized.map((p) => p.client_id).filter((id): id is string => !!id)));
+    if (clientIds.length === 0) return;
+    void (async () => {
+      const { data } = await supabase.from('profiles').select('id, full_name').in('id', clientIds);
+      setClientNameById(new Map(((data as { id: string; full_name: string | null }[] | null) ?? []).map((c) => [c.id, c.full_name ?? 'Alumno'])));
+    })();
+  }, [customized]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return templates;
     return templates.filter((p) => p.name.toLowerCase().includes(q));
   }, [templates, query]);
+
+  // "Personalizados por cliente" busca tanto por nombre de programa como por
+  // nombre del cliente dueño de esa copia.
+  const filteredCustomized = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return customized;
+    return customized.filter((p) => {
+      const clientName = (p.client_id ? clientNameById.get(p.client_id) : '') ?? '';
+      return p.name.toLowerCase().includes(q) || clientName.toLowerCase().includes(q);
+    });
+  }, [customized, query, clientNameById]);
 
   const grouped = useMemo(() => {
     const byFolder = new Map<string | null, ProgramWithPreview[]>();
@@ -413,12 +434,16 @@ export function ProgramLibraryPage(): React.JSX.Element {
         )}
       </div>
 
-      {tab === 'library' && (
-        <div className="hevy-toolbar">
-          <div className="search-field">
-            <SearchIcon size={16} />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar programas…" />
-          </div>
+      <div className="hevy-toolbar">
+        <div className="search-field">
+          <SearchIcon size={16} />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={tab === 'custom' ? 'Buscar por cliente o programa…' : 'Buscar programas…'}
+          />
+        </div>
+        {tab === 'library' && (
           <div className="hevy-toolbar-actions">
             <button type="button" className="btn secondary" onClick={() => setFolderModalOpen(true)}>
               <FolderIcon size={15} /> Nueva carpeta
@@ -427,24 +452,34 @@ export function ProgramLibraryPage(): React.JSX.Element {
               <PlusIcon size={15} /> Crear programa
             </button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {error ? (
         <ErrorState message={error} onRetry={refetch} />
       ) : loading ? (
         <div className="card" style={{ padding: 16 }}><LoadingRows rows={4} /></div>
       ) : tab === 'custom' ? (
-        <div className="folder-body">
-          {customized.map((p) => (
-            <div key={p.id} className="prog-row" onClick={() => navigate(`/programs/${p.id}`)} role="button" tabIndex={0}>
-              <div className="prog-row-main">
-                <div className="prog-row-title">{p.name}</div>
-                <p className="muted" style={{ margin: '8px 0 0', fontSize: 13 }}>Personalizado — no afecta la plantilla original</p>
+        filteredCustomized.length === 0 ? (
+          <div className="card">
+            <p className="muted" style={{ margin: 0 }}>
+              {query.trim() ? 'Sin resultados para esa búsqueda.' : 'Todavía no hay programas personalizados por cliente.'}
+            </p>
+          </div>
+        ) : (
+          <div className="folder-body">
+            {filteredCustomized.map((p) => (
+              <div key={p.id} className="prog-row" onClick={() => navigate(`/programs/${p.id}`)} role="button" tabIndex={0}>
+                <div className="prog-row-main">
+                  <div className="prog-row-title">{p.name}</div>
+                  <p className="muted" style={{ margin: '8px 0 0', fontSize: 13 }}>
+                    {p.client_id ? clientNameById.get(p.client_id) ?? 'Cliente' : 'Cliente'} · Personalizado — no afecta la plantilla original
+                  </p>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )
       ) : templates.length === 0 ? (
         <div className="card">
           <EmptyState

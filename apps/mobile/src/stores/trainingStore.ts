@@ -59,9 +59,24 @@ export interface WorkoutWithExercises extends WorkoutRow {
 
 const ACTIVE_SESSION_KEY = 'reset-fitness:activeSession';
 
-function resolveProgramKey(): string {
-  const assigned = useAuthStore.getState().profile?.assigned_program_key;
-  if (assigned) return assigned;
+/** Resuelve el program_key a mostrar HOY. Consulta la RPC en vivo (no la
+ * columna cacheada de `profiles`) para que un programa agendado que arranca
+ * hoy aparezca sin que nadie tenga que tocar nada ese día:
+ *   - programa activo hoy → ese.
+ *   - sin programa activo pero el cliente SÍ tuvo alguna vez algo asignado
+ *     → null (sin plan para estas fechas, por diseño).
+ *   - nunca tuvo nada asignado (cliente nuevo) → demo/branding por defecto,
+ *     igual que antes. */
+async function resolveProgramKey(): Promise<string | null> {
+  const userId = useAuthStore.getState().session?.user.id;
+  if (userId) {
+    const [{ data: activeKey }, { data: everHadOne }] = await Promise.all([
+      supabase.rpc('get_my_active_program_key'),
+      supabase.rpc('i_have_ever_had_a_program'),
+    ]);
+    if (activeKey) return activeKey;
+    if (everHadOne) return null;
+  }
   return useBrandingStore.getState().branding?.default_program_key ?? defaultClientConfig.programKey;
 }
 
@@ -162,8 +177,14 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
   customLoading: false,
 
   loadProgram: async () => {
-    const programKey = resolveProgramKey();
     set({ phasesLoading: true, phasesError: null });
+    const programKey = await resolveProgramKey();
+    if (!programKey) {
+      // Sin programa activo para hoy (el cliente tuvo algo asignado antes,
+      // pero ningún rango agendado incluye la fecha de hoy).
+      set({ phases: [], phasesLoading: false, phasesError: null });
+      return;
+    }
     try {
       await staleWhileRevalidate<PhaseWithDays[]>(
         `training:program:${programKey}`,

@@ -755,6 +755,18 @@ export interface Database {
         Args: { p_program_id: string; p_new_name: string; p_client_id?: string | null };
         Returns: string;
       };
+      resolve_active_program_key: {
+        Args: { p_client_id: string };
+        Returns: string | null;
+      };
+      get_my_active_program_key: {
+        Args: Record<string, never>;
+        Returns: string | null;
+      };
+      i_have_ever_had_a_program: {
+        Args: Record<string, never>;
+        Returns: boolean;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
