@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import type {
   ExerciseRow,
   ProgramRow,
@@ -44,6 +44,8 @@ const MOCK_MUSCLE_SETS: [string, number][] = [
  * algún motivo no existe todavía, se crea al cargar. */
 export function ProgramEditorPage(): React.JSX.Element {
   const { id } = useParams<{ id: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const { session } = useAuth();
   const trainerId = session?.user.id ?? null;
   const { showToast } = useToast();
@@ -110,6 +112,15 @@ export function ProgramEditorPage(): React.JSX.Element {
   }, [id, trainerId]);
 
   useEffect(() => { void load(); }, [load]);
+
+  // Programa recién creado (?new=1): enfocar y seleccionar el nombre para
+  // que el coach lo escriba directo, y limpiar el flag de la URL.
+  useEffect(() => {
+    if (!program || searchParams.get('new') !== '1') return;
+    nameInputRef.current?.focus();
+    nameInputRef.current?.select();
+    setSearchParams({}, { replace: true });
+  }, [program, searchParams, setSearchParams]);
 
   const saveProgramField = async (patch: Partial<Pick<ProgramRow, 'name' | 'note' | 'duration_weeks'>>) => {
     if (!program) return;
@@ -334,6 +345,7 @@ export function ProgramEditorPage(): React.JSX.Element {
             <div>
               <div className="field-label">Título del programa</div>
               <input
+                ref={nameInputRef}
                 className="hevy-input"
                 value={nameDraft}
                 onChange={(e) => setNameDraft(e.target.value)}

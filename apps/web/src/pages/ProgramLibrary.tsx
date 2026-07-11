@@ -26,9 +26,6 @@ export function ProgramLibraryPage(): React.JSX.Element {
   const [query, setQuery] = useState('');
   const [folders, setFolders] = useState<ProgramFolderRow[]>([]);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newDuration, setNewDuration] = useState('4');
   const [creating, setCreating] = useState(false);
   const [folderModalOpen, setFolderModalOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
@@ -39,7 +36,6 @@ export function ProgramLibraryPage(): React.JSX.Element {
   const [renameFolderTarget, setRenameFolderTarget] = useState<ProgramFolderRow | null>(null);
   const [renameFolderName, setRenameFolderName] = useState('');
   const [deleteFolderTarget, setDeleteFolderTarget] = useState<ProgramFolderRow | null>(null);
-  const [createFolderId, setCreateFolderId] = useState<string | null>(null);
   const [draggedProgramId, setDraggedProgramId] = useState<string | null>(null);
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -133,19 +129,20 @@ export function ProgramLibraryPage(): React.JSX.Element {
     return byFolder;
   }, [filtered]);
 
-  const createProgram = async () => {
-    if (!userId || creating || !newName.trim()) return;
+  // Crea un programa con un nombre por defecto y lleva directo al editor,
+  // enfocado en el nombre (sin popup). El coach escribe el nombre ahí.
+  const createProgram = async (folderId: string | null = null) => {
+    if (!userId || creating) return;
     setCreating(true);
     const programKey = newProgramKey();
-    const durationWeeks = Number(newDuration) || null;
     const { data: inserted, error: insErr } = await supabase
       .from('programs')
       .insert({
         trainer_id: userId,
         program_key: programKey,
-        name: newName.trim(),
-        duration_weeks: durationWeeks,
-        folder_id: createFolderId,
+        name: 'Nuevo programa',
+        duration_weeks: 4,
+        folder_id: folderId,
       })
       .select()
       .single();
@@ -165,12 +162,8 @@ export function ProgramLibraryPage(): React.JSX.Element {
       is_active: true,
     });
     setCreating(false);
-    setCreateOpen(false);
-    setCreateFolderId(null);
-    setNewName('');
-    setNewDuration('4');
-    showToast('success', 'Programa creado.');
-    navigate(`/programs/${(inserted as ProgramRow).id}`);
+    // ?new=1 → el editor enfoca y selecciona el nombre para escribirlo.
+    navigate(`/programs/${(inserted as ProgramRow).id}?new=1`);
   };
 
   const duplicateProgram = async (program: ProgramRow) => {
@@ -430,7 +423,7 @@ export function ProgramLibraryPage(): React.JSX.Element {
             <button type="button" className="btn secondary" onClick={() => setFolderModalOpen(true)}>
               <FolderIcon size={15} /> Nueva carpeta
             </button>
-            <button type="button" className="btn blue" onClick={() => setCreateOpen(true)}>
+            <button type="button" className="btn blue" onClick={() => void createProgram()}>
               <PlusIcon size={15} /> Crear programa
             </button>
           </div>
@@ -458,7 +451,7 @@ export function ProgramLibraryPage(): React.JSX.Element {
             icon={<DumbbellIcon size={22} />}
             title="Todavía no hay programas"
             sub="Creá tu primer programa reutilizable para asignarlo a tus alumnos."
-            action={{ label: '+ Crear programa', onClick: () => setCreateOpen(true) }}
+            action={{ label: "+ Crear programa", onClick: () => void createProgram() }}
           />
         </div>
       ) : (
@@ -481,7 +474,7 @@ export function ProgramLibraryPage(): React.JSX.Element {
                       open={folderMenuOpenId === folderRow.id}
                       onToggle={() => setFolderMenuOpenId((prev) => (prev === folderRow.id ? null : folderRow.id))}
                       items={[
-                        { label: 'Crear programa', onClick: () => { setCreateFolderId(folderRow.id); setCreateOpen(true); } },
+                        { label: "Crear programa", onClick: () => void createProgram(folderRow.id) },
                         { label: 'Renombrar carpeta', onClick: () => { setRenameFolderTarget(folderRow); setRenameFolderName(folderRow.name); } },
                         { label: 'Duplicar carpeta', onClick: () => void duplicateFolder(folderRow) },
                         { label: 'Eliminar carpeta', onClick: () => setDeleteFolderTarget(folderRow), danger: true },
@@ -500,9 +493,9 @@ export function ProgramLibraryPage(): React.JSX.Element {
                     {items.length === 0 ? (
                       <div className={`prog-drop${isDragOver ? ' drag-over' : ''}`}>
                         {group.id === null ? (
-                          <>Sin programas todavía. <button type="button" className="link-blue" onClick={() => setCreateOpen(true)}>Crear programa</button></>
+                          <>Sin programas todavía. <button type="button" className="link-blue" onClick={() => void createProgram()}>Crear programa</button></>
                         ) : (
-                          <>Arrastrá y soltá un programa acá<br /><span style={{ fontSize: 13 }}>o <button type="button" className="link-blue" onClick={() => { setCreateFolderId(group.id); setCreateOpen(true); }}>Crear programa</button></span></>
+                          <>Arrastrá y soltá un programa acá<br /><span style={{ fontSize: 13 }}>o <button type="button" className="link-blue" onClick={() => void createProgram(group.id)}>Crear programa</button></span></>
                         )}
                       </div>
                     ) : (
@@ -516,37 +509,6 @@ export function ProgramLibraryPage(): React.JSX.Element {
         </>
       )}
 
-      {createOpen && (
-        <div className="invite-qr-backdrop" onClick={() => setCreateOpen(false)}>
-          <div className="add-client-modal" onClick={(e) => e.stopPropagation()}>
-            <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 16 }}>Crear programa</div>
-            <div className="add-client-section-label">Nombre</div>
-            <input
-              className="add-client-email-input"
-              style={{ width: '100%', marginBottom: 14 }}
-              placeholder="Ej: Full Body x3"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              autoFocus
-            />
-            <div className="add-client-section-label">Duración (semanas)</div>
-            <input
-              className="add-client-email-input"
-              style={{ width: '100%' }}
-              type="number"
-              min={1}
-              value={newDuration}
-              onChange={(e) => setNewDuration(e.target.value)}
-            />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
-              <button type="button" className="btn secondary" onClick={() => { setCreateOpen(false); setCreateFolderId(null); }}>Cancelar</button>
-              <button type="button" className="btn primary" disabled={!newName.trim() || creating} onClick={() => void createProgram()}>
-                {creating ? 'Creando…' : 'Crear'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {renameFolderTarget && (
         <div className="invite-qr-backdrop" onClick={() => setRenameFolderTarget(null)}>

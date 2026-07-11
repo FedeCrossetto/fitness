@@ -7,6 +7,7 @@ import { DumbbellIcon, PlusIcon, TrendingUpIcon, GripIcon } from '@/components/i
 import { ExerciseDetailModal } from '@/components/ExerciseDetailModal';
 import { CardMenu } from '@/components/CardMenu';
 import { startSortableDrag } from '@/lib/sortableDrag';
+import { createDragGhost } from '@/lib/dragGhost';
 import { useTranslation } from '@/hooks/useTranslation';
 import { localizedExercise } from '@/lib/exerciseI18n';
 
@@ -152,7 +153,7 @@ export function RoutineEditorPage(): React.JSX.Element {
       </div>
 
       <div className="prog-editor-grid" style={{ gridTemplateColumns: 'minmax(0,1fr) 360px' }}>
-        <div>
+        <div data-routine-drop className="routine-drop-col">
           <div className="field-label">Título de la rutina</div>
           <input
             className="hevy-input"
@@ -321,6 +322,51 @@ function ExerciseCard({
 function ExercisePickerPanel({ onPick, onDetail }: { onPick: (ex: CatalogExercise) => void; onDetail: (id: string) => void }): React.JSX.Element {
   const { language } = useTranslation();
   const navigate = useNavigate();
+
+  // Drag desde el picker hacia la rutina: se arrastra la fila y, si se suelta
+  // sobre la columna de la rutina ([data-routine-drop]), se agrega el ejercicio.
+  const startPickerDrag = (e: React.MouseEvent, ex: CatalogExercise) => {
+    if (e.button !== 0) return;
+    if ((e.target as HTMLElement).closest('.picker-add')) return; // el + tiene su propio click
+    const row = (e.target as HTMLElement).closest<HTMLElement>('.picker-row');
+    if (!row) return;
+    const startX = e.clientX, startY = e.clientY;
+    let moved = false;
+    let ghost: ReturnType<typeof createDragGhost> | null = null;
+    let overDrop: HTMLElement | null = null;
+    const clearHighlight = () => document.querySelectorAll('.routine-drop-col.drop-target').forEach((el) => el.classList.remove('drop-target'));
+    const onMove = (ev: MouseEvent) => {
+      if (!moved) {
+        if (Math.abs(ev.clientX - startX) < 5 && Math.abs(ev.clientY - startY) < 5) return;
+        moved = true;
+        document.body.classList.add('is-dragging-card');
+        ghost = createDragGhost(row, { clientX: startX, clientY: startY });
+      }
+      ghost?.move(ev);
+      const el = document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null;
+      const drop = el?.closest<HTMLElement>('[data-routine-drop]') ?? null;
+      if (drop !== overDrop) {
+        clearHighlight();
+        drop?.classList.add('drop-target');
+        overDrop = drop;
+      }
+    };
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      if (!moved) return;
+      ghost?.destroy();
+      clearHighlight();
+      document.body.classList.remove('is-dragging-card');
+      // Suprimir el click que abre el detalle tras el drag.
+      const suppress = (ce: MouseEvent) => { ce.stopPropagation(); ce.preventDefault(); };
+      window.addEventListener('click', suppress, { capture: true });
+      setTimeout(() => window.removeEventListener('click', suppress, { capture: true }), 300);
+      if (overDrop) onPick(ex);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<CatalogExercise[]>([]);
   const [loading, setLoading] = useState(true);
@@ -390,7 +436,7 @@ function ExercisePickerPanel({ onPick, onDetail }: { onPick: (ex: CatalogExercis
           <div className="muted" style={{ padding: 12 }}>Sin resultados.</div>
         ) : (
           filtered.map(({ ex, loc }) => (
-            <div key={ex.id} className="picker-row" onClick={() => onDetail(ex.id)}>
+            <div key={ex.id} className="picker-row" onClick={() => onDetail(ex.id)} onMouseDown={(e) => startPickerDrag(e, ex)}>
               <div
                 className="ex-thumb ex-thumb-icon"
                 aria-hidden

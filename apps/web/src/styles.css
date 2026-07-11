@@ -4240,6 +4240,12 @@ textarea.hevy-input { resize: vertical; min-height: 88px; line-height: 1.5; }
   font-size: 13px; font-weight: 600; cursor: pointer; transition: background 120ms ease, border-color 120ms ease;
 }
 .rex-add-set:hover { background: var(--surface-elevated); border-color: var(--text-tertiary); color: var(--text-primary); }
+/* Zona de drop de la rutina resaltada al arrastrar un ejercicio desde el picker */
+.routine-drop-col { border-radius: var(--radius); transition: box-shadow 140ms ease, background 140ms ease; }
+.routine-drop-col.drop-target {
+  box-shadow: 0 0 0 2px var(--accent-ring); background: var(--accent-soft);
+}
+.picker-row { cursor: grab; }
 
 /* ════════ Modal de detalle de ejercicio (estilo Hevy) ════════ */
 .exdetail-modal {
