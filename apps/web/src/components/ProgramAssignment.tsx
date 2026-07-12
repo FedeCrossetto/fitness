@@ -1,12 +1,18 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { ProgramRow } from '@reset-fitness/shared/types/database';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/useToast';
+import { CardMenu } from '@/components/CardMenu';
+import { ConfirmDialog } from '@/components/ui';
 
+function parseIsoDateLocal(iso: string): Date {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
 function addDays(iso: string, days: number): Date {
-  const d = new Date(iso);
+  const d = parseIsoDateLocal(iso);
   d.setDate(d.getDate() + days);
   return d;
 }
@@ -33,8 +39,9 @@ export function ProgramAssignment({ clientId }: { clientId: string }): React.JSX
   const [programs, setPrograms] = useState<ProgramRow[]>([]);
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectValue, setSelectValue] = useState('');
   const [assigning, setAssigning] = useState(false);
+  const [removeTarget, setRemoveTarget] = useState<ProgramRow | null>(null);
+  const [replaceTarget, setReplaceTarget] = useState<ProgramRow | null>(null);
 
   const load = async () => {
     if (!trainerProfile?.id) return;
@@ -81,12 +88,64 @@ export function ProgramAssignment({ clientId }: { clientId: string }): React.JSX
     if (error || !newId) {
       setAssigning(false);
       showToast('error', 'No pudimos asignar el programa.');
-      return;
+      return null;
     }
     // profiles.assigned_program_key se recalcula solo (trigger en `programs`).
     setAssigning(false);
-    setSelectValue('');
     showToast('success', 'Programa asignado.');
+    void load();
+    return newId as string;
+  };
+
+  const deleteClientProgram = async (program: ProgramRow) => {
+    const { data: phaseRows } = await supabase.from('training_phases').select('id').eq('program_key', program.program_key);
+    const phaseIds = ((phaseRows as { id: string }[] | null) ?? []).map((p) => p.id);
+    if (phaseIds.length > 0) {
+      const { data: dayRows } = await supabase.from('training_days').select('id, workout_id').in('phase_id', phaseIds);
+      const dayList = (dayRows as { id: string; workout_id: string | null }[] | null) ?? [];
+      const workoutIds = dayList.map((d) => d.workout_id).filter((id): id is string => !!id);
+      if (workoutIds.length > 0) {
+        await supabase.from('workout_exercises').delete().in('workout_id', workoutIds);
+        await supabase.from('workouts').delete().in('id', workoutIds);
+      }
+      await supabase.from('training_days').delete().in('phase_id', phaseIds);
+      await supabase.from('training_phases').delete().in('id', phaseIds);
+    }
+    await supabase.from('programs').delete().eq('id', program.id);
+  };
+
+  const confirmRemove = async () => {
+    if (!removeTarget) return;
+    await deleteClientProgram(removeTarget);
+    setRemoveTarget(null);
+    showToast('success', 'Programa quitado.');
+    void load();
+  };
+
+  const copyToLibrary = async (program: ProgramRow) => {
+    const { error } = await supabase.rpc('clone_program', {
+      p_program_id: program.id,
+      p_new_name: `${program.name} (copia)`,
+      p_client_id: null,
+    });
+    if (error) {
+      showToast('error', 'No pudimos copiar el programa a tu biblioteca.');
+      return;
+    }
+    showToast('success', 'Programa copiado a "Mi biblioteca".');
+  };
+
+  const doReplace = async (newTemplate: ProgramRow) => {
+    if (!replaceTarget) return;
+    const old = replaceTarget;
+    setReplaceTarget(null);
+    const newId = await assignProgram(newTemplate);
+    if (!newId) return;
+    if (old.start_date && old.duration_weeks) {
+      await supabase.from('programs').update({ start_date: old.start_date, duration_weeks: old.duration_weeks }).eq('id', newId);
+    }
+    await deleteClientProgram(old);
+    showToast('success', 'Programa reemplazado.');
     void load();
   };
 
@@ -97,7 +156,18 @@ export function ProgramAssignment({ clientId }: { clientId: string }): React.JSX
       <div className="section-title" style={{ marginBottom: 12 }}>Programa asignado</div>
 
       {active.length > 0 ? (
-        active.map((p) => <ProgramLine key={p.id} program={p} tag="Activo hoy" tagColor="var(--good, #16a34a)" onEdit={() => navigate(`/programs/${p.id}`)} />)
+        active.map((p) => (
+          <ProgramLine
+            key={p.id}
+            program={p}
+            tag="Activo hoy"
+            tagColor="var(--good, #16a34a)"
+            onEdit={() => navigate(`/programs/${p.id}`)}
+            onRemove={() => setRemoveTarget(p)}
+            onReplace={() => setReplaceTarget(p)}
+            onCopy={() => void copyToLibrary(p)}
+          />
+        ))
       ) : (
         <p className="muted" style={{ margin: '0 0 12px' }}>
           {unscheduled.length > 0 || upcoming.length > 0
@@ -109,14 +179,34 @@ export function ProgramAssignment({ clientId }: { clientId: string }): React.JSX
       {upcoming.length > 0 && (
         <div style={{ marginTop: 14 }}>
           <div className="add-client-section-label">Próximos</div>
-          {upcoming.map((p) => <ProgramLine key={p.id} program={p} tag="Agendado" tagColor="var(--text-tertiary)" onEdit={() => navigate(`/programs/${p.id}`)} />)}
+          {upcoming.map((p) => (
+            <ProgramLine
+              key={p.id}
+              program={p}
+              tag="Agendado"
+              tagColor="var(--text-tertiary)"
+              onEdit={() => navigate(`/programs/${p.id}`)}
+              onRemove={() => setRemoveTarget(p)}
+              onReplace={() => setReplaceTarget(p)}
+              onCopy={() => void copyToLibrary(p)}
+            />
+          ))}
         </div>
       )}
 
       {unscheduled.length > 0 && (
         <div style={{ marginTop: 14 }}>
           <div className="add-client-section-label">Sin fecha (ilimitados)</div>
-          {unscheduled.map((p) => <ProgramLine key={p.id} program={p} onEdit={() => navigate(`/programs/${p.id}`)} />)}
+          {unscheduled.map((p) => (
+            <ProgramLine
+              key={p.id}
+              program={p}
+              onEdit={() => navigate(`/programs/${p.id}`)}
+              onRemove={() => setRemoveTarget(p)}
+              onReplace={() => setReplaceTarget(p)}
+              onCopy={() => void copyToLibrary(p)}
+            />
+          ))}
         </div>
       )}
 
@@ -124,34 +214,145 @@ export function ProgramAssignment({ clientId }: { clientId: string }): React.JSX
         <div style={{ marginTop: 14 }}>
           <div className="add-client-section-label">Programas anteriores</div>
           <p className="muted" style={{ margin: '0 0 8px', fontSize: 11.5 }}>No son el programa activo hoy — quedan acá para poder revisarlos.</p>
-          {past.map((p) => <ProgramLine key={p.id} program={p} muted onEdit={() => navigate(`/programs/${p.id}`)} />)}
+          {past.map((p) => (
+            <ProgramLine
+              key={p.id}
+              program={p}
+              muted
+              onEdit={() => navigate(`/programs/${p.id}`)}
+              onRemove={() => setRemoveTarget(p)}
+              onReplace={() => setReplaceTarget(p)}
+              onCopy={() => void copyToLibrary(p)}
+            />
+          ))}
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 8, marginTop: 16, alignItems: 'center' }}>
-        <select
-          className="inline-select"
-          style={{ flex: 1 }}
-          value={selectValue}
-          onChange={(e) => setSelectValue(e.target.value)}
-        >
-          <option value="">Asignar otro programa…</option>
-          {templates.map((t) => (
-            <option key={t.id} value={t.id}>{t.name}</option>
-          ))}
-        </select>
-        <button
-          type="button"
-          className="btn secondary sm"
-          disabled={!selectValue || assigning}
-          onClick={() => {
-            const program = templates.find((t) => t.id === selectValue);
-            if (program) void assignProgram(program);
-          }}
-        >
-          {assigning ? 'Asignando…' : 'Asignar'}
-        </button>
+      <div style={{ marginTop: 16 }}>
+        <SearchableAssign
+          templates={templates}
+          assigning={assigning}
+          onAssign={(program) => void assignProgram(program)}
+        />
       </div>
+
+      <ConfirmDialog
+        open={!!removeTarget}
+        title="Quitar programa"
+        message={`¿Quitar "${removeTarget?.name}" de este cliente? Se borra esta copia y sus entrenamientos.`}
+        confirmLabel="Quitar"
+        cancelLabel="Cancelar"
+        danger
+        onCancel={() => setRemoveTarget(null)}
+        onConfirm={() => void confirmRemove()}
+      />
+
+      {replaceTarget && (
+        <div className="invite-qr-backdrop" onClick={() => setReplaceTarget(null)}>
+          <div className="assign-program-modal" style={{ width: 'min(420px, 92vw)' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>Reemplazar "{replaceTarget.name}"</div>
+            <p className="muted" style={{ fontSize: 12.5, margin: '0 0 14px' }}>
+              Elegí el programa nuevo — conserva la misma fecha/duración y se borra el anterior.
+            </p>
+            <SearchableAssign
+              templates={templates}
+              assigning={assigning}
+              onAssign={(program) => void doReplace(program)}
+              buttonLabel="Reemplazar"
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SearchableAssign({
+  templates,
+  assigning,
+  onAssign,
+  buttonLabel = 'Asignar',
+}: {
+  templates: ProgramRow[];
+  assigning: boolean;
+  onAssign: (program: ProgramRow) => void;
+  buttonLabel?: string;
+}): React.JSX.Element {
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState<ProgramRow | null>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onDocClick = (e: MouseEvent) => {
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, []);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return templates;
+    return templates.filter((t) => t.name.toLowerCase().includes(q));
+  }, [templates, query]);
+
+  return (
+    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+      <div ref={boxRef} style={{ position: 'relative', flex: 1 }}>
+        <input
+          className="inline-select"
+          style={{ width: '100%' }}
+          placeholder="Asignar otro programa…"
+          value={selected ? selected.name : query}
+          onFocus={() => setOpen(true)}
+          onChange={(e) => { setSelected(null); setQuery(e.target.value); setOpen(true); }}
+        />
+        {open && (
+          <div className="searchable-assign-pop">
+            {filtered.length === 0 ? (
+              <div className="searchable-assign-empty">Sin resultados.</div>
+            ) : (
+              filtered.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  className="searchable-assign-item"
+                  onClick={() => { setSelected(t); setQuery(''); setOpen(false); }}
+                >
+                  {t.name}
+                </button>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+      <button
+        type="button"
+        className="btn secondary sm"
+        disabled={!selected || assigning}
+        onClick={() => {
+          if (!selected) return;
+          onAssign(selected);
+          setSelected(null);
+          setQuery('');
+        }}
+      >
+        {assigning ? 'Asignando…' : buttonLabel}
+      </button>
+      <style>{`
+        .searchable-assign-pop {
+          position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 20;
+          background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+          box-shadow: 0 8px 24px rgba(0,0,0,0.15); max-height: 220px; overflow-y: auto; padding: 4px;
+        }
+        .searchable-assign-item {
+          display: block; width: 100%; text-align: left; background: none; border: none; cursor: pointer;
+          padding: 8px 10px; font-size: 13px; border-radius: 6px; color: var(--text-primary);
+        }
+        .searchable-assign-item:hover { background: var(--surface-hover, rgba(0,0,0,0.04)); }
+        .searchable-assign-empty { padding: 8px 10px; font-size: 12.5px; color: var(--text-tertiary); }
+      `}</style>
     </div>
   );
 }
@@ -162,18 +363,31 @@ function ProgramLine({
   tagColor,
   muted,
   onEdit,
+  onRemove,
+  onReplace,
+  onCopy,
 }: {
   program: ProgramRow;
   tag?: string;
   tagColor?: string;
   muted?: boolean;
   onEdit: () => void;
+  onRemove: () => void;
+  onReplace: () => void;
+  onCopy: () => void;
 }): React.JSX.Element {
+  const [menuOpen, setMenuOpen] = useState(false);
   const dateRange = program.start_date && program.duration_weeks
-    ? `${fmt(new Date(program.start_date))} – ${fmt(addDays(program.start_date, program.duration_weeks * 7 - 1))}`
+    ? `${fmt(parseIsoDateLocal(program.start_date))} – ${fmt(addDays(program.start_date, program.duration_weeks * 7 - 1))}`
     : null;
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onEdit}
+      onKeyDown={(e) => { if (e.key === 'Enter') onEdit(); }}
+      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '8px 0', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
+    >
       <div style={{ minWidth: 0, opacity: muted ? 0.65 : 1 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontWeight: 650, fontSize: 14 }}>{program.name}</span>
@@ -187,7 +401,16 @@ function ProgramLine({
           {dateRange ?? 'Sin fecha — ilimitado'}
         </div>
       </div>
-      <button type="button" className="btn secondary sm" onClick={onEdit}>Editar</button>
+      <CardMenu
+        open={menuOpen}
+        onToggle={() => setMenuOpen((v) => !v)}
+        items={[
+          { label: 'Editar', onClick: onEdit },
+          { label: 'Reemplazar programa', onClick: onReplace },
+          { label: 'Copiar a mi biblioteca', onClick: onCopy },
+          { label: 'Quitar programa', onClick: onRemove, danger: true },
+        ]}
+      />
     </div>
   );
 }

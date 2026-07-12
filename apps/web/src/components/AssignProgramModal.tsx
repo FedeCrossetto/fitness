@@ -15,6 +15,11 @@ function toIsoDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+function parseIsoDateLocal(iso: string): Date {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
 function addDays(d: Date, days: number): Date {
   const next = new Date(d);
   next.setDate(next.getDate() + days);
@@ -127,7 +132,7 @@ export function AssignProgramModal({
     for (const clientId of selected) {
       for (const info of programsByClient.get(clientId) ?? []) {
         if (!info.start_date || !info.duration_weeks) continue;
-        const start = new Date(info.start_date);
+        const start = parseIsoDateLocal(info.start_date);
         ranges.push({ start, end: addDays(start, info.duration_weeks * 7) });
       }
     }
@@ -375,7 +380,7 @@ function ClientRow({
               <div key={p.id} className="muted" style={{ fontSize: 11, lineHeight: 1.6 }}>
                 {p.name}
                 {p.start_date && p.duration_weeks ? (
-                  <> · {formatShort(new Date(p.start_date))} – {formatShort(addDays(new Date(p.start_date), p.duration_weeks * 7 - 1))}</>
+                  <> · {formatShort(parseIsoDateLocal(p.start_date))} – {formatShort(addDays(parseIsoDateLocal(p.start_date), p.duration_weeks * 7 - 1))}</>
                 ) : (
                   <> · sin fecha</>
                 )}

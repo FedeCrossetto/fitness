@@ -1,8 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { GoalAssignmentRow, GoalType, GoalUnit } from '@reset-fitness/shared/types/database';
+import { useNavigate } from 'react-router-dom';
+import type { GoalAssignmentRow, GoalType, GoalUnit, ProgramRow } from '@reset-fitness/shared/types/database';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/useToast';
+
+function parseIsoDateLocal(iso: string): Date {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+function fmt(d: Date): string {
+  return d.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
+}
 
 const GOAL_PRESETS: { type: GoalType; unit: GoalUnit; label: string; defaultTarget: number }[] = [
   { type: 'hydration', label: 'Hidratación', unit: 'ml', defaultTarget: 3000 },
@@ -21,30 +30,36 @@ interface Props {
 export function ClientCoachPanel({
   clientId,
   assignedProgramKey,
-  defaultProgramKey,
-  onProgramKeyChange,
 }: Props): React.JSX.Element {
   const { session } = useAuth();
   const { showToast } = useToast();
+  const navigate = useNavigate();
   const trainerId = session?.user.id;
 
-  const [programKeys, setProgramKeys] = useState<string[]>([]);
-  const [savingProgram, setSavingProgram] = useState(false);
+  const [activeProgram, setActiveProgram] = useState<ProgramRow | null>(null);
+  const [loadingProgram, setLoadingProgram] = useState(true);
   const [assignments, setAssignments] = useState<GoalAssignmentRow[]>([]);
   const [loadingGoals, setLoadingGoals] = useState(true);
   const [addingGoal, setAddingGoal] = useState<GoalType | null>(null);
 
   useEffect(() => {
-    if (!trainerId) return;
+    setLoadingProgram(true);
+    if (!assignedProgramKey) {
+      setActiveProgram(null);
+      setLoadingProgram(false);
+      return;
+    }
     void (async () => {
       const { data } = await supabase
-        .from('training_phases')
-        .select('program_key')
-        .eq('trainer_id', trainerId);
-      const keys = [...new Set(((data as { program_key: string | null }[] | null) ?? []).map((r) => r.program_key).filter(Boolean))] as string[];
-      setProgramKeys(keys.sort());
+        .from('programs')
+        .select('*')
+        .eq('client_id', clientId)
+        .eq('program_key', assignedProgramKey)
+        .maybeSingle();
+      setActiveProgram((data as ProgramRow | null) ?? null);
+      setLoadingProgram(false);
     })();
-  }, [trainerId]);
+  }, [clientId, assignedProgramKey]);
 
   const loadAssignments = useCallback(async () => {
     setLoadingGoals(true);
@@ -61,22 +76,6 @@ export function ClientCoachPanel({
   useEffect(() => {
     void loadAssignments();
   }, [loadAssignments]);
-
-  const saveProgramKey = async (value: string) => {
-    const next = value === defaultProgramKey ? null : value;
-    setSavingProgram(true);
-    const { error } = await supabase
-      .from('profiles')
-      .update({ assigned_program_key: next })
-      .eq('id', clientId);
-    setSavingProgram(false);
-    if (error) {
-      showToast('error', 'No pudimos asignar el programa.');
-      return;
-    }
-    onProgramKeyChange(next);
-    showToast('success', 'Programa actualizado.');
-  };
 
   const addGoal = async (preset: (typeof GOAL_PRESETS)[number]) => {
     if (!trainerId || addingGoal) return;
@@ -114,34 +113,46 @@ export function ClientCoachPanel({
     showToast('success', 'Meta desactivada.');
   };
 
-  const effectiveKey = assignedProgramKey ?? defaultProgramKey;
+  const weekInfo = (() => {
+    if (!activeProgram?.start_date || !activeProgram.duration_weeks) return null;
+    const start = parseIsoDateLocal(activeProgram.start_date);
+    const diffDays = Math.floor((Date.now() - start.getTime()) / 86400000);
+    const week = Math.min(activeProgram.duration_weeks, Math.max(1, Math.floor(diffDays / 7) + 1));
+    return `Semana ${week} de ${activeProgram.duration_weeks}`;
+  })();
 
   return (
     <div className="card sd-panel" style={{ marginTop: 16 }}>
       <div className="sd-panel-head">
-        <div className="section-title">Asignación del coach</div>
-        <div className="sd-panel-sub">Programa y metas diarias del alumno</div>
+        <div className="section-title">Programa de entrenamiento</div>
+        <div className="sd-panel-sub">Programa activo hoy y metas diarias del alumno</div>
       </div>
 
       <div className="field" style={{ marginBottom: 16 }}>
-        <label>Programa de entrenamiento</label>
-        <select
-          className="inline-select"
-          value={effectiveKey}
-          disabled={savingProgram}
-          onChange={(e) => void saveProgramKey(e.target.value)}
-        >
-          {[defaultProgramKey, ...programKeys.filter((k) => k !== defaultProgramKey)].map((key) => (
-            <option key={key} value={key}>
-              {key === defaultProgramKey ? `${key} (predeterminado)` : key}
-            </option>
-          ))}
-        </select>
-        <p className="muted" style={{ margin: '6px 0 0', fontSize: 12 }}>
-          {assignedProgramKey
-            ? `Asignado: ${assignedProgramKey}`
-            : `Usa el programa predeterminado del branding (${defaultProgramKey}).`}
-        </p>
+        {loadingProgram ? (
+          <p className="muted" style={{ margin: 0 }}>Cargando…</p>
+        ) : activeProgram ? (
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => navigate(`/programs/${activeProgram.id}`)}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, cursor: 'pointer', padding: '4px 0' }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontWeight: 650, fontSize: 15 }}>{activeProgram.name}</div>
+              <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
+                {activeProgram.start_date && activeProgram.duration_weeks
+                  ? `Desde ${fmt(parseIsoDateLocal(activeProgram.start_date))}${weekInfo ? ` · ${weekInfo}` : ''}`
+                  : 'Sin fecha — ilimitado'}
+              </div>
+            </div>
+            <button type="button" className="btn secondary sm" onClick={(e) => { e.stopPropagation(); navigate(`/programs/${activeProgram.id}`); }}>
+              Editar
+            </button>
+          </div>
+        ) : (
+          <p className="muted" style={{ margin: 0 }}>Este cliente no tiene un programa activo para hoy.</p>
+        )}
       </div>
 
       <div>
