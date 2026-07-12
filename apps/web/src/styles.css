@@ -1,33 +1,41 @@
 :root {
-  /* Neutros estilo Hevy: canvas gris frío muy claro para que las cards
-     blancas con borde hairline destaquen limpio. */
-  --bg: #f5f6f8;
-  --surface: #ffffff;
-  --surface-elevated: #f4f6f8;
-  --surface-hover: #eef1f4;
-  --border: #e7e9ee;
-  --border-strong: #d7dae1;
-  --text-primary: #14161a;
-  --text-secondary: #5b616b;
-  --text-tertiary: #949aa4;
+  /* ⚠️ Fuente de verdad de estos tokens: apps/web/src/theme/brand.ts
+     (se aplican en runtime vía applyBrandTheme). Estos valores son los
+     defaults, mantener sincronizados con brand.ts para evitar flash. */
 
-  /* Tinta para superficies oscuras (cards negras de acento, hero). */
-  --ink: #16181a;
-  --ink-elevated: #212427;
+  /* Neutros: canvas gris azulado muy claro (slate-50) con cards blancas. */
+  --bg: #F8FAFC;
+  --surface: #FFFFFF;
+  --surface-elevated: #F1F5F9;
+  --surface-hover: #EEF2F7;
+  --border: #E2E8F0;
+  --border-strong: #CBD5E1;
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
+  --text-tertiary: #94A3B8;
+
+  /* Tinta para superficies oscuras (cards de acento, hero). */
+  --ink: #0F172A;
+  --ink-elevated: #1E293B;
   --on-ink: #ffffff;
   --on-ink-muted: rgba(255, 255, 255, 0.58);
   --on-ink-faint: rgba(255, 255, 255, 0.40);
   --on-ink-line: rgba(255, 255, 255, 0.09);
 
-  /* Acento de marca R3SET: lima. Se usa como FILL (botones, estados activos)
-     con texto oscuro por contraste, y --accent-text es un verde legible para
-     texto/íconos sobre superficies claras (el lima puro no contrasta en blanco). */
-  --accent: #31F37B;          /* lima (fills: botones primarios, activos, toggles) */
-  --accent-hover: #22df6c;    /* hover de fills lima */
-  --accent-contrast: #06210f; /* texto/íconos sobre lima (verde casi negro) */
-  --accent-text: #0a8f43;     /* realces de texto/íconos sobre superficies claras */
-  --accent-soft: rgba(49, 243, 123, 0.14);  /* tinte lima (estados activos, selección) */
-  --accent-ring: #16a34a;     /* foco (verde legible) */
+  /* Acento de marca R3SET: azul profundo tipo Linear/Stripe. Se usa como FILL
+     (botones, estados activos) con texto blanco, y --accent-text (el mismo
+     azul) para realces de texto/íconos sobre superficies claras. */
+  --accent: #1D4ED8;          /* azul (fills: botones primarios, activos, toggles) */
+  --accent-hover: #1E40AF;    /* hover de fills */
+  --accent-contrast: #FFFFFF; /* texto/íconos sobre el azul */
+  --accent-text: #1D4ED8;     /* realces de texto/íconos sobre superficies claras */
+  --accent-soft: rgba(29, 78, 216, 0.10);  /* tinte azul (estados activos, selección) */
+  --accent-ring: #2563EB;     /* foco */
+
+  /* Acento secundario: turquesa (realces, highlights, "liked"). */
+  --brand-accent: #14B8A6;
+  --brand-accent-hover: #0D9488;
+  --brand-accent-soft: rgba(20, 184, 166, 0.12);
 
   /* Semánticos (estado). */
   --good: #16a34a;
@@ -37,17 +45,17 @@
   --green-soft: #e7f8ef;
   --green-strong: #15803d;
 
-  /* Lima Reset Fit (mobile: toggles perfil + macro carbohidratos / nutrición). */
-  --brand-lime: #31F37B;
-  --brand-lime-soft: rgba(49, 243, 123, 0.16);
-  --brand-lime-on: #0C0C0C;
+  /* Alias legacy: el viejo "lima" ahora apunta al acento turquesa. */
+  --brand-lime: var(--brand-accent);
+  --brand-lime-soft: var(--brand-accent-soft);
+  --brand-lime-on: #FFFFFF;
 
   /* Acento del chat. */
   --chat: #2563eb;
   --chat-hover: #1d4ed8;
   --chat-soft: rgba(37, 99, 235, 0.10);
 
-  /* Pantallas de entrenamiento — usan el acento de marca (lima). Se mantiene
+  /* Pantallas de entrenamiento — usan el acento de marca (azul). Se mantiene
      el nombre --hevy-* para no reescribir las clases que lo usan. */
   --hevy-blue: var(--accent);
   --hevy-blue-hover: var(--accent-hover);
@@ -4104,7 +4112,7 @@ textarea.hevy-input { resize: vertical; min-height: 88px; line-height: 1.5; }
 
 /* Clientes: celda de día activo en azul Hevy + pill de estado */
 .last7-cell.active { background: var(--hevy-blue); }
-.last7-cell.active .last7-letter { color: rgba(6,33,15,0.62); }
+.last7-cell.active .last7-letter { color: rgba(255,255,255,0.82); }
 .last7-cell.active .last7-num { color: var(--hevy-blue-on); }
 .clients-tab.active { border-bottom-color: var(--hevy-blue); color: var(--accent-text); }
 .status-pill {

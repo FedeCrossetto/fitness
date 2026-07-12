@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useTranslation } from '@/hooks/useTranslation';
 import { TrophyIcon, UsersIcon, CheckIcon, DumbbellIcon } from '@/components/icons';
 import { AreaChart } from '@/components/charts';
+import { brand } from '@/theme/brand';
 import { ErrorState, Lightbox, useCountUp } from '@/components/ui';
 import { UserAvatar } from '@/components/UserAvatar';
 import { ClientListCard } from '@/components/ClientListCard';
@@ -615,7 +616,7 @@ export function DashboardPage(): React.JSX.Element {
             </div>
           </div>
           <div className="dash-chart-body">
-            <AreaChart values={series} height={148} color="#31F37B" />
+            <AreaChart values={series} height={148} color={brand.color.primary} />
           </div>
         </div>
 

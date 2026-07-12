@@ -2,6 +2,10 @@ import { lazy, StrictMode, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import './styles.css';
+import { applyBrandTheme } from '@/theme/brand';
+
+// Aplica los tokens de marca (apps/web/src/theme/brand.ts) a :root al arrancar.
+applyBrandTheme();
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
 import { I18nProvider } from '@/hooks/useTranslation';
 import { ToastProvider } from '@/hooks/useToast';
