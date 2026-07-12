@@ -257,7 +257,7 @@ export function ProgramAssignment({ clientId }: { clientId: string }): React.JSX
       <ConfirmDialog
         open={!!removeTarget}
         title="Quitar programa"
-        message={`¿Quitar "${removeTarget?.name}" de este cliente? Se borra esta copia y sus entrenamientos.`}
+        message={`¿Quitar "${removeTarget?.name}" de este cliente? Se borra esta copia del programa y sus rutinas (los días y ejercicios planificados). El historial de entrenamientos que el cliente ya completó NO se borra.`}
         confirmLabel="Quitar"
         cancelLabel="Cancelar"
         danger
