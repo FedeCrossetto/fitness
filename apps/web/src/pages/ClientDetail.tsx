@@ -19,6 +19,7 @@ import { supabase, anyClient } from '@/lib/supabase';
 import { formatWorkoutVolume, summarizeWorkoutForFeed, TERMS_VERSION, APP_TERMS_URL } from '@reset-fitness/shared';
 import { ProgramAssignment } from '@/components/ProgramAssignment';
 import { ActiveProgramDetail } from '@/components/ActiveProgramDetail';
+import { WorkoutFeed } from '@/components/WorkoutPost';
 import { ClientCoachPanel } from '@/components/ClientCoachPanel';
 import { Lightbox, Spinner, ConfirmDialog } from '@/components/ui';
 import { ManualPaymentModal } from '@/components/ManualPaymentModal';
@@ -121,12 +122,6 @@ function formatWorkoutDuration(w: WorkoutLogRow): string {
   return `${min} min`;
 }
 
-function workoutTypeLabel(type: string | null): string {
-  if (type === 'cardio') return 'Cardio';
-  if (type === 'fuerza') return 'Fuerza';
-  return type ?? '—';
-}
-
 function relativeDate(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const d = Math.floor(diff / 86400000);
@@ -198,7 +193,7 @@ export function ClientDetailPage(): React.JSX.Element {
         supabase.from('profiles').select('id, full_name, goal, phone, avatar_url, created_at, client_status, assigned_program_key, terms_accepted_at, terms_version').eq('id', clientId).maybeSingle(),
         supabase.from('user_profiles').select('*').eq('user_id', clientId).maybeSingle(),
         supabase.from('body_measurements').select('*').eq('user_id', clientId).order('date', { ascending: false }).limit(10),
-        supabase.from('workout_logs').select('*').eq('user_id', clientId).order('date', { ascending: false }).limit(20),
+        supabase.from('workout_logs').select('*').eq('user_id', clientId).order('date', { ascending: false }).order('created_at', { ascending: false }).limit(20),
         supabase.from('meal_logs').select('*').eq('user_id', clientId).order('created_at', { ascending: false }).limit(20),
         supabase.from('messages').select('*').eq('client_id', clientId).order('created_at', { ascending: true }),
         anyClient.from('waiver_signatures').select('id, full_name, signed_at, signature_data, document_snapshot, document_title').eq('client_id', clientId).maybeSingle(),
@@ -725,7 +720,11 @@ export function ClientDetailPage(): React.JSX.Element {
               {workouts.length === 0 ? (
                 <div className="card"><p className="muted" style={{ margin: 0 }}>Sin entrenamientos registrados.</p></div>
               ) : (
-                workouts.map((w) => <WorkoutHistoryCard key={w.id} workout={w} />)
+                <WorkoutFeed
+                  workouts={workouts}
+                  author={{ name: profile.full_name ?? 'Alumno', avatarUrl: profile.avatar_url ?? null }}
+                  viewer={{ name: trainerProfile?.full_name ?? 'Vos', avatarUrl: trainerProfile?.avatar_url ?? null }}
+                />
               )}
             </div>
 
@@ -1206,50 +1205,6 @@ function MeasureTile({
         {value != null ? <span className="sd-measure-tile-unit"> {unit}</span> : null}
       </div>
       <div className="sd-measure-tile-lbl">{label}</div>
-    </div>
-  );
-}
-
-function WorkoutHistoryCard({ workout: w }: { workout: WorkoutLogRow }): React.JSX.Element {
-  const exerciseLines = summarizeWorkoutForFeed(w.session_detail);
-  const volumeLabel = w.total_volume_kg != null && w.total_volume_kg > 0
-    ? formatWorkoutVolume(w.total_volume_kg)
-    : '—';
-
-  return (
-    <div className="card" style={{ padding: 18, marginBottom: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
-        <div>
-          <div style={{ fontWeight: 700, fontSize: 14.5 }}>{new Date(w.date).toLocaleDateString('es-AR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}</div>
-          <div className="muted" style={{ fontSize: 11.5, marginTop: 1 }}>{relativeDate(w.date)}</div>
-        </div>
-        <span className={`badge sm${w.completed ? ' active' : ' amber'}`}>
-          <span className="dot" />{w.completed ? 'Completado' : 'Pendiente'}
-        </span>
-      </div>
-
-      <div style={{ fontWeight: 650, fontSize: 15, marginTop: 10 }}>{w.workout_name}</div>
-      <span className="sd-chip" style={{ marginTop: 4, display: 'inline-block' }}>{workoutTypeLabel(w.workout_type)}</span>
-
-      <div style={{ display: 'flex', gap: 20, marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-        <div><div style={{ fontWeight: 650, fontSize: 13.5 }}>{formatWorkoutDuration(w)}</div><div className="muted" style={{ fontSize: 11 }}>duración</div></div>
-        <div><div style={{ fontWeight: 650, fontSize: 13.5 }}>{volumeLabel}</div><div className="muted" style={{ fontSize: 11 }}>volumen</div></div>
-        <div><div style={{ fontWeight: 650, fontSize: 13.5 }}>{w.rpe != null ? `${w.rpe}/10` : '—'}</div><div className="muted" style={{ fontSize: 11 }}>RPE</div></div>
-      </div>
-
-      {exerciseLines.length > 0 && (
-        <ul style={{ margin: '12px 0 0', padding: 0, listStyle: 'none' }}>
-          {exerciseLines.map((line) => (
-            <li key={`${w.id}-${line.name}`} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
-              <span>{line.name}</span>
-              <span className="muted">{line.completedSets} series</span>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {w.comments && <div className="muted" style={{ fontSize: 12.5, marginTop: 10, fontStyle: 'italic' }}>"{w.comments}"</div>}
-      {w.distance != null && <div className="muted" style={{ fontSize: 12.5, marginTop: 6 }}>{w.distance} {w.distance_unit ?? 'km'}</div>}
     </div>
   );
 }

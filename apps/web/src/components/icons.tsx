@@ -101,6 +101,24 @@ export function MessageIcon({ size = 18, className }: IconProps): React.JSX.Elem
   );
 }
 
+export function HeartIcon({ size = 18, className, filled }: IconProps & { filled?: boolean }): React.JSX.Element {
+  return (
+    <svg {...base(size, className)} fill={filled ? 'currentColor' : 'none'}>
+      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 1 0-7.78 7.78L12 21l8.84-8.61a5.5 5.5 0 0 0 0-7.78z" />
+    </svg>
+  );
+}
+
+export function ShareIcon({ size = 18, className }: IconProps): React.JSX.Element {
+  return (
+    <svg {...base(size, className)}>
+      <path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7" />
+      <polyline points="16 6 12 2 8 6" />
+      <line x1="12" y1="2" x2="12" y2="15" />
+    </svg>
+  );
+}
+
 export function BellIcon({ size = 18, className }: IconProps): React.JSX.Element {
   return (
     <svg {...base(size, className)}>

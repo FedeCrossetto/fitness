@@ -1,16 +1,17 @@
 :root {
-  /* Neutros refinados: canvas gris para que las cards blancas floten. */
-  --bg: #eceeec;
+  /* Neutros estilo Hevy: canvas gris frío muy claro para que las cards
+     blancas con borde hairline destaquen limpio. */
+  --bg: #f5f6f8;
   --surface: #ffffff;
-  --surface-elevated: #f3f4f3;
-  --surface-hover: #edefed;
-  --border: #eaece9;
-  --border-strong: #dcded9;
-  --text-primary: #16181a;
-  --text-secondary: #5f636a;
-  --text-tertiary: #9498a0;
+  --surface-elevated: #f4f6f8;
+  --surface-hover: #eef1f4;
+  --border: #e7e9ee;
+  --border-strong: #d7dae1;
+  --text-primary: #14161a;
+  --text-secondary: #5b616b;
+  --text-tertiary: #949aa4;
 
-  /* Tinta para superficies oscuras (sidebar, cards negras). */
+  /* Tinta para superficies oscuras (cards negras de acento, hero). */
   --ink: #16181a;
   --ink-elevated: #212427;
   --on-ink: #ffffff;
@@ -18,15 +19,17 @@
   --on-ink-faint: rgba(255, 255, 255, 0.40);
   --on-ink-line: rgba(255, 255, 255, 0.09);
 
-  /* Acento monocromático: tinta casi negra + grises. Sin color de marca. */
-  --accent: #1a1c1e;          /* tinta (botones, estados activos, foco) */
-  --accent-hover: #303338;    /* hover de botones primarios */
-  --accent-contrast: #ffffff; /* texto/íconos sobre tinta */
-  --accent-text: #16181a;     /* realces de texto = primario */
-  --accent-soft: rgba(22, 24, 26, 0.055);    /* tinte gris sutil (estados activos) */
-  --accent-ring: #16181a;     /* foco */
+  /* Acento de marca R3SET: lima. Se usa como FILL (botones, estados activos)
+     con texto oscuro por contraste, y --accent-text es un verde legible para
+     texto/íconos sobre superficies claras (el lima puro no contrasta en blanco). */
+  --accent: #31F37B;          /* lima (fills: botones primarios, activos, toggles) */
+  --accent-hover: #22df6c;    /* hover de fills lima */
+  --accent-contrast: #06210f; /* texto/íconos sobre lima (verde casi negro) */
+  --accent-text: #0a8f43;     /* realces de texto/íconos sobre superficies claras */
+  --accent-soft: rgba(49, 243, 123, 0.14);  /* tinte lima (estados activos, selección) */
+  --accent-ring: #16a34a;     /* foco (verde legible) */
 
-  /* Semánticos (estado, distintos del acento de marca). */
+  /* Semánticos (estado). */
   --good: #16a34a;
   --bad: #dc2626;
   --warning: #f59e0b;
@@ -39,30 +42,30 @@
   --brand-lime-soft: rgba(49, 243, 123, 0.16);
   --brand-lime-on: #0C0C0C;
 
-  /* Acento del chat (única zona con color de la web). */
+  /* Acento del chat. */
   --chat: #2563eb;
   --chat-hover: #1d4ed8;
   --chat-soft: rgba(37, 99, 235, 0.10);
 
-  /* Acento de las pantallas de entrenamiento. Deliberadamente = tinta
-     monocromática del resto de la app (NO azul), para consistencia visual.
-     Se mantiene el nombre --hevy-* para no reescribir las clases que lo usan. */
+  /* Pantallas de entrenamiento — usan el acento de marca (lima). Se mantiene
+     el nombre --hevy-* para no reescribir las clases que lo usan. */
   --hevy-blue: var(--accent);
   --hevy-blue-hover: var(--accent-hover);
   --hevy-blue-soft: var(--accent-soft);
   --hevy-blue-on: var(--accent-contrast);
 
-  /* Radios generosos, estilo dashboard moderno (cards muy redondeadas). */
-  --radius-lg: 24px;
-  --radius: 18px;
-  --radius-sm: 11px;
+  /* Radios estilo Hevy: contenidos, no exagerados. */
+  --radius-lg: 18px;
+  --radius: 14px;
+  --radius-sm: 10px;
   --radius-pill: 999px;
 
-  /* Elevación: cards flotantes con sombra más presente sobre el canvas gris. */
-  --shadow: 0 2px 6px rgba(16, 24, 32, 0.06), 0 14px 36px rgba(16, 24, 32, 0.10);
-  --shadow-hover: 0 4px 10px rgba(16, 24, 32, 0.08), 0 22px 50px rgba(16, 24, 32, 0.13);
+  /* Elevación plana estilo Hevy: borde hairline + sombra muy sutil (las cards
+     no "flotan", se asientan limpio sobre el canvas). */
+  --shadow: 0 1px 2px rgba(16, 24, 32, 0.05), 0 4px 14px rgba(16, 24, 32, 0.06);
+  --shadow-hover: 0 2px 6px rgba(16, 24, 32, 0.07), 0 10px 28px rgba(16, 24, 32, 0.09);
   --card-ring: 0 0 0 0 transparent;
-  --card-shadow: 0 1px 3px rgba(16, 24, 32, 0.04), 0 10px 28px rgba(16, 24, 32, 0.07);
+  --card-shadow: 0 1px 2px rgba(16, 24, 32, 0.04);
 
   /* Anillo de foco con acento de marca, accesible. */
   --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent-ring);
@@ -626,7 +629,7 @@ a { color: inherit; text-decoration: none; }
 
 .card {
   background: var(--surface);
-  border: 1px solid transparent;
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 24px;
   margin-bottom: 20px;
@@ -3643,7 +3646,7 @@ tr.row-clickable.dragging { opacity: 0.55; }
 .serving-unit-toggle button.active {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--accent-contrast);
 }
 .food-form-footer {
   display: flex;
@@ -4090,16 +4093,16 @@ textarea.hevy-input { resize: vertical; min-height: 88px; line-height: 1.5; }
 .picker-add {
   display: inline-flex; align-items: center; justify-content: center;
   width: 30px; height: 30px; flex-shrink: 0; border-radius: var(--radius-pill);
-  background: var(--hevy-blue); color: #fff; border: none; cursor: pointer;
+  background: var(--hevy-blue); color: var(--hevy-blue-on); border: none; cursor: pointer;
   transition: background 140ms ease;
 }
 .picker-add:hover { background: var(--hevy-blue-hover); }
 
 /* Clientes: celda de día activo en azul Hevy + pill de estado */
 .last7-cell.active { background: var(--hevy-blue); }
-.last7-cell.active .last7-letter { color: rgba(255,255,255,0.8); }
-.last7-cell.active .last7-num { color: #fff; }
-.clients-tab.active { border-bottom-color: var(--hevy-blue); color: var(--hevy-blue); }
+.last7-cell.active .last7-letter { color: rgba(6,33,15,0.62); }
+.last7-cell.active .last7-num { color: var(--hevy-blue-on); }
+.clients-tab.active { border-bottom-color: var(--hevy-blue); color: var(--accent-text); }
 .status-pill {
   display: inline-flex; align-items: center; padding: 4px 12px;
   border-radius: var(--radius-pill); font-size: 12.5px; font-weight: 600;

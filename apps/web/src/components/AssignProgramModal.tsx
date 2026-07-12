@@ -391,7 +391,7 @@ export function AssignProgramModal({
         .assign-calendar-day.previewing { background: rgba(56, 189, 248, 0.28); color: #075985; font-weight: 650; }
         .assign-calendar-day.blocked { background: rgba(249,115,22,0.18); color: #f97316; }
         .assign-calendar-day.conflict { background: rgba(239,68,68,0.28); color: #b91c1c; font-weight: 650; box-shadow: inset 0 0 0 1.5px rgba(239,68,68,0.6); }
-        .assign-calendar-day.selected { background: var(--accent, #3b82f6); color: #fff; }
+        .assign-calendar-day.selected { background: var(--accent, #3b82f6); color: var(--accent-contrast, #fff); }
         .assign-calendar-legend { display: flex; gap: 14px; margin-top: 10px; font-size: 11.5px; color: var(--text-tertiary); }
         .assign-calendar-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
         .assign-calendar-legend .dot.previewing { background: rgb(56, 189, 248); }

@@ -181,6 +181,22 @@ export interface ProgramRow {
   updated_at: string;
 }
 
+export interface WorkoutLikeRow {
+  id: string;
+  workout_log_id: string;
+  author_id: string;
+  created_at: string;
+}
+
+export interface WorkoutCommentRow {
+  id: string;
+  workout_log_id: string;
+  author_id: string;
+  body: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface TrainingPhaseRow {
   id: string;
   program_key: string | null;
@@ -658,6 +674,8 @@ export interface Database {
       community_messages: TableDef<CommunityMessageRow, 'community_id' | 'content' | 'kind'>;
       announcements: TableDef<AnnouncementRow, 'trainer_id' | 'content' | 'target_type'>;
       user_trophy_days: TableDef<UserTrophyDayRow, 'user_id' | 'date'>;
+      workout_likes: TableDef<WorkoutLikeRow, 'workout_log_id' | 'author_id'>;
+      workout_comments: TableDef<WorkoutCommentRow, 'workout_log_id' | 'author_id' | 'body'>;
     };
     Views: Record<string, never>;
     Functions: {
