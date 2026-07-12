@@ -9,6 +9,7 @@ import {
   type WorkoutSessionSet,
 } from '@reset-fitness/shared';
 import { buildSessionComments } from './trainingExercise';
+import { toISODate } from './dates';
 import type { ExerciseRow, WorkoutExerciseRow } from '../types/database';
 
 type WorkoutDetailForSession = {
@@ -250,7 +251,7 @@ export function buildFinishPayload(session: ActiveSession, userId: string, elaps
   const detail = sessionDetailFromActive(session);
   return {
     user_id: userId,
-    date: new Date().toISOString().slice(0, 10),
+    date: toISODate(new Date()), // fecha LOCAL del usuario (no UTC), evita corrimiento de día
     workout_name: session.workoutTitle,
     workout_type: 'fuerza' as const,
     workout_id: session.workoutId,

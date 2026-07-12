@@ -215,7 +215,7 @@ export function ClientProgramPanel({ clientId }: { clientId: string }): React.JS
       {/* ── Card: Programas anteriores ── */}
       {others.length > 0 && (
         <div className="card" style={{ marginTop: 16 }}>
-          <div className="section-title" style={{ marginBottom: 4 }}>Programas anteriores</div>
+          <div className="section-title" style={{ marginBottom: 4 }}>Historial de programas</div>
           <p className="muted" style={{ margin: '0 0 8px', fontSize: 11.5 }}>No son el programa activo hoy — quedan acá para poder revisarlos.</p>
           {others.map(({ program, tag }) => (
             <ProgramRowItem

@@ -1,6 +1,7 @@
 // Componentes de UI compartidos para estados de carga, error y vacío.
 
 import { useEffect, useRef, useState } from 'react';
+import { useTrainerBranding } from '@/hooks/useTrainerBranding';
 
 /** Visor de imagen a pantalla completa (lightbox). Cierra con click en el fondo o Escape. */
 export function Lightbox({ src, caption, onClose }: {
@@ -32,11 +33,19 @@ export function Spinner({ size = 22 }: { size?: number }): React.JSX.Element {
   return <span className="spinner" style={{ width: size, height: size }} aria-hidden />;
 }
 
-/** Loader a pantalla completa (auth, transiciones). */
+/** Loader a pantalla completa (auth, transiciones). El logo que se rellena es
+ * el que el entrenador cargó en su branding; si no cargó ninguno, cae al logo
+ * de la plataforma (definido en .logo-loader de styles.css). */
 export function FullScreenLoader(): React.JSX.Element {
+  const { logoUrl } = useTrainerBranding();
+  const mask = logoUrl ? `url("${logoUrl}") center / contain no-repeat` : undefined;
   return (
     <div className="center-screen" role="status" aria-live="polite" aria-busy="true">
-      <div className="logo-loader" aria-label="Cargando">
+      <div
+        className="logo-loader"
+        aria-label="Cargando"
+        style={mask ? { WebkitMask: mask, mask } : undefined}
+      >
         <span className="logo-loader-fill" />
       </div>
     </div>

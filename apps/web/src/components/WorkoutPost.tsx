@@ -31,8 +31,15 @@ export function WorkoutFeed({
 
 interface ExerciseLine { name: string; sets: number; imageUrl: string | null }
 
+/** Las columnas `date` son YYYY-MM-DD; `new Date(iso)` las lee como UTC y en
+ * zonas UTC-negativas (Argentina) las corre un día atrás. Parseamos en local. */
+function parseIsoDateLocal(iso: string): Date {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
 function relativeEs(iso: string): string {
-  const then = new Date(iso).getTime();
+  const then = parseIsoDateLocal(iso).getTime();
   const days = Math.floor((Date.now() - then) / 86400000);
   if (days <= 0) return 'Hoy';
   if (days === 1) return 'Ayer';
@@ -115,7 +122,7 @@ export function WorkoutPost({
         <Avatar name={author.name} url={author.avatarUrl} />
         <div style={{ minWidth: 0 }}>
           <div className="wp-author">{author.name}</div>
-          <div className="wp-date">{new Date(w.date).toLocaleDateString('es-AR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}</div>
+          <div className="wp-date">{parseIsoDateLocal(w.date).toLocaleDateString('es-AR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}</div>
         </div>
         <span className="wp-when">{relativeEs(w.date)}</span>
       </header>
