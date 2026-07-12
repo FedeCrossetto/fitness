@@ -89,7 +89,7 @@ body {
 
 a { color: inherit; text-decoration: none; }
 
-::selection { background: var(--accent-soft); }
+::selection { background: rgba(20, 22, 26, 0.13); }
 
 /* Foco visible monocromático y consistente (solo teclado, no mouse). */
 :where(button, a, [role="button"], [tabindex]):focus-visible {
@@ -623,6 +623,10 @@ a { color: inherit; text-decoration: none; }
 /* Tab "Entrenamiento" del cliente — historial a la izq., programa a la der. */
 .sd-training-tab { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
 .sd-training-col { min-width: 0; }
+/* Encabezado de columna con altura fija para que las cards de ambas columnas
+   arranquen alineadas (título + subtítulo). */
+.sd-col-head { min-height: 48px; margin-bottom: 12px; }
+.sd-col-head .sd-section-sub { margin-top: 2px; }
 @media (max-width: 960px) { .sd-training-tab { grid-template-columns: 1fr; } }
 
 /* ---------- Surfaces ---------- */

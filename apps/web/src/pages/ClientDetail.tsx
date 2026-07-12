@@ -17,8 +17,7 @@ import type {
 } from '@reset-fitness/shared/types/database';
 import { supabase, anyClient } from '@/lib/supabase';
 import { formatWorkoutVolume, summarizeWorkoutForFeed, TERMS_VERSION, APP_TERMS_URL } from '@reset-fitness/shared';
-import { ProgramAssignment } from '@/components/ProgramAssignment';
-import { ActiveProgramDetail } from '@/components/ActiveProgramDetail';
+import { ClientProgramPanel } from '@/components/ClientProgramPanel';
 import { WorkoutFeed } from '@/components/WorkoutPost';
 import { ClientCoachPanel } from '@/components/ClientCoachPanel';
 import { Lightbox, Spinner, ConfirmDialog } from '@/components/ui';
@@ -711,11 +710,13 @@ export function ClientDetailPage(): React.JSX.Element {
         {tab === 'entrenos' && (
           <div className="sd-training-tab">
             <div className="sd-training-col">
-              <div className="section-title" style={{ marginBottom: 12 }}>Historial de entrenamientos</div>
-              <div className="sd-section-sub" style={{ marginBottom: 12 }}>
-                {workouts.length > 0
-                  ? `${completedW} completados · ${stats.totalMin > 0 ? `${stats.totalMin} min acumulados` : 'sin duración registrada'}${stats.avgRpe ? ` · RPE prom. ${stats.avgRpe}` : ''}`
-                  : 'Sin actividad registrada todavía'}
+              <div className="sd-col-head">
+                <div className="section-title">Historial de entrenamientos</div>
+                <div className="sd-section-sub">
+                  {workouts.length > 0
+                    ? `${completedW} completados · ${stats.totalMin > 0 ? `${stats.totalMin} min acumulados` : 'sin duración registrada'}${stats.avgRpe ? ` · RPE prom. ${stats.avgRpe}` : ''}`
+                    : 'Sin actividad registrada todavía'}
+                </div>
               </div>
               {workouts.length === 0 ? (
                 <div className="card"><p className="muted" style={{ margin: 0 }}>Sin entrenamientos registrados.</p></div>
@@ -729,10 +730,11 @@ export function ClientDetailPage(): React.JSX.Element {
             </div>
 
             <div className="sd-training-col">
-              {clientId && <ActiveProgramDetail clientId={clientId} />}
-              <div style={{ marginTop: 16 }}>
-                {clientId && <ProgramAssignment clientId={clientId} />}
+              <div className="sd-col-head">
+                <div className="section-title">Programa activo</div>
+                <div className="sd-section-sub">El plan que el cliente está siguiendo hoy</div>
               </div>
+              {clientId && <ClientProgramPanel clientId={clientId} />}
             </div>
           </div>
         )}
@@ -1004,9 +1006,12 @@ export function ClientDetailPage(): React.JSX.Element {
 
         /* Tabs — underlined nav (look & feel: app.hevycoach.com/clients/:id) */
         .sd-tabs {
-          display: flex; gap: 22px; margin-bottom: 24px; overflow-x: auto;
+          display: flex; gap: 22px; margin-bottom: 24px;
+          overflow-x: auto; overflow-y: hidden;
           border-bottom: 1px solid var(--border); max-width: 100%;
+          scrollbar-width: none;
         }
+        .sd-tabs::-webkit-scrollbar { display: none; height: 0; }
         .sd-tab {
           display: flex; align-items: center; gap: 6px;
           padding: 10px 2px; font-size: 13.5px; font-weight: 600;
@@ -1016,7 +1021,7 @@ export function ClientDetailPage(): React.JSX.Element {
           transition: color 150ms, border-color 150ms;
         }
         .sd-tab:hover { color: var(--text-primary); }
-        .sd-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+        .sd-tab.active { color: var(--text-primary); border-bottom-color: var(--text-primary); }
 
         .sd-content { min-height: 300px; }
         .sd-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
