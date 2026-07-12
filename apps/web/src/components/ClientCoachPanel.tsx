@@ -4,14 +4,7 @@ import type { GoalAssignmentRow, GoalType, GoalUnit, ProgramRow } from '@reset-f
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/useToast';
-
-function parseIsoDateLocal(iso: string): Date {
-  const [y, m, d] = iso.split('-').map(Number);
-  return new Date(y, m - 1, d);
-}
-function fmt(d: Date): string {
-  return d.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
-}
+import { fmtEsAr as fmt, parseIsoDateLocal, resolveActiveProgramKey } from '@/lib/activeProgram';
 
 const GOAL_PRESETS: { type: GoalType; unit: GoalUnit; label: string; defaultTarget: number }[] = [
   { type: 'hydration', label: 'Hidratación', unit: 'ml', defaultTarget: 3000 },
@@ -29,7 +22,6 @@ interface Props {
 
 export function ClientCoachPanel({
   clientId,
-  assignedProgramKey,
 }: Props): React.JSX.Element {
   const { session } = useAuth();
   const { showToast } = useToast();
@@ -42,24 +34,21 @@ export function ClientCoachPanel({
   const [loadingGoals, setLoadingGoals] = useState(true);
   const [addingGoal, setAddingGoal] = useState<GoalType | null>(null);
 
+  // El "activo hoy" se calcula EN VIVO a partir de los programas del
+  // cliente (misma lógica que resolve_active_program_key en la base) en vez
+  // de depender de profiles.assigned_program_key, que solo se recalcula
+  // cuando se escribe en `programs` — si un programa agendado termina y
+  // nadie edita nada ese día, la columna cacheada queda vieja.
   useEffect(() => {
     setLoadingProgram(true);
-    if (!assignedProgramKey) {
-      setActiveProgram(null);
-      setLoadingProgram(false);
-      return;
-    }
     void (async () => {
-      const { data } = await supabase
-        .from('programs')
-        .select('*')
-        .eq('client_id', clientId)
-        .eq('program_key', assignedProgramKey)
-        .maybeSingle();
-      setActiveProgram((data as ProgramRow | null) ?? null);
+      const { data } = await supabase.from('programs').select('*').eq('client_id', clientId);
+      const programs = (data as ProgramRow[] | null) ?? [];
+      const activeKey = resolveActiveProgramKey(programs);
+      setActiveProgram(programs.find((p) => p.program_key === activeKey) ?? null);
       setLoadingProgram(false);
     })();
-  }, [clientId, assignedProgramKey]);
+  }, [clientId]);
 
   const loadAssignments = useCallback(async () => {
     setLoadingGoals(true);

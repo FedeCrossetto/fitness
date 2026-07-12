@@ -175,6 +175,8 @@ export interface ProgramRow {
   folder_id: string | null;
   /** Orden manual en la Biblioteca (drag & drop). Menor = primero. */
   sort_order: number;
+  /** Si tiene valor, se archivó (p.ej. al asignar otro programa sin fecha) y no compite por ser el "activo hoy". */
+  archived_at: string | null;
   created_at: string;
   updated_at: string;
 }

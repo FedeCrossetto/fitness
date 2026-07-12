@@ -6,23 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/useToast';
 import { CardMenu } from '@/components/CardMenu';
 import { ConfirmDialog } from '@/components/ui';
-
-function parseIsoDateLocal(iso: string): Date {
-  const [y, m, d] = iso.split('-').map(Number);
-  return new Date(y, m - 1, d);
-}
-function addDays(iso: string, days: number): Date {
-  const d = parseIsoDateLocal(iso);
-  d.setDate(d.getDate() + days);
-  return d;
-}
-function fmt(d: Date): string {
-  return d.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
-}
-function todayIso(): string {
-  const t = new Date();
-  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
-}
+import { addDaysIso as addDays, fmtEsAr as fmt, isCurrentProgram, parseIsoDateLocal, resolveActiveProgramKey, todayIso } from '@/lib/activeProgram';
 
 /** Programas de este cliente — puede tener varios en simultáneo (rangos de
  * fecha distintos). El "activo hoy" lo resuelve la base sola (ver
@@ -37,29 +21,34 @@ export function ProgramAssignment({ clientId }: { clientId: string }): React.JSX
   const [templates, setTemplates] = useState<ProgramRow[]>([]);
   const [clientName, setClientName] = useState('');
   const [programs, setPrograms] = useState<ProgramRow[]>([]);
-  const [activeKey, setActiveKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [assigning, setAssigning] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<ProgramRow | null>(null);
   const [replaceTarget, setReplaceTarget] = useState<ProgramRow | null>(null);
+  const [unlimitedWarning, setUnlimitedWarning] = useState<ProgramRow | null>(null);
 
   const load = async () => {
     if (!trainerProfile?.id) return;
     setLoading(true);
     const [{ data: templateRows }, { data: clientRow }, { data: programRows }] = await Promise.all([
       supabase.from('programs').select('*').eq('trainer_id', trainerProfile.id).is('client_id', null).order('name'),
-      supabase.from('profiles').select('full_name, assigned_program_key').eq('id', clientId).maybeSingle(),
+      supabase.from('profiles').select('full_name').eq('id', clientId).maybeSingle(),
       supabase.from('programs').select('*').eq('client_id', clientId).order('start_date', { ascending: true }),
     ]);
     setTemplates((templateRows as ProgramRow[] | null) ?? []);
-    const client = clientRow as { full_name: string | null; assigned_program_key: string | null } | null;
+    const client = clientRow as { full_name: string | null } | null;
     setClientName(client?.full_name ?? '');
-    setActiveKey(client?.assigned_program_key ?? null);
     setPrograms((programRows as ProgramRow[] | null) ?? []);
     setLoading(false);
   };
 
   useEffect(() => { void load(); }, [trainerProfile?.id, clientId]);
+
+  // "Activo hoy" se calcula EN VIVO acá (misma lógica que resolve_active_program_key
+  // en la base) en vez de leer profiles.assigned_program_key, que solo se
+  // recalcula cuando se escribe en `programs` — si un programa agendado
+  // termina y nadie edita nada ese día, la columna cacheada queda vieja.
+  const activeKey = useMemo(() => resolveActiveProgramKey(programs), [programs]);
 
   const { active, upcoming, past, unscheduled } = useMemo(() => {
     const today = todayIso();
@@ -68,6 +57,7 @@ export function ProgramAssignment({ clientId }: { clientId: string }): React.JSX
     const past: ProgramRow[] = [];
     const unscheduled: ProgramRow[] = [];
     for (const p of programs) {
+      if (p.archived_at) { past.push(p); continue; }
       if (p.program_key === activeKey) { active.push(p); continue; }
       if (!p.start_date || !p.duration_weeks) { unscheduled.push(p); continue; }
       if (p.start_date > today) upcoming.push(p);
@@ -133,6 +123,34 @@ export function ProgramAssignment({ clientId }: { clientId: string }): React.JSX
       return;
     }
     showToast('success', 'Programa copiado a "Mi biblioteca".');
+  };
+
+  // Programas vigentes (no archivados y que todavía no terminaron, sin
+  // importar si ganaron o no el desempate de "activo hoy") — los que hay
+  // que archivar cuando se asigna un programa nuevo SIN FECHA, para que
+  // ninguno siga compitiendo por ser el activo.
+  const currentPrograms = useMemo(() => programs.filter((p) => isCurrentProgram(p)), [programs]);
+
+  const archiveCurrentPrograms = async () => {
+    const ids = currentPrograms.map((p) => p.id);
+    if (ids.length === 0) return;
+    await supabase.from('programs').update({ archived_at: new Date().toISOString() }).in('id', ids);
+  };
+
+  const assignFromBottomSelector = (program: ProgramRow) => {
+    if (!program.start_date && currentPrograms.length > 0) {
+      setUnlimitedWarning(program);
+      return;
+    }
+    void assignProgram(program);
+  };
+
+  const confirmUnlimitedAssign = async () => {
+    if (!unlimitedWarning) return;
+    const program = unlimitedWarning;
+    setUnlimitedWarning(null);
+    await archiveCurrentPrograms();
+    await assignProgram(program);
   };
 
   const doReplace = async (newTemplate: ProgramRow) => {
@@ -232,7 +250,7 @@ export function ProgramAssignment({ clientId }: { clientId: string }): React.JSX
         <SearchableAssign
           templates={templates}
           assigning={assigning}
-          onAssign={(program) => void assignProgram(program)}
+          onAssign={assignFromBottomSelector}
         />
       </div>
 
@@ -245,6 +263,17 @@ export function ProgramAssignment({ clientId }: { clientId: string }): React.JSX
         danger
         onCancel={() => setRemoveTarget(null)}
         onConfirm={() => void confirmRemove()}
+      />
+
+      <ConfirmDialog
+        open={!!unlimitedWarning}
+        title="Asignar programa sin fecha"
+        message={`"${unlimitedWarning?.name}" queda ilimitado (sin fecha de fin). Como el cliente no puede tener más de un programa activo a la vez, esto archiva ${currentPrograms.length === 1 ? 'el programa vigente' : `los ${currentPrograms.length} programas vigentes`} de este cliente y pasan a "Programas anteriores".`}
+        confirmLabel="Asignar de todos modos"
+        cancelLabel="Cancelar"
+        danger
+        onCancel={() => setUnlimitedWarning(null)}
+        onConfirm={() => void confirmUnlimitedAssign()}
       />
 
       {replaceTarget && (

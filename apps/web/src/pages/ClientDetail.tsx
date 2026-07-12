@@ -18,6 +18,7 @@ import type {
 import { supabase, anyClient } from '@/lib/supabase';
 import { formatWorkoutVolume, summarizeWorkoutForFeed, TERMS_VERSION, APP_TERMS_URL } from '@reset-fitness/shared';
 import { ProgramAssignment } from '@/components/ProgramAssignment';
+import { ActiveProgramDetail } from '@/components/ActiveProgramDetail';
 import { ClientCoachPanel } from '@/components/ClientCoachPanel';
 import { Lightbox, Spinner, ConfirmDialog } from '@/components/ui';
 import { ManualPaymentModal } from '@/components/ManualPaymentModal';
@@ -102,7 +103,7 @@ type Tab = 'resumen' | 'entrenos' | 'nutricion' | 'medidas' | 'fotos' | 'engagem
 const TABS: { key: Tab; label: string }[] = [
   { key: 'resumen',     label: 'Resumen'      },
   { key: 'consulta',    label: 'Consulta'     },
-  { key: 'entrenos',    label: 'Entrenos'     },
+  { key: 'entrenos',    label: 'Entrenamiento'},
   { key: 'nutricion',   label: 'Nutrición'    },
   { key: 'medidas',     label: 'Medidas'      },
   { key: 'fotos',       label: 'Fotos'        },
@@ -711,45 +712,28 @@ export function ClientDetailPage(): React.JSX.Element {
           </div>
         )}
 
-        {/* ENTRENOS */}
+        {/* ENTRENAMIENTO */}
         {tab === 'entrenos' && (
-          <div>
-            {clientId && <ProgramAssignment clientId={clientId} />}
-            <div className="card" style={{ marginTop: 16 }}>
-              <div className="sd-section-head">
-                <div>
-                  <div className="section-title">Historial de entrenamientos</div>
-                  <div className="sd-section-sub">
-                    {workouts.length > 0
-                      ? `${completedW} completados · ${stats.totalMin > 0 ? `${stats.totalMin} min acumulados` : 'sin duración registrada'}${stats.avgRpe ? ` · RPE prom. ${stats.avgRpe}` : ''}`
-                      : 'Sin actividad registrada todavía'}
-                  </div>
-                </div>
+          <div className="sd-training-tab">
+            <div className="sd-training-col">
+              <div className="section-title" style={{ marginBottom: 12 }}>Historial de entrenamientos</div>
+              <div className="sd-section-sub" style={{ marginBottom: 12 }}>
+                {workouts.length > 0
+                  ? `${completedW} completados · ${stats.totalMin > 0 ? `${stats.totalMin} min acumulados` : 'sin duración registrada'}${stats.avgRpe ? ` · RPE prom. ${stats.avgRpe}` : ''}`
+                  : 'Sin actividad registrada todavía'}
               </div>
               {workouts.length === 0 ? (
-                <p className="muted" style={{ margin: 0 }}>Sin entrenamientos registrados.</p>
+                <div className="card"><p className="muted" style={{ margin: 0 }}>Sin entrenamientos registrados.</p></div>
               ) : (
-                <div className="sd-table-wrap">
-                  <table className="sd-workout-table">
-                    <thead>
-                      <tr>
-                        <th>Entreno</th>
-                        <th>Fecha</th>
-                        <th>Tipo</th>
-                        <th>Duración</th>
-                        <th>RPE</th>
-                        <th>Series</th>
-                        <th>Estado</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {workouts.map((w) => (
-                        <WorkoutHistoryRow key={w.id} workout={w} />
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                workouts.map((w) => <WorkoutHistoryCard key={w.id} workout={w} />)
               )}
+            </div>
+
+            <div className="sd-training-col">
+              {clientId && <ActiveProgramDetail clientId={clientId} />}
+              <div style={{ marginTop: 16 }}>
+                {clientId && <ProgramAssignment clientId={clientId} />}
+              </div>
             </div>
           </div>
         )}
@@ -1226,49 +1210,47 @@ function MeasureTile({
   );
 }
 
-function WorkoutHistoryRow({ workout: w }: { workout: WorkoutLogRow }): React.JSX.Element {
+function WorkoutHistoryCard({ workout: w }: { workout: WorkoutLogRow }): React.JSX.Element {
   const exerciseLines = summarizeWorkoutForFeed(w.session_detail);
-  const exerciseCount = w.completed_sets > 0
-    ? w.completed_sets
-    : (w.completed_exercises?.length ?? null);
   const volumeLabel = w.total_volume_kg != null && w.total_volume_kg > 0
     ? formatWorkoutVolume(w.total_volume_kg)
-    : null;
+    : '—';
 
   return (
-    <tr>
-      <td>
-        <div className="sd-workout-name">{w.workout_name}</div>
-        {volumeLabel ? <div className="sd-workout-comment">{volumeLabel}</div> : null}
-        {exerciseLines.length > 0 ? (
-          <ul className="sd-workout-lines">
-            {exerciseLines.slice(0, 3).map((line) => (
-              <li key={`${w.id}-${line.name}`}>{line.completedSets} series · {line.name}</li>
-            ))}
-            {exerciseLines.length > 3 ? (
-              <li className="muted">+{exerciseLines.length - 3} ejercicios más</li>
-            ) : null}
-          </ul>
-        ) : null}
-        {w.comments ? <div className="sd-workout-comment" title={w.comments}>{w.comments}</div> : null}
-        {w.distance != null ? (
-          <div className="sd-workout-comment">{w.distance} {w.distance_unit ?? 'km'}</div>
-        ) : null}
-      </td>
-      <td className="muted">
-        <div>{new Date(w.date).toLocaleDateString('es-AR')}</div>
-        <div style={{ fontSize: 11.5, marginTop: 2 }}>{relativeDate(w.date)}</div>
-      </td>
-      <td><span className="sd-chip">{workoutTypeLabel(w.workout_type)}</span></td>
-      <td>{formatWorkoutDuration(w)}</td>
-      <td>{w.rpe != null ? `${w.rpe}/10` : '—'}</td>
-      <td>{exerciseCount != null && exerciseCount > 0 ? exerciseCount : '—'}</td>
-      <td>
+    <div className="card" style={{ padding: 18, marginBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 14.5 }}>{new Date(w.date).toLocaleDateString('es-AR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}</div>
+          <div className="muted" style={{ fontSize: 11.5, marginTop: 1 }}>{relativeDate(w.date)}</div>
+        </div>
         <span className={`badge sm${w.completed ? ' active' : ' amber'}`}>
           <span className="dot" />{w.completed ? 'Completado' : 'Pendiente'}
         </span>
-      </td>
-    </tr>
+      </div>
+
+      <div style={{ fontWeight: 650, fontSize: 15, marginTop: 10 }}>{w.workout_name}</div>
+      <span className="sd-chip" style={{ marginTop: 4, display: 'inline-block' }}>{workoutTypeLabel(w.workout_type)}</span>
+
+      <div style={{ display: 'flex', gap: 20, marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+        <div><div style={{ fontWeight: 650, fontSize: 13.5 }}>{formatWorkoutDuration(w)}</div><div className="muted" style={{ fontSize: 11 }}>duración</div></div>
+        <div><div style={{ fontWeight: 650, fontSize: 13.5 }}>{volumeLabel}</div><div className="muted" style={{ fontSize: 11 }}>volumen</div></div>
+        <div><div style={{ fontWeight: 650, fontSize: 13.5 }}>{w.rpe != null ? `${w.rpe}/10` : '—'}</div><div className="muted" style={{ fontSize: 11 }}>RPE</div></div>
+      </div>
+
+      {exerciseLines.length > 0 && (
+        <ul style={{ margin: '12px 0 0', padding: 0, listStyle: 'none' }}>
+          {exerciseLines.map((line) => (
+            <li key={`${w.id}-${line.name}`} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
+              <span>{line.name}</span>
+              <span className="muted">{line.completedSets} series</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {w.comments && <div className="muted" style={{ fontSize: 12.5, marginTop: 10, fontStyle: 'italic' }}>"{w.comments}"</div>}
+      {w.distance != null && <div className="muted" style={{ fontSize: 12.5, marginTop: 6 }}>{w.distance} {w.distance_unit ?? 'km'}</div>}
+    </div>
   );
 }
 

@@ -4,9 +4,21 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/useToast';
 import { resolveAvatarUrl, initials } from '@/lib/avatarUrl';
+import { ConfirmDialog } from '@/components/ui';
 
 type ClientOption = Pick<ProfileRow, 'id' | 'full_name' | 'avatar_url'>;
-type AssignedProgramInfo = Pick<ProgramRow, 'id' | 'name' | 'start_date' | 'duration_weeks'>;
+type AssignedProgramInfo = Pick<ProgramRow, 'id' | 'name' | 'start_date' | 'duration_weeks' | 'archived_at'>;
+
+/** "Vigente" = no archivado y (sin fecha, o todavía no terminó). Son los
+ * programas que compiten por ser "el activo hoy" de ese cliente. */
+function isCurrent(p: AssignedProgramInfo, today: Date): boolean {
+  if (p.archived_at) return false;
+  if (!p.start_date || !p.duration_weeks) return true;
+  const start = parseIsoDateLocal(p.start_date);
+  const end = new Date(start);
+  end.setDate(end.getDate() + p.duration_weeks * 7);
+  return end > today;
+}
 
 const DURATION_OPTIONS = [4, 6, 8, 12, 16];
 const WEEKDAY_LABELS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
@@ -67,6 +79,7 @@ export function AssignProgramModal({
   const [durationWeeks, setDurationWeeks] = useState<number>(program.duration_weeks ?? 6);
   const [startDate, setStartDate] = useState<Date>(new Date());
   const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
+  const [unlimitedWarning, setUnlimitedWarning] = useState(false);
 
   const load = async () => {
     if (!trainerProfile?.id) return;
@@ -81,7 +94,7 @@ export function AssignProgramModal({
     if (clientList.length > 0) {
       const { data: progRows } = await supabase
         .from('programs')
-        .select('id, client_id, name, start_date, duration_weeks')
+        .select('id, client_id, name, start_date, duration_weeks, archived_at')
         .in('client_id', clientList.map((c) => c.id));
       const map = new Map<string, AssignedProgramInfo[]>();
       for (const row of (progRows as (AssignedProgramInfo & { client_id: string })[] | null) ?? []) {
@@ -131,7 +144,7 @@ export function AssignProgramModal({
     const ranges: { start: Date; end: Date }[] = [];
     for (const clientId of selected) {
       for (const info of programsByClient.get(clientId) ?? []) {
-        if (!info.start_date || !info.duration_weeks) continue;
+        if (info.archived_at || !info.start_date || !info.duration_weeks) continue;
         const start = parseIsoDateLocal(info.start_date);
         ranges.push({ start, end: addDays(start, info.duration_weeks * 7) });
       }
@@ -154,6 +167,21 @@ export function AssignProgramModal({
     return blockedRanges.some((r) => rangesOverlap(previewRange, r));
   }, [previewRange, blockedRanges]);
 
+  // Programas vigentes de los clientes seleccionados — si se asigna un
+  // programa SIN FECHA (ilimitado), estos se archivan (pasan a "Programas
+  // anteriores") porque un cliente no puede tener más de un programa activo
+  // a la vez.
+  const currentProgramIdsByClient = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const map = new Map<string, string[]>();
+    for (const id of selected) {
+      const ids = (programsByClient.get(id) ?? []).filter((p) => isCurrent(p, today)).map((p) => p.id);
+      if (ids.length > 0) map.set(id, ids);
+    }
+    return map;
+  }, [selected, programsByClient]);
+
   const assign = async () => {
     if (selected.size === 0 || saving || hasConflict) return;
     setSaving(true);
@@ -172,12 +200,26 @@ export function AssignProgramModal({
           ? { start_date: isoStart, duration_weeks: durationWeeks }
           : { start_date: null };
         await supabase.from('programs').update(update).eq('id', newId);
+        if (!scheduleEnabled) {
+          const toArchive = currentProgramIdsByClient.get(id);
+          if (toArchive && toArchive.length > 0) {
+            await supabase.from('programs').update({ archived_at: new Date().toISOString() }).in('id', toArchive);
+          }
+        }
         // profiles.assigned_program_key se recalcula solo (trigger en `programs`).
       }),
     );
     setSaving(false);
     showToast('success', `Programa copiado a ${selected.size} cliente${selected.size === 1 ? '' : 's'}.`);
     onClose();
+  };
+
+  const onAssignClick = () => {
+    if (!scheduleEnabled && currentProgramIdsByClient.size > 0) {
+      setUnlimitedWarning(true);
+      return;
+    }
+    void assign();
   };
 
   const days = monthGrid(calendarMonth);
@@ -312,11 +354,22 @@ export function AssignProgramModal({
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
           <button type="button" className="btn secondary" onClick={onClose}>Cancelar</button>
-          <button type="button" className="btn primary" disabled={selected.size === 0 || saving || hasConflict} onClick={() => void assign()}>
+          <button type="button" className="btn primary" disabled={selected.size === 0 || saving || hasConflict} onClick={onAssignClick}>
             {saving ? 'Copiando…' : `Copiar programa${selected.size > 0 ? ` (${selected.size})` : ''}`}
           </button>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={unlimitedWarning}
+        title="Asignar programa sin fecha"
+        message={`"${program.name}" queda ilimitado (sin fecha de fin). Como un cliente no puede tener más de un programa activo a la vez, esto archiva el programa vigente de ${currentProgramIdsByClient.size === 1 ? 'ese cliente' : `esos ${currentProgramIdsByClient.size} clientes`} y pasa a "Programas anteriores".`}
+        confirmLabel="Asignar de todos modos"
+        cancelLabel="Cancelar"
+        danger
+        onCancel={() => setUnlimitedWarning(false)}
+        onConfirm={() => { setUnlimitedWarning(false); void assign(); }}
+      />
 
       <style>{`
         .assign-program-modal {
