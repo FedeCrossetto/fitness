@@ -137,15 +137,18 @@ export function ProgramEditorPage(): React.JSX.Element {
       .select('id')
       .single();
     if (wErr || !workout) return;
-    await supabase.from('training_days').insert({
+    const { data: newDay } = await supabase.from('training_days').insert({
       phase_id: phaseId,
       day_number: nextNumber,
       title: `Rutina ${nextNumber}`,
       day_type: 'fuerza',
       workout_id: (workout as { id: string }).id,
       sort_order: days.length,
-    });
-    await load();
+    }).select('id').single();
+    // Abre directo el editor de la rutina recién creada (como al crear un programa).
+    const newDayId = (newDay as { id: string } | null)?.id;
+    if (newDayId) navigate(`/routines/${newDayId}`);
+    else await load();
   };
 
   const confirmDeleteRoutine = async () => {

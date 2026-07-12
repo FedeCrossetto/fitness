@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { ExerciseRow, TrainingDayRow, TrainingPhaseRow, WorkoutExerciseRow, WorkoutRow, WorkoutSet } from '@reset-fitness/shared/types/database';
 import { supabase } from '@/lib/supabase';
@@ -38,6 +38,8 @@ export function RoutineEditorPage(): React.JSX.Element {
   // Índice donde se insertaría el ejercicio arrastrado desde el picker —
   // pinta una card fantasma (hueco) en ese lugar de la lista mientras se arrastra.
   const [pickerDropIndex, setPickerDropIndex] = useState<number | null>(null);
+  // Ejercicio recién agregado: enfocamos su primer campo de Reps.
+  const [focusRepsWeId, setFocusRepsWeId] = useState<string | null>(null);
 
   const openDetail = async (exerciseId: string) => {
     const { data } = await supabase.from('exercises').select('*').eq('id', exerciseId).maybeSingle();
@@ -77,8 +79,8 @@ export function RoutineEditorPage(): React.JSX.Element {
     setDay((prev) => (prev ? { ...prev, title: title.trim() } : prev));
   };
 
-  const addExercise = async (exercise: CatalogExercise, insertAt?: number) => {
-    if (!day?.workout) return;
+  const addExercise = async (exercise: CatalogExercise, insertAt?: number): Promise<string | null> => {
+    if (!day?.workout) return null;
     const items = currentOrder();
     const at = insertAt === undefined ? items.length : Math.max(0, Math.min(insertAt, items.length));
     // Corremos el sort_order de los que quedan después del punto de inserción.
@@ -86,14 +88,17 @@ export function RoutineEditorPage(): React.JSX.Element {
     if (toShift.length > 0) {
       await Promise.all(toShift.map((it, i) => supabase.from('workout_exercises').update({ sort_order: at + 1 + i }).eq('id', it.id)));
     }
-    await supabase.from('workout_exercises').insert({
+    // Reps vacías a propósito: el coach las completa (el foco cae en Reps al
+    // agregar) — si quedan vacías, la card muestra un warning no bloqueante.
+    const { data: inserted } = await supabase.from('workout_exercises').insert({
       workout_id: day.workout.id,
       exercise_id: exercise.id,
       sort_order: at,
       sets: 3,
-      reps: '10',
-    });
+      reps: '',
+    }).select('id').single();
     await load();
+    return (inserted as { id: string } | null)?.id ?? null;
   };
 
   const saveExercise = async (weId: string, patch: Partial<Pick<WorkoutExerciseRow, 'sets' | 'reps' | 'rest_seconds' | 'weight_kg' | 'sets_detail' | 'notes'>>) => {
@@ -188,6 +193,8 @@ export function RoutineEditorPage(): React.JSX.Element {
                     onMoveUp={() => void moveExercise(index, index - 1)}
                     onMoveDown={() => void moveExercise(index, index + 1)}
                     onOpenDetail={() => we.exercise && void openDetail(we.exercise.id)}
+                    focusReps={we.id === focusRepsWeId}
+                    onRepsFocused={() => setFocusRepsWeId(null)}
                     onDragStart={(e) => startSortableDrag({
                       event: e, index, cardSelector: '.rex-card', dataAttr: 'exIndex',
                       move: reorderExercisesLocal, commit: () => void commitExerciseOrder(),
@@ -202,7 +209,7 @@ export function RoutineEditorPage(): React.JSX.Element {
         </div>
 
         <ExercisePickerPanel
-          onPick={(ex, insertAt) => void addExercise(ex, insertAt)}
+          onPick={(ex, insertAt) => { void addExercise(ex, insertAt).then((newId) => { if (newId) setFocusRepsWeId(newId); }); }}
           onDetail={(id) => void openDetail(id)}
           onDragOverIndex={setPickerDropIndex}
         />
@@ -231,6 +238,8 @@ function ExerciseCard({
   onMoveDown,
   onOpenDetail,
   onDragStart,
+  focusReps,
+  onRepsFocused,
 }: {
   we: WorkoutExerciseWithExercise;
   index: number;
@@ -241,6 +250,8 @@ function ExerciseCard({
   onMoveDown: () => void;
   onOpenDetail: () => void;
   onDragStart: (e: React.MouseEvent) => void;
+  focusReps?: boolean;
+  onRepsFocused?: () => void;
 }): React.JSX.Element {
   const { language } = useTranslation();
   const thumbStyle = we.exercise?.image_url ? { backgroundImage: `url(${we.exercise.image_url})` } : undefined;
@@ -248,6 +259,21 @@ function ExerciseCard({
   const [menuOpen, setMenuOpen] = useState(false);
   const [sets, setSets] = useState<WorkoutSet[]>(() => initialSets(we));
   const [note, setNote] = useState(we.notes ?? '');
+  const firstRepsRef = useRef<HTMLInputElement>(null);
+
+  // Al agregar el ejercicio (drag o click desde el picker), enfocamos el primer
+  // campo de Reps para que el coach lo complete de una.
+  useEffect(() => {
+    if (focusReps) {
+      firstRepsRef.current?.focus();
+      firstRepsRef.current?.select();
+      onRepsFocused?.();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusReps]);
+
+  // Warning no bloqueante: alguna serie sin repeticiones.
+  const missingReps = sets.some((s) => !String(s.reps ?? '').trim());
 
   // Persiste el array de sets + un resumen (sets/reps/weight_kg) para compat.
   const persistSets = (next: WorkoutSet[]) => {
@@ -323,6 +349,7 @@ function ExerciseCard({
             onBlur={() => persistSets(sets)}
           />
           <input
+            ref={i === 0 ? firstRepsRef : undefined}
             className="rex-input"
             placeholder="—"
             value={s.reps ?? ''}
@@ -332,6 +359,11 @@ function ExerciseCard({
           <button type="button" className="rex-set-x" title="Quitar serie" onClick={() => removeSet(i)}>✕</button>
         </div>
       ))}
+      {missingReps && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, fontSize: 11.5, color: 'var(--warning)' }}>
+          <span aria-hidden>⚠</span> Este ejercicio tiene series sin repeticiones — no van a sumar volumen.
+        </div>
+      )}
       <button type="button" className="rex-add-set" onClick={addSet}>+ Agregar serie</button>
     </div>
   );
