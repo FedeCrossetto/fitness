@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useToast } from '@/hooks/useToast';
+import { formatMoney } from '@/lib/planPricing';
 import type { PlanRow, PlanType } from '@reset-fitness/shared/types/database';
 
 export type ManualPaymentClient = { id: string; full_name: string | null };
@@ -83,16 +84,6 @@ export function ManualPaymentModal({
     if (overrideAmount) return;
     setAmountArs(resolvedPlan ? String(Math.round(Number(resolvedPlan.price_ars))) : '');
   }, [resolvedPlan, overrideAmount]);
-
-  const formatMoney = useCallback(
-    (amount: number) =>
-      new Intl.NumberFormat(language === 'es' ? 'es-AR' : 'en-US', {
-        style: 'currency',
-        currency: 'ARS',
-        maximumFractionDigits: 0,
-      }).format(amount),
-    [language],
-  );
 
   const submit = useCallback(async () => {
     const amount = Number(amountArs);
@@ -200,7 +191,7 @@ export function ManualPaymentModal({
             </p>
             {resolvedPlan && !overrideAmount ? (
               <p className="muted" style={{ margin: '0 0 12px', fontSize: 13 }}>
-                Precio de referencia: {formatMoney(Number(resolvedPlan.price_ars))}
+                Precio de referencia: {formatMoney(Number(resolvedPlan.price_ars), language)}
               </p>
             ) : null}
           </>
