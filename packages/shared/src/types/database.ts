@@ -384,6 +384,19 @@ export interface BodyMeasurementRow {
   hips_cm: number | null;
   arms_cm: number | null;
   legs_cm: number | null;
+  // Medidas ampliadas (estilo Hevy).
+  abdomen_cm: number | null;
+  neck_cm: number | null;
+  shoulder_cm: number | null;
+  left_bicep_cm: number | null;
+  right_bicep_cm: number | null;
+  left_forearm_cm: number | null;
+  right_forearm_cm: number | null;
+  left_thigh_cm: number | null;
+  right_thigh_cm: number | null;
+  left_calf_cm: number | null;
+  right_calf_cm: number | null;
+  lean_body_mass_kg: number | null;
   created_at: string;
   updated_at: string;
 }

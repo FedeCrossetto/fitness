@@ -19,6 +19,7 @@ import { supabase, anyClient } from '@/lib/supabase';
 import { formatWorkoutVolume, summarizeWorkoutForFeed, TERMS_VERSION, APP_TERMS_URL } from '@reset-fitness/shared';
 import { ClientProgramPanel } from '@/components/ClientProgramPanel';
 import { WorkoutFeed } from '@/components/WorkoutPost';
+import { BodyMeasurementsPanel } from '@/components/BodyMeasurementsPanel';
 import { ClientCoachPanel } from '@/components/ClientCoachPanel';
 import { Lightbox, Spinner, ConfirmDialog } from '@/components/ui';
 import { ManualPaymentModal } from '@/components/ManualPaymentModal';
@@ -765,30 +766,8 @@ export function ClientDetailPage(): React.JSX.Element {
         )}
 
         {/* MEDIDAS */}
-        {tab === 'medidas' && (
-          <div className="card">
-            <div className="section-title" style={{ marginBottom: 14 }}>Historial de mediciones</div>
-            {measurements.length === 0
-              ? <p className="muted" style={{ margin: 0 }}>Sin mediciones registradas.</p>
-              : <table>
-                  <thead>
-                    <tr><th>Fecha</th><th>Peso</th><th>% Grasa</th><th>Cintura</th><th>Pecho</th><th>Cadera</th></tr>
-                  </thead>
-                  <tbody>
-                    {measurements.map((m) => (
-                      <tr key={m.id}>
-                        <td>{new Date(m.date).toLocaleDateString('es-AR')}</td>
-                        <td>{m.weight_kg != null ? `${m.weight_kg} kg` : '—'}</td>
-                        <td>{m.body_fat_pct != null ? `${m.body_fat_pct}%` : '—'}</td>
-                        <td className="muted">{m.waist_cm != null ? `${m.waist_cm} cm` : '—'}</td>
-                        <td className="muted">{m.chest_cm != null ? `${m.chest_cm} cm` : '—'}</td>
-                        <td className="muted">{m.hips_cm != null ? `${m.hips_cm} cm` : '—'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-            }
-          </div>
+        {tab === 'medidas' && clientId && (
+          <BodyMeasurementsPanel clientId={clientId} />
         )}
 
         {/* FOTOS */}
