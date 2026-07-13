@@ -100,6 +100,57 @@ function subscriptionStatusLabel(status: SubscriptionRow['status']): string {
   return '—';
 }
 
+type SubscriptionRowBase = Pick<SubscriptionRow, 'id' | 'status' | 'expires_at' | 'started_at' | 'plan_id' | 'mp_preapproval_id' | 'amount_ars'>;
+
+/** Resuelve el estado completo de la suscripción (plan, precio vigente, flags)
+ * a partir de la fila cruda de `subscriptions` — usado tanto en la carga
+ * inicial del cliente como al recargar después de un pago manual. */
+async function resolveClientSubscription(row: SubscriptionRowBase, trainerId: string | undefined): Promise<ClientSubscription> {
+  let status = row.status;
+  if (status === 'active' && row.expires_at && new Date(row.expires_at) < new Date()) {
+    status = 'expired';
+  }
+  const [{ data: plan }, { data: override }] = await Promise.all([
+    supabase.from('plans').select('name, deleted_at, price_ars, plan_type').eq('id', row.plan_id).maybeSingle(),
+    // Precio propio del entrenador para un plan built-in: sin esto, se
+    // comparaba contra el precio crudo del catálogo global en vez de lo
+    // que este entrenador realmente cobra.
+    trainerId
+      ? supabase
+          .from('trainer_plan_prices')
+          .select('price_ars')
+          .eq('trainer_id', trainerId)
+          .eq('plan_id', row.plan_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+  const planRow = plan as { name: string; deleted_at: string | null; price_ars: number; plan_type: PlanType | null } | null;
+  const effectivePrice = (override as { price_ars: number } | null)?.price_ars ?? planRow?.price_ars;
+  // El cobro recurrente vive en MercadoPago, no se actualiza solo cuando
+  // el entrenador edita el precio — flaggeamos para que lo arregle
+  // manualmente allá, solo si hay algo que comparar (amount_ars viejo en
+  // null no se flaggea, no hay dato confiable) y el cobro es recurrente.
+  const priceChanged =
+    status === 'active' &&
+    row.mp_preapproval_id &&
+    row.amount_ars != null &&
+    effectivePrice != null &&
+    Number(effectivePrice) !== Number(row.amount_ars)
+      ? { current: Number(effectivePrice), paid: Number(row.amount_ars) }
+      : null;
+  return {
+    id: row.id,
+    status,
+    expires_at: row.expires_at,
+    started_at: row.started_at,
+    mp_preapproval_id: row.mp_preapproval_id,
+    plan_name: planRow?.name ?? null,
+    plan_type: planRow?.plan_type ?? null,
+    plan_deleted: !!planRow?.deleted_at,
+    price_changed: priceChanged,
+  };
+}
+
 type Tab = 'resumen' | 'entrenos' | 'exstats' | 'nutricion' | 'medidas' | 'fotos' | 'engagement' | 'deslinde' | 'facturacion' | 'config';
 
 const TABS: { key: Tab; label: string }[] = [
@@ -208,54 +259,8 @@ export function ClientDetailPage(): React.JSX.Element {
       setConsultation((cr as ConsultationResponse | null) ?? false);
 
       if (sub) {
-        const row = sub as Pick<SubscriptionRow, 'id' | 'status' | 'expires_at' | 'started_at' | 'plan_id' | 'mp_preapproval_id' | 'amount_ars'>;
-        let status = row.status;
-        if (status === 'active' && row.expires_at && new Date(row.expires_at) < new Date()) {
-          status = 'expired';
-        }
-        const [{ data: plan }, { data: override }] = await Promise.all([
-          supabase
-            .from('plans')
-            .select('name, deleted_at, price_ars, plan_type')
-            .eq('id', row.plan_id)
-            .maybeSingle(),
-          // Precio propio del entrenador para un plan built-in: sin esto, se
-          // comparaba contra el precio crudo del catálogo global en vez de lo
-          // que este entrenador realmente cobra.
-          trainerProfile?.id
-            ? supabase
-                .from('trainer_plan_prices')
-                .select('price_ars')
-                .eq('trainer_id', trainerProfile.id)
-                .eq('plan_id', row.plan_id)
-                .maybeSingle()
-            : Promise.resolve({ data: null }),
-        ]);
-        const planRow = plan as { name: string; deleted_at: string | null; price_ars: number; plan_type: PlanType | null } | null;
-        const effectivePrice = (override as { price_ars: number } | null)?.price_ars ?? planRow?.price_ars;
-        // El cobro recurrente vive en MercadoPago, no se actualiza solo cuando
-        // el entrenador edita el precio — flaggeamos para que lo arregle
-        // manualmente allá, solo si hay algo que comparar (amount_ars viejo en
-        // null no se flaggea, no hay dato confiable) y el cobro es recurrente.
-        const priceChanged =
-          status === 'active' &&
-          row.mp_preapproval_id &&
-          row.amount_ars != null &&
-          effectivePrice != null &&
-          Number(effectivePrice) !== Number(row.amount_ars)
-            ? { current: Number(effectivePrice), paid: Number(row.amount_ars) }
-            : null;
-        setSubscription({
-          id: row.id,
-          status,
-          expires_at: row.expires_at,
-          started_at: row.started_at,
-          mp_preapproval_id: row.mp_preapproval_id,
-          plan_name: planRow?.name ?? null,
-          plan_type: planRow?.plan_type ?? null,
-          plan_deleted: !!planRow?.deleted_at,
-          price_changed: priceChanged,
-        });
+        const row = sub as SubscriptionRowBase;
+        setSubscription(await resolveClientSubscription(row, trainerProfile?.id));
       } else {
         setSubscription(null);
       }
@@ -309,7 +314,7 @@ export function ClientDetailPage(): React.JSX.Element {
     if (!clientId) return;
     const { data: sub } = await supabase
       .from('subscriptions')
-      .select('id, status, expires_at, started_at, plan_id, mp_status, mp_preapproval_id, amount_ars')
+      .select('id, status, expires_at, started_at, plan_id, mp_preapproval_id, amount_ars')
       .eq('user_id', clientId)
       .order('created_at', { ascending: false })
       .limit(1)
@@ -318,43 +323,8 @@ export function ClientDetailPage(): React.JSX.Element {
       setSubscription(null);
       return;
     }
-    const row = sub as Pick<SubscriptionRow, 'id' | 'status' | 'expires_at' | 'started_at' | 'plan_id' | 'mp_status' | 'mp_preapproval_id' | 'amount_ars'>;
-    let status = row.status;
-    if (status === 'active' && row.expires_at && new Date(row.expires_at) < new Date()) {
-      status = 'expired';
-    }
-    const [{ data: plan }, { data: override }] = await Promise.all([
-      supabase.from('plans').select('name, deleted_at, price_ars, plan_type').eq('id', row.plan_id).maybeSingle(),
-      trainerProfile?.id
-        ? supabase
-            .from('trainer_plan_prices')
-            .select('price_ars')
-            .eq('trainer_id', trainerProfile.id)
-            .eq('plan_id', row.plan_id)
-            .maybeSingle()
-        : Promise.resolve({ data: null }),
-    ]);
-    const planRow = plan as { name: string; deleted_at: string | null; price_ars: number; plan_type: PlanType | null } | null;
-    const effectivePrice = (override as { price_ars: number } | null)?.price_ars ?? planRow?.price_ars;
-    const priceChanged =
-      status === 'active' &&
-      row.mp_preapproval_id &&
-      row.amount_ars != null &&
-      effectivePrice != null &&
-      Number(effectivePrice) !== Number(row.amount_ars)
-        ? { current: Number(effectivePrice), paid: Number(row.amount_ars) }
-        : null;
-    setSubscription({
-      id: row.id,
-      status,
-      expires_at: row.expires_at,
-      started_at: row.started_at,
-      mp_preapproval_id: row.mp_preapproval_id,
-      plan_name: planRow?.name ?? null,
-      plan_type: planRow?.plan_type ?? null,
-      plan_deleted: !!planRow?.deleted_at,
-      price_changed: priceChanged,
-    });
+    const row = sub as SubscriptionRowBase;
+    setSubscription(await resolveClientSubscription(row, trainerProfile?.id));
   }, [clientId, trainerProfile?.id]);
 
   // Facturación (por mes): se carga recién al entrar a esa pestaña, no hace
