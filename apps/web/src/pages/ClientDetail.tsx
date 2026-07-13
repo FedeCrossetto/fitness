@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useTranslation } from '@/hooks/useTranslation';
-import { MessageIcon, PlusIcon, DumbbellIcon, ChevronRightIcon } from '@/components/icons';
+import { MessageIcon, PlusIcon, DumbbellIcon } from '@/components/icons';
 import { UserAvatar } from '@/components/UserAvatar';
 import type {
   BodyMeasurementRow,
@@ -16,11 +16,11 @@ import type {
   PlanRow,
 } from '@reset-fitness/shared/types/database';
 import { supabase, anyClient } from '@/lib/supabase';
-import { formatWorkoutVolume, summarizeWorkoutForFeed, TERMS_VERSION, APP_TERMS_URL } from '@reset-fitness/shared';
+import { TERMS_VERSION, APP_TERMS_URL } from '@reset-fitness/shared';
 import { ClientProgramPanel } from '@/components/ClientProgramPanel';
 import { WorkoutFeed } from '@/components/WorkoutPost';
 import { BodyMeasurementsPanel } from '@/components/BodyMeasurementsPanel';
-import { ClientCoachPanel } from '@/components/ClientCoachPanel';
+import { ClientOverview } from '@/components/ClientOverview';
 import { Lightbox, Spinner, ConfirmDialog } from '@/components/ui';
 import { ManualPaymentModal } from '@/components/ManualPaymentModal';
 import { formatMoney } from '@/lib/planPricing';
@@ -94,11 +94,6 @@ function subscriptionStatusLabel(status: SubscriptionRow['status']): string {
   return '—';
 }
 
-function formatExpiry(iso: string | null): string {
-  if (!iso) return 'Sin fecha';
-  return new Date(iso).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' });
-}
-
 type Tab = 'resumen' | 'entrenos' | 'nutricion' | 'medidas' | 'fotos' | 'engagement' | 'deslinde' | 'consulta' | 'facturacion';
 
 const TABS: { key: Tab; label: string }[] = [
@@ -116,12 +111,6 @@ const TAB_KEYS = new Set<Tab>(TABS.map((t) => t.key));
 
 const POSITION_LABEL: Record<string, string> = { frente: 'Frente', perfil: 'Perfil', espalda: 'Espalda' };
 
-function formatWorkoutDuration(w: WorkoutLogRow): string {
-  const min = w.duration_min ?? (w.duration_seconds != null ? Math.max(1, Math.round(w.duration_seconds / 60)) : null);
-  if (min == null) return '—';
-  return `${min} min`;
-}
-
 function relativeDate(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const d = Math.floor(diff / 86400000);
@@ -136,7 +125,7 @@ function relativeDate(iso: string): string {
 export function ClientDetailPage(): React.JSX.Element {
   const { id: clientId } = useParams<{ id: string }>();
   const { profile: trainerProfile } = useAuth();
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -144,7 +133,6 @@ export function ClientDetailPage(): React.JSX.Element {
   const [tab, setTab] = useState<Tab>(
     initialTab && TAB_KEYS.has(initialTab as Tab) ? (initialTab as Tab) : 'resumen',
   );
-  const [defaultProgramKey, setDefaultProgramKey] = useState('default');
 
   const [profile, setProfile]         = useState<Profile | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfileRow | null>(null);
@@ -170,17 +158,9 @@ export function ClientDetailPage(): React.JSX.Element {
   useEffect(() => {
     if (!trainerProfile?.id) return;
     void (async () => {
-      const [{ data: branding }, { data: planRows }] = await Promise.all([
-        supabase
-          .from('trainer_branding')
-          .select('default_program_key')
-          .eq('trainer_id', trainerProfile.id)
-          .maybeSingle(),
-        // Sin filtro de `active`: ManualPaymentModal necesita resolver cualquier
-        // combinación de Plan × Frecuencia del catálogo.
-        supabase.from('plans').select('*').order('duration_days'),
-      ]);
-      setDefaultProgramKey((branding as { default_program_key?: string } | null)?.default_program_key ?? 'default');
+      // Sin filtro de `active`: ManualPaymentModal necesita resolver cualquier
+      // combinación de Plan × Frecuencia del catálogo.
+      const { data: planRows } = await supabase.from('plans').select('*').order('duration_days');
       setPlans((planRows as PlanRow[] | null) ?? []);
     })();
   }, [trainerProfile?.id]);
@@ -300,7 +280,6 @@ export function ClientDetailPage(): React.JSX.Element {
 
 
   const completedW = workouts.filter((w) => w.completed).length;
-  const lastWorkout = workouts[0] ?? null;
   const latestM = measurements[0] ?? null;
 
   const stats = useMemo(() => {
@@ -460,34 +439,6 @@ export function ClientDetailPage(): React.JSX.Element {
                   <span className="dot" />{isPending ? 'Pendiente' : 'Activo'}
                 </span>
               </div>
-              <div className="sd-goal-row">
-                <span className="sd-goal">{profile.goal ?? 'Sin objetivo definido'}</span>
-                {userProfile?.level ? <span className="sd-level">{userProfile.level}</span> : null}
-              </div>
-              <div className="sd-meta">
-                <span>Cliente desde {new Date(profile.created_at).toLocaleDateString('es-AR')}</span>
-                <span className="sd-meta-sep">·</span>
-                <span>Semana {userProfile?.plan_current_week ?? 1}</span>
-                {subscription?.plan_name ? (
-                  <>
-                    <span className="sd-meta-sep">·</span>
-                    <span className="sd-subscription-meta">
-                      {subscription.plan_name}
-                      {subscription.status === 'active' && subscription.expires_at
-                        ? ` · Vence ${formatExpiry(subscription.expires_at)}`
-                        : subscription.status
-                          ? ` · ${subscriptionStatusLabel(subscription.status)}`
-                          : ''}
-                    </span>
-                  </>
-                ) : null}
-                {profile.phone ? (
-                  <>
-                    <span className="sd-meta-sep">·</span>
-                    <span>{profile.phone}</span>
-                  </>
-                ) : null}
-              </div>
             </div>
           </div>
 
@@ -538,173 +489,20 @@ export function ClientDetailPage(): React.JSX.Element {
       {/* ── Tab content ── */}
       <div className="sd-content">
 
-        {/* RESUMEN */}
-        {tab === 'resumen' && (
-          <div className="sd-summary-grid">
-            {/* Última medición */}
-            <div className="card sd-panel">
-              <div className="sd-panel-head sd-panel-head-row">
-                <div>
-                  <div className="section-title">Última medición</div>
-                  <div className="sd-panel-sub">
-                    {latestM ? new Date(latestM.date).toLocaleDateString('es-AR') : 'Sin registros todavía'}
-                  </div>
-                </div>
-                <button className="sd-panel-link" onClick={() => setTab('medidas')}>
-                  Ver historial <ChevronRightIcon size={14} />
-                </button>
-              </div>
-              {latestM ? (
-                <div className="sd-measure-grid">
-                  <MeasureTile label="Peso" value={latestM.weight_kg} unit="kg" accent />
-                  <MeasureTile label="Grasa" value={latestM.body_fat_pct} unit="%" />
-                  <MeasureTile label="Cintura" value={latestM.waist_cm} unit="cm" />
-                  <MeasureTile label="Pecho" value={latestM.chest_cm} unit="cm" />
-                </div>
-              ) : (
-                <div className="sd-panel-empty">Todavía no hay mediciones cargadas.</div>
-              )}
-            </div>
-
-            {/* Último entrenamiento */}
-            <div className="card sd-panel">
-              <div className="sd-panel-head sd-panel-head-row">
-                <div>
-                  <div className="section-title">Último entrenamiento</div>
-                  <div className="sd-panel-sub">
-                    {lastWorkout ? relativeDate(lastWorkout.date) : 'Sin actividad'}
-                  </div>
-                </div>
-                {lastWorkout ? (
-                  <button className="sd-panel-link" onClick={() => setTab('entrenos')}>
-                    Ver detalle <ChevronRightIcon size={14} />
-                  </button>
-                ) : null}
-              </div>
-              {lastWorkout ? (
-                <div className="sd-workout-card">
-                  <div className="sd-workout-card-top">
-                    <div className="sd-workout-card-name">{lastWorkout.workout_name}</div>
-                    <span className={`badge sm${lastWorkout.completed ? ' active' : ' amber'}`}>
-                      <span className="dot" />{lastWorkout.completed ? 'Completado' : 'Pendiente'}
-                    </span>
-                  </div>
-                  <div className="sd-workout-card-stats">
-                    <div><span className="sd-wc-val">{formatWorkoutDuration(lastWorkout)}</span><span className="sd-wc-lbl">duración</span></div>
-                    <div><span className="sd-wc-val">{formatWorkoutVolume(lastWorkout.total_volume_kg)}</span><span className="sd-wc-lbl">volumen</span></div>
-                    <div><span className="sd-wc-val">{lastWorkout.rpe != null ? `${lastWorkout.rpe}/10` : '—'}</span><span className="sd-wc-lbl">RPE</span></div>
-                  </div>
-                  {summarizeWorkoutForFeed(lastWorkout.session_detail).length > 0 ? (
-                    <ul className="sd-workout-lines">
-                      {summarizeWorkoutForFeed(lastWorkout.session_detail).slice(0, 4).map((line) => (
-                        <li key={line.name}>{line.completedSets} series · {line.name}</li>
-                      ))}
-                    </ul>
-                  ) : null}
-                  {lastWorkout.rpe != null ? (
-                    <div className="sd-rpe">
-                      <div className="sd-rpe-track"><div className="sd-rpe-fill" style={{ width: `${(lastWorkout.rpe / 10) * 100}%` }} /></div>
-                    </div>
-                  ) : null}
-                  {lastWorkout.comments ? (
-                    <div className="sd-workout-card-comment">"{lastWorkout.comments}"</div>
-                  ) : null}
-                </div>
-              ) : (
-                <div className="sd-panel-empty">Todavía no registró entrenamientos.</div>
-              )}
-            </div>
-
-            {/* Atención recomendada */}
-            <div className="card sd-panel">
-              <div className="sd-panel-head">
-                <div className="section-title">Atención recomendada</div>
-                <div className="sd-panel-sub">Qué conviene revisar hoy</div>
-              </div>
-              {alerts.length === 0 ? (
-                <div className="sd-all-good">
-                  <span className="sd-all-good-check">✓</span>
-                  <span>Todo al día. Sin pendientes.</span>
-                </div>
-              ) : (
-                <ul className="sd-alert-list">
-                  {alerts.map((a, i) => (
-                    <li key={i} className={`sd-alert sd-alert-${a.kind}`}>
-                      <span className="sd-alert-dot" aria-hidden />
-                      <span>{a.text}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-            {/* Datos del cliente */}
-            <div className="card sd-panel">
-              <div className="sd-panel-head">
-                <div className="section-title">Datos del cliente</div>
-                <div className="sd-panel-sub">Perfil y plan</div>
-              </div>
-              <div className="sd-info-grid">
-                <InfoTile label="Nivel" value={userProfile?.level ?? '—'} />
-                <InfoTile label="Programa" value={userProfile?.plan_name ?? '—'} />
-                <InfoTile label="Semana" value={userProfile ? `${userProfile.plan_current_week ?? 0}${userProfile.plan_duration_weeks ? ` / ${userProfile.plan_duration_weeks}` : ''}` : '—'} />
-                <InfoTile label="Suscripción" value={subscription?.plan_name ?? 'Sin plan activo'} />
-                <InfoTile
-                  label="Vence el"
-                  value={
-                    subscription?.expires_at
-                      ? formatExpiry(subscription.expires_at)
-                      : subscription?.status === 'active'
-                        ? 'Sin fecha'
-                        : '—'
-                  }
-                />
-                <InfoTile label="Estado suscripción" value={subscription ? subscriptionStatusLabel(subscription.status) : '—'} />
-                <InfoTile label="Teléfono" value={profile.phone ?? '—'} />
-                <InfoTile label="Objetivo" value={profile.goal ?? '—'} />
-                <InfoTile label="Se unió" value={new Date(profile.created_at).toLocaleDateString('es-AR')} />
-              </div>
-              {subscription?.plan_deleted ? (
-                <div className="sd-plan-warning" title={t.payments.manage_plans_deleted_tooltip}>
-                  ⚠ {t.payments.manage_plans_deleted_badge}: {t.payments.manage_plans_deleted_tooltip}
-                </div>
-              ) : null}
-              {subscription?.price_changed ? (
-                <div
-                  className="sd-plan-warning"
-                  title={i18n(t.payments.manage_plans_price_changed_tooltip, {
-                    current: subscription.price_changed.current.toLocaleString('es-AR'),
-                    paid: subscription.price_changed.paid.toLocaleString('es-AR'),
-                  })}
-                >
-                  ⚠ {t.payments.manage_plans_price_changed_badge}:{' '}
-                  {i18n(t.payments.manage_plans_price_changed_tooltip, {
-                    current: subscription.price_changed.current.toLocaleString('es-AR'),
-                    paid: subscription.price_changed.paid.toLocaleString('es-AR'),
-                  })}
-                </div>
-              ) : null}
-              {subscription?.mp_preapproval_id && subscription.status !== 'cancelled' ? (
-                <button
-                  type="button"
-                  className="btn secondary sm"
-                  style={{ marginTop: 14 }}
-                  onClick={() => setCancelConfirmOpen(true)}
-                >
-                  Cancelar suscripción
-                </button>
-              ) : null}
-            </div>
-
-            {clientId ? (
-              <ClientCoachPanel
-                clientId={clientId}
-                assignedProgramKey={profile.assigned_program_key ?? null}
-                defaultProgramKey={defaultProgramKey}
-                onProgramKeyChange={(key) => setProfile((p) => (p ? { ...p, assigned_program_key: key } : p))}
-              />
-            ) : null}
-          </div>
+        {/* OVERVIEW / RESUMEN */}
+        {tab === 'resumen' && clientId && (
+          <ClientOverview
+            clientId={clientId}
+            goal={profile.goal ?? null}
+            phone={profile.phone ?? null}
+            createdAt={profile.created_at}
+            level={userProfile?.level ?? null}
+            planWeek={userProfile?.plan_current_week ?? null}
+            planName={subscription?.plan_name ?? null}
+            expiresAt={subscription?.status === 'active' ? (subscription.expires_at ?? null) : null}
+            subLabel={subscription ? subscriptionStatusLabel(subscription.status) : null}
+            onOpenTab={(tk) => setTab(tk as Tab)}
+          />
         )}
 
         {/* ENTRENAMIENTO */}
@@ -1162,36 +960,6 @@ function HeroStat({
   );
 }
 
-function InfoTile({ label, value, full = false }: { label: string; value: string; full?: boolean }): React.JSX.Element {
-  return (
-    <div className={`sd-info-tile${full ? ' full' : ''}`}>
-      <div className="sd-info-tile-lbl">{label}</div>
-      <div className="sd-info-tile-val">{value}</div>
-    </div>
-  );
-}
-
-function MeasureTile({
-  label,
-  value,
-  unit,
-  accent = false,
-}: {
-  label: string;
-  value: number | null;
-  unit: string;
-  accent?: boolean;
-}): React.JSX.Element {
-  return (
-    <div className={`sd-measure-tile${accent ? ' accent' : ''}`}>
-      <div className="sd-measure-tile-val">
-        {value != null ? value : '—'}
-        {value != null ? <span className="sd-measure-tile-unit"> {unit}</span> : null}
-      </div>
-      <div className="sd-measure-tile-lbl">{label}</div>
-    </div>
-  );
-}
 
 function Datum({ label, value }: { label: string; value: string }): React.JSX.Element {
   return (

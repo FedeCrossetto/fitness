@@ -197,6 +197,13 @@ export interface WorkoutCommentRow {
   updated_at: string;
 }
 
+export interface ClientCoachNotesRow {
+  client_id: string;
+  trainer_id: string;
+  notes: string | null;
+  updated_at: string;
+}
+
 export interface TrainingPhaseRow {
   id: string;
   program_key: string | null;
@@ -689,6 +696,7 @@ export interface Database {
       user_trophy_days: TableDef<UserTrophyDayRow, 'user_id' | 'date'>;
       workout_likes: TableDef<WorkoutLikeRow, 'workout_log_id' | 'author_id'>;
       workout_comments: TableDef<WorkoutCommentRow, 'workout_log_id' | 'author_id' | 'body'>;
+      client_coach_notes: TableDef<ClientCoachNotesRow, 'client_id' | 'trainer_id'>;
     };
     Views: Record<string, never>;
     Functions: {
@@ -799,6 +807,10 @@ export interface Database {
       i_have_ever_had_a_program: {
         Args: Record<string, never>;
         Returns: boolean;
+      };
+      get_client_email: {
+        Args: { p_client: string };
+        Returns: string | null;
       };
     };
     Enums: Record<string, never>;
