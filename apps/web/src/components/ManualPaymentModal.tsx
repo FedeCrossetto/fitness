@@ -12,6 +12,7 @@ interface ManualPaymentModalProps {
   clients: ManualPaymentClient[];
   plans: PlanRow[];
   initialClientId?: string;
+  initialPlanType?: PlanType;
   onSuccess?: () => void;
 }
 
@@ -35,6 +36,7 @@ export function ManualPaymentModal({
   clients,
   plans,
   initialClientId,
+  initialPlanType,
   onSuccess,
 }: ManualPaymentModalProps): React.JSX.Element | null {
   const { t, i18n, language } = useTranslation();
@@ -51,11 +53,11 @@ export function ManualPaymentModal({
   useEffect(() => {
     if (!open) return;
     setClientId(initialClientId ?? clients[0]?.id ?? '');
-    setPlanType('base');
+    setPlanType(initialPlanType ?? 'base');
     setMonths(1);
     setOverrideAmount(false);
     setStartedOn(todayInputValue());
-  }, [open, initialClientId, clients]);
+  }, [open, initialClientId, initialPlanType, clients]);
 
   // Meses disponibles para el tipo elegido: catálogo built-in (1-6) +
   // cualquier frecuencia custom que el entrenador haya agregado en

@@ -1301,6 +1301,22 @@ tbody tr:hover td:last-child { border-top-right-radius: 11px; border-bottom-righ
 }
 .badge.active .dot { background: var(--green-strong); }
 
+/* Pill de plan (Base/Mentoría) — usado en Clientes y en el header del perfil. */
+.plan-badge {
+  display: inline-flex; align-items: center;
+  padding: 3px 9px; border-radius: 999px;
+  font-size: 12px; font-weight: 600; white-space: nowrap;
+  background: var(--brand-lime-soft);
+  color: color-mix(in srgb, var(--brand-lime) 72%, #0C0C0C);
+  border: none; cursor: default;
+}
+.plan-badge.mentoria {
+  background: rgba(255,115,74,0.12);
+  color: #c44e26;
+}
+button.plan-badge { cursor: pointer; transition: filter 120ms ease; }
+button.plan-badge:hover { filter: brightness(0.94); }
+
 /* solid status pills (Orders style) */
 .badge.solid { border: none; padding: 4px 11px; }
 .badge.green { background: var(--green-soft); color: var(--green-strong); border-color: color-mix(in srgb, var(--green) 22%, transparent); }

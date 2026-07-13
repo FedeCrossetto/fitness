@@ -14,6 +14,7 @@ import type {
   UserProfileRow,
   WorkoutLogRow,
   PlanRow,
+  PlanType,
 } from '@reset-fitness/shared/types/database';
 import { supabase, anyClient } from '@/lib/supabase';
 import { TERMS_VERSION, APP_TERMS_URL } from '@reset-fitness/shared';
@@ -68,6 +69,7 @@ type Profile = Pick<ProfileRow, 'id' | 'full_name' | 'goal' | 'phone' | 'avatar_
 
 type ClientSubscription = Pick<SubscriptionRow, 'id' | 'status' | 'expires_at' | 'started_at' | 'mp_preapproval_id'> & {
   plan_name: string | null;
+  plan_type: PlanType | null;
   /** La frecuencia de facturación elegida fue soft-deleted por el entrenador
    * — el alumno sigue renovando igual, pero ya no está en el catálogo activo. */
   plan_deleted: boolean;
@@ -214,7 +216,7 @@ export function ClientDetailPage(): React.JSX.Element {
         const [{ data: plan }, { data: override }] = await Promise.all([
           supabase
             .from('plans')
-            .select('name, deleted_at, price_ars')
+            .select('name, deleted_at, price_ars, plan_type')
             .eq('id', row.plan_id)
             .maybeSingle(),
           // Precio propio del entrenador para un plan built-in: sin esto, se
@@ -229,7 +231,7 @@ export function ClientDetailPage(): React.JSX.Element {
                 .maybeSingle()
             : Promise.resolve({ data: null }),
         ]);
-        const planRow = plan as { name: string; deleted_at: string | null; price_ars: number } | null;
+        const planRow = plan as { name: string; deleted_at: string | null; price_ars: number; plan_type: PlanType | null } | null;
         const effectivePrice = (override as { price_ars: number } | null)?.price_ars ?? planRow?.price_ars;
         // El cobro recurrente vive en MercadoPago, no se actualiza solo cuando
         // el entrenador edita el precio — flaggeamos para que lo arregle
@@ -250,6 +252,7 @@ export function ClientDetailPage(): React.JSX.Element {
           started_at: row.started_at,
           mp_preapproval_id: row.mp_preapproval_id,
           plan_name: planRow?.name ?? null,
+          plan_type: planRow?.plan_type ?? null,
           plan_deleted: !!planRow?.deleted_at,
           price_changed: priceChanged,
         });
@@ -321,7 +324,7 @@ export function ClientDetailPage(): React.JSX.Element {
       status = 'expired';
     }
     const [{ data: plan }, { data: override }] = await Promise.all([
-      supabase.from('plans').select('name, deleted_at, price_ars').eq('id', row.plan_id).maybeSingle(),
+      supabase.from('plans').select('name, deleted_at, price_ars, plan_type').eq('id', row.plan_id).maybeSingle(),
       trainerProfile?.id
         ? supabase
             .from('trainer_plan_prices')
@@ -331,7 +334,7 @@ export function ClientDetailPage(): React.JSX.Element {
             .maybeSingle()
         : Promise.resolve({ data: null }),
     ]);
-    const planRow = plan as { name: string; deleted_at: string | null; price_ars: number } | null;
+    const planRow = plan as { name: string; deleted_at: string | null; price_ars: number; plan_type: PlanType | null } | null;
     const effectivePrice = (override as { price_ars: number } | null)?.price_ars ?? planRow?.price_ars;
     const priceChanged =
       status === 'active' &&
@@ -348,6 +351,7 @@ export function ClientDetailPage(): React.JSX.Element {
       started_at: row.started_at,
       mp_preapproval_id: row.mp_preapproval_id,
       plan_name: planRow?.name ?? null,
+      plan_type: planRow?.plan_type ?? null,
       plan_deleted: !!planRow?.deleted_at,
       price_changed: priceChanged,
     });
@@ -440,15 +444,14 @@ export function ClientDetailPage(): React.JSX.Element {
             <div className="sd-header-info">
               <div className="sd-name-row">
                 <span className="sd-name">{profile.full_name ?? 'Alumno'}</span>
-                <span className={`badge${isPending ? ' amber' : ' active'}`}>
-                  <span className="dot" />{isPending ? 'Pendiente' : 'Activo'}
-                </span>
               </div>
-              <button type="button" className="sd-plan-row" onClick={() => setManualPayOpen(true)}>
-                <span className="sd-plan-name">{subscription?.plan_name ?? 'Sin plan asignado'}</span>
-                <span className={`badge${subscription?.status === 'active' ? ' active' : ' amber'}`}>
-                  <span className="dot" />{subscription?.status === 'active' ? 'Activo' : 'Inactivo'}
-                </span>
+              <button
+                type="button"
+                className={`plan-badge sd-plan-row${subscription?.plan_type === 'mentoria' ? ' mentoria' : ''}`}
+                onClick={() => setManualPayOpen(true)}
+                title="Cambiar plan / registrar pago"
+              >
+                {subscription?.plan_name ?? 'Asignar plan'}
               </button>
             </div>
           </div>
@@ -691,12 +694,7 @@ export function ClientDetailPage(): React.JSX.Element {
         .sd-name { font-size: 23px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.025em; line-height: 1.2; }
         .sd-goal-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 5px; }
         .sd-goal { font-size: 14px; color: var(--text-secondary); }
-        .sd-plan-row {
-          display: inline-flex; align-items: center; gap: 8px; margin-top: 6px;
-          background: none; border: none; padding: 0; cursor: pointer;
-        }
-        .sd-plan-name { font-size: 13.5px; font-weight: 600; color: var(--text-secondary); }
-        .sd-plan-row:hover .sd-plan-name { color: var(--accent-text); text-decoration: underline; }
+        .sd-plan-row { margin-top: 6px; }
         .sd-level {
           font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
           padding: 2px 9px; border-radius: 999px;

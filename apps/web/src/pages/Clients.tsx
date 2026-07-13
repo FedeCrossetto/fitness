@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
-import type { PlanRow, ProfileRow } from '@reset-fitness/shared/types/database';
+import type { PlanRow, PlanType, ProfileRow } from '@reset-fitness/shared/types/database';
 import type { Translations } from '@reset-fitness/shared';
 import { ManualPaymentModal } from '@/components/ManualPaymentModal';
 import { supabase, anyClient } from '@/lib/supabase';
@@ -127,11 +127,17 @@ function ClientRowMenu({
   onToggle,
   onAssignProgram,
   onDelete,
+  onDismissRequest,
+  hideAssignProgram,
 }: {
   open: boolean;
   onToggle: () => void;
   onAssignProgram: () => void;
   onDelete: () => void;
+  /** Solo en la tabla de Solicitudes de Mentoría: quita la solicitud sin tocar la cuenta. */
+  onDismissRequest?: () => void;
+  /** En Solicitudes de Mentoría no tiene sentido asignar entrenamiento todavía. */
+  hideAssignProgram?: boolean;
 }): React.JSX.Element {
   return (
     <div className="client-row-menu" onClick={(e) => e.stopPropagation()}>
@@ -142,12 +148,19 @@ function ClientRowMenu({
         <>
           <div className="client-row-menu-backdrop" onClick={onToggle} />
           <div className="client-row-menu-pop">
-            <button type="button" className="client-row-menu-item" onClick={onAssignProgram}>
-              <DumbbellIcon size={15} /> Asignar entrenamiento
-            </button>
+            {!hideAssignProgram && (
+              <button type="button" className="client-row-menu-item" onClick={onAssignProgram}>
+                <DumbbellIcon size={15} /> Asignar entrenamiento
+              </button>
+            )}
             <button type="button" className="client-row-menu-item danger" onClick={onDelete}>
               <TrashIcon size={15} /> Eliminar cliente
             </button>
+            {onDismissRequest && (
+              <button type="button" className="client-row-menu-item danger" onClick={onDismissRequest}>
+                <TrashIcon size={15} /> Eliminar solicitud de mentoría
+              </button>
+            )}
           </div>
         </>
       )}
@@ -170,6 +183,7 @@ export function ClientsPage(): React.JSX.Element {
   });
   const [manualPayOpen, setManualPayOpen] = useState(false);
   const [manualPayClientId, setManualPayClientId] = useState<string | null>(null);
+  const [manualPayPlanType, setManualPayPlanType] = useState<PlanType>('base');
   const [plans, setPlans] = useState<PlanRow[]>([]);
   const [priceOverrides, setPriceOverrides] = useState<Map<string, number>>(new Map());
   const [inviteCode, setInviteCode] = useState<string | null>(null);
@@ -373,6 +387,24 @@ export function ClientsPage(): React.JSX.Element {
     showToast('success', 'Reunión marcada como hecha');
   };
 
+  // Saca al cliente de "Solicitudes de Mentoría" sin tocar su cuenta (mismo
+  // filtro que ya excluye status 'dismissed' de mentoriaRequests).
+  const dismissMentoriaRequest = async (clientId: string) => {
+    const row = evaluationByClient.get(clientId);
+    if (!row) return;
+    const { error } = await anyClient.from('evaluation_requests').update({ status: 'dismissed' }).eq('id', row.id);
+    if (error) {
+      showToast('error', 'No pudimos eliminar la solicitud.');
+      return;
+    }
+    setEvaluationByClient((prev) => {
+      const next = new Map(prev);
+      next.set(clientId, { ...row, status: 'dismissed' });
+      return next;
+    });
+    showToast('success', 'Solicitud de mentoría eliminada.');
+  };
+
   const copyLink = () => {
     if (!inviteLink) return;
     void navigator.clipboard.writeText(inviteLink);
@@ -396,8 +428,9 @@ export function ClientsPage(): React.JSX.Element {
     setInviteEmail('');
   };
 
-  const openManualPayment = (id: string) => {
+  const openManualPayment = (id: string, planType: PlanType = 'base') => {
     setManualPayClientId(id);
+    setManualPayPlanType(planType);
     setManualPayOpen(true);
   };
 
@@ -637,7 +670,20 @@ export function ClientsPage(): React.JSX.Element {
                       </div>
                     </td>
                     <td>
-                      <PlanBadge plan={planByClient.get(s.id) ?? { kind: 'none' }} />
+                      {(() => {
+                        const plan = planByClient.get(s.id) ?? { kind: 'none' as const };
+                        const planType: PlanType = plan.kind === 'mentoria' ? 'mentoria' : 'base';
+                        return (
+                          <button
+                            type="button"
+                            className={`plan-badge${planType === 'mentoria' ? ' mentoria' : ''}`}
+                            onClick={(e) => { e.stopPropagation(); openManualPayment(s.id, planType); }}
+                            title="Cambiar plan / registrar pago"
+                          >
+                            {plan.kind === 'none' ? 'Asignar plan' : plan.label}
+                          </button>
+                        );
+                      })()}
                       <BillingWarningIcons warnings={billingWarningsByClient.get(s.id)} t={t} i18n={i18n} />
                     </td>
                     <td><Last7Days activeDays={last7ByClient.get(s.id)} /></td>
@@ -764,7 +810,7 @@ export function ClientsPage(): React.JSX.Element {
                         ) : null}
                         <button
                           className="btn primary sm"
-                          onClick={() => openManualPayment(s.id)}
+                          onClick={() => openManualPayment(s.id, 'mentoria')}
                         >
                           {s.client_status === 'active' ? 'Activar Mentoría' : 'Activar'}
                         </button>
@@ -773,6 +819,8 @@ export function ClientsPage(): React.JSX.Element {
                           onToggle={() => setMenuOpenId((prev) => (prev === s.id ? null : s.id))}
                           onAssignProgram={() => { setMenuOpenId(null); navigate(`/clients/${s.id}?tab=entrenos`); }}
                           onDelete={() => { setMenuOpenId(null); setDeleteError(null); setConfirmDeleteId(s.id); }}
+                          onDismissRequest={() => { setMenuOpenId(null); void dismissMentoriaRequest(s.id); }}
+                          hideAssignProgram
                         />
                       </div>
                     </td>
@@ -878,6 +926,7 @@ export function ClientsPage(): React.JSX.Element {
         clients={clients.filter((s) => s.id === manualPayClientId).map((s) => ({ id: s.id, full_name: s.full_name }))}
         plans={plans}
         initialClientId={manualPayClientId ?? undefined}
+        initialPlanType={manualPayPlanType}
         onSuccess={onManualPaymentSuccess}
       />
     </div>
