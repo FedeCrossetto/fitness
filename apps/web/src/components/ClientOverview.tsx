@@ -345,9 +345,12 @@ export function ClientOverview({ clientId, goal, phone, createdAt, level, planWe
         .cal-day.trained.today { box-shadow: inset 0 0 0 1.5px var(--text-primary); }
         .ov-consult { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); opacity: 0.82; }
         .ov-consult-head { display: flex; align-items: center; justify-content: space-between; font-size: 11px; font-weight: 650; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 8px; }
-        .ov-consult-q { font-size: 11.5px; color: var(--text-tertiary); margin-bottom: 2px; }
-        .ov-consult-a { font-size: 12.5px; color: var(--text-secondary); font-weight: 550; margin-bottom: 8px; min-height: 16px; }
-        .ov-consult-nav { display: flex; align-items: center; justify-content: center; gap: 10px; }
+        .ov-consult-list { display: flex; flex-direction: column; gap: 6px; }
+        .ov-consult-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 3px 0; border-bottom: 1px solid var(--border); }
+        .ov-consult-row:last-child { border-bottom: none; }
+        .ov-consult-q { font-size: 11px; color: var(--text-tertiary); flex-shrink: 0; }
+        .ov-consult-a { font-size: 11.5px; color: var(--text-secondary); font-weight: 550; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%; }
+        .ov-consult-nav { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 8px; }
         .ov-consult-nav button { background: none; border: none; cursor: pointer; font-size: 14px; color: var(--text-tertiary); padding: 0 4px; line-height: 1; }
         .ov-consult-nav button:hover:not(:disabled) { color: var(--text-primary); }
         .ov-consult-nav button:disabled { opacity: 0.3; cursor: default; }
@@ -356,10 +359,13 @@ export function ClientOverview({ clientId, goal, phone, createdAt, level, planWe
   );
 }
 
+const CONSULT_PAGE_SIZE = 10;
+
 // Deliberadamente discreto: la consulta está disponible pero no debe competir
-// visualmente con Actividad reciente — texto chico, borde tenue, un dato a la vez.
+// visualmente con Actividad reciente — texto chico, borde tenue, paginado de
+// a 10 respuestas por vez (en vez de un slide gigante por pregunta).
 function ConsultationCarousel({ data }: { data: ConsultationLike | null | false }): React.JSX.Element {
-  const [idx, setIdx] = useState(0);
+  const [page, setPage] = useState(0);
 
   if (!data) {
     return (
@@ -371,8 +377,9 @@ function ConsultationCarousel({ data }: { data: ConsultationLike | null | false 
   }
 
   const entries = data.responses;
-  const entry = entries[Math.min(idx, entries.length - 1)];
-  const answerText = entry ? (Array.isArray(entry.answer) ? (entry.answer.join(', ') || '—') : (entry.answer || '—')) : '—';
+  const pages = Math.max(1, Math.ceil(entries.length / CONSULT_PAGE_SIZE));
+  const current = Math.min(page, pages - 1);
+  const slice = entries.slice(current * CONSULT_PAGE_SIZE, current * CONSULT_PAGE_SIZE + CONSULT_PAGE_SIZE);
 
   return (
     <div className="ov-consult">
@@ -384,13 +391,24 @@ function ConsultationCarousel({ data }: { data: ConsultationLike | null | false 
         <p className="muted" style={{ margin: 0, fontSize: 11.5 }}>Sin respuestas.</p>
       ) : (
         <>
-          <div className="ov-consult-q">{entry.label}</div>
-          <div className="ov-consult-a">{answerText}</div>
-          <div className="ov-consult-nav">
-            <button type="button" onClick={() => setIdx((i) => Math.max(0, i - 1))} disabled={idx === 0} aria-label="Anterior">‹</button>
-            <span className="muted" style={{ fontSize: 10.5 }}>{idx + 1} / {entries.length}</span>
-            <button type="button" onClick={() => setIdx((i) => Math.min(entries.length - 1, i + 1))} disabled={idx === entries.length - 1} aria-label="Siguiente">›</button>
+          <div className="ov-consult-list">
+            {slice.map((entry, i) => {
+              const answerText = Array.isArray(entry.answer) ? (entry.answer.join(', ') || '—') : (entry.answer || '—');
+              return (
+                <div key={i} className="ov-consult-row">
+                  <span className="ov-consult-q">{entry.label}</span>
+                  <span className="ov-consult-a">{answerText}</span>
+                </div>
+              );
+            })}
           </div>
+          {pages > 1 && (
+            <div className="ov-consult-nav">
+              <button type="button" onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={current === 0} aria-label="Anterior">‹</button>
+              <span className="muted" style={{ fontSize: 10.5 }}>{current + 1} / {pages}</span>
+              <button type="button" onClick={() => setPage((p) => Math.min(pages - 1, p + 1))} disabled={current === pages - 1} aria-label="Siguiente">›</button>
+            </div>
+          )}
         </>
       )}
     </div>
