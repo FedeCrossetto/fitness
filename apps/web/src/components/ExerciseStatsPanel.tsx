@@ -136,7 +136,7 @@ export function ExerciseStatsPanel({ clientId }: { clientId: string }): React.JS
   return (
     <div className="exs-layout">
       <div className="card exs-list-card">
-        <div className="search-field" style={{ marginBottom: 10 }}>
+        <div className="search-field" style={{ marginBottom: 10, width: '100%' }}>
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar ejercicio…" />
         </div>
         <div className="exs-list">

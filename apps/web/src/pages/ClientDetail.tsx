@@ -98,14 +98,12 @@ function subscriptionStatusLabel(status: SubscriptionRow['status']): string {
   return '—';
 }
 
-type Tab = 'resumen' | 'entrenos' | 'exstats' | 'avanzado' | 'nutricion' | 'medidas' | 'fotos' | 'engagement' | 'deslinde' | 'consulta' | 'facturacion' | 'config';
+type Tab = 'resumen' | 'entrenos' | 'exstats' | 'nutricion' | 'medidas' | 'fotos' | 'engagement' | 'deslinde' | 'facturacion' | 'config';
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'resumen',     label: 'Resumen'      },
-  { key: 'consulta',    label: 'Consulta'     },
   { key: 'entrenos',    label: 'Entrenamiento'},
-  { key: 'exstats',     label: 'Estadísticas de ejercicios' },
-  { key: 'avanzado',    label: 'Estadísticas avanzadas' },
+  { key: 'exstats',     label: 'Estadísticas' },
   { key: 'nutricion',   label: 'Nutrición'    },
   { key: 'medidas',     label: 'Medidas'      },
   { key: 'fotos',       label: 'Fotos'        },
@@ -446,6 +444,12 @@ export function ClientDetailPage(): React.JSX.Element {
                   <span className="dot" />{isPending ? 'Pendiente' : 'Activo'}
                 </span>
               </div>
+              <button type="button" className="sd-plan-row" onClick={() => setManualPayOpen(true)}>
+                <span className="sd-plan-name">{subscription?.plan_name ?? 'Sin plan asignado'}</span>
+                <span className={`badge${subscription?.status === 'active' ? ' active' : ' amber'}`}>
+                  <span className="dot" />{subscription?.status === 'active' ? 'Activo' : 'Inactivo'}
+                </span>
+              </button>
             </div>
           </div>
 
@@ -498,6 +502,8 @@ export function ClientDetailPage(): React.JSX.Element {
 
         {/* OVERVIEW / RESUMEN */}
         {tab === 'resumen' && clientId && (
+          <>
+          <ConsultationSummary data={consultation} />
           <ClientOverview
             clientId={clientId}
             goal={profile.goal ?? null}
@@ -510,6 +516,7 @@ export function ClientDetailPage(): React.JSX.Element {
             subLabel={subscription ? subscriptionStatusLabel(subscription.status) : null}
             onOpenTab={(tk) => setTab(tk as Tab)}
           />
+          </>
         )}
 
         {/* ENTRENAMIENTO */}
@@ -543,14 +550,14 @@ export function ClientDetailPage(): React.JSX.Element {
           </div>
         )}
 
-        {/* ESTADÍSTICAS DE EJERCICIOS */}
+        {/* ESTADÍSTICAS (ejercicios + avanzadas) */}
         {tab === 'exstats' && clientId && (
-          <ExerciseStatsPanel clientId={clientId} />
-        )}
-
-        {/* ESTADÍSTICAS AVANZADAS */}
-        {tab === 'avanzado' && clientId && (
-          <AdvancedStatsPanel clientId={clientId} />
+          <div>
+            <ExerciseStatsPanel clientId={clientId} />
+            <div style={{ marginTop: 20 }}>
+              <AdvancedStatsPanel clientId={clientId} />
+            </div>
+          </div>
         )}
 
         {/* NUTRICIÓN */}
@@ -593,11 +600,6 @@ export function ClientDetailPage(): React.JSX.Element {
               </div>
             )}
           </div>
-        )}
-
-        {/* CONSULTA */}
-        {tab === 'consulta' && (
-          <ConsultationTab data={consultation} />
         )}
 
         {/* FACTURACIÓN */}
@@ -691,6 +693,12 @@ export function ClientDetailPage(): React.JSX.Element {
         .sd-name { font-size: 23px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.025em; line-height: 1.2; }
         .sd-goal-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 5px; }
         .sd-goal { font-size: 14px; color: var(--text-secondary); }
+        .sd-plan-row {
+          display: inline-flex; align-items: center; gap: 8px; margin-top: 6px;
+          background: none; border: none; padding: 0; cursor: pointer;
+        }
+        .sd-plan-name { font-size: 13.5px; font-weight: 600; color: var(--text-secondary); }
+        .sd-plan-row:hover .sd-plan-name { color: var(--accent-text); text-decoration: underline; }
         .sd-level {
           font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
           padding: 2px 9px; border-radius: 999px;
@@ -1397,23 +1405,16 @@ function WaiverTab({
   );
 }
 
-// ── ConsultationTab ───────────────────────────────────────────────────────────
+// ── ConsultationSummary (condensado, vive en Resumen) ──────────────────────────
 
-function ConsultationTab({ data }: { data: ConsultationResponse | null | false }): React.JSX.Element {
+function ConsultationSummary({ data }: { data: ConsultationResponse | null | false }): React.JSX.Element {
   if (!data) {
     return (
-      <div className="card" style={{ maxWidth: 560 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-          <span style={{ width: 34, height: 34, borderRadius: '50%', background: '#fef9c3', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>!</span>
-          <div>
-            <div style={{ fontWeight: 700, color: '#ca8a04', fontSize: 15 }}>Pendiente</div>
-            <div style={{ fontSize: 12.5, color: 'var(--text-tertiary)' }}>El alumno todavía no completó el formulario de consulta</div>
-          </div>
-        </div>
-        <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.6, padding: '12px 14px', borderRadius: 8, background: 'var(--surface-elevated)', border: '1px solid var(--border)' }}>
-          La próxima vez que el alumno abra la app, se le solicitará completar el formulario —
-          siempre que hayas configurado uno en{' '}
-          <a href="/settings/consultation" style={{ color: 'var(--primary)' }}>Settings → Formulario de consulta</a>.
+      <div className="card" style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ width: 26, height: 26, borderRadius: '50%', background: '#fef9c3', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 }}>!</span>
+        <div>
+          <div style={{ fontWeight: 700, color: '#ca8a04', fontSize: 13.5 }}>Consulta pendiente</div>
+          <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>El alumno todavía no completó el formulario de consulta.</div>
         </div>
       </div>
     );
@@ -1424,45 +1425,23 @@ function ConsultationTab({ data }: { data: ConsultationResponse | null | false }
   });
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 680 }}>
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: 'var(--surface-elevated)', borderRadius: 8, border: '1px solid var(--border)' }}>
-        <span style={{ width: 28, height: 28, borderRadius: '50%', background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>✓</span>
-        <div>
-          <span style={{ fontWeight: 700, color: '#16a34a', fontSize: 13.5 }}>Completado</span>
-          <span style={{ fontSize: 12, color: 'var(--text-tertiary)', marginLeft: 8 }}>· {submittedDate}</span>
-        </div>
+    <div className="card" style={{ marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <div className="section-title" style={{ margin: 0 }}>Consulta</div>
+        <span style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>Completada · {submittedDate}</span>
       </div>
-
-      {data.responses.map((entry, idx) => (
-        <div key={idx} className="card" style={{ padding: '14px 18px' }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8, lineHeight: 1.5 }}>
-            {entry.label}
+      <div className="ov-info-grid">
+        {data.responses.map((entry, idx) => (
+          <div key={idx}>
+            <div className="ov-info-label">{entry.label}</div>
+            <div className="ov-info-value" style={{ fontWeight: 500, fontSize: 13 }}>
+              {Array.isArray(entry.answer)
+                ? (entry.answer.length ? entry.answer.join(', ') : '—')
+                : (entry.answer || '—')}
+            </div>
           </div>
-          {Array.isArray(entry.answer) ? (
-            entry.answer.length === 0 ? (
-              <span style={{ fontSize: 13, color: 'var(--text-tertiary)', fontStyle: 'italic' }}>Sin respuesta</span>
-            ) : (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {entry.answer.map((a) => (
-                  <span key={a} style={{
-                    fontSize: 12.5, fontWeight: 500, color: 'var(--text-primary)',
-                    background: 'color-mix(in srgb, var(--primary) 12%, transparent)',
-                    border: '1px solid color-mix(in srgb, var(--primary) 30%, transparent)',
-                    borderRadius: 6, padding: '3px 10px',
-                  }}>
-                    {a}
-                  </span>
-                ))}
-              </div>
-            )
-          ) : (
-            <span style={{ fontSize: 13.5, color: entry.answer ? 'var(--text-primary)' : 'var(--text-tertiary)', fontStyle: entry.answer ? undefined : 'italic' }}>
-              {entry.answer || 'Sin respuesta'}
-            </span>
-          )}
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }

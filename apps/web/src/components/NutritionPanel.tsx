@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { HydrationLogRow, MealLogRow, MealType } from '@reset-fitness/shared/types/database';
 import { supabase } from '@/lib/supabase';
 import { Ring, AreaChart } from '@/components/charts';
+import { Lightbox } from '@/components/ui';
 import { brand } from '@/theme/brand';
 
 function parseIsoDateLocal(iso: string): Date {
@@ -23,6 +24,8 @@ export function NutritionPanel({ clientId }: { clientId: string }): React.JSX.El
   const [meals, setMeals] = useState<MealLogRow[]>([]);
   const [hydration, setHydration] = useState<HydrationLogRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
+  const [lightbox, setLightbox] = useState<{ src: string; caption: string } | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -37,6 +40,26 @@ export function NutritionPanel({ clientId }: { clientId: string }): React.JSX.El
       setLoading(false);
     })();
   }, [clientId]);
+
+  // Resuelve URLs firmadas para las fotos de comida (bucket privado meal-photos).
+  useEffect(() => {
+    const paths = meals.map((m) => m.photo_url).filter((p): p is string => !!p && photoUrls[p] === undefined);
+    if (paths.length === 0) return;
+    let cancelled = false;
+    void (async () => {
+      const entries = await Promise.all(paths.map(async (p) => {
+        const { data } = await supabase.storage.from('meal-photos').createSignedUrl(p, 3600);
+        return [p, data?.signedUrl ?? null] as const;
+      }));
+      if (cancelled) return;
+      setPhotoUrls((prev) => {
+        const next = { ...prev };
+        for (const [p, url] of entries) if (url) next[p] = url;
+        return next;
+      });
+    })();
+    return () => { cancelled = true; };
+  }, [meals, photoUrls]);
 
   const today = todayIso();
   const todayHydro = hydration.find((h) => h.date === today) ?? hydration[hydration.length - 1] ?? null;
@@ -79,13 +102,24 @@ export function NutritionPanel({ clientId }: { clientId: string }): React.JSX.El
                     <span className="muted">P {Math.round(totals.protein)}g · C {Math.round(totals.carbs)}g · G {Math.round(totals.fat)}g</span>
                   </div>
                 </div>
-                {sorted.map((m) => (
-                  <div key={m.id} className="nut-meal-row">
-                    <span className="nut-meal-tag">{MEAL_LABEL[m.meal_type]}</span>
-                    <span className="nut-meal-title">{m.title ?? m.product_display_name ?? 'Comida'}</span>
-                    <span className="muted" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{m.energy_kcal != null ? `${Math.round(m.energy_kcal)} kcal` : '—'}</span>
-                  </div>
-                ))}
+                {sorted.map((m) => {
+                  const photoUrl = m.photo_url ? photoUrls[m.photo_url] : undefined;
+                  return (
+                    <div key={m.id} className="nut-meal-row">
+                      {photoUrl ? (
+                        <img
+                          src={photoUrl} alt="" className="nut-meal-thumb"
+                          onClick={() => setLightbox({ src: photoUrl, caption: `${MEAL_LABEL[m.meal_type]} · ${m.title ?? m.product_display_name ?? 'Comida'}` })}
+                        />
+                      ) : (
+                        <span className="nut-meal-thumb nut-meal-thumb--empty" aria-hidden />
+                      )}
+                      <span className="nut-meal-tag">{MEAL_LABEL[m.meal_type]}</span>
+                      <span className="nut-meal-title">{m.title ?? m.product_display_name ?? 'Comida'}</span>
+                      <span className="muted" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{m.energy_kcal != null ? `${Math.round(m.energy_kcal)} kcal` : '—'}</span>
+                    </div>
+                  );
+                })}
               </div>
             );
           })
@@ -108,6 +142,8 @@ export function NutritionPanel({ clientId }: { clientId: string }): React.JSX.El
         </div>
       </div>
 
+      {lightbox && <Lightbox src={lightbox.src} caption={lightbox.caption} onClose={() => setLightbox(null)} />}
+
       <style>{`
         .nut-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
         @media (max-width: 980px) { .nut-layout { grid-template-columns: 1fr; } }
@@ -116,6 +152,8 @@ export function NutritionPanel({ clientId }: { clientId: string }): React.JSX.El
         .nut-day-totals { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-size: 13px; }
         .nut-meal-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border); }
         .nut-meal-row:last-child { border-bottom: none; }
+        .nut-meal-thumb { width: 34px; height: 34px; border-radius: 8px; object-fit: cover; flex-shrink: 0; cursor: zoom-in; background: var(--surface-elevated); }
+        .nut-meal-thumb--empty { border: 1px dashed var(--border-strong); }
         .nut-meal-tag { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--accent-text); background: var(--accent-soft); border-radius: 6px; padding: 3px 7px; flex-shrink: 0; }
         .nut-meal-title { flex: 1; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       `}</style>

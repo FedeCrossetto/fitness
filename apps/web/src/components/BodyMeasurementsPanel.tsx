@@ -139,7 +139,7 @@ export function BodyMeasurementsPanel({ clientId }: { clientId: string }): React
     <div className="bm-layout">
       {/* Lista de medidas */}
       <div className="card bm-list-card">
-        <div className="search-field" style={{ marginBottom: 10 }}>
+        <div className="search-field" style={{ marginBottom: 10, width: '100%' }}>
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar medida…" />
         </div>
         <div className="bm-list">

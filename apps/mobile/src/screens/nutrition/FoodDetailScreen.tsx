@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import { signedUrl, uploadPrivateImage } from '../../services/storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { layout, radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
@@ -276,6 +278,61 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
     if (editMeal?.icon_key && isFoodIconKey(editMeal.icon_key)) return editMeal.icon_key;
     return DEFAULT_FOOD_ICON_KEY;
   });
+
+  // Foto de la comida (opcional) — se sube apenas se elige, para no perderla
+  // si el usuario navega antes de guardar. `mealPhotoPath` es lo que se
+  // manda en photoUrl al guardar (null = sin foto / se quitó).
+  const [mealPhotoPath, setMealPhotoPath] = useState<string | null>(editMeal?.photo_url ?? null);
+  const [mealPhotoPreviewUrl, setMealPhotoPreviewUrl] = useState<string | null>(null);
+  const [uploadingMealPhoto, setUploadingMealPhoto] = useState(false);
+
+  useEffect(() => {
+    if (!mealPhotoPath) { setMealPhotoPreviewUrl(null); return; }
+    let cancelled = false;
+    void (async () => {
+      const url = await signedUrl('meal-photos', mealPhotoPath);
+      if (!cancelled) setMealPhotoPreviewUrl(url);
+    })();
+    return () => { cancelled = true; };
+  }, [mealPhotoPath]);
+
+  const uploadMealPhoto = useCallback(async (uri: string) => {
+    if (!userId) return;
+    setUploadingMealPhoto(true);
+    try {
+      const path = await uploadPrivateImage('meal-photos', userId, uri, `meal-${Date.now()}`);
+      setMealPhotoPath(path);
+    } catch {
+      useUiStore.getState().showToast('error', 'No pudimos subir la foto. Probá de nuevo.');
+    } finally {
+      setUploadingMealPhoto(false);
+    }
+  }, [userId]);
+
+  const pickMealPhoto = useCallback(() => {
+    Alert.alert('Foto de la comida', undefined, [
+      {
+        text: 'Tomar foto',
+        onPress: () => void (async () => {
+          const { status } = await ImagePicker.requestCameraPermissionsAsync();
+          if (status !== 'granted') {
+            useUiStore.getState().showToast('error', 'Necesitamos permiso de cámara para sacar la foto.');
+            return;
+          }
+          const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.6, allowsEditing: true });
+          if (!result.canceled && result.assets[0]) await uploadMealPhoto(result.assets[0].uri);
+        })(),
+      },
+      {
+        text: 'Elegir de la galería',
+        onPress: () => void (async () => {
+          const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.6, allowsEditing: true });
+          if (!result.canceled && result.assets[0]) await uploadMealPhoto(result.assets[0].uri);
+        })(),
+      },
+      { text: 'Cancelar', style: 'cancel' },
+    ]);
+  }, [uploadMealPhoto]);
 
   const remotePhoto = offProduct?.imageUrl ?? null;
   const showIconPicker = isCatalogCreate || isCatalogEdit;
@@ -614,7 +671,7 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
           carbs_g: computed.carbs,
           fat_g: computed.fat,
           icon_key: resolvedIconKey,
-          photo_url: null,
+          photo_url: mealPhotoPath,
         })
       : await addMeal(userId, {
           mealType: MEAL_TYPES[mealTypeIdx],
@@ -630,7 +687,7 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
           carbs: computed.carbs,
           fat: computed.fat,
           iconKey: resolvedIconKey ?? selectedFood?.icon_key ?? selectedTrainerFood?.icon_key ?? null,
-          photoUrl: null,
+          photoUrl: mealPhotoPath,
         });
 
     setSaving(false);
@@ -830,6 +887,38 @@ export function FoodDetailScreen({ navigation, route }: Props): React.JSX.Elemen
                   activeIndex={mealTypeIdx}
                   onChange={setMealTypeIdx}
                 />
+              </Card>
+            ) : null}
+
+            {isAddToMeal && !readOnlyMeal ? (
+              <Card style={styles.sectionCard}>
+                <AppText variant="caps12" color={colors.text.tertiary} style={styles.sectionTitle}>
+                  Foto (opcional)
+                </AppText>
+                {mealPhotoPreviewUrl ? (
+                  <View style={styles.mealPhotoRow}>
+                    <Image source={{ uri: mealPhotoPreviewUrl }} style={styles.mealPhotoThumb} contentFit="cover" />
+                    <View style={styles.mealPhotoActions}>
+                      <Pressable onPress={pickMealPhoto} disabled={uploadingMealPhoto} accessibilityRole="button">
+                        <AppText variant="body13SemiBold" color={colors.primary.default}>Cambiar</AppText>
+                      </Pressable>
+                      <Pressable onPress={() => setMealPhotoPath(null)} disabled={uploadingMealPhoto} accessibilityRole="button">
+                        <AppText variant="body13SemiBold" color={colors.states.error}>Quitar</AppText>
+                      </Pressable>
+                    </View>
+                  </View>
+                ) : (
+                  <Pressable onPress={pickMealPhoto} disabled={uploadingMealPhoto} style={styles.mealPhotoPicker} accessibilityRole="button">
+                    {uploadingMealPhoto ? (
+                      <ActivityIndicator color={colors.text.tertiary} />
+                    ) : (
+                      <>
+                        <Ionicons name="camera-outline" size={22} color={colors.text.tertiary} />
+                        <AppText variant="body13SemiBold" color={colors.text.secondary}>Agregar foto</AppText>
+                      </>
+                    )}
+                  </Pressable>
+                )}
               </Card>
             ) : null}
 
@@ -1247,5 +1336,30 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     gap: spacing.xs,
     marginTop: spacing.sm,
     minHeight: layout.minHitTarget,
+  },
+  mealPhotoPicker: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.border.default,
+    borderRadius: radius.md,
+    paddingVertical: spacing.lg,
+  },
+  mealPhotoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  mealPhotoThumb: {
+    width: 64,
+    height: 64,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface.elevated,
+  },
+  mealPhotoActions: {
+    gap: spacing.sm,
   },
 });
