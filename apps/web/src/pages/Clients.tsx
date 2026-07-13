@@ -889,17 +889,6 @@ export function ClientsPage(): React.JSX.Element {
         }
         .clients-tab:hover { color: var(--text-primary); }
         .clients-tab.active { color: var(--hevy-blue); border-bottom-color: var(--hevy-blue); }
-        .plan-badge {
-          display: inline-flex; align-items: center;
-          padding: 3px 9px; border-radius: 999px;
-          font-size: 12px; font-weight: 600; white-space: nowrap;
-          background: var(--brand-lime-soft);
-          color: color-mix(in srgb, var(--brand-lime) 72%, #0C0C0C);
-        }
-        .plan-badge.mentoria {
-          background: rgba(255,115,74,0.12);
-          color: #c44e26;
-        }
         .cell-sub { font-size: 11.5px; color: var(--text-tertiary); margin-top: 1px; }
 
         /* Últimos 7 días — look & feel de app.hevycoach.com/clients */
