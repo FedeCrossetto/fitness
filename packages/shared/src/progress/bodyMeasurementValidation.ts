@@ -3,9 +3,22 @@
 export const BODY_MEASUREMENT_LIMITS = {
   weight_kg: { min: 30, max: 300, unit: 'kg' },
   body_fat_pct: { min: 3, max: 75, unit: '%' },
+  lean_body_mass_kg: { min: 20, max: 200, unit: 'kg' },
   chest_cm: { min: 40, max: 200, unit: 'cm' },
   waist_cm: { min: 40, max: 200, unit: 'cm' },
   hips_cm: { min: 40, max: 200, unit: 'cm' },
+  abdomen_cm: { min: 40, max: 200, unit: 'cm' },
+  neck_cm: { min: 20, max: 80, unit: 'cm' },
+  shoulder_cm: { min: 60, max: 220, unit: 'cm' },
+  left_bicep_cm: { min: 15, max: 80, unit: 'cm' },
+  right_bicep_cm: { min: 15, max: 80, unit: 'cm' },
+  left_forearm_cm: { min: 10, max: 60, unit: 'cm' },
+  right_forearm_cm: { min: 10, max: 60, unit: 'cm' },
+  left_thigh_cm: { min: 30, max: 120, unit: 'cm' },
+  right_thigh_cm: { min: 30, max: 120, unit: 'cm' },
+  left_calf_cm: { min: 20, max: 80, unit: 'cm' },
+  right_calf_cm: { min: 20, max: 80, unit: 'cm' },
+  // Legacy genéricos (se mantienen por compatibilidad de datos viejos).
   arms_cm: { min: 15, max: 80, unit: 'cm' },
   legs_cm: { min: 30, max: 150, unit: 'cm' },
 } as const;

@@ -4,7 +4,12 @@ import { toISODate, todayISO } from '../lib/dates';
 
 type ConsultationAnswer = { label: string; answer: string | string[] };
 
-type MeasureField = 'weight_kg' | 'body_fat_pct' | 'chest_cm' | 'waist_cm' | 'hips_cm' | 'arms_cm' | 'legs_cm';
+type MeasureField =
+  | 'weight_kg' | 'body_fat_pct' | 'lean_body_mass_kg'
+  | 'chest_cm' | 'waist_cm' | 'hips_cm' | 'abdomen_cm' | 'neck_cm' | 'shoulder_cm'
+  | 'left_bicep_cm' | 'right_bicep_cm' | 'left_forearm_cm' | 'right_forearm_cm'
+  | 'left_thigh_cm' | 'right_thigh_cm' | 'left_calf_cm' | 'right_calf_cm'
+  | 'arms_cm' | 'legs_cm';
 
 /** Combina medidas nuevas con la fila del día; null/undefined no pisa valores existentes. */
 export function mergeMeasurementFields(
@@ -25,9 +30,21 @@ export function mergeMeasurementFields(
     gender: pick('gender'),
     weight_kg: pick('weight_kg'),
     body_fat_pct: pick('body_fat_pct'),
+    lean_body_mass_kg: pick('lean_body_mass_kg'),
     chest_cm: pick('chest_cm'),
     waist_cm: pick('waist_cm'),
     hips_cm: pick('hips_cm'),
+    abdomen_cm: pick('abdomen_cm'),
+    neck_cm: pick('neck_cm'),
+    shoulder_cm: pick('shoulder_cm'),
+    left_bicep_cm: pick('left_bicep_cm'),
+    right_bicep_cm: pick('right_bicep_cm'),
+    left_forearm_cm: pick('left_forearm_cm'),
+    right_forearm_cm: pick('right_forearm_cm'),
+    left_thigh_cm: pick('left_thigh_cm'),
+    right_thigh_cm: pick('right_thigh_cm'),
+    left_calf_cm: pick('left_calf_cm'),
+    right_calf_cm: pick('right_calf_cm'),
     arms_cm: pick('arms_cm'),
     legs_cm: pick('legs_cm'),
   };
@@ -66,7 +83,7 @@ export async function backfillWeightFromConsultation(
       ? toISODate(new Date(row.submitted_at))
       : todayISO();
 
-  const saved = await upsert({ user_id: userId, date, gender, weight_kg: weight, body_fat_pct: null, chest_cm: null, waist_cm: null, hips_cm: null, arms_cm: null, legs_cm: null });
+  const saved = await upsert(mergeMeasurementFields(undefined, { gender, weight_kg: weight }, userId, date));
   if (!saved) return measurements;
 
   const rest = measurements.filter((m) => m.id !== saved.id);

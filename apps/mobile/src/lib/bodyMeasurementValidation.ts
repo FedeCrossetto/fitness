@@ -13,6 +13,18 @@ const FIELD_LABELS: Record<BodyMeasurementField, (t: Translations) => string> = 
   hips_cm: (t) => t.progress.hips,
   arms_cm: (t) => t.progress.arms,
   legs_cm: (t) => t.progress.legs,
+  lean_body_mass_kg: () => 'Masa magra',
+  abdomen_cm: () => 'Abdomen',
+  neck_cm: () => 'Cuello',
+  shoulder_cm: () => 'Hombro',
+  left_bicep_cm: () => 'Bícep izquierdo',
+  right_bicep_cm: () => 'Bícep derecho',
+  left_forearm_cm: () => 'Antebrazo izquierdo',
+  right_forearm_cm: () => 'Antebrazo derecho',
+  left_thigh_cm: () => 'Muslo izquierdo',
+  right_thigh_cm: () => 'Muslo derecho',
+  left_calf_cm: () => 'Gemelo izquierdo',
+  right_calf_cm: () => 'Gemelo derecho',
 };
 
 export function formatMeasurementValidationError(

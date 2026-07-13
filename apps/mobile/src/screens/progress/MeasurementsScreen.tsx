@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -26,20 +26,36 @@ import type { ProgressStackParamList } from '../../types/navigation';
 
 type Props = NativeStackScreenProps<ProgressStackParamList, 'Measurements'>;
 
-type FormField = 'weight' | 'fat' | 'chest' | 'waist' | 'hips' | 'arms' | 'legs';
+/** Todas las medidas que puede cargar el cliente (paridad con el panel del
+ * coach / Hevy). `measure` es la columna en body_measurements. */
+const MEASURE_FIELDS: { key: string; measure: BodyMeasurementField; label: string; placeholder: string }[] = [
+  { key: 'weight', measure: 'weight_kg', label: 'Peso (kg)', placeholder: '78.5' },
+  { key: 'fat', measure: 'body_fat_pct', label: 'Grasa corporal (%)', placeholder: '18.0' },
+  { key: 'lean', measure: 'lean_body_mass_kg', label: 'Masa magra (kg)', placeholder: '62' },
+  { key: 'neck', measure: 'neck_cm', label: 'Cuello (cm)', placeholder: '38' },
+  { key: 'shoulder', measure: 'shoulder_cm', label: 'Hombro (cm)', placeholder: '118' },
+  { key: 'chest', measure: 'chest_cm', label: 'Pecho (cm)', placeholder: '100' },
+  { key: 'abdomen', measure: 'abdomen_cm', label: 'Abdomen (cm)', placeholder: '85' },
+  { key: 'waist', measure: 'waist_cm', label: 'Cintura (cm)', placeholder: '82' },
+  { key: 'hips', measure: 'hips_cm', label: 'Cadera (cm)', placeholder: '98' },
+  { key: 'lbicep', measure: 'left_bicep_cm', label: 'Bícep izq. (cm)', placeholder: '35' },
+  { key: 'rbicep', measure: 'right_bicep_cm', label: 'Bícep der. (cm)', placeholder: '35' },
+  { key: 'lforearm', measure: 'left_forearm_cm', label: 'Antebrazo izq. (cm)', placeholder: '28' },
+  { key: 'rforearm', measure: 'right_forearm_cm', label: 'Antebrazo der. (cm)', placeholder: '28' },
+  { key: 'lthigh', measure: 'left_thigh_cm', label: 'Muslo izq. (cm)', placeholder: '58' },
+  { key: 'rthigh', measure: 'right_thigh_cm', label: 'Muslo der. (cm)', placeholder: '58' },
+  { key: 'lcalf', measure: 'left_calf_cm', label: 'Gemelo izq. (cm)', placeholder: '38' },
+  { key: 'rcalf', measure: 'right_calf_cm', label: 'Gemelo der. (cm)', placeholder: '38' },
+];
+
+type FormField = (typeof MEASURE_FIELDS)[number]['key'];
 type FormState = Record<FormField, string>;
 
-const EMPTY_FORM: FormState = { weight: '', fat: '', chest: '', waist: '', hips: '', arms: '', legs: '' };
+const EMPTY_FORM: FormState = Object.fromEntries(MEASURE_FIELDS.map((f) => [f.key, ''])) as FormState;
 
-const MEASURE_TO_FORM: Record<BodyMeasurementField, FormField> = {
-  weight_kg: 'weight',
-  body_fat_pct: 'fat',
-  chest_cm: 'chest',
-  waist_cm: 'waist',
-  hips_cm: 'hips',
-  arms_cm: 'arms',
-  legs_cm: 'legs',
-};
+const MEASURE_TO_FORM = Object.fromEntries(
+  MEASURE_FIELDS.map((f) => [f.measure, f.key]),
+) as Partial<Record<BodyMeasurementField, FormField>>;
 
 function parseDecimal(value: string): number | null {
   const n = Number.parseFloat(value.replace(',', '.'));
@@ -114,18 +130,7 @@ export function MeasurementsScreen({ navigation }: Props): React.JSX.Element {
 
   const latest = measurements[0];
 
-  const formFields = useMemo(
-    (): { key: FormField; label: string; placeholder: string }[] => [
-      { key: 'weight', label: `${t.progress.weight} (kg)`, placeholder: '78.5' },
-      { key: 'fat', label: t.progress.fat_pct, placeholder: '18.0' },
-      { key: 'chest', label: `${t.progress.chest} (cm)`, placeholder: '100' },
-      { key: 'waist', label: `${t.progress.waist} (cm)`, placeholder: '82' },
-      { key: 'hips', label: `${t.progress.hips} (cm)`, placeholder: '95' },
-      { key: 'arms', label: `${t.progress.arms} (cm)`, placeholder: '36' },
-      { key: 'legs', label: `${t.progress.legs} (cm)`, placeholder: '58' },
-    ],
-    [t]
-  );
+  const formFields = MEASURE_FIELDS;
 
   useEffect(() => {
     if (!userId) return;
@@ -138,15 +143,12 @@ export function MeasurementsScreen({ navigation }: Props): React.JSX.Element {
       if (latestRow.gender === 'male' || latestRow.gender === 'female') {
         setGender(latestRow.gender);
       }
-      setForm({
-        weight: latestRow.weight_kg !== null ? String(latestRow.weight_kg) : '',
-        fat: latestRow.body_fat_pct !== null ? String(latestRow.body_fat_pct) : '',
-        chest: latestRow.chest_cm !== null ? String(latestRow.chest_cm) : '',
-        waist: latestRow.waist_cm !== null ? String(latestRow.waist_cm) : '',
-        hips: latestRow.hips_cm !== null ? String(latestRow.hips_cm) : '',
-        arms: latestRow.arms_cm !== null ? String(latestRow.arms_cm) : '',
-        legs: latestRow.legs_cm !== null ? String(latestRow.legs_cm) : '',
-      });
+      const next = { ...EMPTY_FORM };
+      for (const f of MEASURE_FIELDS) {
+        const v = latestRow[f.measure];
+        next[f.key] = v !== null && v !== undefined ? String(v) : '';
+      }
+      setForm(next);
     })();
     return () => {
       cancelled = true;
@@ -160,35 +162,24 @@ export function MeasurementsScreen({ navigation }: Props): React.JSX.Element {
 
   const onSave = useCallback(async () => {
     if (!userId) return;
-    const data: Partial<BodyMeasurementRow> = {
-      gender,
-      weight_kg: parseDecimal(form.weight),
-      body_fat_pct: parseDecimal(form.fat),
-      chest_cm: parseDecimal(form.chest),
-      waist_cm: parseDecimal(form.waist),
-      hips_cm: parseDecimal(form.hips),
-      arms_cm: parseDecimal(form.arms),
-      legs_cm: parseDecimal(form.legs),
-    };
-    const { gender: _gender, ...measures } = data;
-    const hasValue = Object.values(measures).some((v) => v !== null);
+    const data: Partial<BodyMeasurementRow> = { gender };
+    const values: Partial<Record<BodyMeasurementField, number | null>> = {};
+    for (const f of MEASURE_FIELDS) {
+      const parsed = parseDecimal(form[f.key]);
+      (data as Record<string, unknown>)[f.measure] = parsed;
+      values[f.measure] = parsed;
+    }
+    const hasValue = Object.values(values).some((v) => v !== null);
     if (!hasValue) {
       useUiStore.getState().showToast('error', t.progress.measurements_required);
       return;
     }
 
-    const validation = validateBodyMeasurements({
-      weight_kg: data.weight_kg,
-      body_fat_pct: data.body_fat_pct,
-      chest_cm: data.chest_cm,
-      waist_cm: data.waist_cm,
-      hips_cm: data.hips_cm,
-      arms_cm: data.arms_cm,
-      legs_cm: data.legs_cm,
-    });
+    const validation = validateBodyMeasurements(values);
     if (!validation.ok) {
       const message = formatMeasurementValidationError(validation, t);
-      setFieldErrors({ [MEASURE_TO_FORM[validation.field]]: message });
+      const fk = MEASURE_TO_FORM[validation.field];
+      if (fk) setFieldErrors({ [fk]: message });
       useUiStore.getState().showToast('error', message);
       return;
     }
