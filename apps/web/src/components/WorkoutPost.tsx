@@ -1,30 +1,84 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { WorkoutLogRow } from '@reset-fitness/shared/types/database';
 import { formatWorkoutVolume, summarizeWorkoutForFeed } from '@reset-fitness/shared';
+import { supabase } from '@/lib/supabase';
+import { Spinner } from '@/components/ui';
 import { HeartIcon, ShareIcon, TrashIcon } from '@/components/icons';
 import { resolveAvatarUrl, initials } from '@/lib/avatarUrl';
 import { useWorkoutSocial, type WorkoutSocial } from '@/hooks/useWorkoutSocial';
 
 interface Author { name: string; avatarUrl: string | null }
 
-/** Lista de posts de entrenamiento; centraliza la carga social (likes +
- * comentarios en batch) para todos los logs visibles. */
+const PAGE = 3;
+
+/** Feed de entrenamientos con infinite scroll: carga de a 3 y va trayendo más
+ * (con spinner) a medida que se scrollea. Centraliza la carga social (likes +
+ * comentarios) de los logs visibles. */
 export function WorkoutFeed({
-  workouts,
+  clientId,
   author,
   viewer,
 }: {
-  workouts: WorkoutLogRow[];
+  clientId: string;
   author: Author;
   viewer: Author;
 }): React.JSX.Element {
-  const logIds = useMemo(() => workouts.map((w) => w.id), [workouts]);
+  const [items, setItems] = useState<WorkoutLogRow[]>([]);
+  const [done, setDone] = useState(false);
+  const offsetRef = useRef(0);
+  const loadingRef = useRef(false);
+  const doneRef = useRef(false);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  const loadMore = useCallback(async () => {
+    if (loadingRef.current || doneRef.current) return;
+    loadingRef.current = true;
+    const from = offsetRef.current;
+    const { data } = await supabase
+      .from('workout_logs').select('*').eq('user_id', clientId)
+      .order('date', { ascending: false }).order('created_at', { ascending: false })
+      .range(from, from + PAGE - 1);
+    const rows = (data as WorkoutLogRow[] | null) ?? [];
+    offsetRef.current = from + rows.length;
+    setItems((prev) => [...prev, ...rows]);
+    if (rows.length < PAGE) { doneRef.current = true; setDone(true); }
+    loadingRef.current = false;
+  }, [clientId]);
+
+  // Reset al cambiar de cliente.
+  useEffect(() => {
+    offsetRef.current = 0; loadingRef.current = false; doneRef.current = false;
+    setItems([]); setDone(false);
+    void loadMore();
+  }, [clientId, loadMore]);
+
+  // Infinite scroll: cuando el sentinel entra en viewport, cargamos más.
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting) void loadMore();
+    }, { rootMargin: '250px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [loadMore, done]);
+
+  const logIds = useMemo(() => items.map((w) => w.id), [items]);
   const social = useWorkoutSocial(logIds);
+
   return (
     <>
-      {workouts.map((w) => (
+      {items.map((w) => (
         <WorkoutPost key={w.id} workout={w} author={author} viewer={viewer} social={social} />
       ))}
+      {!done && (
+        <div ref={sentinelRef} style={{ display: 'flex', justifyContent: 'center', padding: '18px 0' }}>
+          <Spinner size={22} />
+        </div>
+      )}
+      {done && items.length === 0 && (
+        <div className="card"><p className="muted" style={{ margin: 0 }}>Sin entrenamientos registrados.</p></div>
+      )}
     </>
   );
 }

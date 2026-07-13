@@ -79,6 +79,16 @@ export function ClientProgramPanel({ clientId }: { clientId: string }): React.JS
     return { active, others };
   }, [programs, activeKey]);
 
+  // "Próximo programa" = el agendado a futuro más cercano (si existe).
+  const upcoming = useMemo(
+    () => others
+      .filter((o) => o.tag === 'Agendado')
+      .sort((a, b) => (a.program.start_date ?? '').localeCompare(b.program.start_date ?? ''))[0]?.program ?? null,
+    [others],
+  );
+  // El historial NO incluye el próximo (que tiene su propia card).
+  const history = useMemo(() => others.filter((o) => o.program.id !== upcoming?.id), [others, upcoming]);
+
   // Detalle día por día del programa activo.
   useEffect(() => {
     if (!active) { setDays([]); return; }
@@ -212,12 +222,28 @@ export function ClientProgramPanel({ clientId }: { clientId: string }): React.JS
         </div>
       )}
 
-      {/* ── Card: Programas anteriores ── */}
-      {others.length > 0 && (
+      {/* ── Card: Próximo programa (sólo si hay uno agendado a futuro) ── */}
+      {upcoming && (
+        <div className="card" style={{ marginTop: 16 }}>
+          <div className="section-title" style={{ marginBottom: 4 }}>Próximo programa</div>
+          <p className="muted" style={{ margin: '0 0 8px', fontSize: 11.5 }}>Arranca cuando termine el actual.</p>
+          <ProgramRowItem
+            program={upcoming}
+            tag="Agendado"
+            onEdit={() => navigate(`/programs/${upcoming.id}`)}
+            onReplace={() => setReplaceTarget(upcoming)}
+            onCopy={() => void copyToLibrary(upcoming)}
+            onRemove={() => setRemoveTarget(upcoming)}
+          />
+        </div>
+      )}
+
+      {/* ── Card: Historial de programas ── */}
+      {history.length > 0 && (
         <div className="card" style={{ marginTop: 16 }}>
           <div className="section-title" style={{ marginBottom: 4 }}>Historial de programas</div>
           <p className="muted" style={{ margin: '0 0 8px', fontSize: 11.5 }}>No son el programa activo hoy — quedan acá para poder revisarlos.</p>
-          {others.map(({ program, tag }) => (
+          {history.map(({ program, tag }) => (
             <ProgramRowItem
               key={program.id}
               program={program}

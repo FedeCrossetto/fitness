@@ -517,11 +517,9 @@ export function ClientDetailPage(): React.JSX.Element {
                     : 'Sin actividad registrada todavía'}
                 </div>
               </div>
-              {workouts.length === 0 ? (
-                <div className="card"><p className="muted" style={{ margin: 0 }}>Sin entrenamientos registrados.</p></div>
-              ) : (
+              {clientId && (
                 <WorkoutFeed
-                  workouts={workouts}
+                  clientId={clientId}
                   author={{ name: profile.full_name ?? 'Alumno', avatarUrl: profile.avatar_url ?? null }}
                   viewer={{ name: trainerProfile?.full_name ?? 'Vos', avatarUrl: trainerProfile?.avatar_url ?? null }}
                 />
