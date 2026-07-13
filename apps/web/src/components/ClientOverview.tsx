@@ -136,6 +136,9 @@ function TrainingCalendar({ trainedDates }: { trainedDates: Set<string> }): Reac
   );
 }
 
+interface ConsultationEntry { label: string; answer: string | string[] }
+interface ConsultationLike { submitted_at: string; responses: ConsultationEntry[] }
+
 interface Props {
   clientId: string;
   goal: string | null;
@@ -146,10 +149,11 @@ interface Props {
   planName: string | null;
   expiresAt: string | null;
   subLabel: string | null;
+  consultation: ConsultationLike | null | false;
   onOpenTab: (tab: string) => void;
 }
 
-export function ClientOverview({ clientId, goal, phone, createdAt, level, planWeek, planName, expiresAt, subLabel, onOpenTab }: Props): React.JSX.Element {
+export function ClientOverview({ clientId, goal, phone, createdAt, level, planWeek, planName, expiresAt, subLabel, consultation, onOpenTab }: Props): React.JSX.Element {
   const { profile: trainer } = useAuth();
   const { showToast } = useToast();
   const [logs, setLogs] = useState<WorkoutLogRow[]>([]);
@@ -309,6 +313,8 @@ export function ClientOverview({ clientId, goal, phone, createdAt, level, planWe
           )}
           <button type="button" className="sd-panel-link" style={{ marginTop: 12 }} onClick={() => onOpenTab('entrenos')}>Ver entrenamientos →</button>
         </div>
+
+        <ConsultationCarousel data={consultation} />
       </div>
 
       <style>{`
@@ -337,7 +343,56 @@ export function ClientOverview({ clientId, goal, phone, createdAt, level, planWe
         .cal-day.trained { background: var(--accent); color: var(--accent-contrast); font-weight: 650; }
         .cal-day.today { box-shadow: inset 0 0 0 1.5px var(--accent); }
         .cal-day.trained.today { box-shadow: inset 0 0 0 1.5px var(--text-primary); }
+        .ov-consult { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); opacity: 0.82; }
+        .ov-consult-head { display: flex; align-items: center; justify-content: space-between; font-size: 11px; font-weight: 650; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 8px; }
+        .ov-consult-q { font-size: 11.5px; color: var(--text-tertiary); margin-bottom: 2px; }
+        .ov-consult-a { font-size: 12.5px; color: var(--text-secondary); font-weight: 550; margin-bottom: 8px; min-height: 16px; }
+        .ov-consult-nav { display: flex; align-items: center; justify-content: center; gap: 10px; }
+        .ov-consult-nav button { background: none; border: none; cursor: pointer; font-size: 14px; color: var(--text-tertiary); padding: 0 4px; line-height: 1; }
+        .ov-consult-nav button:hover:not(:disabled) { color: var(--text-primary); }
+        .ov-consult-nav button:disabled { opacity: 0.3; cursor: default; }
       `}</style>
+    </div>
+  );
+}
+
+// Deliberadamente discreto: la consulta está disponible pero no debe competir
+// visualmente con Actividad reciente — texto chico, borde tenue, un dato a la vez.
+function ConsultationCarousel({ data }: { data: ConsultationLike | null | false }): React.JSX.Element {
+  const [idx, setIdx] = useState(0);
+
+  if (!data) {
+    return (
+      <div className="ov-consult">
+        <div className="ov-consult-head">Consulta</div>
+        <p className="muted" style={{ margin: 0, fontSize: 11.5 }}>El alumno todavía no completó el formulario.</p>
+      </div>
+    );
+  }
+
+  const entries = data.responses;
+  const entry = entries[Math.min(idx, entries.length - 1)];
+  const answerText = entry ? (Array.isArray(entry.answer) ? (entry.answer.join(', ') || '—') : (entry.answer || '—')) : '—';
+
+  return (
+    <div className="ov-consult">
+      <div className="ov-consult-head">
+        <span>Consulta</span>
+        <span className="muted" style={{ fontSize: 10.5 }}>{fmtLong(data.submitted_at.slice(0, 10))}</span>
+      </div>
+      {entries.length === 0 ? (
+        <p className="muted" style={{ margin: 0, fontSize: 11.5 }}>Sin respuestas.</p>
+      ) : (
+        <>
+          <div className="ov-consult-q">{entry.label}</div>
+          <div className="ov-consult-a">{answerText}</div>
+          <div className="ov-consult-nav">
+            <button type="button" onClick={() => setIdx((i) => Math.max(0, i - 1))} disabled={idx === 0} aria-label="Anterior">‹</button>
+            <span className="muted" style={{ fontSize: 10.5 }}>{idx + 1} / {entries.length}</span>
+            <button type="button" onClick={() => setIdx((i) => Math.min(entries.length - 1, i + 1))} disabled={idx === entries.length - 1} aria-label="Siguiente">›</button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

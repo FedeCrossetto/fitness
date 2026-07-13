@@ -502,8 +502,6 @@ export function ClientDetailPage(): React.JSX.Element {
 
         {/* OVERVIEW / RESUMEN */}
         {tab === 'resumen' && clientId && (
-          <>
-          <ConsultationSummary data={consultation} />
           <ClientOverview
             clientId={clientId}
             goal={profile.goal ?? null}
@@ -514,9 +512,9 @@ export function ClientDetailPage(): React.JSX.Element {
             planName={subscription?.plan_name ?? null}
             expiresAt={subscription?.status === 'active' ? (subscription.expires_at ?? null) : null}
             subLabel={subscription ? subscriptionStatusLabel(subscription.status) : null}
+            consultation={consultation}
             onOpenTab={(tk) => setTab(tk as Tab)}
           />
-          </>
         )}
 
         {/* ENTRENAMIENTO */}
@@ -1405,43 +1403,3 @@ function WaiverTab({
   );
 }
 
-// ── ConsultationSummary (condensado, vive en Resumen) ──────────────────────────
-
-function ConsultationSummary({ data }: { data: ConsultationResponse | null | false }): React.JSX.Element {
-  if (!data) {
-    return (
-      <div className="card" style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
-        <span style={{ width: 26, height: 26, borderRadius: '50%', background: '#fef9c3', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 }}>!</span>
-        <div>
-          <div style={{ fontWeight: 700, color: '#ca8a04', fontSize: 13.5 }}>Consulta pendiente</div>
-          <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>El alumno todavía no completó el formulario de consulta.</div>
-        </div>
-      </div>
-    );
-  }
-
-  const submittedDate = new Date(data.submitted_at).toLocaleDateString('es-AR', {
-    day: '2-digit', month: 'long', year: 'numeric',
-  });
-
-  return (
-    <div className="card" style={{ marginBottom: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-        <div className="section-title" style={{ margin: 0 }}>Consulta</div>
-        <span style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>Completada · {submittedDate}</span>
-      </div>
-      <div className="ov-info-grid">
-        {data.responses.map((entry, idx) => (
-          <div key={idx}>
-            <div className="ov-info-label">{entry.label}</div>
-            <div className="ov-info-value" style={{ fontWeight: 500, fontSize: 13 }}>
-              {Array.isArray(entry.answer)
-                ? (entry.answer.length ? entry.answer.join(', ') : '—')
-                : (entry.answer || '—')}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
