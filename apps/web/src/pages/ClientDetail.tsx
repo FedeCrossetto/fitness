@@ -21,6 +21,7 @@ import { ClientProgramPanel } from '@/components/ClientProgramPanel';
 import { WorkoutFeed } from '@/components/WorkoutPost';
 import { BodyMeasurementsPanel } from '@/components/BodyMeasurementsPanel';
 import { ClientOverview } from '@/components/ClientOverview';
+import { NutritionPanel } from '@/components/NutritionPanel';
 import { Lightbox, Spinner, ConfirmDialog } from '@/components/ui';
 import { ManualPaymentModal } from '@/components/ManualPaymentModal';
 import { formatMoney } from '@/lib/planPricing';
@@ -537,28 +538,8 @@ export function ClientDetailPage(): React.JSX.Element {
         )}
 
         {/* NUTRICIÓN */}
-        {tab === 'nutricion' && (
-          <div className="card">
-            <div className="section-title" style={{ marginBottom: 14 }}>Registros de comidas</div>
-            {meals.length === 0
-              ? <p className="muted" style={{ margin: 0 }}>Sin comidas registradas.</p>
-              : <table>
-                  <thead>
-                    <tr><th>Comida</th><th>Tipo</th><th>Calorías</th><th>Fecha</th></tr>
-                  </thead>
-                  <tbody>
-                    {meals.map((m) => (
-                      <tr key={m.id}>
-                        <td>{m.title ?? '—'}</td>
-                        <td className="muted" style={{ textTransform: 'capitalize' }}>{m.meal_type ?? '—'}</td>
-                        <td className="muted">{m.energy_kcal != null ? `${m.energy_kcal} kcal` : '—'}</td>
-                        <td className="muted">{new Date(m.created_at).toLocaleDateString('es-AR')}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-            }
-          </div>
+        {tab === 'nutricion' && clientId && (
+          <NutritionPanel clientId={clientId} />
         )}
 
         {/* MEDIDAS */}
