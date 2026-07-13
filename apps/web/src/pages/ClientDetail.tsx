@@ -22,6 +22,9 @@ import { WorkoutFeed } from '@/components/WorkoutPost';
 import { BodyMeasurementsPanel } from '@/components/BodyMeasurementsPanel';
 import { ClientOverview } from '@/components/ClientOverview';
 import { NutritionPanel } from '@/components/NutritionPanel';
+import { ExerciseStatsPanel } from '@/components/ExerciseStatsPanel';
+import { AdvancedStatsPanel } from '@/components/AdvancedStatsPanel';
+import { ClientSettingsPanel } from '@/components/ClientSettingsPanel';
 import { Lightbox, Spinner, ConfirmDialog } from '@/components/ui';
 import { ManualPaymentModal } from '@/components/ManualPaymentModal';
 import { formatMoney } from '@/lib/planPricing';
@@ -95,18 +98,21 @@ function subscriptionStatusLabel(status: SubscriptionRow['status']): string {
   return '—';
 }
 
-type Tab = 'resumen' | 'entrenos' | 'nutricion' | 'medidas' | 'fotos' | 'engagement' | 'deslinde' | 'consulta' | 'facturacion';
+type Tab = 'resumen' | 'entrenos' | 'exstats' | 'avanzado' | 'nutricion' | 'medidas' | 'fotos' | 'engagement' | 'deslinde' | 'consulta' | 'facturacion' | 'config';
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'resumen',     label: 'Resumen'      },
   { key: 'consulta',    label: 'Consulta'     },
   { key: 'entrenos',    label: 'Entrenamiento'},
+  { key: 'exstats',     label: 'Estadísticas de ejercicios' },
+  { key: 'avanzado',    label: 'Estadísticas avanzadas' },
   { key: 'nutricion',   label: 'Nutrición'    },
   { key: 'medidas',     label: 'Medidas'      },
   { key: 'fotos',       label: 'Fotos'        },
   { key: 'engagement',  label: 'Engagement'   },
   { key: 'facturacion', label: 'Facturación'  },
   { key: 'deslinde',    label: 'Legal'        },
+  { key: 'config',      label: 'Configuración' },
 ];
 const TAB_KEYS = new Set<Tab>(TABS.map((t) => t.key));
 
@@ -537,6 +543,16 @@ export function ClientDetailPage(): React.JSX.Element {
           </div>
         )}
 
+        {/* ESTADÍSTICAS DE EJERCICIOS */}
+        {tab === 'exstats' && clientId && (
+          <ExerciseStatsPanel clientId={clientId} />
+        )}
+
+        {/* ESTADÍSTICAS AVANZADAS */}
+        {tab === 'avanzado' && clientId && (
+          <AdvancedStatsPanel clientId={clientId} />
+        )}
+
         {/* NUTRICIÓN */}
         {tab === 'nutricion' && clientId && (
           <NutritionPanel clientId={clientId} />
@@ -592,6 +608,18 @@ export function ClientDetailPage(): React.JSX.Element {
         {/* DESLINDE */}
         {tab === 'deslinde' && (
           <WaiverTab sig={waiverSig} imageConsent={imageConsent} profile={profile} />
+        )}
+
+        {/* CONFIGURACIÓN */}
+        {tab === 'config' && clientId && (
+          <ClientSettingsPanel
+            clientId={clientId}
+            fullName={profile.full_name}
+            phone={profile.phone}
+            clientStatus={profile.client_status ?? 'pending'}
+            createdAt={profile.created_at}
+            onSaved={(patch) => setProfile((p) => (p ? { ...p, ...patch } : p))}
+          />
         )}
 
         {/* ENGAGEMENT */}
