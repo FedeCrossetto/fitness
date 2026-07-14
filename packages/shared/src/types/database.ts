@@ -247,6 +247,9 @@ export interface WorkoutExerciseRow {
   sets_detail: WorkoutSet[];
   /** Nota fijada del ejercicio en la rutina. */
   notes: string | null;
+  /** Superserie: los ejercicios adyacentes con el mismo id se ejecutan
+   * alternando series. `null` = ejercicio suelto. */
+  superset_group: string | null;
   created_at: string;
   updated_at: string;
 }

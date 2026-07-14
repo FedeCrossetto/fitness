@@ -9,6 +9,7 @@ import { CardMenu } from '@/components/CardMenu';
 import { startSortableDrag } from '@/lib/sortableDrag';
 import { createDragGhost } from '@/lib/dragGhost';
 import { useTranslation } from '@/hooks/useTranslation';
+import { useToast } from '@/hooks/useToast';
 import { localizedExercise } from '@/lib/exerciseI18n';
 
 const REST_OPTIONS: [number, string][] = [
@@ -31,6 +32,7 @@ type DayWithWorkout = TrainingDayRow & {
  * app.hevycoach.com/routines/:id. */
 export function RoutineEditorPage(): React.JSX.Element {
   const { id } = useParams<{ id: string }>();
+  const { showToast } = useToast();
   const [day, setDay] = useState<DayWithWorkout | null>(null);
   const [programId, setProgramId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -115,6 +117,41 @@ export function RoutineEditorPage(): React.JSX.Element {
     await load();
   };
 
+  // Persiste el grupo de superserie en varios ejercicios a la vez. Si la
+  // columna todavía no existe (migración sin aplicar), avisamos sin romper.
+  const setSupersetGroup = async (ids: string[], group: string | null): Promise<boolean> => {
+    const { error } = await supabase.from('workout_exercises').update({ superset_group: group }).in('id', ids);
+    if (error) {
+      showToast('error', 'No pudimos agrupar la superserie. Falta aplicar la migración de la base (npx supabase db push).');
+      return false;
+    }
+    return true;
+  };
+
+  // "Agregar a superserie": une el ejercicio con su vecino de abajo (o el de
+  // arriba si es el último), creando o extendiendo el grupo.
+  const addToSuperset = async (index: number) => {
+    const items = currentOrder();
+    const cur = items[index];
+    const neighbor = items[index + 1] ?? items[index - 1];
+    if (!cur || !neighbor) return;
+    const group = neighbor.superset_group ?? cur.superset_group ?? crypto.randomUUID();
+    if (await setSupersetGroup([cur.id, neighbor.id], group)) await load();
+  };
+
+  // "Quitar de superserie": saca al ejercicio del grupo; si el grupo queda con
+  // un solo miembro, lo disolvemos (una superserie de 1 no tiene sentido).
+  const removeFromSuperset = async (index: number) => {
+    const items = currentOrder();
+    const cur = items[index];
+    if (!cur?.superset_group) return;
+    const group = cur.superset_group;
+    if (!(await setSupersetGroup([cur.id], null))) return;
+    const remaining = items.filter((it) => it.id !== cur.id && it.superset_group === group);
+    if (remaining.length === 1) await setSupersetGroup([remaining[0].id], null);
+    await load();
+  };
+
   const currentOrder = () => [...(day?.workout?.exercises ?? [])].sort((a, b) => a.sort_order - b.sort_order);
 
   // Reordena SOLO el estado local (vista en vivo mientras se arrastra).
@@ -185,16 +222,27 @@ export function RoutineEditorPage(): React.JSX.Element {
           ) : (
             <>
               {pickerDropIndex === 0 && <div className="rex-card rex-card-placeholder" aria-hidden />}
-              {exercises.map((we, index) => (
+              {exercises.map((we, index) => {
+                // Superserie: sólo cuenta como agrupado si el vecino ADYACENTE
+                // comparte el mismo grupo (así el color/acento es contiguo).
+                const g = we.superset_group;
+                const withPrev = !!g && exercises[index - 1]?.superset_group === g;
+                const withNext = !!g && exercises[index + 1]?.superset_group === g;
+                return (
                 <Fragment key={we.id}>
                   <ExerciseCard
                     we={we}
                     index={index}
                     dragging={draggedExIndex === index}
+                    supersetActive={withPrev || withNext}
+                    supersetWithPrev={withPrev}
+                    canSuperset={exercises.length > 1}
                     onSave={(patch) => void saveExercise(we.id, patch)}
                     onRemove={() => void removeExercise(we.id)}
                     onMoveUp={() => void moveExercise(index, index - 1)}
                     onMoveDown={() => void moveExercise(index, index + 1)}
+                    onAddToSuperset={() => void addToSuperset(index)}
+                    onRemoveFromSuperset={() => void removeFromSuperset(index)}
                     onOpenDetail={() => we.exercise && void openDetail(we.exercise.id)}
                     focusReps={we.id === focusRepsWeId}
                     onRepsFocused={() => setFocusRepsWeId(null)}
@@ -206,7 +254,8 @@ export function RoutineEditorPage(): React.JSX.Element {
                   />
                   {pickerDropIndex === index + 1 && <div className="rex-card rex-card-placeholder" aria-hidden />}
                 </Fragment>
-              ))}
+                );
+              })}
             </>
           )}
         </div>
@@ -235,10 +284,15 @@ function ExerciseCard({
   we,
   index,
   dragging,
+  supersetActive,
+  supersetWithPrev,
+  canSuperset,
   onSave,
   onRemove,
   onMoveUp,
   onMoveDown,
+  onAddToSuperset,
+  onRemoveFromSuperset,
   onOpenDetail,
   onDragStart,
   focusReps,
@@ -247,10 +301,15 @@ function ExerciseCard({
   we: WorkoutExerciseWithExercise;
   index: number;
   dragging: boolean;
+  supersetActive: boolean;
+  supersetWithPrev: boolean;
+  canSuperset: boolean;
   onSave: (patch: Partial<Pick<WorkoutExerciseRow, 'sets' | 'reps' | 'rest_seconds' | 'weight_kg' | 'sets_detail' | 'notes'>>) => void;
   onRemove: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
+  onAddToSuperset: () => void;
+  onRemoveFromSuperset: () => void;
   onOpenDetail: () => void;
   onDragStart: (e: React.MouseEvent) => void;
   focusReps?: boolean;
@@ -301,8 +360,21 @@ function ExerciseCard({
       return { ...s, rpe: s.rpe ?? null };
     }));
 
+  const supersetItem = supersetActive
+    ? { label: 'Quitar de superserie', onClick: onRemoveFromSuperset }
+    : canSuperset
+      ? { label: 'Agregar a superserie', onClick: onAddToSuperset }
+      : null;
+
   return (
-    <div className={`rex-card${dragging ? ' dragging' : ''}`} data-ex-index={index} onMouseDown={onDragStart}>
+    <div
+      className={`rex-card${dragging ? ' dragging' : ''}${supersetActive ? ' rex-card--superset' : ''}`}
+      data-ex-index={index}
+      onMouseDown={onDragStart}
+    >
+      {supersetActive && !supersetWithPrev && (
+        <div className="rex-superset-tag"><span className="rex-superset-dot" aria-hidden />Superserie</div>
+      )}
       <div className="rex-head">
         <span className="rex-grip" aria-hidden><GripIcon size={16} /></span>
         <div className="rex-thumb" style={thumbStyle} onClick={onOpenDetail} title="Ver detalle">
@@ -314,6 +386,7 @@ function ExerciseCard({
           onToggle={() => setMenuOpen((v) => !v)}
           items={[
             { label: 'Ver detalle', onClick: onOpenDetail },
+            ...(supersetItem ? [supersetItem] : []),
             { label: 'Subir', onClick: onMoveUp },
             { label: 'Bajar', onClick: onMoveDown },
             { label: 'Quitar ejercicio', onClick: onRemove, danger: true },

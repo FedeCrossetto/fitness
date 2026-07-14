@@ -4238,6 +4238,16 @@ textarea.hevy-input { resize: vertical; min-height: 88px; line-height: 1.5; }
   box-shadow: none; opacity: 1;
 }
 .rex-card.dragging > * { visibility: hidden; }
+/* Superserie: acento a la izquierda + tag para los ejercicios agrupados. */
+.rex-card--superset { border-left: 3px solid var(--hevy-blue); }
+.rex-superset-tag {
+  display: inline-flex; align-items: center; gap: 6px; margin-bottom: 10px;
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--hevy-blue);
+}
+.rex-superset-dot {
+  width: 8px; height: 8px; border-radius: 50%; background: var(--hevy-blue); flex-shrink: 0;
+}
 .rex-head { display: flex; align-items: center; gap: 12px; }
 .rex-grip {
   display: flex; align-items: center; justify-content: center;
