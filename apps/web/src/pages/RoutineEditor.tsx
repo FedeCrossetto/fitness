@@ -16,6 +16,9 @@ const REST_OPTIONS: [number, string][] = [
   [120, '02:00'], [180, '03:00'], [240, '04:00'], [300, '05:00'],
 ];
 
+// RPE objetivo — mismos valores que Hevy (6 a 10 en pasos de 0.5).
+const RPE_OPTIONS = [6, 7, 7.5, 8, 8.5, 9, 9.5, 10];
+
 type CatalogExercise = Pick<ExerciseRow, 'id' | 'name' | 'image_url' | 'target_muscles' | 'equipment' | 'metadata'>;
 type WorkoutExerciseWithExercise = WorkoutExerciseRow & { exercise: CatalogExercise | null };
 type DayWithWorkout = TrainingDayRow & {
@@ -274,6 +277,8 @@ function ExerciseCard({
 
   // Warning no bloqueante: alguna serie sin repeticiones.
   const missingReps = sets.some((s) => !String(s.reps ?? '').trim());
+  // RPE objetivo activado = alguna serie ya tiene la key `rpe` (aunque sea null).
+  const rpeEnabled = sets.some((s) => s.rpe !== undefined);
 
   // Persiste el array de sets + un resumen (sets/reps/weight_kg) para compat.
   const persistSets = (next: WorkoutSet[]) => {
@@ -281,10 +286,20 @@ function ExerciseCard({
     const first = next[0];
     onSave({ sets_detail: next, sets: next.length, reps: first?.reps ?? '', weight_kg: first?.kg ?? null });
   };
-  const setLocal = (i: number, field: keyof WorkoutSet, value: string) =>
+  const setLocal = (i: number, field: 'reps' | 'kg', value: string) =>
     setSets((prev) => prev.map((s, idx) => (idx === i ? { ...s, [field]: field === 'kg' ? (value === '' ? null : Number(value)) : value } : s)));
-  const addSet = () => persistSets([...sets, sets.length ? { ...sets[sets.length - 1] } : { reps: '', kg: null }]);
+  const addSet = () => persistSets([...sets, sets.length ? { ...sets[sets.length - 1] } : { reps: '', kg: null, ...(rpeEnabled ? { rpe: null } : {}) }]);
   const removeSet = (i: number) => persistSets(sets.filter((_, idx) => idx !== i));
+
+  const setRpeLocal = (i: number, value: string) =>
+    persistSets(sets.map((s, idx) => (idx === i ? { ...s, rpe: value === '' ? null : Number(value) } : s)));
+  // Toggle "RPE objetivo": ON agrega la key `rpe` (null) a cada serie; OFF la
+  // quita. Persiste en el JSON de sets_detail, sin columna dedicada.
+  const toggleRpe = () =>
+    persistSets(sets.map((s) => {
+      if (rpeEnabled) { const { rpe: _drop, ...rest } = s; return rest; }
+      return { ...s, rpe: s.rpe ?? null };
+    }));
 
   return (
     <div className={`rex-card${dragging ? ' dragging' : ''}`} data-ex-index={index} onMouseDown={onDragStart}>
@@ -329,16 +344,23 @@ function ExerciseCard({
             <option key={secs} value={secs}>{label}</option>
           ))}
         </select>
+
+        <label className="toggle-switch rex-rpe-toggle" title="Mostrar RPE objetivo por serie">
+          <input type="checkbox" checked={rpeEnabled} onChange={toggleRpe} />
+          <span className="toggle-track"><span className="toggle-thumb" /></span>
+          <span className="rex-rpe-toggle-label">RPE objetivo</span>
+        </label>
       </div>
 
-      <div className="rex-sets3-head">
+      <div className={`rex-sets3-head${rpeEnabled ? ' with-rpe' : ''}`}>
         <span>Serie</span>
         <span>Kg</span>
         <span>Reps</span>
+        {rpeEnabled && <span>RPE</span>}
         <span />
       </div>
       {sets.map((s, i) => (
-        <div className="rex-sets3-row" key={i}>
+        <div className={`rex-sets3-row${rpeEnabled ? ' with-rpe' : ''}`} key={i}>
           <span className="rex-setnum">{i + 1}</span>
           <input
             className="rex-input"
@@ -356,6 +378,18 @@ function ExerciseCard({
             onChange={(e) => setLocal(i, 'reps', e.target.value)}
             onBlur={() => persistSets(sets)}
           />
+          {rpeEnabled && (
+            <select
+              className="rex-input rex-rpe-select"
+              value={s.rpe ?? ''}
+              onChange={(e) => setRpeLocal(i, e.target.value)}
+            >
+              <option value="">—</option>
+              {RPE_OPTIONS.map((v) => (
+                <option key={v} value={v}>{v}</option>
+              ))}
+            </select>
+          )}
           <button type="button" className="rex-set-x" title="Quitar serie" onClick={() => removeSet(i)}>✕</button>
         </div>
       ))}

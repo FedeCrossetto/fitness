@@ -254,6 +254,11 @@ export interface WorkoutExerciseRow {
 export interface WorkoutSet {
   reps: string | null;
   kg: number | null;
+  /** RPE objetivo de la serie (6–10, en pasos de 0.5). `undefined` = el
+   * ejercicio no tiene tracking de RPE activado; `null` = activado pero sin
+   * valor elegido todavía. Se guarda dentro de `sets_detail` (JSONB), sin
+   * columna propia. */
+  rpe?: number | null;
 }
 
 export interface TrainingDayRow {
