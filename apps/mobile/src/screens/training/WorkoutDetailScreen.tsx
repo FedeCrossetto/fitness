@@ -105,7 +105,7 @@ export function WorkoutDetailScreen({ navigation, route }: Props): React.JSX.Ele
     void begin();
   }, [detail, isResume, activeSession, begin, navigation, t, i18n]);
 
-  const handleAddExercise = useCallback(async (exercise: Pick<ExerciseItem['exercise'], 'id' | 'name' | 'image_url'>) => {
+  const handleAddExercise = useCallback(async (exercise: Pick<NonNullable<ExerciseItem['exercise']>, 'id' | 'name' | 'image_url'>) => {
     if (!detail || !userId || !isCustom || addingExercise) return;
     if (detail.exercises.some((item) => item.exercise_id === exercise.id)) return;
     setAddingExercise(true);
@@ -122,38 +122,59 @@ export function WorkoutDetailScreen({ navigation, route }: Props): React.JSX.Ele
     }
   }, [detail, userId, isCustom, addingExercise, addExerciseToCustomWorkout, loadWorkoutDetail, workoutId]);
 
-  const renderExercise = ({ item, index }: { item: ExerciseItem; index: number }) => (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={item.exercise.name}
-      onPress={() => setSelectedExercise(item)}
-      style={({ pressed }) => [styles.exerciseRow, pressed && styles.pressed]}
-    >
-      <View style={styles.exerciseIndex}>
-        <AppText variant="body12SemiBold" color={colors.text.secondary}>
-          {index + 1}
-        </AppText>
-      </View>
-      <ExerciseIcon
-        icon="barbell-outline"
-        size={48}
-        imageUrl={item.exercise.image_url}
-        externalSource={item.exercise.external_source}
-        bodyPart={item.exercise.body_part}
-        targetMuscle={item.exercise.target_muscles?.[0]}
+  const renderExercise = ({ item, index }: { item: ExerciseItem; index: number }) => {
+    // Fila de descanso (rutinas de intervalos): no tiene ejercicio asociado.
+    if (item.kind === 'rest') {
+      return (
+        <View style={[styles.exerciseRow, styles.restRow]}>
+          <View style={styles.exerciseIndex}>
+            <Ionicons name="cafe-outline" size={18} color={colors.text.secondary} />
+          </View>
+          <View style={styles.exerciseInfo}>
+            <AppText variant="body14SemiBold" color={colors.text.primary}>Descanso</AppText>
+            <AppText variant="body12" color={colors.text.secondary}>{item.duration_seconds ?? 0} s</AppText>
+          </View>
+        </View>
+      );
+    }
+    const ex = item.exercise;
+    // En intervalos el ejercicio se carga por tiempo, no por series/reps.
+    const prescription = detail?.format === 'interval'
+      ? `${item.duration_seconds ?? 0} s${item.circuit_group ? ` · circuito ${item.circuit_rounds ?? 1} rondas` : ''}`
+      : formatExercisePrescription(item);
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={ex?.name ?? 'Ejercicio'}
         onPress={() => setSelectedExercise(item)}
-      />
-      <View style={styles.exerciseInfo}>
-        <AppText variant="body14SemiBold" color={colors.text.primary} numberOfLines={2}>
-          {item.exercise.name}
-        </AppText>
-        <AppText variant="body12" color={colors.text.secondary} numberOfLines={2}>
-          {formatExercisePrescription(item)}
-        </AppText>
-      </View>
-      <Ionicons name="chevron-forward" size={16} color={colors.text.tertiary} />
-    </Pressable>
-  );
+        style={({ pressed }) => [styles.exerciseRow, pressed && styles.pressed]}
+      >
+        <View style={styles.exerciseIndex}>
+          <AppText variant="body12SemiBold" color={colors.text.secondary}>
+            {index + 1}
+          </AppText>
+        </View>
+        <ExerciseIcon
+          icon="barbell-outline"
+          size={48}
+          imageUrl={ex?.image_url}
+          externalSource={ex?.external_source}
+          bodyPart={ex?.body_part}
+          targetMuscle={ex?.target_muscles?.[0]}
+          onPress={() => setSelectedExercise(item)}
+        />
+        <View style={styles.exerciseInfo}>
+          <AppText variant="body14SemiBold" color={colors.text.primary} numberOfLines={2}>
+            {ex?.name ?? 'Ejercicio'}
+          </AppText>
+          <AppText variant="body12" color={colors.text.secondary} numberOfLines={2}>
+            {prescription}
+          </AppText>
+        </View>
+        <Ionicons name="chevron-forward" size={16} color={colors.text.tertiary} />
+      </Pressable>
+    );
+  };
 
   const renderBody = () => {
     if (detailLoading) {
@@ -271,10 +292,10 @@ export function WorkoutDetailScreen({ navigation, route }: Props): React.JSX.Ele
       <ExercisePreviewSheet
         visible={selectedExercise !== null}
         onClose={() => setSelectedExercise(null)}
-        exerciseId={selectedExercise?.exercise.id ?? null}
+        exerciseId={selectedExercise?.exercise?.id ?? null}
         subtitle={selectedExercise ? formatExercisePrescription(selectedExercise) : undefined}
         fallback={
-          selectedExercise
+          selectedExercise?.exercise
             ? {
                 name: selectedExercise.exercise.name,
                 image_url: selectedExercise.exercise.image_url,
@@ -325,6 +346,7 @@ const createStyles = (colors: Colors) => StyleSheet.create({
     width: 20,
     alignItems: 'center',
   },
+  restRow: { backgroundColor: colors.surface.elevated, borderStyle: 'dashed' },
   pressed: { opacity: 0.8 },
   exerciseImage: {
     width: 52,

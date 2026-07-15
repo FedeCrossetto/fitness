@@ -54,7 +54,8 @@ export interface PhaseWithDays extends TrainingPhaseRow {
 }
 
 export interface WorkoutWithExercises extends WorkoutRow {
-  exercises: (WorkoutExerciseRow & { exercise: ExerciseRow })[];
+  // `exercise` es null en las filas de descanso (kind='rest') de intervalos.
+  exercises: (WorkoutExerciseRow & { exercise: ExerciseRow | null })[];
 }
 
 const ACTIVE_SESSION_KEY = 'reset-fitness:activeSession';

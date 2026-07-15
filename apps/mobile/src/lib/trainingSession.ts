@@ -15,7 +15,8 @@ import type { ExerciseRow, WorkoutExerciseRow } from '../types/database';
 type WorkoutDetailForSession = {
   id: string;
   client_id?: string | null;
-  exercises: (WorkoutExerciseRow & { exercise: ExerciseRow })[];
+  // `exercise` null en filas de descanso (intervalos); se filtran al armar la sesión.
+  exercises: (WorkoutExerciseRow & { exercise: ExerciseRow | null })[];
 };
 
 export type SessionRestState = {
@@ -99,7 +100,9 @@ export async function buildSessionExercises(
   detail: WorkoutDetailForSession,
   previousLogs: { session_detail: WorkoutSessionDetail | null }[],
 ): Promise<WorkoutSessionExercise[]> {
-  return detail.exercises.map((item) => ({
+  return detail.exercises
+    .filter((item): item is WorkoutExerciseRow & { exercise: ExerciseRow } => item.exercise != null)
+    .map((item) => ({
     workoutExerciseId: item.id,
     exerciseId: item.exercise_id ?? '',
     exerciseName: item.exercise.name,
@@ -296,7 +299,9 @@ export function normalizeStoredSession(raw: unknown, detail: WorkoutDetailForSes
 
   if (!detail || detail.id !== value.workoutId) return null;
 
-  const exercises = detail.exercises.map((item) => ({
+  const exercises = detail.exercises
+    .filter((item): item is WorkoutExerciseRow & { exercise: ExerciseRow } => item.exercise != null)
+    .map((item) => ({
     workoutExerciseId: item.id,
     exerciseId: item.exercise_id ?? '',
     exerciseName: item.exercise.name,
