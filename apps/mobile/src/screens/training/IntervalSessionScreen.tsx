@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AppText } from '../../components/common';
+import { hapticMedium, hapticSuccess } from '../../lib/haptics';
 import { useAuthStore } from '../../stores/authStore';
 import { useTrainingStore } from '../../stores/trainingStore';
 import { buildIntervalTimeline, formatClock, type IntervalSegment } from '../../lib/trainingIntervals';
@@ -58,9 +59,17 @@ export function IntervalSessionScreen({ navigation, route }: Props): React.JSX.E
 
   const goTo = (i: number) => {
     if (i < 0 || timeline.length === 0) return;
-    if (i >= timeline.length) { setFinished(true); return; }
+    if (i >= timeline.length) { setFinished(true); hapticSuccess(); return; }
     setIndex(i);
     setRemaining(timeline[i].seconds);
+    hapticMedium();
+  };
+
+  const confirmStop = () => {
+    Alert.alert('Detener entreno', '¿Seguro que querés salir? No se va a guardar.', [
+      { text: 'Seguir', style: 'cancel' },
+      { text: 'Detener', style: 'destructive', onPress: () => navigation.goBack() },
+    ]);
   };
 
   // Cuenta regresiva del segmento actual.
@@ -232,7 +241,7 @@ export function IntervalSessionScreen({ navigation, route }: Props): React.JSX.E
             <Pressable style={styles.primaryBtn} onPress={() => setPaused((p) => !p)}>
               <Ionicons name={paused ? 'play' : 'pause'} size={34} color="#000" />
             </Pressable>
-            <Control icon="stop" label="DETENER" color={C.cyan} onPress={() => navigation.goBack()} />
+            <Control icon="stop" label="DETENER" color={C.cyan} onPress={confirmStop} />
             <Control icon="play-forward" label="SIGUIENTE" onPress={() => goTo(index + 1)} />
           </View>
         </>
