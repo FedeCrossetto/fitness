@@ -45,6 +45,8 @@ export function RoutineEditorPage(): React.JSX.Element {
   const [pickerDropIndex, setPickerDropIndex] = useState<number | null>(null);
   // Ejercicio recién agregado: enfocamos su primer campo de Reps.
   const [focusRepsWeId, setFocusRepsWeId] = useState<string | null>(null);
+  // Ejercicio para el que se está eligiendo con quién armar la superserie.
+  const [supersetPickerFor, setSupersetPickerFor] = useState<WorkoutExerciseWithExercise | null>(null);
 
   const openDetail = async (exerciseId: string) => {
     const { data } = await supabase.from('exercises').select('*').eq('id', exerciseId).maybeSingle();
@@ -128,15 +130,30 @@ export function RoutineEditorPage(): React.JSX.Element {
     return true;
   };
 
-  // "Agregar a superserie": une el ejercicio con su vecino de abajo (o el de
-  // arriba si es el último), creando o extendiendo el grupo.
-  const addToSuperset = async (index: number) => {
+  // "Agregar a superserie": el coach elige con qué otro ejercicio de la rutina
+  // armar la superserie (modal). Al elegirlo, los agrupamos y los dejamos
+  // contiguos (el elegido pasa a ir justo debajo del actual).
+  const linkSuperset = async (curId: string, targetId: string) => {
     const items = currentOrder();
-    const cur = items[index];
-    const neighbor = items[index + 1] ?? items[index - 1];
-    if (!cur || !neighbor) return;
-    const group = neighbor.superset_group ?? cur.superset_group ?? crypto.randomUUID();
-    if (await setSupersetGroup([cur.id, neighbor.id], group)) await load();
+    const cur = items.find((i) => i.id === curId);
+    const target = items.find((i) => i.id === targetId);
+    if (!cur || !target) return;
+    const group = target.superset_group ?? cur.superset_group ?? crypto.randomUUID();
+    if (!(await setSupersetGroup([cur.id, target.id], group))) return;
+    // Reordenar: sacamos el elegido y lo reinsertamos justo después del actual.
+    const rest = items.filter((i) => i.id !== target.id);
+    const curIdx = rest.findIndex((i) => i.id === cur.id);
+    rest.splice(curIdx + 1, 0, target);
+    await persistExerciseOrder(rest.map((i) => i.id));
+    await load();
+  };
+
+  // Persiste el orden en dos fases para no violar el índice único
+  // (workout_id, sort_order): primero mandamos todas las filas a un rango
+  // temporal alto (sin colisiones), después a su posición final 0..n-1.
+  const persistExerciseOrder = async (orderedIds: string[]) => {
+    await Promise.all(orderedIds.map((id, idx) => supabase.from('workout_exercises').update({ sort_order: 1_000_000 + idx }).eq('id', id)));
+    await Promise.all(orderedIds.map((id, idx) => supabase.from('workout_exercises').update({ sort_order: idx }).eq('id', id)));
   };
 
   // "Quitar de superserie": saca al ejercicio del grupo; si el grupo queda con
@@ -168,8 +185,7 @@ export function RoutineEditorPage(): React.JSX.Element {
 
   // Persiste el orden actual (al soltar el drag).
   const commitExerciseOrder = async () => {
-    const items = currentOrder();
-    await Promise.all(items.map((it, idx) => supabase.from('workout_exercises').update({ sort_order: idx }).eq('id', it.id)));
+    await persistExerciseOrder(currentOrder().map((it) => it.id));
   };
 
   // Reorden con flechas ↑/↓ (accesible): computa y persiste el array directo.
@@ -179,7 +195,7 @@ export function RoutineEditorPage(): React.JSX.Element {
     const [removed] = items.splice(from, 1);
     items.splice(to, 0, removed);
     setDay((prev) => (prev?.workout ? { ...prev, workout: { ...prev.workout, exercises: items.map((it, idx) => ({ ...it, sort_order: idx })) } } : prev));
-    void Promise.all(items.map((it, idx) => supabase.from('workout_exercises').update({ sort_order: idx }).eq('id', it.id)));
+    void persistExerciseOrder(items.map((it) => it.id));
   };
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 64 }}><Spinner size={28} /></div>;
@@ -241,7 +257,7 @@ export function RoutineEditorPage(): React.JSX.Element {
                     onRemove={() => void removeExercise(we.id)}
                     onMoveUp={() => void moveExercise(index, index - 1)}
                     onMoveDown={() => void moveExercise(index, index + 1)}
-                    onAddToSuperset={() => void addToSuperset(index)}
+                    onAddToSuperset={() => setSupersetPickerFor(we)}
                     onRemoveFromSuperset={() => void removeFromSuperset(index)}
                     onOpenDetail={() => we.exercise && void openDetail(we.exercise.id)}
                     focusReps={we.id === focusRepsWeId}
@@ -270,6 +286,72 @@ export function RoutineEditorPage(): React.JSX.Element {
       {detailExercise && (
         <ExerciseDetailModal exercise={detailExercise} onClose={() => setDetailExercise(null)} />
       )}
+
+      {supersetPickerFor && (
+        <SupersetPickerModal
+          current={supersetPickerFor}
+          candidates={exercises.filter((e) => e.id !== supersetPickerFor.id)}
+          onPick={(targetId) => {
+            const curId = supersetPickerFor.id;
+            setSupersetPickerFor(null);
+            void linkSuperset(curId, targetId);
+          }}
+          onClose={() => setSupersetPickerFor(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Modal para elegir con qué ejercicio de la rutina armar la superserie. */
+function SupersetPickerModal({
+  current,
+  candidates,
+  onPick,
+  onClose,
+}: {
+  current: WorkoutExerciseWithExercise;
+  candidates: WorkoutExerciseWithExercise[];
+  onPick: (targetId: string) => void;
+  onClose: () => void;
+}): React.JSX.Element {
+  const { language } = useTranslation();
+  const curName = current.exercise ? localizedExercise(current.exercise, language).name : 'Ejercicio';
+  return (
+    <div className="pay-modal-backdrop" onClick={onClose} role="dialog" aria-modal="true">
+      <div className="pay-modal card" onClick={(e) => e.stopPropagation()}>
+        <h2 className="payments-panel-title">Agregar a superserie</h2>
+        <p className="payments-panel-sub" style={{ marginBottom: 18 }}>
+          Elegí con qué ejercicio combinar <strong>{curName}</strong>. Los dos van a quedar juntos en la rutina.
+        </p>
+        {candidates.length === 0 ? (
+          <p className="muted" style={{ margin: '8px 0 18px' }}>No hay otros ejercicios en la rutina todavía.</p>
+        ) : (
+          <div style={{ maxHeight: 360, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {candidates.map((c) => {
+              const loc = c.exercise ? localizedExercise(c.exercise, language) : null;
+              return (
+                <button key={c.id} type="button" className="picker-row" style={{ cursor: 'pointer' }} onClick={() => onPick(c.id)}>
+                  <div
+                    className="ex-thumb ex-thumb-icon"
+                    aria-hidden
+                    style={c.exercise?.image_url ? { backgroundImage: `url(${c.exercise.image_url})` } : undefined}
+                  >
+                    {c.exercise?.image_url ? null : <DumbbellIcon size={14} />}
+                  </div>
+                  <div className="ex-info">
+                    <span className="ex-name">{loc?.name ?? 'Ejercicio'}</span>
+                    {loc?.muscle && loc.muscle !== '—' ? <span className="muted ex-sub">{loc.muscle}</span> : null}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+        <div className="pay-modal-actions">
+          <button type="button" className="btn secondary" onClick={onClose}>Cancelar</button>
+        </div>
+      </div>
     </div>
   );
 }
