@@ -40,6 +40,7 @@ import { ImageConsentSettingsScreen } from '../screens/profile/ImageConsentSetti
 import { ProgramScreen } from '../screens/training/ProgramScreen';
 import { WorkoutDetailScreen } from '../screens/training/WorkoutDetailScreen';
 import { LiveSessionScreen } from '../screens/training/LiveSessionScreen';
+import { IntervalSessionScreen } from '../screens/training/IntervalSessionScreen';
 import { SessionSummaryScreen } from '../screens/training/SessionSummaryScreen';
 import { CardioLogScreen } from '../screens/training/CardioLogScreen';
 
@@ -118,6 +119,7 @@ export function TrainingStack(): React.JSX.Element {
       <Training.Screen name="Program" component={ProgramScreen} />
       <Training.Screen name="WorkoutDetail" component={WorkoutDetailScreen} />
       <Training.Screen name="LiveSession" component={LiveSessionScreen} />
+      <Training.Screen name="IntervalSession" component={IntervalSessionScreen} />
       <Training.Screen name="SessionSummary" component={SessionSummaryScreen} />
       <Training.Screen name="CardioLog" component={CardioLogScreen} />
     </Training.Navigator>

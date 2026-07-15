@@ -82,6 +82,11 @@ export function WorkoutDetailScreen({ navigation, route }: Props): React.JSX.Ele
 
   const handleStart = useCallback(() => {
     if (!detail) return;
+    // Las rutinas de intervalos usan el player por tiempo (no la sesión de series).
+    if (detail.format === 'interval') {
+      navigation.navigate('IntervalSession', { workoutId: detail.id, workoutTitle: detail.title });
+      return;
+    }
     if (isResume) {
       navigation.navigate('LiveSession', { workoutId: detail.id, workoutTitle: detail.title });
       return;
