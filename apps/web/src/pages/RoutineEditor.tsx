@@ -33,6 +33,7 @@ type DayWithWorkout = TrainingDayRow & {
 export function RoutineEditorPage(): React.JSX.Element {
   const { id } = useParams<{ id: string }>();
   const { showToast } = useToast();
+  const { language } = useTranslation();
   const [day, setDay] = useState<DayWithWorkout | null>(null);
   const [programId, setProgramId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -47,6 +48,8 @@ export function RoutineEditorPage(): React.JSX.Element {
   const [focusRepsWeId, setFocusRepsWeId] = useState<string | null>(null);
   // Ejercicio para el que se está eligiendo con quién armar la superserie.
   const [supersetPickerFor, setSupersetPickerFor] = useState<WorkoutExerciseWithExercise | null>(null);
+  // Ejercicio para el que se está eligiendo con quién armar el circuito (intervalos).
+  const [circuitPickerFor, setCircuitPickerFor] = useState<WorkoutExerciseWithExercise | null>(null);
 
   const openDetail = async (exerciseId: string) => {
     const { data } = await supabase.from('exercises').select('*').eq('id', exerciseId).maybeSingle();
@@ -97,18 +100,36 @@ export function RoutineEditorPage(): React.JSX.Element {
     }
     // Reps vacías a propósito: el coach las completa (el foco cae en Reps al
     // agregar) — si quedan vacías, la card muestra un warning no bloqueante.
+    // En intervalos, cada ejercicio arranca con una duración por defecto.
     const { data: inserted } = await supabase.from('workout_exercises').insert({
       workout_id: day.workout.id,
       exercise_id: exercise.id,
       sort_order: at,
       sets: 3,
       reps: '',
+      duration_seconds: day.workout.format === 'interval' ? 30 : null,
     }).select('id').single();
     await load();
     return (inserted as { id: string } | null)?.id ?? null;
   };
 
-  const saveExercise = async (weId: string, patch: Partial<Pick<WorkoutExerciseRow, 'sets' | 'reps' | 'rest_seconds' | 'weight_kg' | 'sets_detail' | 'notes'>>) => {
+  // Agrega una card de descanso al final (intervalos). Se puede reordenar con
+  // las flechas del menú y editarle el tiempo con un click.
+  const addRest = async () => {
+    if (!day?.workout) return;
+    const at = currentOrder().length;
+    await supabase.from('workout_exercises').insert({
+      workout_id: day.workout.id,
+      sort_order: at,
+      kind: 'rest',
+      duration_seconds: 30,
+      sets: 3,
+      reps: '',
+    });
+    await load();
+  };
+
+  const saveExercise = async (weId: string, patch: Partial<Pick<WorkoutExerciseRow, 'sets' | 'reps' | 'rest_seconds' | 'weight_kg' | 'sets_detail' | 'notes' | 'duration_seconds' | 'circuit_rounds'>>) => {
     await supabase.from('workout_exercises').update(patch).eq('id', weId);
     // Reflejo local para no perder los cambios al reordenar/re-render.
     setDay((prev) => (prev?.workout ? { ...prev, workout: { ...prev.workout, exercises: prev.workout.exercises.map((x) => (x.id === weId ? { ...x, ...patch } : x)) } } : prev));
@@ -169,6 +190,49 @@ export function RoutineEditorPage(): React.JSX.Element {
     await load();
   };
 
+  // ── Circuitos (intervalos) ────────────────────────────────────────────────
+  const DEFAULT_CIRCUIT_ROUNDS = 3;
+
+  const setCircuit = async (ids: string[], group: string | null, rounds: number | null): Promise<boolean> => {
+    const { error } = await supabase.from('workout_exercises').update({ circuit_group: group, circuit_rounds: rounds }).in('id', ids);
+    if (error) {
+      showToast('error', 'No pudimos armar el circuito. Falta aplicar la migración de la base (npx supabase db push).');
+      return false;
+    }
+    return true;
+  };
+
+  // "Agregar a circuito": el coach elige con qué otro ejercicio armar el
+  // circuito; los agrupamos y los dejamos contiguos.
+  const linkCircuit = async (curId: string, targetId: string) => {
+    const items = currentOrder();
+    const cur = items.find((i) => i.id === curId);
+    const target = items.find((i) => i.id === targetId);
+    if (!cur || !target) return;
+    const group = target.circuit_group ?? cur.circuit_group ?? crypto.randomUUID();
+    const rounds = target.circuit_rounds ?? cur.circuit_rounds ?? DEFAULT_CIRCUIT_ROUNDS;
+    if (!(await setCircuit([cur.id, target.id], group, rounds))) return;
+    const rest = items.filter((i) => i.id !== target.id);
+    const curIdx = rest.findIndex((i) => i.id === cur.id);
+    rest.splice(curIdx + 1, 0, target);
+    await persistExerciseOrder(rest.map((i) => i.id));
+    await load();
+  };
+
+  // Cambia la cantidad de rondas de todos los miembros de un circuito.
+  const setCircuitRounds = async (group: string, rounds: number) => {
+    const ids = currentOrder().filter((it) => it.circuit_group === group).map((it) => it.id);
+    if (ids.length === 0) return;
+    if (await setCircuit(ids, group, Math.max(1, rounds))) await load();
+  };
+
+  // "Ungroup": disuelve el circuito entero (todos sus miembros).
+  const ungroupCircuit = async (group: string) => {
+    const ids = currentOrder().filter((it) => it.circuit_group === group).map((it) => it.id);
+    if (ids.length === 0) return;
+    if (await setCircuit(ids, null, null)) await load();
+  };
+
   const currentOrder = () => [...(day?.workout?.exercises ?? [])].sort((a, b) => a.sort_order - b.sort_order);
 
   // Reordena SOLO el estado local (vista en vivo mientras se arrastra).
@@ -209,6 +273,9 @@ export function RoutineEditorPage(): React.JSX.Element {
   }
 
   const exercises = [...(day.workout?.exercises ?? [])].sort((a, b) => a.sort_order - b.sort_order);
+  const isInterval = day.workout?.format === 'interval';
+  // Candidatos para armar un circuito: los ejercicios (no descansos) de la rutina.
+  const circuitCandidates = exercises.filter((e) => e.kind !== 'rest');
 
   const backTo = programId ? `/programs/${programId}` : '/programs';
 
@@ -234,7 +301,19 @@ export function RoutineEditorPage(): React.JSX.Element {
           />
 
           {exercises.length === 0 && pickerDropIndex === null ? (
-            <div className="prog-drop">Todavía no agregaste ejercicios.<br /><span style={{ fontSize: 13 }}>Elegí uno del panel de la derecha o arrastralo acá.</span></div>
+            <div className="prog-drop">Todavía no agregaste ejercicios.<br /><span style={{ fontSize: 13 }}>Elegí uno del panel de la derecha{isInterval ? '.' : ' o arrastralo acá.'}</span></div>
+          ) : isInterval ? (
+            <IntervalItemsList
+              items={exercises}
+              onSave={(id, patch) => void saveExercise(id, patch)}
+              onRemove={(id) => void removeExercise(id)}
+              onMoveUp={(index) => void moveExercise(index, index - 1)}
+              onMoveDown={(index) => void moveExercise(index, index + 1)}
+              onOpenDetail={(exId) => void openDetail(exId)}
+              onAddToCircuit={(we) => setCircuitPickerFor(we)}
+              onSetCircuitRounds={(group, rounds) => void setCircuitRounds(group, rounds)}
+              onUngroupCircuit={(group) => void ungroupCircuit(group)}
+            />
           ) : (
             <>
               {pickerDropIndex === 0 && <div className="rex-card rex-card-placeholder" aria-hidden />}
@@ -274,6 +353,12 @@ export function RoutineEditorPage(): React.JSX.Element {
               })}
             </>
           )}
+
+          {isInterval && (
+            <button type="button" className="rex-add-rest" onClick={() => void addRest()}>
+              + Agregar descanso
+            </button>
+          )}
         </div>
 
         <ExercisePickerPanel
@@ -288,9 +373,10 @@ export function RoutineEditorPage(): React.JSX.Element {
       )}
 
       {supersetPickerFor && (
-        <SupersetPickerModal
-          current={supersetPickerFor}
-          candidates={exercises.filter((e) => e.id !== supersetPickerFor.id)}
+        <ExerciseListPickerModal
+          title="Agregar a superserie"
+          currentName={supersetPickerFor.exercise ? localizedExercise(supersetPickerFor.exercise, language).name : 'Ejercicio'}
+          candidates={exercises.filter((e) => e.id !== supersetPickerFor.id && e.kind !== 'rest')}
           onPick={(targetId) => {
             const curId = supersetPickerFor.id;
             setSupersetPickerFor(null);
@@ -299,30 +385,46 @@ export function RoutineEditorPage(): React.JSX.Element {
           onClose={() => setSupersetPickerFor(null)}
         />
       )}
+
+      {circuitPickerFor && (
+        <ExerciseListPickerModal
+          title="Agregar a circuito"
+          currentName={circuitPickerFor.exercise ? localizedExercise(circuitPickerFor.exercise, language).name : 'Ejercicio'}
+          candidates={circuitCandidates.filter((e) => e.id !== circuitPickerFor.id)}
+          onPick={(targetId) => {
+            const curId = circuitPickerFor.id;
+            setCircuitPickerFor(null);
+            void linkCircuit(curId, targetId);
+          }}
+          onClose={() => setCircuitPickerFor(null)}
+        />
+      )}
     </div>
   );
 }
 
-/** Modal para elegir con qué ejercicio de la rutina armar la superserie. */
-function SupersetPickerModal({
-  current,
+/** Modal para elegir con qué ejercicio de la rutina combinar (superserie o
+ * circuito). Lista los ejercicios candidatos con thumbnail y músculo. */
+function ExerciseListPickerModal({
+  title,
+  currentName,
   candidates,
   onPick,
   onClose,
 }: {
-  current: WorkoutExerciseWithExercise;
+  title: string;
+  currentName: string;
   candidates: WorkoutExerciseWithExercise[];
   onPick: (targetId: string) => void;
   onClose: () => void;
 }): React.JSX.Element {
   const { language } = useTranslation();
-  const curName = current.exercise ? localizedExercise(current.exercise, language).name : 'Ejercicio';
   return (
     <div className="pay-modal-backdrop" onClick={onClose} role="dialog" aria-modal="true">
       <div className="pay-modal card" onClick={(e) => e.stopPropagation()}>
-        <h2 className="payments-panel-title">Agregar a superserie</h2>
+        <h2 className="payments-panel-title">{title}</h2>
         <p className="payments-panel-sub" style={{ marginBottom: 18 }}>
-          Elegí con qué ejercicio combinar <strong>{curName}</strong>. Los dos van a quedar juntos en la rutina.
+          Elegí con qué ejercicio combinar <strong>{currentName}</strong>. Los dos van a quedar juntos en la rutina.
         </p>
         {candidates.length === 0 ? (
           <p className="muted" style={{ margin: '8px 0 18px' }}>No hay otros ejercicios en la rutina todavía.</p>
@@ -351,6 +453,219 @@ function SupersetPickerModal({
         <div className="pay-modal-actions">
           <button type="button" className="btn secondary" onClick={onClose}>Cancelar</button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** Lista de items de una rutina de intervalos: ejercicios (con duración por
+ * tiempo), descansos, y circuitos (grupos de ejercicios adyacentes con rondas).
+ * Los circuitos se dibujan como una caja que envuelve a sus miembros. */
+function IntervalItemsList({
+  items,
+  onSave,
+  onRemove,
+  onMoveUp,
+  onMoveDown,
+  onOpenDetail,
+  onAddToCircuit,
+  onSetCircuitRounds,
+  onUngroupCircuit,
+}: {
+  items: WorkoutExerciseWithExercise[];
+  onSave: (id: string, patch: Partial<Pick<WorkoutExerciseRow, 'duration_seconds' | 'notes'>>) => void;
+  onRemove: (id: string) => void;
+  onMoveUp: (index: number) => void;
+  onMoveDown: (index: number) => void;
+  onOpenDetail: (exerciseId: string) => void;
+  onAddToCircuit: (we: WorkoutExerciseWithExercise) => void;
+  onSetCircuitRounds: (group: string, rounds: number) => void;
+  onUngroupCircuit: (group: string) => void;
+}): React.JSX.Element {
+  const canCircuit = items.filter((i) => i.kind !== 'rest').length > 1;
+  const out: React.JSX.Element[] = [];
+  let i = 0;
+  while (i < items.length) {
+    const it = items[i];
+    const g = it.circuit_group;
+    // Corrida de items contiguos con el mismo circuit_group → caja de circuito.
+    if (g && items[i + 1]?.circuit_group === g) {
+      const run: { we: WorkoutExerciseWithExercise; index: number }[] = [];
+      while (i < items.length && items[i].circuit_group === g) { run.push({ we: items[i], index: i }); i++; }
+      out.push(
+        <CircuitBox
+          key={`circuit-${g}`}
+          rounds={run[0].we.circuit_rounds ?? 1}
+          onRoundsChange={(r) => onSetCircuitRounds(g, r)}
+          onUngroup={() => onUngroupCircuit(g)}
+        >
+          {run.map(({ we, index }) => (
+            <IntervalItemCard
+              key={we.id}
+              we={we}
+              index={index}
+              canCircuit={canCircuit}
+              inCircuit
+              onSave={onSave}
+              onRemove={onRemove}
+              onMoveUp={onMoveUp}
+              onMoveDown={onMoveDown}
+              onOpenDetail={onOpenDetail}
+              onAddToCircuit={onAddToCircuit}
+            />
+          ))}
+        </CircuitBox>,
+      );
+    } else {
+      out.push(
+        <IntervalItemCard
+          key={it.id}
+          we={it}
+          index={i}
+          canCircuit={canCircuit}
+          inCircuit={false}
+          onSave={onSave}
+          onRemove={onRemove}
+          onMoveUp={onMoveUp}
+          onMoveDown={onMoveDown}
+          onOpenDetail={onOpenDetail}
+          onAddToCircuit={onAddToCircuit}
+        />,
+      );
+      i++;
+    }
+  }
+  return <>{out}</>;
+}
+
+/** Caja que envuelve a los ejercicios de un circuito, con header editable
+ * "Circuito de X rondas" + Ungroup (estilo Hevy). */
+function CircuitBox({
+  rounds,
+  onRoundsChange,
+  onUngroup,
+  children,
+}: {
+  rounds: number;
+  onRoundsChange: (rounds: number) => void;
+  onUngroup: () => void;
+  children: React.ReactNode;
+}): React.JSX.Element {
+  const [draft, setDraft] = useState(String(rounds));
+  useEffect(() => { setDraft(String(rounds)); }, [rounds]);
+  return (
+    <div className="circuit-box">
+      <div className="circuit-head">
+        <div className="circuit-head-left">
+          <span>Circuito de</span>
+          <input
+            className="circuit-rounds-input"
+            inputMode="numeric"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value.replace(/\D/g, ''))}
+            onBlur={() => { const n = Number(draft); if (n >= 1 && n !== rounds) onRoundsChange(n); else setDraft(String(rounds)); }}
+          />
+          <span>rondas</span>
+        </div>
+        <button type="button" className="circuit-ungroup" onClick={onUngroup}>Ungroup</button>
+      </div>
+      <div className="circuit-body">{children}</div>
+    </div>
+  );
+}
+
+/** Card de un item de intervalos: ejercicio (con input de segundos) o descanso
+ * (card azul editable). */
+function IntervalItemCard({
+  we,
+  index,
+  canCircuit,
+  inCircuit,
+  onSave,
+  onRemove,
+  onMoveUp,
+  onMoveDown,
+  onOpenDetail,
+  onAddToCircuit,
+}: {
+  we: WorkoutExerciseWithExercise;
+  index: number;
+  canCircuit: boolean;
+  inCircuit: boolean;
+  onSave: (id: string, patch: Partial<Pick<WorkoutExerciseRow, 'duration_seconds' | 'notes'>>) => void;
+  onRemove: (id: string) => void;
+  onMoveUp: (index: number) => void;
+  onMoveDown: (index: number) => void;
+  onOpenDetail: (exerciseId: string) => void;
+  onAddToCircuit: (we: WorkoutExerciseWithExercise) => void;
+}): React.JSX.Element {
+  const { language } = useTranslation();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [secs, setSecs] = useState(we.duration_seconds != null ? String(we.duration_seconds) : '');
+  useEffect(() => { setSecs(we.duration_seconds != null ? String(we.duration_seconds) : ''); }, [we.duration_seconds]);
+
+  const commitSecs = () => {
+    const n = secs === '' ? null : Math.max(0, Number(secs));
+    if (n !== we.duration_seconds) onSave(we.id, { duration_seconds: n });
+  };
+
+  if (we.kind === 'rest') {
+    return (
+      <div className="ivl-rest-card">
+        <span className="ivl-rest-label">Descanso</span>
+        <div className="ivl-secs">
+          <input
+            className="ivl-secs-input"
+            inputMode="numeric"
+            value={secs}
+            onChange={(e) => setSecs(e.target.value.replace(/\D/g, ''))}
+            onBlur={commitSecs}
+          />
+          <span className="ivl-secs-unit">seg</span>
+        </div>
+        <CardMenu
+          open={menuOpen}
+          onToggle={() => setMenuOpen((v) => !v)}
+          items={[
+            { label: 'Subir', onClick: () => onMoveUp(index) },
+            { label: 'Bajar', onClick: () => onMoveDown(index) },
+            { label: 'Quitar descanso', onClick: () => onRemove(we.id), danger: true },
+          ]}
+        />
+      </div>
+    );
+  }
+
+  const thumbStyle = we.exercise?.image_url ? { backgroundImage: `url(${we.exercise.image_url})` } : undefined;
+  const exName = we.exercise ? localizedExercise(we.exercise, language).name : 'Ejercicio';
+  return (
+    <div className={`ivl-card${inCircuit ? ' in-circuit' : ''}`}>
+      <div className="rex-head">
+        <div className="rex-thumb" style={thumbStyle} onClick={() => we.exercise && onOpenDetail(we.exercise.id)} title="Ver detalle">
+          {we.exercise?.image_url ? null : <DumbbellIcon size={18} />}
+        </div>
+        <span className="rex-name" onClick={() => we.exercise && onOpenDetail(we.exercise.id)}>{exName}</span>
+        <div className="ivl-secs">
+          <input
+            className="ivl-secs-input"
+            inputMode="numeric"
+            value={secs}
+            onChange={(e) => setSecs(e.target.value.replace(/\D/g, ''))}
+            onBlur={commitSecs}
+          />
+          <span className="ivl-secs-unit">seg</span>
+        </div>
+        <CardMenu
+          open={menuOpen}
+          onToggle={() => setMenuOpen((v) => !v)}
+          items={[
+            { label: 'Ver detalle', onClick: () => we.exercise && onOpenDetail(we.exercise.id) },
+            ...(inCircuit ? [] : canCircuit ? [{ label: 'Agregar a circuito', onClick: () => onAddToCircuit(we) }] : []),
+            { label: 'Subir', onClick: () => onMoveUp(index) },
+            { label: 'Bajar', onClick: () => onMoveDown(index) },
+            { label: 'Quitar ejercicio', onClick: () => onRemove(we.id), danger: true },
+          ]}
+        />
       </div>
     </div>
   );

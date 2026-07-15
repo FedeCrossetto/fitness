@@ -240,7 +240,8 @@ export interface WorkoutRow {
 export interface WorkoutExerciseRow {
   id: string;
   workout_id: string;
-  exercise_id: string;
+  /** `null` sólo en filas de descanso (kind='rest') de rutinas de intervalos. */
+  exercise_id: string | null;
   sort_order: number;
   sets: number;
   reps: string;
@@ -255,6 +256,14 @@ export interface WorkoutExerciseRow {
   /** Superserie: los ejercicios adyacentes con el mismo id se ejecutan
    * alternando series. `null` = ejercicio suelto. */
   superset_group: string | null;
+  /** Tipo de fila: 'exercise' o 'rest' (descanso entre ejercicios, intervalos). */
+  kind: 'exercise' | 'rest';
+  /** Duración por tiempo del ejercicio o descanso (rutinas de intervalos). */
+  duration_seconds: number | null;
+  /** Circuito (intervalos): ejercicios adyacentes con el mismo id se repiten. */
+  circuit_group: string | null;
+  /** Cantidad de rondas del circuito (repetida en cada miembro del grupo). */
+  circuit_rounds: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -681,7 +690,7 @@ export interface Database {
       program_folders: TableDef<ProgramFolderRow, 'trainer_id' | 'name'>;
       training_phases: TableDef<TrainingPhaseRow, 'name'>;
       workouts: TableDef<WorkoutRow, 'title'>;
-      workout_exercises: TableDef<WorkoutExerciseRow, 'workout_id' | 'exercise_id'>;
+      workout_exercises: TableDef<WorkoutExerciseRow, 'workout_id'>;
       training_days: TableDef<TrainingDayRow, 'phase_id' | 'day_number' | 'title'>;
       foods: TableDef<FoodRow, 'user_id' | 'name' | 'source'>;
       trainer_foods: TableDef<TrainerFoodRow, 'trainer_id' | 'name'>;

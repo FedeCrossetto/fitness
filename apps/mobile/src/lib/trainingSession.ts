@@ -101,7 +101,7 @@ export async function buildSessionExercises(
 ): Promise<WorkoutSessionExercise[]> {
   return detail.exercises.map((item) => ({
     workoutExerciseId: item.id,
-    exerciseId: item.exercise_id,
+    exerciseId: item.exercise_id ?? '',
     exerciseName: item.exercise.name,
     imageUrl: item.exercise.image_url,
     bodyPart: item.exercise.body_part,
@@ -111,8 +111,8 @@ export async function buildSessionExercises(
     targetReps: item.reps,
     targetWeightKg: item.weight_kg,
     restSeconds: item.rest_seconds,
-    previousLabel: findPreviousExerciseLabel(previousLogs, item.exercise_id),
-    previousSets: findPreviousSetsForExercise(previousLogs, item.exercise_id),
+    previousLabel: findPreviousExerciseLabel(previousLogs, item.exercise_id ?? ''),
+    previousSets: findPreviousSetsForExercise(previousLogs, item.exercise_id ?? ''),
     notes: '',
     sets: createDefaultSets(item.id, item.sets, item.weight_kg, item.reps),
   }));
@@ -298,7 +298,7 @@ export function normalizeStoredSession(raw: unknown, detail: WorkoutDetailForSes
 
   const exercises = detail.exercises.map((item) => ({
     workoutExerciseId: item.id,
-    exerciseId: item.exercise_id,
+    exerciseId: item.exercise_id ?? '',
     exerciseName: item.exercise.name,
     imageUrl: item.exercise.image_url,
     bodyPart: item.exercise.body_part,

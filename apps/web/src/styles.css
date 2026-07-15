@@ -4346,6 +4346,64 @@ textarea.hevy-input { resize: vertical; min-height: 88px; line-height: 1.5; }
   font-size: 13px; font-weight: 600; cursor: pointer; transition: background 120ms ease, border-color 120ms ease;
 }
 .rex-add-set:hover { background: var(--surface-elevated); border-color: var(--text-tertiary); color: var(--text-primary); }
+
+/* ── Editor de intervalos (por tiempo) ────────────────────────────────────── */
+.ivl-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--card-shadow);
+  padding: 14px 18px; margin-bottom: 12px;
+}
+.ivl-card.in-circuit { margin-bottom: 10px; box-shadow: none; }
+.ivl-card .rex-head { display: flex; align-items: center; gap: 12px; }
+/* Input de segundos (ejercicio y descanso). */
+.ivl-secs { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.ivl-secs-input {
+  width: 62px; padding: 7px 8px; font-size: 14px; text-align: center; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid var(--border-strong); border-radius: 8px;
+  background: var(--bg); color: var(--text-primary);
+}
+.ivl-secs-input:focus { outline: none; border-color: var(--hevy-blue); }
+.ivl-secs-unit { font-size: 12px; font-weight: 600; color: var(--text-tertiary); }
+/* Card de descanso — azul del branding. */
+.ivl-rest-card {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 12px;
+  padding: 12px 18px; border-radius: var(--radius);
+  background: var(--hevy-blue-soft); border: 1px solid color-mix(in srgb, var(--hevy-blue) 30%, transparent);
+}
+.ivl-rest-label {
+  flex: 1; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--hevy-blue);
+}
+.rex-add-rest {
+  width: 100%; margin-top: 4px; padding: 10px; border: 1px dashed color-mix(in srgb, var(--hevy-blue) 45%, transparent);
+  border-radius: var(--radius-sm); background: transparent; color: var(--hevy-blue);
+  font-size: 13px; font-weight: 700; cursor: pointer; transition: background 120ms ease;
+}
+.rex-add-rest:hover { background: var(--hevy-blue-soft); }
+/* Caja de circuito envolviendo a sus ejercicios. */
+.circuit-box {
+  border: 1.5px solid var(--hevy-blue); border-radius: var(--radius);
+  margin-bottom: 12px; overflow: hidden; background: color-mix(in srgb, var(--hevy-blue) 4%, var(--surface));
+}
+.circuit-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px; background: var(--hevy-blue-soft);
+  border-bottom: 1px solid color-mix(in srgb, var(--hevy-blue) 25%, transparent);
+}
+.circuit-head-left { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: var(--hevy-blue); }
+.circuit-rounds-input {
+  width: 48px; padding: 4px 6px; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums;
+  border: 1px solid color-mix(in srgb, var(--hevy-blue) 40%, transparent); border-radius: 7px;
+  background: var(--surface); color: var(--text-primary);
+}
+.circuit-rounds-input:focus { outline: none; border-color: var(--hevy-blue); }
+.circuit-ungroup {
+  background: none; border: none; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--hevy-blue);
+}
+.circuit-ungroup:hover { text-decoration: underline; }
+.circuit-body { padding: 12px 14px 4px; }
+
 /* Zona de drop de la rutina al arrastrar un ejercicio desde el picker.
    El feedback principal es la card fantasma (.rex-card-placeholder) que se
    posiciona en el lugar exacto de inserción — mismo look que el hueco que
