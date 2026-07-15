@@ -6,13 +6,14 @@ import type {
   TrainingDayRow,
   TrainingPhaseRow,
   WorkoutExerciseRow,
+  WorkoutFormat,
   WorkoutRow,
 } from '@reset-fitness/shared/types/database';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/useToast';
 import { Spinner, ConfirmDialog } from '@/components/ui';
-import { PlusIcon, ChevronDownIcon, CheckIcon, GripIcon } from '@/components/icons';
+import { PlusIcon, ChevronDownIcon, CheckIcon, GripIcon, DumbbellIcon, TimerIcon, HeartIcon } from '@/components/icons';
 import { AssignProgramModal } from '@/components/AssignProgramModal';
 import { CardMenu } from '@/components/CardMenu';
 import { startSortableDrag } from '@/lib/sortableDrag';
@@ -62,6 +63,7 @@ export function ProgramEditorPage(): React.JSX.Element {
   const [copyTarget, setCopyTarget] = useState<DayWithWorkout | null>(null);
   const [copyPrograms, setCopyPrograms] = useState<ProgramRow[]>([]);
   const [assignDayTarget, setAssignDayTarget] = useState<DayWithWorkout | null>(null);
+  const [newRoutineOpen, setNewRoutineOpen] = useState(false);
 
   const [nameDraft, setNameDraft] = useState('');
   const [noteDraft, setNoteDraft] = useState('');
@@ -128,19 +130,20 @@ export function ProgramEditorPage(): React.JSX.Element {
     setProgram((prev) => (prev ? { ...prev, ...patch } : prev));
   };
 
-  const addRoutine = async () => {
+  const addRoutine = async (format: WorkoutFormat, title?: string) => {
     if (!trainerId || !phaseId) return;
     const nextNumber = days.reduce((m, d) => Math.max(m, d.day_number), 0) + 1;
+    const routineTitle = title?.trim() || `Rutina ${nextNumber}`;
     const { data: workout, error: wErr } = await supabase
       .from('workouts')
-      .insert({ trainer_id: trainerId, title: `Rutina ${nextNumber}`, workout_type: 'fuerza', blocks: 1 })
+      .insert({ trainer_id: trainerId, title: routineTitle, workout_type: 'fuerza', blocks: 1, format })
       .select('id')
       .single();
     if (wErr || !workout) return;
     const { data: newDay } = await supabase.from('training_days').insert({
       phase_id: phaseId,
       day_number: nextNumber,
-      title: `Rutina ${nextNumber}`,
+      title: routineTitle,
       day_type: 'fuerza',
       workout_id: (workout as { id: string }).id,
       sort_order: days.length,
@@ -191,7 +194,7 @@ export function ProgramEditorPage(): React.JSX.Element {
     const nextNumber = days.reduce((m, d) => Math.max(m, d.day_number), 0) + 1;
     const { data: workout, error: wErr } = await supabase
       .from('workouts')
-      .insert({ trainer_id: trainerId, title: `${day.title} (copia)`, workout_type: day.day_type, blocks: day.workout?.blocks ?? 1 })
+      .insert({ trainer_id: trainerId, title: `${day.title} (copia)`, workout_type: day.day_type, blocks: day.workout?.blocks ?? 1, format: day.workout?.format ?? 'gym' })
       .select('id')
       .single();
     if (wErr || !workout) { showToast('error', 'No pudimos duplicar la rutina.'); return; }
@@ -257,7 +260,7 @@ export function ProgramEditorPage(): React.JSX.Element {
 
     const { data: workout, error: wErr } = await supabase
       .from('workouts')
-      .insert({ trainer_id: trainerId, title: day.title, workout_type: day.day_type, blocks: day.workout?.blocks ?? 1 })
+      .insert({ trainer_id: trainerId, title: day.title, workout_type: day.day_type, blocks: day.workout?.blocks ?? 1, format: day.workout?.format ?? 'gym' })
       .select('id')
       .single();
     if (wErr || !workout) { showToast('error', 'No pudimos copiar la rutina.'); return; }
@@ -380,13 +383,13 @@ export function ProgramEditorPage(): React.JSX.Element {
 
           <div className="routines-bar">
             <div className="routines-bar-title">Rutinas <span className="count-chip">{sortedDays.length}</span></div>
-            <button type="button" className="btn blue sm" onClick={() => void addRoutine()}>
+            <button type="button" className="btn blue sm" onClick={() => setNewRoutineOpen(true)}>
               <PlusIcon size={14} /> Agregar rutina
             </button>
           </div>
 
           {sortedDays.length === 0 ? (
-            <div className="prog-drop">Este programa no tiene rutinas todavía. <button type="button" className="link-blue" onClick={() => void addRoutine()}>Agregar rutina</button></div>
+            <div className="prog-drop">Este programa no tiene rutinas todavía. <button type="button" className="link-blue" onClick={() => setNewRoutineOpen(true)}>Agregar rutina</button></div>
           ) : (
             sortedDays.map((day, index) => (
               <RoutineCard
@@ -488,6 +491,75 @@ export function ProgramEditorPage(): React.JSX.Element {
           </div>
         </div>
       )}
+
+      {newRoutineOpen && (
+        <NewRoutineModal
+          onClose={() => setNewRoutineOpen(false)}
+          onCreate={(format, title) => { setNewRoutineOpen(false); void addRoutine(format, title); }}
+        />
+      )}
+    </div>
+  );
+}
+
+const ROUTINE_FORMATS: { format: WorkoutFormat; label: string; desc: string; Icon: (p: { size?: number }) => React.JSX.Element }[] = [
+  { format: 'gym', label: 'Gimnasio', desc: 'Ejercicios con series, reps y peso.', Icon: DumbbellIcon },
+  { format: 'interval', label: 'Intervalos', desc: 'Por tiempo: HIIT, TABATA, funcional.', Icon: TimerIcon },
+  { format: 'cardio', label: 'Cardio', desc: 'Sesión de cardio.', Icon: HeartIcon },
+];
+
+/** Modal para crear una rutina eligiendo su formato (Gimnasio / Intervalos /
+ * Cardio) y, opcionalmente, un nombre. */
+function NewRoutineModal({
+  onClose,
+  onCreate,
+}: {
+  onClose: () => void;
+  onCreate: (format: WorkoutFormat, title?: string) => void;
+}): React.JSX.Element {
+  const [format, setFormat] = useState<WorkoutFormat>('gym');
+  const [name, setName] = useState('');
+  return (
+    <div className="invite-qr-backdrop" onClick={onClose} role="dialog" aria-modal="true">
+      <div className="new-routine-modal" onClick={(e) => e.stopPropagation()}>
+        <div style={{ fontWeight: 700, fontSize: 19, marginBottom: 4 }}>Nueva rutina</div>
+        <div className="muted" style={{ fontSize: 13.5, marginBottom: 18 }}>Elegí el tipo de rutina. Podés cambiarle el nombre ahora o después.</div>
+
+        <label className="field-label" htmlFor="new-routine-name">Nombre (opcional)</label>
+        <input
+          id="new-routine-name"
+          className="hevy-input"
+          style={{ marginBottom: 18 }}
+          placeholder="Ej. Día 1 Piernas"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          autoFocus
+        />
+
+        <div className="field-label" style={{ marginBottom: 8 }}>Tipo de rutina</div>
+        <div className="routine-format-list">
+          {ROUTINE_FORMATS.map(({ format: f, label, desc, Icon }) => (
+            <button
+              key={f}
+              type="button"
+              className={`routine-format-card${format === f ? ' selected' : ''}`}
+              onClick={() => setFormat(f)}
+            >
+              <span className="routine-format-icon"><Icon size={20} /></span>
+              <span className="routine-format-text">
+                <span className="routine-format-label">{label}</span>
+                <span className="routine-format-desc">{desc}</span>
+              </span>
+              {format === f && <span className="routine-format-check"><CheckIcon size={18} /></span>}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 22 }}>
+          <button type="button" className="btn secondary" onClick={onClose}>Cancelar</button>
+          <button type="button" className="btn blue" onClick={() => onCreate(format, name || undefined)}>Crear rutina</button>
+        </div>
+      </div>
     </div>
   );
 }

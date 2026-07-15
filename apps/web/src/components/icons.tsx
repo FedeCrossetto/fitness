@@ -299,3 +299,13 @@ export function MoreVerticalIcon({ size = 18, className }: IconProps): React.JSX
     </svg>
   );
 }
+
+export function TimerIcon({ size = 18, className }: IconProps): React.JSX.Element {
+  return (
+    <svg {...base(size, className)}>
+      <line x1="10" y1="2" x2="14" y2="2" />
+      <circle cx="12" cy="14" r="8" />
+      <line x1="12" y1="14" x2="12" y2="10" />
+    </svg>
+  );
+}

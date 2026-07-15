@@ -3903,6 +3903,31 @@ tr.row-clickable.dragging { opacity: 0.55; }
   background: var(--surface); border-radius: var(--radius-lg); padding: 28px;
   box-shadow: 0 24px 80px rgba(0,0,0,.25); width: 100%; max-width: 440px;
 }
+
+/* Modal "Nueva rutina" — elegir formato (Gimnasio / Intervalos / Cardio). */
+.new-routine-modal {
+  background: var(--surface); border-radius: var(--radius-lg); padding: 28px;
+  box-shadow: 0 24px 80px rgba(0,0,0,.25); width: 100%; max-width: 460px;
+}
+.routine-format-list { display: flex; flex-direction: column; gap: 10px; }
+.routine-format-card {
+  display: flex; align-items: center; gap: 14px; width: 100%; text-align: left;
+  padding: 14px 16px; border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border); background: var(--surface); cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+.routine-format-card:hover { border-color: var(--border-strong); }
+.routine-format-card.selected { border-color: var(--hevy-blue); background: var(--hevy-blue-soft); }
+.routine-format-icon {
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 40px; height: 40px; border-radius: 10px;
+  background: var(--surface-elevated); color: var(--hevy-blue);
+}
+.routine-format-card.selected .routine-format-icon { background: var(--surface); }
+.routine-format-text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.routine-format-label { font-size: 15px; font-weight: 700; color: var(--text-primary); }
+.routine-format-desc { font-size: 12.5px; color: var(--text-tertiary); }
+.routine-format-check { color: var(--hevy-blue); flex-shrink: 0; }
 .add-client-section-label {
   font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
   color: var(--text-tertiary); margin-bottom: 8px;

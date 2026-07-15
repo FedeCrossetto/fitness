@@ -217,6 +217,9 @@ export interface TrainingPhaseRow {
   updated_at: string;
 }
 
+/** Formato de la rutina: define el editor (web) y el player (mobile). */
+export type WorkoutFormat = 'gym' | 'interval' | 'cardio';
+
 export interface WorkoutRow {
   id: string;
   trainer_id: string | null;
@@ -224,6 +227,8 @@ export interface WorkoutRow {
   client_id: string | null;
   title: string;
   workout_type: WorkoutType;
+  /** Estructura de la rutina: gym (series/reps), interval (por tiempo) o cardio. */
+  format: WorkoutFormat;
   duration_min: number | null;
   blocks: number;
   calories_est: number | null;
