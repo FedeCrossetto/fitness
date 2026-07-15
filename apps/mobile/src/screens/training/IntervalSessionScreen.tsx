@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AppText } from '../../components/common';
+import { useAuthStore } from '../../stores/authStore';
 import { useTrainingStore } from '../../stores/trainingStore';
 import { buildIntervalTimeline, formatClock, type IntervalSegment } from '../../lib/trainingIntervals';
 import type { TrainingStackParamList } from '../../types/navigation';
@@ -30,6 +31,8 @@ export function IntervalSessionScreen({ navigation, route }: Props): React.JSX.E
 
   const workoutDetail = useTrainingStore((s) => s.workoutDetail);
   const loadWorkoutDetail = useTrainingStore((s) => s.loadWorkoutDetail);
+  const logIntervalWorkout = useTrainingStore((s) => s.logIntervalWorkout);
+  const userId = useAuthStore((s) => s.session?.user.id);
 
   useEffect(() => {
     if (workoutDetail?.id !== workoutId) void loadWorkoutDetail(workoutId);
@@ -38,6 +41,10 @@ export function IntervalSessionScreen({ navigation, route }: Props): React.JSX.E
   const detail = workoutDetail?.id === workoutId ? workoutDetail : null;
   const timeline = useMemo<IntervalSegment[]>(() => (detail ? buildIntervalTimeline(detail.exercises) : []), [detail]);
   const totalSeconds = useMemo(() => timeline.reduce((sum, s) => sum + s.seconds, 0), [timeline]);
+  const completedExerciseIds = useMemo(
+    () => Array.from(new Set((detail?.exercises ?? []).filter((e) => e.kind !== 'rest' && e.exercise_id).map((e) => e.exercise_id as string))),
+    [detail],
+  );
 
   const [index, setIndex] = useState(0);
   const [remaining, setRemaining] = useState(0);
@@ -68,6 +75,21 @@ export function IntervalSessionScreen({ navigation, route }: Props): React.JSX.E
     if (!finished && timeline.length > 0 && remaining === 0) goTo(index + 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remaining]);
+
+  // Al terminar, registra el entreno una sola vez (cuenta para stats/racha).
+  const loggedRef = useRef(false);
+  useEffect(() => {
+    if (finished && !loggedRef.current && userId && detail) {
+      loggedRef.current = true;
+      void logIntervalWorkout(userId, {
+        workoutId: detail.id,
+        workoutName: detail.title,
+        workoutType: detail.workout_type,
+        durationSeconds: totalSeconds,
+        completedExercises: completedExerciseIds,
+      });
+    }
+  }, [finished, userId, detail, totalSeconds, completedExerciseIds, logIntervalWorkout]);
 
   const current = timeline[index] ?? null;
   const next = timeline[index + 1] ?? null;
@@ -117,7 +139,7 @@ export function IntervalSessionScreen({ navigation, route }: Props): React.JSX.E
         <View style={[styles.center, { flex: 1, padding: 24 }]}>
           <Ionicons name="checkmark-circle" size={64} color={C.lime} />
           <AppText style={styles.doneTitle}>¡Completado!</AppText>
-          <AppText style={styles.doneSub}>{formatClock(totalSeconds)} de trabajo</AppText>
+          <AppText style={styles.doneSub}>{formatClock(totalSeconds)} de trabajo · guardado en tu historial</AppText>
           <Pressable style={styles.emptyBtn} onPress={() => navigation.goBack()}>
             <AppText style={styles.emptyBtnText}>Finalizar</AppText>
           </Pressable>

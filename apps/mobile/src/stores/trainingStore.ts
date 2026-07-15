@@ -155,6 +155,10 @@ interface TrainingState {
     userId: string,
     data: { activity: string; distance: number; distanceUnit: string; durationSeconds: number },
   ) => Promise<boolean>;
+  logIntervalWorkout: (
+    userId: string,
+    data: { workoutId: string; workoutName: string; workoutType: string | null; durationSeconds: number; completedExercises: string[] },
+  ) => Promise<WorkoutLogRow | null>;
   loadRecentLogs: (userId: string) => Promise<void>;
   loadMoreLogs: (userId: string) => Promise<void>;
   loadLogById: (logId: string) => Promise<WorkoutLogRow | null>;
@@ -529,6 +533,37 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
       return true;
     } catch {
       return false;
+    }
+  },
+
+  logIntervalWorkout: async (userId, { workoutId, workoutName, workoutType, durationSeconds, completedExercises }) => {
+    try {
+      const { data, error } = await supabase
+        .from('workout_logs')
+        .insert({
+          user_id: userId,
+          date: todayISO(),
+          workout_name: workoutName,
+          workout_type: workoutType,
+          workout_id: workoutId,
+          duration_seconds: durationSeconds,
+          duration_min: Math.max(1, Math.round(durationSeconds / 60)),
+          elapsed_seconds: durationSeconds,
+          completed: true,
+          completed_sets: completedExercises.length,
+          completed_exercises: completedExercises,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      set({ lastSavedLog: data });
+      void syncTrainingGoal(userId);
+      void get().loadRecentLogs(userId);
+      return data;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'No pudimos guardar el entreno.';
+      useUiStore.getState().showToast('error', message);
+      return null;
     }
   },
 
