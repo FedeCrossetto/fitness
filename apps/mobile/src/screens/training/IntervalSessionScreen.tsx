@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, AppState, Image, Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AppText } from '../../components/common';
@@ -274,14 +275,32 @@ export function IntervalSessionScreen({ navigation, route }: Props): React.JSX.E
             </View>
           </View>
 
-          {/* Siguiente */}
+          {/* Siguiente — ocupa el espacio que sobra hasta los controles. */}
           {next ? (
-            <View style={styles.nextRow}>
-              <Ionicons name={next.kind === 'rest' ? 'cafe-outline' : 'barbell-outline'} size={16} color={C.cyan} />
-              <AppText style={styles.nextLabel}>SIGUIENTE</AppText>
-              <AppText style={styles.nextName} numberOfLines={1}>{next.name.toUpperCase()}</AppText>
+            <View style={styles.nextCard}>
+              {next.imageUrl ? (
+                <Image source={{ uri: next.imageUrl }} style={styles.nextCardImg} resizeMode="cover" />
+              ) : (
+                <View style={[styles.nextCardImg, styles.center, { backgroundColor: C.surfaceLowest }]}>
+                  <Ionicons name={next.kind === 'rest' ? 'cafe-outline' : 'barbell-outline'} size={36} color={C.faint} />
+                </View>
+              )}
+              <LinearGradient
+                colors={['transparent', 'rgba(0,0,0,0.35)', 'rgba(0,0,0,0.9)']}
+                locations={[0, 0.5, 1]}
+                style={StyleSheet.absoluteFillObject}
+              />
+              <View style={styles.nextCardOverlay}>
+                <View style={styles.nextCardLabelRow}>
+                  <Ionicons name={next.kind === 'rest' ? 'cafe-outline' : 'barbell-outline'} size={14} color={C.cyan} />
+                  <AppText style={styles.nextLabel}>SIGUIENTE</AppText>
+                </View>
+                <AppText style={styles.nextCardName} numberOfLines={2}>{next.name.toUpperCase()}</AppText>
+              </View>
             </View>
-          ) : null}
+          ) : (
+            <View style={{ flex: 1 }} />
+          )}
         </View>
       )}
 
@@ -316,7 +335,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20, paddingBottom: 10, gap: 10,
   },
   brand: { flex: 1, textAlign: 'center', color: C.lime, fontSize: 15, lineHeight: 19, fontWeight: '800', letterSpacing: 0.5 },
-  content: { flex: 1, paddingHorizontal: 20, justifyContent: 'space-between' },
+  content: { flex: 1, paddingHorizontal: 20, paddingTop: 4, paddingBottom: 12, gap: 12 },
   titleBlock: { gap: 4 },
   eyebrow: { color: C.lime, fontSize: 10, lineHeight: 13, fontWeight: '800', letterSpacing: 2 },
   exName: { color: C.text, fontSize: 22, lineHeight: 25, fontWeight: '800' },
@@ -340,13 +359,15 @@ const styles = StyleSheet.create({
   metricCard: { flex: 1, backgroundColor: C.surface, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 10, alignItems: 'center' },
   metricLabel: { color: C.muted, fontSize: 9, lineHeight: 12, fontWeight: '700', letterSpacing: 1, marginBottom: 4 },
   metricValue: { color: C.text, fontSize: 18, lineHeight: 22, fontWeight: '800', fontVariant: ['tabular-nums'] },
-  nextRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    padding: 12, borderRadius: 10,
-    backgroundColor: 'rgba(38,38,38,0.5)',
+  nextCard: {
+    flex: 1, minHeight: 90, borderRadius: 14, overflow: 'hidden',
+    backgroundColor: C.surfaceLowest, position: 'relative',
   },
-  nextLabel: { color: C.cyan, fontSize: 9, lineHeight: 12, fontWeight: '700', letterSpacing: 1.5 },
-  nextName: { flex: 1, color: C.text, fontSize: 13, lineHeight: 17, fontWeight: '800' },
+  nextCardImg: { ...StyleSheet.absoluteFillObject },
+  nextCardOverlay: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: 14, gap: 4 },
+  nextCardLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  nextLabel: { color: C.cyan, fontSize: 10, lineHeight: 13, fontWeight: '700', letterSpacing: 1.5 },
+  nextCardName: { color: C.text, fontSize: 20, lineHeight: 24, fontWeight: '800' },
   controls: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around',
     paddingHorizontal: 16, paddingTop: 10, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)',
