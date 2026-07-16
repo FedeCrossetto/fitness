@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -27,6 +27,12 @@ const C = {
   faint: 'rgba(255,255,255,0.1)',
 };
 
+/** Devuelve el índice del primer segmento cuyo `cumulativeMs[i]` (fin) es
+ * mayor al tiempo transcurrido — es decir, el segmento en curso. */
+function segStart(index: number, cumulativeMs: number[]): number {
+  return index <= 0 ? 0 : (cumulativeMs[index - 1] ?? 0);
+}
+
 export function IntervalSessionScreen({ navigation, route }: Props): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { workoutId, workoutTitle } = route.params;
@@ -43,51 +49,96 @@ export function IntervalSessionScreen({ navigation, route }: Props): React.JSX.E
 
   const detail = workoutDetail?.id === workoutId ? workoutDetail : null;
   const timeline = useMemo<IntervalSegment[]>(() => (detail ? buildIntervalTimeline(detail.exercises, language) : []), [detail, language]);
-  const totalSeconds = useMemo(() => timeline.reduce((sum, s) => sum + s.seconds, 0), [timeline]);
-  const completedExerciseIds = useMemo(
-    () => Array.from(new Set((detail?.exercises ?? []).filter((e) => e.kind !== 'rest' && e.exercise_id).map((e) => e.exercise_id as string))),
-    [detail],
-  );
-
-  const [index, setIndex] = useState(0);
-  const [remaining, setRemaining] = useState(0);
-  const [paused, setPaused] = useState(false);
-  const [finished, setFinished] = useState(false);
-
-  // Arranca (o reinicia) el reloj cuando el timeline queda listo.
-  useEffect(() => {
-    if (timeline.length > 0) { setIndex(0); setRemaining(timeline[0].seconds); setFinished(false); }
+  const cumulativeMs = useMemo(() => {
+    const arr: number[] = [];
+    let sum = 0;
+    for (const seg of timeline) { sum += seg.seconds * 1000; arr.push(sum); }
+    return arr;
   }, [timeline]);
+  const totalMs = cumulativeMs[cumulativeMs.length - 1] ?? 0;
+  const totalSeconds = Math.round(totalMs / 1000);
 
-  const goTo = (i: number) => {
-    if (i < 0 || timeline.length === 0) return;
-    if (i >= timeline.length) { setFinished(true); hapticSuccess(); return; }
-    setIndex(i);
-    setRemaining(timeline[i].seconds);
+  // Reloj basado en timestamps reales (no en un contador que se decrementa):
+  // así el progreso sigue siendo correcto aunque la app quede en background
+  // (donde los setInterval de JS se suspenden) — al volver, se recalcula todo
+  // a partir de Date.now() en vez de quedar "congelado" o perder tiempo.
+  const startedAtRef = useRef<number | null>(null);
+  const pausedElapsedRef = useRef(0);
+  const [paused, setPaused] = useState(false);
+  const [, forceTick] = useState(0);
+
+  // Arranca el reloj una sola vez por rutina, apenas el timeline está listo.
+  useEffect(() => {
+    if (timeline.length > 0 && startedAtRef.current == null) {
+      startedAtRef.current = Date.now();
+      pausedElapsedRef.current = 0;
+      setPaused(false);
+    }
+  }, [timeline.length]);
+
+  // Fuerza un re-render cada 250ms (mientras no está en pausa) para que el
+  // contador se vea andar; y también al volver del background, para reflejar
+  // de inmediato el tiempo real transcurrido.
+  useEffect(() => {
+    if (paused) return;
+    const id = setInterval(() => forceTick((t) => t + 1), 250);
+    return () => clearInterval(id);
+  }, [paused]);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') forceTick((t) => t + 1);
+    });
+    return () => sub.remove();
+  }, []);
+
+  const elapsedMs = paused
+    ? pausedElapsedRef.current
+    : startedAtRef.current != null
+      ? Math.max(0, Date.now() - startedAtRef.current)
+      : 0;
+
+  let segIndex = 0;
+  while (segIndex < timeline.length && (cumulativeMs[segIndex] ?? 0) <= elapsedMs) segIndex++;
+  const finished = timeline.length > 0 && elapsedMs >= totalMs;
+  const current = finished ? null : timeline[segIndex] ?? null;
+  const next = finished ? null : timeline[segIndex + 1] ?? null;
+  const remaining = current ? Math.max(0, Math.ceil(((cumulativeMs[segIndex] ?? 0) - elapsedMs) / 1000)) : 0;
+  const elapsedSeconds = Math.min(totalSeconds, Math.floor(elapsedMs / 1000));
+  const completionPct = totalSeconds > 0 ? Math.round((elapsedSeconds / totalSeconds) * 100) : 0;
+  const curSegStartMs = segStart(segIndex, cumulativeMs);
+  const segProgress = current ? Math.min(1, (elapsedMs - curSegStartMs) / (current.seconds * 1000 || 1)) : 0;
+  const isRest = current?.kind === 'rest';
+
+  // Ejercicios cuyo segmento ya se completó del todo (para registrar el entreno).
+  const completedNow = useMemo(() => {
+    const upTo = finished ? timeline.length : segIndex;
+    const ids = new Set<string>();
+    for (let i = 0; i < upTo; i++) {
+      const seg = timeline[i];
+      if (seg?.kind === 'exercise' && seg.exerciseId) ids.add(seg.exerciseId);
+    }
+    return Array.from(ids);
+  }, [timeline, segIndex, finished]);
+
+  const jumpToMs = (targetMs: number) => {
+    const clamped = Math.max(0, Math.min(totalMs, targetMs));
+    if (paused) pausedElapsedRef.current = clamped;
+    else startedAtRef.current = Date.now() - clamped;
+    forceTick((t) => t + 1);
+  };
+
+  const handleBack = () => { jumpToMs(segStart(Math.max(0, segIndex - 1), cumulativeMs)); hapticMedium(); };
+  const handleNext = () => {
+    if (segIndex + 1 >= timeline.length) { jumpToMs(totalMs); hapticSuccess(); return; }
+    jumpToMs(segStart(segIndex + 1, cumulativeMs));
     hapticMedium();
   };
-
-  const confirmStop = () => {
-    Alert.alert('Detener entreno', '¿Seguro que querés salir? No se va a guardar.', [
-      { text: 'Seguir', style: 'cancel' },
-      { text: 'Detener', style: 'destructive', onPress: () => navigation.goBack() },
-    ]);
+  const togglePause = () => {
+    if (paused) { startedAtRef.current = Date.now() - pausedElapsedRef.current; setPaused(false); }
+    else { pausedElapsedRef.current = elapsedMs; setPaused(true); }
   };
 
-  // Cuenta regresiva del segmento actual.
-  useEffect(() => {
-    if (paused || finished || timeline.length === 0) return;
-    const id = setInterval(() => setRemaining((r) => (r <= 1 ? 0 : r - 1)), 1000);
-    return () => clearInterval(id);
-  }, [paused, finished, index, timeline.length]);
-
-  // Al llegar a 0, avanza al siguiente segmento (o termina).
-  useEffect(() => {
-    if (!finished && timeline.length > 0 && remaining === 0) goTo(index + 1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [remaining]);
-
-  // Al terminar, registra el entreno una sola vez (cuenta para stats/racha).
+  // Al terminar (naturalmente), registra el entreno una sola vez.
   const loggedRef = useRef(false);
   useEffect(() => {
     if (finished && !loggedRef.current && userId && detail) {
@@ -97,24 +148,37 @@ export function IntervalSessionScreen({ navigation, route }: Props): React.JSX.E
         workoutName: detail.title,
         workoutType: detail.workout_type,
         durationSeconds: totalSeconds,
-        completedExercises: completedExerciseIds,
+        completedExercises: completedNow,
       });
     }
-  }, [finished, userId, detail, totalSeconds, completedExerciseIds, logIntervalWorkout]);
+  }, [finished, userId, detail, totalSeconds, completedNow, logIntervalWorkout]);
 
-  const current = timeline[index] ?? null;
-  const next = timeline[index + 1] ?? null;
-
-  const elapsed = useMemo(() => {
-    let e = 0;
-    for (let j = 0; j < index; j++) e += timeline[j]?.seconds ?? 0;
-    if (current) e += current.seconds - remaining;
-    return e;
-  }, [index, remaining, current, timeline]);
-  const completionPct = totalSeconds > 0 ? Math.round((elapsed / totalSeconds) * 100) : 0;
-  const segProgress = current && current.seconds > 0 ? (current.seconds - remaining) / current.seconds : 0;
-
-  const isRest = current?.kind === 'rest';
+  const confirmStop = () => {
+    Alert.alert(
+      'Detener entreno',
+      'Se va a guardar tu progreso hasta acá.',
+      [
+        { text: 'Seguir', style: 'cancel' },
+        {
+          text: 'Detener y guardar',
+          style: 'destructive',
+          onPress: () => {
+            if (userId && detail && !loggedRef.current) {
+              loggedRef.current = true;
+              void logIntervalWorkout(userId, {
+                workoutId: detail.id,
+                workoutName: detail.title,
+                workoutType: detail.workout_type,
+                durationSeconds: elapsedSeconds,
+                completedExercises: completedNow,
+              });
+            }
+            navigation.goBack();
+          },
+        },
+      ],
+    );
+  };
 
   if (!detail) {
     return (
@@ -202,7 +266,7 @@ export function IntervalSessionScreen({ navigation, route }: Props): React.JSX.E
             <View style={styles.metricsRow}>
               <View style={styles.metricCard}>
                 <AppText style={styles.metricLabel}>COMPLETADO</AppText>
-                <AppText style={styles.metricValue}>{formatClock(elapsed)}</AppText>
+                <AppText style={styles.metricValue}>{formatClock(elapsedSeconds)}</AppText>
                 <View style={styles.metricFoot}>
                   <Ionicons name="time-outline" size={14} color={C.cyan} />
                   <AppText style={[styles.metricFootText, { color: C.cyan }]}>LOGRADO</AppText>
@@ -213,7 +277,7 @@ export function IntervalSessionScreen({ navigation, route }: Props): React.JSX.E
                 <AppText style={styles.metricValue}>{completionPct}%</AppText>
                 <View style={styles.metricFoot}>
                   <Ionicons name="ellipse" size={10} color={C.lime} />
-                  <AppText style={[styles.metricFootText, { color: C.lime }]}>{index + 1}/{timeline.length}</AppText>
+                  <AppText style={[styles.metricFootText, { color: C.lime }]}>{segIndex + 1}/{timeline.length}</AppText>
                 </View>
               </View>
             </View>
@@ -239,12 +303,12 @@ export function IntervalSessionScreen({ navigation, route }: Props): React.JSX.E
 
           {/* Controles */}
           <View style={[styles.controls, { paddingBottom: insets.bottom + 12 }]}>
-            <Control icon="play-back" label="ATRÁS" onPress={() => (index > 0 ? goTo(index - 1) : setRemaining(current?.seconds ?? 0))} />
-            <Pressable style={styles.primaryBtn} onPress={() => setPaused((p) => !p)}>
+            <Control icon="play-back" label="ATRÁS" onPress={handleBack} />
+            <Pressable style={styles.primaryBtn} onPress={togglePause}>
               <Ionicons name={paused ? 'play' : 'pause'} size={34} color="#000" />
             </Pressable>
             <Control icon="stop" label="DETENER" color={C.cyan} onPress={confirmStop} />
-            <Control icon="play-forward" label="SIGUIENTE" onPress={() => goTo(index + 1)} />
+            <Control icon="play-forward" label="SIGUIENTE" onPress={handleNext} />
           </View>
         </>
       )}
@@ -284,7 +348,7 @@ const styles = StyleSheet.create({
     paddingVertical: 22, alignItems: 'center', borderLeftWidth: 4, borderLeftColor: C.lime,
   },
   timerLabel: { color: C.muted, fontSize: 10, fontWeight: '700', letterSpacing: 3, marginBottom: 6 },
-  timerBig: { color: C.lime, fontSize: 60, fontWeight: '800', letterSpacing: -1 },
+  timerBig: { color: C.lime, fontSize: 60, fontWeight: '800', letterSpacing: -1, fontVariant: ['tabular-nums'] },
   segTrackRow: { flexDirection: 'row', alignItems: 'center', alignSelf: 'stretch', paddingHorizontal: 20, marginTop: 12 },
   segTrackTime: { color: 'rgba(255,255,255,0.25)', fontSize: 10 },
   segTrack: { flex: 1, height: 2, backgroundColor: 'rgba(255,255,255,0.1)', marginHorizontal: 12, position: 'relative' },

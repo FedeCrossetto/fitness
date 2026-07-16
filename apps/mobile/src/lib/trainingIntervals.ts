@@ -12,6 +12,8 @@ export interface IntervalSegment {
   imageUrl: string | null;
   /** "RONDA 2/4" para los ejercicios de un circuito; null si no aplica. */
   roundLabel: string | null;
+  /** null en descansos; usado para registrar qué ejercicios se completaron. */
+  exerciseId: string | null;
 }
 
 type IntervalItem = WorkoutExerciseRow & { exercise: ExerciseRow | null };
@@ -28,6 +30,7 @@ function segmentFrom(item: IntervalItem, roundLabel: string | null, suffix: stri
     seconds: item.duration_seconds ?? DEFAULT_SEGMENT_SECONDS,
     imageUrl: isRest ? null : (item.exercise?.image_url ?? null),
     roundLabel,
+    exerciseId: isRest ? null : item.exercise_id,
   };
 }
 

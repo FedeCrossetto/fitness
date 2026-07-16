@@ -34,7 +34,7 @@ const TAB_ROOT_SCREEN: Partial<Record<string, string>> = {
   ProgressTab:  'Dashboard',
 };
 
-const HIDE_ON_ROUTES = ['CoachChat', 'Messages', 'CommunityChat'];
+const HIDE_ON_ROUTES = ['CoachChat', 'Messages', 'CommunityChat', 'IntervalSession'];
 
 /** Padding horizontal interno de la fila (debe coincidir con styles.row). */
 const ROW_PAD = spacing.sm;
