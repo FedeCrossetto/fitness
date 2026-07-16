@@ -96,7 +96,10 @@ export function SessionSummaryScreen({ navigation, route }: Props): React.JSX.El
     const volumeLabel = formatWorkoutVolume(log.total_volume_kg);
     const completedSets =
       log.completed_sets ?? exerciseLines.reduce((s, l) => s + l.completedSets, 0);
-    const isStrength = log.workout_type === 'fuerza';
+    // session_detail sólo existe en logs de gym (series/reps) — un log de
+    // intervalos puede tener workout_type='fuerza' heredado de la rutina
+    // pero no tiene ese detalle, así que no debe intentar el body map.
+    const isStrength = log.workout_type === 'fuerza' && !!log.session_detail;
 
     return (
       <View>

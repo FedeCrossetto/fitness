@@ -141,44 +141,58 @@ export function IntervalSessionScreen({ navigation, route }: Props): React.JSX.E
   // corriendo en el store y se puede retomar desde el banner (Inicio/Entreno).
   const minimize = () => { hapticTap(); navigation.goBack(); };
 
-  // Al terminar (naturalmente), registra el entreno una sola vez.
+  // Al terminar (naturalmente), registra el entreno una sola vez y navega al
+  // resumen — el orden importa: hay que navegar ANTES de descartar la sesión.
+  // Si se descarta primero, activeInterval pasa a null y en el próximo render
+  // elapsedMs/finished se recalculan desde cero (porque se derivan de
+  // activeInterval) — la pantalla "revive" mostrando el entreno recién
+  // arrancado en vez de mostrar el resumen. Por eso: log → navigate → discard.
   const loggedRef = useRef(false);
   useEffect(() => {
     if (finished && !loggedRef.current && userId && detail) {
       loggedRef.current = true;
-      void logIntervalWorkout(userId, {
-        workoutId: detail.id,
-        workoutName: detail.title,
-        workoutType: detail.workout_type,
-        durationSeconds: totalSeconds,
-        completedExercises: completedNow,
-      });
-      void discardIntervalSession();
+      void (async () => {
+        const log = await logIntervalWorkout(userId, {
+          workoutId: detail.id,
+          workoutName: detail.title,
+          workoutType: detail.workout_type,
+          durationSeconds: totalSeconds,
+          completedExercises: completedNow,
+        });
+        if (log) navigation.replace('SessionSummary', { logId: log.id });
+        else navigation.goBack();
+        void discardIntervalSession();
+      })();
     }
-  }, [finished, userId, detail, totalSeconds, completedNow, logIntervalWorkout, discardIntervalSession]);
+  }, [finished, userId, detail, totalSeconds, completedNow, logIntervalWorkout, discardIntervalSession, navigation]);
 
   const confirmStop = () => {
     Alert.alert(
-      'Detener entreno',
+      'Finalizar entreno',
       'Se va a guardar tu progreso hasta acá.',
       [
         { text: 'Seguir', style: 'cancel' },
         {
-          text: 'Detener y guardar',
+          text: 'Finalizar',
           style: 'destructive',
           onPress: () => {
-            if (userId && detail && !loggedRef.current) {
-              loggedRef.current = true;
-              void logIntervalWorkout(userId, {
-                workoutId: detail.id,
-                workoutName: detail.title,
-                workoutType: detail.workout_type,
-                durationSeconds: elapsedSeconds,
-                completedExercises: completedNow,
-              });
-            }
-            void discardIntervalSession();
-            navigation.goBack();
+            void (async () => {
+              let logId: string | null = null;
+              if (userId && detail && !loggedRef.current) {
+                loggedRef.current = true;
+                const log = await logIntervalWorkout(userId, {
+                  workoutId: detail.id,
+                  workoutName: detail.title,
+                  workoutType: detail.workout_type,
+                  durationSeconds: elapsedSeconds,
+                  completedExercises: completedNow,
+                });
+                logId = log?.id ?? null;
+              }
+              if (logId) navigation.replace('SessionSummary', { logId });
+              else navigation.goBack();
+              void discardIntervalSession();
+            })();
           },
         },
       ],
