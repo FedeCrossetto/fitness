@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, Image, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, Image, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AppText } from '../../components/common';
@@ -34,6 +33,8 @@ function segStart(index: number, cumulativeMs: number[]): number {
 
 export function IntervalSessionScreen({ navigation, route }: Props): React.JSX.Element {
   const insets = useSafeAreaInsets();
+  const { height: winHeight } = useWindowDimensions();
+  const nextCardHeight = Math.round(winHeight * 0.15);
   const { workoutId, workoutTitle } = route.params;
 
   const workoutDetail = useTrainingStore((s) => s.workoutDetail);
@@ -275,31 +276,26 @@ export function IntervalSessionScreen({ navigation, route }: Props): React.JSX.E
             </View>
           </View>
 
-          {/* Siguiente — ocupa el espacio que sobra hasta los controles. */}
+          {/* Siguiente — ~15% de la pantalla: texto a la izquierda, miniatura a la derecha. */}
           {next ? (
-            <View style={styles.nextCard}>
-              {next.imageUrl ? (
-                <Image source={{ uri: next.imageUrl }} style={styles.nextCardImg} resizeMode="cover" />
-              ) : (
-                <View style={[styles.nextCardImg, styles.center, { backgroundColor: C.surfaceLowest }]}>
-                  <Ionicons name={next.kind === 'rest' ? 'cafe-outline' : 'barbell-outline'} size={36} color={C.faint} />
-                </View>
-              )}
-              <LinearGradient
-                colors={['transparent', 'rgba(0,0,0,0.35)', 'rgba(0,0,0,0.9)']}
-                locations={[0, 0.5, 1]}
-                style={StyleSheet.absoluteFillObject}
-              />
-              <View style={styles.nextCardOverlay}>
+            <View style={[styles.nextCard, { height: nextCardHeight }]}>
+              <View style={styles.nextCardText}>
                 <View style={styles.nextCardLabelRow}>
                   <Ionicons name={next.kind === 'rest' ? 'cafe-outline' : 'barbell-outline'} size={14} color={C.cyan} />
                   <AppText style={styles.nextLabel}>SIGUIENTE</AppText>
                 </View>
                 <AppText style={styles.nextCardName} numberOfLines={2}>{next.name.toUpperCase()}</AppText>
               </View>
+              <View style={styles.nextCardThumb}>
+                {next.imageUrl ? (
+                  <Image source={{ uri: next.imageUrl }} style={styles.nextCardThumbImg} resizeMode="cover" />
+                ) : (
+                  <Ionicons name={next.kind === 'rest' ? 'cafe-outline' : 'barbell-outline'} size={28} color={C.faint} />
+                )}
+              </View>
             </View>
           ) : (
-            <View style={{ flex: 1 }} />
+            <View style={{ height: nextCardHeight }} />
           )}
         </View>
       )}
@@ -360,14 +356,19 @@ const styles = StyleSheet.create({
   metricLabel: { color: C.muted, fontSize: 9, lineHeight: 12, fontWeight: '700', letterSpacing: 1, marginBottom: 4 },
   metricValue: { color: C.text, fontSize: 18, lineHeight: 22, fontWeight: '800', fontVariant: ['tabular-nums'] },
   nextCard: {
-    flex: 1, minHeight: 90, borderRadius: 14, overflow: 'hidden',
-    backgroundColor: C.surfaceLowest, position: 'relative',
+    flexDirection: 'row', alignItems: 'stretch', gap: 12,
+    padding: 10, borderRadius: 14,
+    backgroundColor: 'rgba(38,38,38,0.5)',
   },
-  nextCardImg: { ...StyleSheet.absoluteFillObject },
-  nextCardOverlay: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: 14, gap: 4 },
+  nextCardText: { flex: 1, justifyContent: 'center', gap: 4 },
   nextCardLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   nextLabel: { color: C.cyan, fontSize: 10, lineHeight: 13, fontWeight: '700', letterSpacing: 1.5 },
-  nextCardName: { color: C.text, fontSize: 20, lineHeight: 24, fontWeight: '800' },
+  nextCardName: { color: C.text, fontSize: 16, lineHeight: 20, fontWeight: '800' },
+  nextCardThumb: {
+    aspectRatio: 1, borderRadius: 10, overflow: 'hidden',
+    backgroundColor: C.surfaceLowest, alignItems: 'center', justifyContent: 'center',
+  },
+  nextCardThumbImg: { width: '100%', height: '100%' },
   controls: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around',
     paddingHorizontal: 16, paddingTop: 10, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)',
