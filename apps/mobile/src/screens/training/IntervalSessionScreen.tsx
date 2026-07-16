@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AppText } from '../../components/common';
+import { ExercisePreviewSheet } from '../../components/training/ExercisePreviewSheet';
 import { hapticMedium, hapticSuccess, hapticTap } from '../../lib/haptics';
 import { useAuthStore } from '../../stores/authStore';
 import { useTranslation } from '../../stores/i18nStore';
@@ -72,6 +73,9 @@ export function IntervalSessionScreen({ navigation, route }: Props): React.JSX.E
   }, [timeline]);
   const totalMs = cumulativeMs[cumulativeMs.length - 1] ?? 0;
   const totalSeconds = Math.round(totalMs / 1000);
+
+  // Ejercicio (actual o siguiente) tocado para ver su detalle/video en grande.
+  const [previewSegment, setPreviewSegment] = useState<IntervalSegment | null>(null);
 
   const paused = activeInterval?.paused ?? false;
 
@@ -231,8 +235,12 @@ export function IntervalSessionScreen({ navigation, route }: Props): React.JSX.E
             ) : null}
           </View>
 
-          {/* Imagen / canvas */}
-          <View style={styles.canvas}>
+          {/* Imagen / canvas — tocar abre el detalle (y video, si lo tiene). */}
+          <Pressable
+            style={styles.canvas}
+            disabled={!current || current.kind !== 'exercise'}
+            onPress={() => current && setPreviewSegment(current)}
+          >
             {current?.imageUrl ? (
               <Image source={{ uri: current.imageUrl }} style={styles.canvasImg} resizeMode="cover" />
             ) : (
@@ -240,7 +248,7 @@ export function IntervalSessionScreen({ navigation, route }: Props): React.JSX.E
                 <Ionicons name={isRest ? 'cafe-outline' : 'barbell-outline'} size={40} color={C.faint} />
               </View>
             )}
-          </View>
+          </Pressable>
 
           {/* Progreso general */}
           <View style={styles.progressTrack}>
@@ -286,13 +294,17 @@ export function IntervalSessionScreen({ navigation, route }: Props): React.JSX.E
                 </View>
                 <AppText style={styles.nextCardName} numberOfLines={2}>{next.name.toUpperCase()}</AppText>
               </View>
-              <View style={styles.nextCardThumb}>
+              <Pressable
+                style={styles.nextCardThumb}
+                disabled={next.kind !== 'exercise'}
+                onPress={() => setPreviewSegment(next)}
+              >
                 {next.imageUrl ? (
                   <Image source={{ uri: next.imageUrl }} style={styles.nextCardThumbImg} resizeMode="cover" />
                 ) : (
                   <Ionicons name={next.kind === 'rest' ? 'cafe-outline' : 'barbell-outline'} size={28} color={C.faint} />
                 )}
-              </View>
+              </Pressable>
             </View>
           ) : (
             <View style={{ height: nextCardHeight }} />
@@ -310,6 +322,13 @@ export function IntervalSessionScreen({ navigation, route }: Props): React.JSX.E
           <Control icon="play-forward" label="SIGUIENTE" onPress={handleNext} />
         </View>
       )}
+
+      <ExercisePreviewSheet
+        visible={previewSegment !== null}
+        onClose={() => setPreviewSegment(null)}
+        exerciseId={previewSegment?.exerciseId ?? null}
+        fallback={previewSegment ? { name: previewSegment.name, image_url: previewSegment.imageUrl } : undefined}
+      />
     </View>
   );
 }

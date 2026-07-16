@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
+import { ResizeMode, Video } from 'expo-av';
 import { canShowExerciseImage } from '@reset-fitness/shared';
 import { AppText, BottomSheet, Chip } from '../common';
 import { radius, spacing, Colors, useThemedStyles, useTheme } from '../../theme';
@@ -11,7 +12,7 @@ import type { ExerciseRow } from '../../types/database';
 
 type ExerciseDetail = Pick<
   ExerciseRow,
-  'id' | 'name' | 'image_url' | 'external_source' | 'target_muscles' | 'secondary_muscles' | 'equipment' | 'instructions' | 'body_part' | 'metadata'
+  'id' | 'name' | 'image_url' | 'video_url' | 'external_source' | 'target_muscles' | 'secondary_muscles' | 'equipment' | 'instructions' | 'body_part' | 'metadata'
 >;
 
 interface ExercisePreviewSheetProps {
@@ -48,7 +49,7 @@ export function ExercisePreviewSheet({
     void (async () => {
       const { data, error } = await supabase
         .from('exercises')
-        .select('id, name, image_url, external_source, target_muscles, secondary_muscles, equipment, instructions, body_part, metadata')
+        .select('id, name, image_url, video_url, external_source, target_muscles, secondary_muscles, equipment, instructions, body_part, metadata')
         .eq('id', exerciseId)
         .maybeSingle();
 
@@ -61,6 +62,7 @@ export function ExercisePreviewSheet({
                 id: exerciseId,
                 name: fallback.name,
                 image_url: fallback.image_url ?? null,
+                video_url: null,
                 external_source: null,
                 target_muscles: null,
                 secondary_muscles: null,
@@ -88,7 +90,8 @@ export function ExercisePreviewSheet({
 
   const title = (exercise ? localizedExercise(exercise, language).name : null) ?? fallback?.name ?? '';
   const imageUrl = exercise?.image_url ?? fallback?.image_url ?? null;
-  const showImage = canShowExerciseImage(imageUrl, exercise?.external_source);
+  const videoUrl = exercise?.video_url ?? null;
+  const showImage = !videoUrl && canShowExerciseImage(imageUrl, exercise?.external_source);
   const loc = exercise ? localizedExercise(exercise, language) : { instructions: [], muscle: null };
 
   return (
@@ -99,7 +102,17 @@ export function ExercisePreviewSheet({
         </View>
       ) : (
         <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-          {showImage ? (
+          {videoUrl ? (
+            <View style={styles.mediaWrap}>
+              <Video
+                source={{ uri: videoUrl }}
+                style={styles.media}
+                resizeMode={ResizeMode.CONTAIN}
+                useNativeControls
+                isLooping
+              />
+            </View>
+          ) : showImage ? (
             <View style={styles.mediaWrap}>
               <Image source={{ uri: imageUrl! }} style={styles.media} contentFit="contain" autoplay />
             </View>
