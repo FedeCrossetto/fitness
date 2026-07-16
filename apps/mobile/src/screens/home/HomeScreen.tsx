@@ -29,6 +29,7 @@ import { NUTRITION_MACRO_COLORS } from '../../components/nutrition/nutritionThem
 import { SubscriptionBanner } from '../../components/home/SubscriptionBanner';
 import { ExpiryWarningBanner } from '../../components/home/ExpiryWarningBanner';
 import { ActiveSessionBanner } from '../../components/training/ActiveSessionBanner';
+import { ActiveIntervalSessionBanner } from '../../components/training/ActiveIntervalSessionBanner';
 import { useAuthStore } from '../../stores/authStore';
 import { useGoalsStore } from '../../stores/goalsStore';
 import { computeMacroTotals, useNutritionStore } from '../../stores/nutritionStore';
@@ -370,6 +371,7 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
 
         <FadeInView delay={160}>
         <ActiveSessionBanner />
+        <ActiveIntervalSessionBanner />
 
         <SubscriptionBanner onPress={() => navigation.navigate('Subscription')} />
         <ExpiryWarningBanner onPress={() => navigation.navigate('Subscription')} />

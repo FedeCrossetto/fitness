@@ -75,6 +75,7 @@ export function RootNavigator(): React.JSX.Element {
   const forcedSignOut        = useAuthStore((s) => s.forcedSignOut);
   const evaluationGateVersion = useAuthStore((s) => s.evaluationGateVersion);
   const restoreActiveSession = useTrainingStore((s) => s.restoreActiveSession);
+  const restoreActiveIntervalSession = useTrainingStore((s) => s.restoreActiveIntervalSession);
   // Flujo de checkout activo (procesando/aprobado/rechazado): toma la pantalla
   // por encima del gate normal, así el resultado del pago se muestra completo
   // (incluida la pantalla "aprobado + Comencemos") sin que el gate lo saltee.
@@ -156,7 +157,8 @@ export function RootNavigator(): React.JSX.Element {
 
   useEffect(() => {
     void restoreActiveSession();
-  }, [restoreActiveSession]);
+    void restoreActiveIntervalSession();
+  }, [restoreActiveSession, restoreActiveIntervalSession]);
 
   useEffect(() => {
     if (!session) return;

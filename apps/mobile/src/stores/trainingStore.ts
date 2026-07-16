@@ -59,6 +59,27 @@ export interface WorkoutWithExercises extends WorkoutRow {
 }
 
 const ACTIVE_SESSION_KEY = 'reset-fitness:activeSession';
+const ACTIVE_INTERVAL_SESSION_KEY = 'reset-fitness:activeIntervalSession';
+
+/** Sesión de intervalos en curso — vive en el store (no en refs del
+ * componente) para poder minimizarla: seguir corriendo el reloj mientras el
+ * coach/alumno navega a otra pantalla, y retomarla después. El reloj se
+ * deriva de `startedAt` (timestamp real), no de un contador. */
+export interface ActiveIntervalSession {
+  workoutId: string;
+  workoutTitle: string;
+  startedAt: number;
+  pausedElapsedMs: number;
+  paused: boolean;
+}
+
+async function persistIntervalSession(session: ActiveIntervalSession | null): Promise<void> {
+  if (!session) {
+    await AsyncStorage.removeItem(ACTIVE_INTERVAL_SESSION_KEY);
+    return;
+  }
+  await AsyncStorage.setItem(ACTIVE_INTERVAL_SESSION_KEY, JSON.stringify(session));
+}
 
 /** Resuelve el program_key a mostrar HOY. Consulta la RPC en vivo (no la
  * columna cacheada de `profiles`) para que un programa agendado que arranca
@@ -115,6 +136,7 @@ interface TrainingState {
   detailError: string | null;
 
   activeSession: ActiveSession | null;
+  activeIntervalSession: ActiveIntervalSession | null;
   lastSavedLog: WorkoutLogRow | null;
 
   recentLogs: WorkoutLogRow[];
@@ -137,6 +159,10 @@ interface TrainingState {
   loadWorkoutDetail: (workoutId: string) => Promise<void>;
   restoreActiveSession: () => Promise<void>;
   startSession: (userId: string, workoutId: string, workoutTitle: string) => Promise<void>;
+  restoreActiveIntervalSession: () => Promise<void>;
+  startIntervalSession: (workoutId: string, workoutTitle: string) => void;
+  updateIntervalSession: (patch: Partial<Pick<ActiveIntervalSession, 'startedAt' | 'pausedElapsedMs' | 'paused'>>) => void;
+  discardIntervalSession: () => Promise<void>;
   updateSet: (
     workoutExerciseId: string,
     setId: string,
@@ -173,6 +199,7 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
   detailLoading: false,
   detailError: null,
   activeSession: null,
+  activeIntervalSession: null,
   lastSavedLog: null,
   recentLogs: [],
   logsLoading: false,
@@ -362,6 +389,40 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
     } catch {
       // sesión no restaurable
     }
+  },
+
+  restoreActiveIntervalSession: async () => {
+    try {
+      const raw = await AsyncStorage.getItem(ACTIVE_INTERVAL_SESSION_KEY);
+      if (!raw) return;
+      const session = JSON.parse(raw) as ActiveIntervalSession;
+      if (!session?.workoutId) {
+        await AsyncStorage.removeItem(ACTIVE_INTERVAL_SESSION_KEY);
+        return;
+      }
+      set({ activeIntervalSession: session });
+    } catch {
+      // sesión no restaurable
+    }
+  },
+
+  startIntervalSession: (workoutId, workoutTitle) => {
+    const session: ActiveIntervalSession = { workoutId, workoutTitle, startedAt: Date.now(), pausedElapsedMs: 0, paused: false };
+    set({ activeIntervalSession: session });
+    void persistIntervalSession(session);
+  },
+
+  updateIntervalSession: (patch) => {
+    const current = get().activeIntervalSession;
+    if (!current) return;
+    const updated = { ...current, ...patch };
+    set({ activeIntervalSession: updated });
+    void persistIntervalSession(updated);
+  },
+
+  discardIntervalSession: async () => {
+    set({ activeIntervalSession: null });
+    await persistIntervalSession(null);
   },
 
   startSession: async (userId, workoutId, workoutTitle) => {
@@ -630,6 +691,7 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
     detailLoading: false,
     detailError: null,
     activeSession: null,
+    activeIntervalSession: null,
     lastSavedLog: null,
     recentLogs: [],
     logsLoading: false,

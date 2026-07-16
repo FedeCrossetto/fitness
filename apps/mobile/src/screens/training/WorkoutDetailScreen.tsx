@@ -47,6 +47,8 @@ export function WorkoutDetailScreen({ navigation, route }: Props): React.JSX.Ele
   const activeSession = useTrainingStore((s) => s.activeSession);
   const startSession = useTrainingStore((s) => s.startSession);
   const discardSession = useTrainingStore((s) => s.discardSession);
+  const activeIntervalSession = useTrainingStore((s) => s.activeIntervalSession);
+  const discardIntervalSession = useTrainingStore((s) => s.discardIntervalSession);
 
   const [selectedExercise, setSelectedExercise] = useState<ExerciseItem | null>(null);
   const [starting, setStarting] = useState(false);
@@ -83,28 +85,62 @@ export function WorkoutDetailScreen({ navigation, route }: Props): React.JSX.Ele
 
   const handleStart = useCallback(() => {
     if (!detail) return;
-    // Las rutinas de intervalos usan el player por tiempo (no la sesión de series).
-    if (detail.format === 'interval') {
+    const isIntervalFormat = detail.format === 'interval';
+
+    // Retomando la MISMA rutina que ya está en curso → entra directo, sin modal.
+    if (isIntervalFormat && activeIntervalSession?.workoutId === detail.id) {
       navigation.navigate('IntervalSession', { workoutId: detail.id, workoutTitle: detail.title });
       return;
     }
-    if (isResume) {
+    if (!isIntervalFormat && isResume) {
       navigation.navigate('LiveSession', { workoutId: detail.id, workoutTitle: detail.title });
       return;
     }
-    if (activeSession) {
+
+    // Hay OTRO entreno (de cualquier formato) en curso → preguntar, como Hevy:
+    // Continuar en curso / Empezar nuevo / Cancelar.
+    const other = activeSession && activeSession.workoutId !== detail.id
+      ? { kind: 'gym' as const, workoutId: activeSession.workoutId, workoutTitle: activeSession.workoutTitle }
+      : activeIntervalSession && activeIntervalSession.workoutId !== detail.id
+        ? { kind: 'interval' as const, workoutId: activeIntervalSession.workoutId, workoutTitle: activeIntervalSession.workoutTitle }
+        : null;
+
+    if (other) {
       Alert.alert(
         t.training.session_in_progress,
-        i18n(t.training.session_in_progress_message, { title: activeSession.workoutTitle }),
+        i18n(t.training.session_in_progress_message, { title: other.workoutTitle }),
         [
           { text: t.ui.cancel, style: 'cancel' },
-          { text: t.training.discard_and_start, style: 'destructive', onPress: () => void begin() },
+          {
+            text: 'Continuar en curso',
+            onPress: () => {
+              if (other.kind === 'gym') navigation.navigate('LiveSession', { workoutId: other.workoutId, workoutTitle: other.workoutTitle });
+              else navigation.navigate('IntervalSession', { workoutId: other.workoutId, workoutTitle: other.workoutTitle });
+            },
+          },
+          {
+            text: t.training.discard_and_start,
+            style: 'destructive',
+            onPress: () => {
+              void (async () => {
+                if (other.kind === 'gym') await discardSession();
+                else await discardIntervalSession();
+                if (isIntervalFormat) navigation.navigate('IntervalSession', { workoutId: detail.id, workoutTitle: detail.title });
+                else void begin();
+              })();
+            },
+          },
         ],
       );
       return;
     }
+
+    if (isIntervalFormat) {
+      navigation.navigate('IntervalSession', { workoutId: detail.id, workoutTitle: detail.title });
+      return;
+    }
     void begin();
-  }, [detail, isResume, activeSession, begin, navigation, t, i18n]);
+  }, [detail, isResume, activeSession, activeIntervalSession, begin, navigation, t, i18n, discardSession, discardIntervalSession]);
 
   const handleAddExercise = useCallback(async (exercise: Pick<NonNullable<ExerciseItem['exercise']>, 'id' | 'name' | 'image_url'>) => {
     if (!detail || !userId || !isCustom || addingExercise) return;

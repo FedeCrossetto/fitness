@@ -18,6 +18,7 @@ import {
   ProgressBar,
 } from '../../components/common';
 import { ActiveSessionBanner } from '../../components/training/ActiveSessionBanner';
+import { ActiveIntervalSessionBanner } from '../../components/training/ActiveIntervalSessionBanner';
 import { ExerciseIcon } from '../../components/training/ExerciseIcon';
 import { RecentWorkoutFeed } from '../../components/training/RecentWorkoutFeed';
 import { useClientConfig } from '../../config/useClientConfig';
@@ -443,6 +444,7 @@ export function ProgramScreen({ navigation }: Props): React.JSX.Element {
       </View>
 
       <ActiveSessionBanner />
+      <ActiveIntervalSessionBanner />
 
       <View style={styles.body}>{renderProgram()}</View>
     </ScrollView>

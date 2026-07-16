@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, Image, Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AppText } from '../../components/common';
-import { hapticMedium, hapticSuccess } from '../../lib/haptics';
+import { hapticMedium, hapticSuccess, hapticTap } from '../../lib/haptics';
 import { useAuthStore } from '../../stores/authStore';
 import { useTranslation } from '../../stores/i18nStore';
 import { useTrainingStore } from '../../stores/trainingStore';
@@ -27,8 +27,6 @@ const C = {
   faint: 'rgba(255,255,255,0.1)',
 };
 
-/** Devuelve el índice del primer segmento cuyo `cumulativeMs[i]` (fin) es
- * mayor al tiempo transcurrido — es decir, el segmento en curso. */
 function segStart(index: number, cumulativeMs: number[]): number {
   return index <= 0 ? 0 : (cumulativeMs[index - 1] ?? 0);
 }
@@ -40,12 +38,27 @@ export function IntervalSessionScreen({ navigation, route }: Props): React.JSX.E
   const workoutDetail = useTrainingStore((s) => s.workoutDetail);
   const loadWorkoutDetail = useTrainingStore((s) => s.loadWorkoutDetail);
   const logIntervalWorkout = useTrainingStore((s) => s.logIntervalWorkout);
+  const activeInterval = useTrainingStore((s) => s.activeIntervalSession);
+  const startIntervalSession = useTrainingStore((s) => s.startIntervalSession);
+  const updateIntervalSession = useTrainingStore((s) => s.updateIntervalSession);
+  const discardIntervalSession = useTrainingStore((s) => s.discardIntervalSession);
   const userId = useAuthStore((s) => s.session?.user.id);
   const { language } = useTranslation();
 
   useEffect(() => {
     if (workoutDetail?.id !== workoutId) void loadWorkoutDetail(workoutId);
   }, [workoutId, workoutDetail?.id, loadWorkoutDetail]);
+
+  // Arranca la sesión en el store una sola vez por rutina — si ya había una
+  // activa para este mismo workoutId (venimos de minimizarla), la retoma tal
+  // cual en vez de resetear el reloj.
+  useEffect(() => {
+    const current = useTrainingStore.getState().activeIntervalSession;
+    if (!current || current.workoutId !== workoutId) {
+      startIntervalSession(workoutId, workoutTitle ?? '');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workoutId]);
 
   const detail = workoutDetail?.id === workoutId ? workoutDetail : null;
   const timeline = useMemo<IntervalSegment[]>(() => (detail ? buildIntervalTimeline(detail.exercises, language) : []), [detail, language]);
@@ -58,44 +71,25 @@ export function IntervalSessionScreen({ navigation, route }: Props): React.JSX.E
   const totalMs = cumulativeMs[cumulativeMs.length - 1] ?? 0;
   const totalSeconds = Math.round(totalMs / 1000);
 
-  // Reloj basado en timestamps reales (no en un contador que se decrementa):
-  // así el progreso sigue siendo correcto aunque la app quede en background
-  // (donde los setInterval de JS se suspenden) — al volver, se recalcula todo
-  // a partir de Date.now() en vez de quedar "congelado" o perder tiempo.
-  const startedAtRef = useRef<number | null>(null);
-  const pausedElapsedRef = useRef(0);
-  const [paused, setPaused] = useState(false);
-  const [, forceTick] = useState(0);
+  const paused = activeInterval?.paused ?? false;
 
-  // Arranca el reloj una sola vez por rutina, apenas el timeline está listo.
-  useEffect(() => {
-    if (timeline.length > 0 && startedAtRef.current == null) {
-      startedAtRef.current = Date.now();
-      pausedElapsedRef.current = 0;
-      setPaused(false);
-    }
-  }, [timeline.length]);
-
-  // Fuerza un re-render cada 250ms (mientras no está en pausa) para que el
-  // contador se vea andar; y también al volver del background, para reflejar
-  // de inmediato el tiempo real transcurrido.
+  // Reloj basado en timestamps reales, guardado en el store (no en refs
+  // locales) — así sigue corriendo si el usuario minimiza esta pantalla, y
+  // se recalcula solo al volver del background (setInterval se suspende ahí).
+  const [nowMs, setNowMs] = useState(() => Date.now());
   useEffect(() => {
     if (paused) return;
-    const id = setInterval(() => forceTick((t) => t + 1), 250);
+    const id = setInterval(() => setNowMs(Date.now()), 250);
     return () => clearInterval(id);
   }, [paused]);
   useEffect(() => {
-    const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') forceTick((t) => t + 1);
-    });
+    const sub = AppState.addEventListener('change', (state) => { if (state === 'active') setNowMs(Date.now()); });
     return () => sub.remove();
   }, []);
 
-  const elapsedMs = paused
-    ? pausedElapsedRef.current
-    : startedAtRef.current != null
-      ? Math.max(0, Date.now() - startedAtRef.current)
-      : 0;
+  const elapsedMs = activeInterval
+    ? (paused ? activeInterval.pausedElapsedMs : Math.max(0, nowMs - activeInterval.startedAt))
+    : 0;
 
   let segIndex = 0;
   while (segIndex < timeline.length && (cumulativeMs[segIndex] ?? 0) <= elapsedMs) segIndex++;
@@ -109,7 +103,6 @@ export function IntervalSessionScreen({ navigation, route }: Props): React.JSX.E
   const segProgress = current ? Math.min(1, (elapsedMs - curSegStartMs) / (current.seconds * 1000 || 1)) : 0;
   const isRest = current?.kind === 'rest';
 
-  // Ejercicios cuyo segmento ya se completó del todo (para registrar el entreno).
   const completedNow = useMemo(() => {
     const upTo = finished ? timeline.length : segIndex;
     const ids = new Set<string>();
@@ -122,9 +115,9 @@ export function IntervalSessionScreen({ navigation, route }: Props): React.JSX.E
 
   const jumpToMs = (targetMs: number) => {
     const clamped = Math.max(0, Math.min(totalMs, targetMs));
-    if (paused) pausedElapsedRef.current = clamped;
-    else startedAtRef.current = Date.now() - clamped;
-    forceTick((t) => t + 1);
+    if (paused) updateIntervalSession({ pausedElapsedMs: clamped });
+    else updateIntervalSession({ startedAt: Date.now() - clamped });
+    setNowMs(Date.now());
   };
 
   const handleBack = () => { jumpToMs(segStart(Math.max(0, segIndex - 1), cumulativeMs)); hapticMedium(); };
@@ -134,9 +127,13 @@ export function IntervalSessionScreen({ navigation, route }: Props): React.JSX.E
     hapticMedium();
   };
   const togglePause = () => {
-    if (paused) { startedAtRef.current = Date.now() - pausedElapsedRef.current; setPaused(false); }
-    else { pausedElapsedRef.current = elapsedMs; setPaused(true); }
+    if (paused) updateIntervalSession({ startedAt: Date.now() - (activeInterval?.pausedElapsedMs ?? 0), paused: false });
+    else updateIntervalSession({ pausedElapsedMs: elapsedMs, paused: true });
   };
+
+  // Minimizar: vuelve a la pantalla anterior SIN descartar la sesión — sigue
+  // corriendo en el store y se puede retomar desde el banner (Inicio/Entreno).
+  const minimize = () => { hapticTap(); navigation.goBack(); };
 
   // Al terminar (naturalmente), registra el entreno una sola vez.
   const loggedRef = useRef(false);
@@ -150,8 +147,9 @@ export function IntervalSessionScreen({ navigation, route }: Props): React.JSX.E
         durationSeconds: totalSeconds,
         completedExercises: completedNow,
       });
+      void discardIntervalSession();
     }
-  }, [finished, userId, detail, totalSeconds, completedNow, logIntervalWorkout]);
+  }, [finished, userId, detail, totalSeconds, completedNow, logIntervalWorkout, discardIntervalSession]);
 
   const confirmStop = () => {
     Alert.alert(
@@ -173,6 +171,7 @@ export function IntervalSessionScreen({ navigation, route }: Props): React.JSX.E
                 completedExercises: completedNow,
               });
             }
+            void discardIntervalSession();
             navigation.goBack();
           },
         },
@@ -192,7 +191,7 @@ export function IntervalSessionScreen({ navigation, route }: Props): React.JSX.E
     return (
       <View style={[styles.screen, styles.center, { padding: 24 }]}>
         <AppText style={styles.emptyText}>Esta rutina no tiene ejercicios todavía.</AppText>
-        <Pressable style={styles.emptyBtn} onPress={() => navigation.goBack()}>
+        <Pressable style={styles.emptyBtn} onPress={() => { void discardIntervalSession(); navigation.goBack(); }}>
           <AppText style={styles.emptyBtnText}>Volver</AppText>
         </Pressable>
       </View>
@@ -200,14 +199,14 @@ export function IntervalSessionScreen({ navigation, route }: Props): React.JSX.E
   }
 
   return (
-    <View style={styles.screen}>
+    <View style={[styles.screen, { paddingBottom: insets.bottom }]}>
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <Pressable hitSlop={12} onPress={() => navigation.goBack()}>
-          <Ionicons name="close" size={26} color={C.lime} />
+      <View style={[styles.header, { paddingTop: insets.top + 6 }]}>
+        <Pressable hitSlop={12} onPress={minimize}>
+          <Ionicons name="chevron-down" size={26} color={C.lime} />
         </Pressable>
-        <AppText style={styles.brand}>{workoutTitle?.toUpperCase() || 'METODO R3SET'}</AppText>
-        <Ionicons name="tv-outline" size={22} color={C.muted} />
+        <AppText style={styles.brand} numberOfLines={1}>{workoutTitle?.toUpperCase() || 'METODO R3SET'}</AppText>
+        <Ionicons name="tv-outline" size={20} color={C.muted} />
       </View>
 
       {finished ? (
@@ -220,97 +219,81 @@ export function IntervalSessionScreen({ navigation, route }: Props): React.JSX.E
           </Pressable>
         </View>
       ) : (
-        <>
-          <ScrollView contentContainerStyle={{ paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
-            {/* Ejercicio actual */}
-            <View style={styles.titleBlock}>
-              <AppText style={styles.eyebrow}>{isRest ? 'DESCANSO' : 'EJERCICIO ACTUAL'}</AppText>
-              <AppText style={styles.exName}>{current?.name.toUpperCase()}</AppText>
-              {current?.roundLabel ? (
-                <View style={styles.chipsRow}>
-                  <View style={styles.chip}><AppText style={styles.chipText}>{current.roundLabel}</AppText></View>
-                </View>
-              ) : null}
-            </View>
-
-            {/* Imagen / canvas */}
-            <View style={styles.canvas}>
-              {current?.imageUrl ? (
-                <Image source={{ uri: current.imageUrl }} style={styles.canvasImg} resizeMode="cover" />
-              ) : (
-                <View style={[styles.canvasImg, styles.center, { backgroundColor: C.surfaceLowest }]}>
-                  <Ionicons name={isRest ? 'cafe-outline' : 'barbell-outline'} size={48} color={C.faint} />
-                </View>
-              )}
-            </View>
-
-            {/* Progreso general */}
-            <View style={styles.progressTrack}>
-              <View style={[styles.progressFill, { width: `${completionPct}%` }]} />
-            </View>
-
-            {/* Timer grande */}
-            <View style={styles.timerCard}>
-              <AppText style={styles.timerLabel}>TIEMPO RESTANTE</AppText>
-              <AppText style={styles.timerBig}>{formatClock(remaining)}</AppText>
-              <View style={styles.segTrackRow}>
-                <AppText style={styles.segTrackTime}>00:00</AppText>
-                <View style={styles.segTrack}>
-                  <View style={[styles.segDot, { left: `${Math.min(100, segProgress * 100)}%` }]} />
-                </View>
-                <AppText style={styles.segTrackTime}>{formatClock(current?.seconds ?? 0)}</AppText>
-              </View>
-            </View>
-
-            {/* Métricas */}
-            <View style={styles.metricsRow}>
-              <View style={styles.metricCard}>
-                <AppText style={styles.metricLabel}>COMPLETADO</AppText>
-                <AppText style={styles.metricValue}>{formatClock(elapsedSeconds)}</AppText>
-                <View style={styles.metricFoot}>
-                  <Ionicons name="time-outline" size={14} color={C.cyan} />
-                  <AppText style={[styles.metricFootText, { color: C.cyan }]}>LOGRADO</AppText>
-                </View>
-              </View>
-              <View style={styles.metricCard}>
-                <AppText style={styles.metricLabel}>COMPLETION</AppText>
-                <AppText style={styles.metricValue}>{completionPct}%</AppText>
-                <View style={styles.metricFoot}>
-                  <Ionicons name="ellipse" size={10} color={C.lime} />
-                  <AppText style={[styles.metricFootText, { color: C.lime }]}>{segIndex + 1}/{timeline.length}</AppText>
-                </View>
-              </View>
-            </View>
-
-            {/* Siguiente */}
-            {next ? (
-              <View style={styles.nextCard}>
-                <View style={styles.nextThumb}>
-                  {next.imageUrl ? (
-                    <Image source={{ uri: next.imageUrl }} style={styles.nextThumbImg} resizeMode="cover" />
-                  ) : (
-                    <Ionicons name={next.kind === 'rest' ? 'cafe-outline' : 'barbell-outline'} size={20} color={C.muted} />
-                  )}
-                </View>
-                <View style={{ flex: 1 }}>
-                  <AppText style={styles.nextLabel}>SIGUIENTE</AppText>
-                  <AppText style={styles.nextName}>{next.name.toUpperCase()}</AppText>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={C.muted} />
-              </View>
+        <View style={styles.content}>
+          {/* Ejercicio actual */}
+          <View style={styles.titleBlock}>
+            <AppText style={styles.eyebrow}>{isRest ? 'DESCANSO' : 'EJERCICIO ACTUAL'}</AppText>
+            <AppText style={styles.exName} numberOfLines={2}>{current?.name.toUpperCase()}</AppText>
+            {current?.roundLabel ? (
+              <View style={styles.chip}><AppText style={styles.chipText}>{current.roundLabel}</AppText></View>
             ) : null}
-          </ScrollView>
-
-          {/* Controles */}
-          <View style={[styles.controls, { paddingBottom: insets.bottom + 12 }]}>
-            <Control icon="play-back" label="ATRÁS" onPress={handleBack} />
-            <Pressable style={styles.primaryBtn} onPress={togglePause}>
-              <Ionicons name={paused ? 'play' : 'pause'} size={34} color="#000" />
-            </Pressable>
-            <Control icon="stop" label="DETENER" color={C.cyan} onPress={confirmStop} />
-            <Control icon="play-forward" label="SIGUIENTE" onPress={handleNext} />
           </View>
-        </>
+
+          {/* Imagen / canvas */}
+          <View style={styles.canvas}>
+            {current?.imageUrl ? (
+              <Image source={{ uri: current.imageUrl }} style={styles.canvasImg} resizeMode="cover" />
+            ) : (
+              <View style={[styles.canvasImg, styles.center, { backgroundColor: C.surfaceLowest }]}>
+                <Ionicons name={isRest ? 'cafe-outline' : 'barbell-outline'} size={40} color={C.faint} />
+              </View>
+            )}
+          </View>
+
+          {/* Progreso general */}
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${completionPct}%` }]} />
+          </View>
+
+          {/* Timer grande */}
+          <View style={styles.timerCard}>
+            <AppText style={styles.timerLabel}>TIEMPO RESTANTE</AppText>
+            <AppText style={styles.timerBig}>{formatClock(remaining)}</AppText>
+            <View style={styles.segTrackRow}>
+              <AppText style={styles.segTrackTime}>00:00</AppText>
+              <View style={styles.segTrack}>
+                <View style={[styles.segDot, { left: `${Math.min(100, segProgress * 100)}%` }]} />
+              </View>
+              <AppText style={styles.segTrackTime}>{formatClock(current?.seconds ?? 0)}</AppText>
+            </View>
+          </View>
+
+          {/* Métricas */}
+          <View style={styles.metricsRow}>
+            <View style={styles.metricCard}>
+              <AppText style={styles.metricLabel}>COMPLETADO</AppText>
+              <AppText style={styles.metricValue}>{formatClock(elapsedSeconds)}</AppText>
+            </View>
+            <View style={styles.metricCard}>
+              <AppText style={styles.metricLabel}>COMPLETION</AppText>
+              <AppText style={styles.metricValue}>{completionPct}%</AppText>
+            </View>
+            <View style={styles.metricCard}>
+              <AppText style={styles.metricLabel}>PASO</AppText>
+              <AppText style={styles.metricValue}>{segIndex + 1}/{timeline.length}</AppText>
+            </View>
+          </View>
+
+          {/* Siguiente */}
+          {next ? (
+            <View style={styles.nextRow}>
+              <Ionicons name={next.kind === 'rest' ? 'cafe-outline' : 'barbell-outline'} size={16} color={C.cyan} />
+              <AppText style={styles.nextLabel}>SIGUIENTE</AppText>
+              <AppText style={styles.nextName} numberOfLines={1}>{next.name.toUpperCase()}</AppText>
+            </View>
+          ) : null}
+        </View>
+      )}
+
+      {!finished && (
+        <View style={[styles.controls, { paddingBottom: 10 }]}>
+          <Control icon="play-back" label="ATRÁS" onPress={handleBack} />
+          <Pressable style={styles.primaryBtn} onPress={togglePause}>
+            <Ionicons name={paused ? 'play' : 'pause'} size={32} color="#000" />
+          </Pressable>
+          <Control icon="stop" label="DETENER" color={C.cyan} onPress={confirmStop} />
+          <Control icon="play-forward" label="SIGUIENTE" onPress={handleNext} />
+        </View>
       )}
     </View>
   );
@@ -319,7 +302,7 @@ export function IntervalSessionScreen({ navigation, route }: Props): React.JSX.E
 function Control({ icon, label, onPress, color }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void; color?: string }): React.JSX.Element {
   return (
     <Pressable style={styles.control} onPress={onPress} hitSlop={8}>
-      <Ionicons name={icon} size={26} color={color ?? C.muted} />
+      <Ionicons name={icon} size={24} color={color ?? C.muted} />
       <AppText style={[styles.controlLabel, color ? { color } : null]}>{label}</AppText>
     </Pressable>
   );
@@ -330,58 +313,53 @@ const styles = StyleSheet.create({
   center: { alignItems: 'center', justifyContent: 'center' },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingBottom: 12,
+    paddingHorizontal: 20, paddingBottom: 10, gap: 10,
   },
-  brand: { color: C.lime, fontSize: 17, fontWeight: '800', letterSpacing: 0.5 },
-  titleBlock: { paddingHorizontal: 24, paddingTop: 16, gap: 6 },
-  eyebrow: { color: C.lime, fontSize: 10, fontWeight: '800', letterSpacing: 2 },
-  exName: { color: C.text, fontSize: 30, fontWeight: '800', lineHeight: 32 },
-  chipsRow: { flexDirection: 'row', gap: 8, marginTop: 6 },
-  chip: { backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4 },
-  chipText: { color: 'rgba(255,255,255,0.7)', fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
-  canvas: { width: '100%', aspectRatio: 16 / 10, backgroundColor: C.surfaceLowest, marginTop: 16, overflow: 'hidden' },
+  brand: { flex: 1, textAlign: 'center', color: C.lime, fontSize: 15, lineHeight: 19, fontWeight: '800', letterSpacing: 0.5 },
+  content: { flex: 1, paddingHorizontal: 20, justifyContent: 'space-between' },
+  titleBlock: { gap: 4 },
+  eyebrow: { color: C.lime, fontSize: 10, lineHeight: 13, fontWeight: '800', letterSpacing: 2 },
+  exName: { color: C.text, fontSize: 22, lineHeight: 25, fontWeight: '800' },
+  chip: { alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3, marginTop: 4 },
+  chipText: { color: 'rgba(255,255,255,0.7)', fontSize: 10, lineHeight: 13, fontWeight: '700', letterSpacing: 0.5 },
+  canvas: { width: '100%', height: 130, backgroundColor: C.surfaceLowest, borderRadius: 12, overflow: 'hidden' },
   canvasImg: { width: '100%', height: '100%' },
-  progressTrack: { height: 4, backgroundColor: 'rgba(255,255,255,0.06)', marginHorizontal: 24, marginTop: 20, borderRadius: 4, overflow: 'hidden' },
+  progressTrack: { height: 4, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 4, overflow: 'hidden' },
   progressFill: { height: '100%', backgroundColor: C.lime },
   timerCard: {
-    marginHorizontal: 24, marginTop: 16, backgroundColor: C.surfaceLow, borderRadius: 14,
-    paddingVertical: 22, alignItems: 'center', borderLeftWidth: 4, borderLeftColor: C.lime,
+    backgroundColor: C.surfaceLow, borderRadius: 14,
+    paddingVertical: 14, alignItems: 'center', borderLeftWidth: 4, borderLeftColor: C.lime,
   },
-  timerLabel: { color: C.muted, fontSize: 10, fontWeight: '700', letterSpacing: 3, marginBottom: 6 },
-  timerBig: { color: C.lime, fontSize: 60, fontWeight: '800', letterSpacing: -1, fontVariant: ['tabular-nums'] },
-  segTrackRow: { flexDirection: 'row', alignItems: 'center', alignSelf: 'stretch', paddingHorizontal: 20, marginTop: 12 },
-  segTrackTime: { color: 'rgba(255,255,255,0.25)', fontSize: 10 },
+  timerLabel: { color: C.muted, fontSize: 10, lineHeight: 13, fontWeight: '700', letterSpacing: 3, marginBottom: 4 },
+  timerBig: { color: C.lime, fontSize: 48, lineHeight: 54, fontWeight: '800', letterSpacing: 0, fontVariant: ['tabular-nums'] },
+  segTrackRow: { flexDirection: 'row', alignItems: 'center', alignSelf: 'stretch', paddingHorizontal: 20, marginTop: 10 },
+  segTrackTime: { color: 'rgba(255,255,255,0.25)', fontSize: 10, lineHeight: 13 },
   segTrack: { flex: 1, height: 2, backgroundColor: 'rgba(255,255,255,0.1)', marginHorizontal: 12, position: 'relative' },
   segDot: { position: 'absolute', top: -3, width: 8, height: 8, borderRadius: 4, backgroundColor: C.lime, marginLeft: -4 },
-  metricsRow: { flexDirection: 'row', gap: 14, marginHorizontal: 24, marginTop: 14 },
-  metricCard: { flex: 1, backgroundColor: C.surface, borderRadius: 12, padding: 16 },
-  metricLabel: { color: C.muted, fontSize: 10, fontWeight: '700', letterSpacing: 1.5, marginBottom: 4 },
-  metricValue: { color: C.text, fontSize: 24, fontWeight: '800' },
-  metricFoot: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8 },
-  metricFootText: { fontSize: 10, fontWeight: '700' },
-  nextCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    marginHorizontal: 24, marginTop: 14, padding: 14, borderRadius: 12,
+  metricsRow: { flexDirection: 'row', gap: 10 },
+  metricCard: { flex: 1, backgroundColor: C.surface, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 10, alignItems: 'center' },
+  metricLabel: { color: C.muted, fontSize: 9, lineHeight: 12, fontWeight: '700', letterSpacing: 1, marginBottom: 4 },
+  metricValue: { color: C.text, fontSize: 18, lineHeight: 22, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  nextRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    padding: 12, borderRadius: 10,
     backgroundColor: 'rgba(38,38,38,0.5)',
   },
-  nextThumb: { width: 52, height: 52, borderRadius: 8, backgroundColor: C.surfaceLowest, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
-  nextThumbImg: { width: '100%', height: '100%', opacity: 0.7 },
-  nextLabel: { color: C.cyan, fontSize: 9, fontWeight: '700', letterSpacing: 2 },
-  nextName: { color: C.text, fontSize: 16, fontWeight: '800' },
+  nextLabel: { color: C.cyan, fontSize: 9, lineHeight: 12, fontWeight: '700', letterSpacing: 1.5 },
+  nextName: { flex: 1, color: C.text, fontSize: 13, lineHeight: 17, fontWeight: '800' },
   controls: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around',
-    paddingHorizontal: 16, paddingTop: 12, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)',
-    backgroundColor: 'rgba(14,14,14,0.9)',
+    paddingHorizontal: 16, paddingTop: 10, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)',
   },
-  control: { alignItems: 'center', gap: 4 },
-  controlLabel: { color: C.muted, fontSize: 9, fontWeight: '700', letterSpacing: 1 },
+  control: { alignItems: 'center', gap: 3 },
+  controlLabel: { color: C.muted, fontSize: 9, lineHeight: 12, fontWeight: '700', letterSpacing: 1 },
   primaryBtn: {
-    width: 64, height: 64, borderRadius: 32, backgroundColor: C.lime,
-    alignItems: 'center', justifyContent: 'center', marginTop: -20,
+    width: 58, height: 58, borderRadius: 29, backgroundColor: C.lime,
+    alignItems: 'center', justifyContent: 'center', marginTop: -16,
   },
   emptyText: { color: C.text, fontSize: 16, textAlign: 'center', marginBottom: 20 },
   emptyBtn: { backgroundColor: C.lime, borderRadius: 12, paddingHorizontal: 28, paddingVertical: 12, marginTop: 20 },
   emptyBtnText: { color: '#000', fontWeight: '800', fontSize: 15 },
-  doneTitle: { color: C.text, fontSize: 24, fontWeight: '800', marginTop: 16 },
-  doneSub: { color: C.muted, fontSize: 14, marginTop: 4 },
+  doneTitle: { color: C.text, fontSize: 24, lineHeight: 29, fontWeight: '800', marginTop: 16 },
+  doneSub: { color: C.muted, fontSize: 14, lineHeight: 18, marginTop: 4, textAlign: 'center' },
 });
