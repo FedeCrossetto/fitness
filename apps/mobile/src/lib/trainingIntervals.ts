@@ -1,3 +1,5 @@
+import type { Language } from '@reset-fitness/shared';
+import { localizedExercise } from './exerciseI18n';
 import type { ExerciseRow, WorkoutExerciseRow } from '../types/database';
 
 /** Un segmento reproducible del player de intervalos: un ejercicio o un
@@ -16,12 +18,13 @@ type IntervalItem = WorkoutExerciseRow & { exercise: ExerciseRow | null };
 
 const DEFAULT_SEGMENT_SECONDS = 30;
 
-function segmentFrom(item: IntervalItem, roundLabel: string | null, suffix: string): IntervalSegment {
+function segmentFrom(item: IntervalItem, roundLabel: string | null, suffix: string, language: Language): IntervalSegment {
   const isRest = item.kind === 'rest';
+  const name = isRest ? 'Descanso' : (item.exercise ? (localizedExercise(item.exercise, language).name ?? item.exercise.name) : 'Ejercicio');
   return {
     key: `${item.id}-${suffix}`,
     kind: isRest ? 'rest' : 'exercise',
-    name: isRest ? 'Descanso' : (item.exercise?.name ?? 'Ejercicio'),
+    name,
     seconds: item.duration_seconds ?? DEFAULT_SEGMENT_SECONDS,
     imageUrl: isRest ? null : (item.exercise?.image_url ?? null),
     roundLabel,
@@ -30,7 +33,7 @@ function segmentFrom(item: IntervalItem, roundLabel: string | null, suffix: stri
 
 /** Expande la rutina de intervalos a la lista lineal de segmentos que el player
  * reproduce en orden: los circuitos se repiten `circuit_rounds` veces. */
-export function buildIntervalTimeline(items: IntervalItem[]): IntervalSegment[] {
+export function buildIntervalTimeline(items: IntervalItem[], language: Language): IntervalSegment[] {
   const sorted = [...items].sort((a, b) => a.sort_order - b.sort_order);
   const segments: IntervalSegment[] = [];
   let i = 0;
@@ -44,11 +47,11 @@ export function buildIntervalTimeline(items: IntervalItem[]): IntervalSegment[] 
       const rounds = Math.max(1, run[0].circuit_rounds ?? 1);
       for (let r = 1; r <= rounds; r++) {
         for (const member of run) {
-          segments.push(segmentFrom(member, `RONDA ${r}/${rounds}`, `r${r}`));
+          segments.push(segmentFrom(member, `RONDA ${r}/${rounds}`, `r${r}`, language));
         }
       }
     } else {
-      segments.push(segmentFrom(it, null, 'x'));
+      segments.push(segmentFrom(it, null, 'x', language));
       i++;
     }
   }

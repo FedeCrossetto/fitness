@@ -13,6 +13,7 @@ import {
   IconButton,
 } from '../../components/common';
 import { formatExercisePrescription } from '../../lib/trainingExercise';
+import { localizedExercise } from '../../lib/exerciseI18n';
 import { isCustomWorkout } from '../../lib/trainingProgram';
 import { useAuthStore } from '../../stores/authStore';
 import { useTranslation } from '../../stores/i18nStore';
@@ -29,7 +30,7 @@ type ExerciseItem = WorkoutWithExercises['exercises'][number];
 
 export function WorkoutDetailScreen({ navigation, route }: Props): React.JSX.Element {
   const { colors } = useTheme();
-  const { t, i18n } = useTranslation();
+  const { t, i18n, language } = useTranslation();
   const styles = useThemedStyles(createStyles);
 
   const { workoutId, dayTitle } = route.params;
@@ -138,6 +139,7 @@ export function WorkoutDetailScreen({ navigation, route }: Props): React.JSX.Ele
       );
     }
     const ex = item.exercise;
+    const exName = ex ? (localizedExercise(ex, language).name ?? ex.name) : 'Ejercicio';
     // En intervalos el ejercicio se carga por tiempo, no por series/reps.
     const prescription = detail?.format === 'interval'
       ? `${item.duration_seconds ?? 0} s${item.circuit_group ? ` · circuito ${item.circuit_rounds ?? 1} rondas` : ''}`
@@ -145,7 +147,7 @@ export function WorkoutDetailScreen({ navigation, route }: Props): React.JSX.Ele
     return (
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={ex?.name ?? 'Ejercicio'}
+        accessibilityLabel={exName}
         onPress={() => setSelectedExercise(item)}
         style={({ pressed }) => [styles.exerciseRow, pressed && styles.pressed]}
       >
@@ -165,7 +167,7 @@ export function WorkoutDetailScreen({ navigation, route }: Props): React.JSX.Ele
         />
         <View style={styles.exerciseInfo}>
           <AppText variant="body14SemiBold" color={colors.text.primary} numberOfLines={2}>
-            {ex?.name ?? 'Ejercicio'}
+            {exName}
           </AppText>
           <AppText variant="body12" color={colors.text.secondary} numberOfLines={2}>
             {prescription}

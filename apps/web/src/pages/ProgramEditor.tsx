@@ -678,9 +678,17 @@ function RoutineCard({
         <p className="muted" style={{ margin: '10px 0 0', fontSize: 13 }}>Sin ejercicios — abrí la rutina para agregarlos.</p>
       ) : (
         <div className="routine-row-ex">
-          {exercises.map((we) => (
-            <div key={we.id}><span className="n">{we.sets ?? 0}×</span> {we.exercise ? localizedExercise(we.exercise, language).name : 'Ejercicio'}</div>
-          ))}
+          {exercises.map((we) => {
+            if (we.kind === 'rest') {
+              return <div key={we.id}><span className="n">{we.duration_seconds ?? 0}s</span> Descanso</div>;
+            }
+            const label = day.workout?.format === 'interval'
+              ? `${we.duration_seconds ?? 0}s`
+              : `${we.sets ?? 0}×`;
+            return (
+              <div key={we.id}><span className="n">{label}</span> {we.exercise ? localizedExercise(we.exercise, language).name : 'Ejercicio'}</div>
+            );
+          })}
         </div>
       )}
     </div>

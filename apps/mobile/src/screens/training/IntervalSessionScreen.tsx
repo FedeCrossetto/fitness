@@ -6,6 +6,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AppText } from '../../components/common';
 import { hapticMedium, hapticSuccess } from '../../lib/haptics';
 import { useAuthStore } from '../../stores/authStore';
+import { useTranslation } from '../../stores/i18nStore';
 import { useTrainingStore } from '../../stores/trainingStore';
 import { buildIntervalTimeline, formatClock, type IntervalSegment } from '../../lib/trainingIntervals';
 import type { TrainingStackParamList } from '../../types/navigation';
@@ -34,13 +35,14 @@ export function IntervalSessionScreen({ navigation, route }: Props): React.JSX.E
   const loadWorkoutDetail = useTrainingStore((s) => s.loadWorkoutDetail);
   const logIntervalWorkout = useTrainingStore((s) => s.logIntervalWorkout);
   const userId = useAuthStore((s) => s.session?.user.id);
+  const { language } = useTranslation();
 
   useEffect(() => {
     if (workoutDetail?.id !== workoutId) void loadWorkoutDetail(workoutId);
   }, [workoutId, workoutDetail?.id, loadWorkoutDetail]);
 
   const detail = workoutDetail?.id === workoutId ? workoutDetail : null;
-  const timeline = useMemo<IntervalSegment[]>(() => (detail ? buildIntervalTimeline(detail.exercises) : []), [detail]);
+  const timeline = useMemo<IntervalSegment[]>(() => (detail ? buildIntervalTimeline(detail.exercises, language) : []), [detail, language]);
   const totalSeconds = useMemo(() => timeline.reduce((sum, s) => sum + s.seconds, 0), [timeline]);
   const completedExerciseIds = useMemo(
     () => Array.from(new Set((detail?.exercises ?? []).filter((e) => e.kind !== 'rest' && e.exercise_id).map((e) => e.exercise_id as string))),
