@@ -10,7 +10,17 @@ import {
 } from '@reset-fitness/shared';
 import { buildSessionComments } from './trainingExercise';
 import { toISODate } from './dates';
+import { localizedExercise } from './exerciseI18n';
+import { useI18nStore } from '../stores/i18nStore';
 import type { ExerciseRow, WorkoutExerciseRow } from '../types/database';
+
+/** Nombre localizado del ejercicio para guardar en session_detail — se
+ * guarda "horneado" en el idioma actual del usuario al armar la sesión
+ * (antes quedaba el nombre crudo del catálogo, casi siempre en inglés). */
+function sessionExerciseName(exercise: ExerciseRow): string {
+  const language = useI18nStore.getState().language;
+  return localizedExercise(exercise, language).name ?? exercise.name;
+}
 
 type WorkoutDetailForSession = {
   id: string;
@@ -105,7 +115,7 @@ export async function buildSessionExercises(
     .map((item) => ({
     workoutExerciseId: item.id,
     exerciseId: item.exercise_id ?? '',
-    exerciseName: item.exercise.name,
+    exerciseName: sessionExerciseName(item.exercise),
     imageUrl: item.exercise.image_url,
     bodyPart: item.exercise.body_part,
     targetMuscles: item.exercise.target_muscles,
@@ -304,7 +314,7 @@ export function normalizeStoredSession(raw: unknown, detail: WorkoutDetailForSes
     .map((item) => ({
     workoutExerciseId: item.id,
     exerciseId: item.exercise_id ?? '',
-    exerciseName: item.exercise.name,
+    exerciseName: sessionExerciseName(item.exercise),
     imageUrl: item.exercise.image_url,
     bodyPart: item.exercise.body_part,
     targetMuscles: item.exercise.target_muscles,
